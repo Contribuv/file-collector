@@ -43,6 +43,7 @@
       max-width: var(--cp-max);
       width: 100%;
       margin: 0 auto;
+      padding-left: 15px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -442,6 +443,58 @@
       margin-bottom: 2px;
     }
 
+    /* History grid (replaces table) */
+    .cp-history-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1px;
+      background: var(--c-border);
+      border: 1px solid var(--c-border);
+    }
+    .cp-history-card {
+      background: var(--c-white);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cp-history-card-name {
+      font-size: 14px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cp-history-card-name a {
+      color: var(--c-accent);
+      text-decoration: none;
+    }
+    .cp-history-card-name a:hover {
+      text-decoration: underline;
+    }
+    .cp-history-card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--c-text-soft);
+      flex-wrap: wrap;
+    }
+    .cp-history-card-meta-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cp-history-card-time {
+      font-size: 12px;
+      color: var(--c-text-soft);
+    }
+    .cp-history-card .btn-sm {
+      flex-shrink: 0;
+    }
+
     /* Toast */
     .toast {
       position: fixed;
@@ -485,6 +538,7 @@
     @media (max-width: 640px) {
       :root { --cp-max: 98%; --cp-pad-x: 12px; }
       .cp-topbar { padding: 0 12px; }
+      .cp-topbar-inner { padding-left: 0; }
       .cp-wrap { padding: 20px var(--cp-pad-x) 72px; }
       .cp-header h1 { font-size: 18px; }
       .cp-card-head { padding: 10px 14px; }
@@ -497,6 +551,27 @@
       .cp-table { table-layout: auto; }
       .cp-table th, .cp-table td { padding: 7px 8px; font-size: 12px; }
       .cp-cell-size, .cp-cell-dl { display: none; }
+      /* History grid: 1 column on mobile */
+      .cp-history-grid {
+        grid-template-columns: 1fr;
+      }
+      .cp-history-card {
+        padding: 8px 10px;
+        gap: 3px;
+      }
+      .cp-history-card-name {
+        font-size: 12px;
+      }
+      .cp-history-card-meta {
+        font-size: 11px;
+      }
+      .cp-history-card-time {
+        font-size: 11px;
+      }
+      .cp-history-card .btn-sm {
+        padding: 3px 7px;
+        font-size: 11px;
+      }
     }
   </style>
 </head>
@@ -762,20 +837,23 @@ async function loadHistory() {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无记录</p><p>上传文件后在此查看</p></div>';
       return;
     }
-    var html = '<table class="cp-table"><thead><tr>';
-    html += '<th class="cp-cell-name">文件名</th><th class="cp-cell-size">大小</th><th class="cp-cell-dl cp-cell-center">下载</th><th class="cp-cell-time">时间</th><th class="cp-cell-act cp-cell-center">操作</th>';
-    html += '</tr></thead><tbody>';
+    var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
-      html += '<tr>';
-      html += '<td class="cp-cell-name"><a href="/collect/' + linkId + '/download/' + r.id + '" title="' + r.original_name.replace(/"/g,'&quot;') + '">' + r.original_name + '</a></td>';
-      html += '<td class="cp-cell-size cp-cell-muted">' + r.file_size_display + '</td>';
-      html += '<td class="cp-cell-dl cp-cell-muted cp-cell-center">' + (r.download_count || 0) + '</td>';
-      html += '<td class="cp-cell-time cp-cell-muted">' + r.uploaded_at + '</td>';
-      html += '<td class="cp-cell-act cp-cell-center"><button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + r.original_name.replace(/'/g,"\\'") + '\')">删除</button></td>';
-      html += '</tr>';
+      var safeName = r.original_name.replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      html += '<div class="cp-history-card">';
+      html += '<div class="cp-history-card-name"><a href="/collect/' + linkId + '/download/' + r.id + '" title="' + r.original_name.replace(/"/g,'&quot;') + '">' + r.original_name + '</a></div>';
+      html += '<div class="cp-history-card-meta">';
+      html += '<span class="cp-history-card-meta-left">';
+      html += '<span>' + r.file_size_display + '</span>';
+      html += '<span>下载 ' + (r.download_count || 0) + '</span>';
+      html += '</span>';
+      html += '<button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + safeName + '\')">删除</button>';
+      html += '</div>';
+      html += '<div class="cp-history-card-time">' + r.uploaded_at + '</div>';
+      html += '</div>';
     }
-    html += '</tbody></table>';
+    html += '</div>';
     wrap.innerHTML = html;
   } catch(e){}
 }

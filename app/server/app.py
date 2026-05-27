@@ -58,8 +58,9 @@ def get_passcode_ttl():
         return DEFAULT_PASSCODE_TTL
 
 # 从环境变量读取配置（兼容 fnOS 和 Docker 部署）
-DATA_DIR = os.environ.get('DATA_DIR',
-    os.environ.get('TRIM_PKGVAR', os.path.join(os.path.dirname(__file__), 'data')))
+# 数据库优先使用 DATA_DIR 环境变量，其次用飞牛用户数据目录 TRIM_PKGHOME（持久化存储）
+_DATA_BASE = os.environ.get('TRIM_PKGHOME', os.path.dirname(__file__))
+DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_DATA_BASE, 'data'))
 UPLOAD_BASE = os.environ.get('UPLOAD_BASE',
     os.path.join(os.environ.get('TRIM_PKGHOME', os.path.dirname(__file__)), 'uploads'))
 PORT = int(os.environ.get('PORT',

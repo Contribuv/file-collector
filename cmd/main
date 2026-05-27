@@ -24,8 +24,10 @@ PID_FILE="${VAR_DIR}/gunicorn.pid"
 LOG_FILE="${VAR_DIR}/gunicorn.log"
 VENV_DIR="${VAR_DIR}/.venv"
 
-export DATA_DIR="${VAR_DIR}"
-export UPLOAD_BASE="${wizard_upload_dir:-${TRIM_PKGHOME}/file-collector-uploads}"
+# 数据库存放在用户数据目录（飞牛持久化存储）
+# TRIM_PKGHOME = 用户数据目录（home），存放长期用户数据，如上传内容和个性化设置
+export DATA_DIR="${TRIM_PKGHOME}/data"
+export UPLOAD_BASE="${wizard_upload_dir}"
 export PORT="${APP_PORT}"
 
 log() {
@@ -111,7 +113,7 @@ start() {
         VENV_DIR="${VAR_DIR}/.venv"
         PID_FILE="${VAR_DIR}/gunicorn.pid"
         LOG_FILE="${VAR_DIR}/gunicorn.log"
-        export DATA_DIR="${VAR_DIR}"
+        # 注意：不覆盖 DATA_DIR，数据库始终在应用文件目录
         mkdir -p "$VAR_DIR"
     }
 
@@ -194,43 +196,76 @@ status() {
 uninstall() {
     log "=== UNINSTALL 卸载清理 ==="
 
-    # 1. 先停止应用
-    [ -f "$PID_FILE" ] && {
+    # 1. 强制停止所有相关进程
+    log "[1/7] 停止进程..."
+    # 按 PID 文件停止
+    if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
         kill -0 "$PID" 2>/dev/null && { kill "$PID" 2>/dev/null; sleep 1; kill -9 "$PID" 2>/dev/null; }
         log "  已停止进程 PID=${PID}"
-    }
+    fi
+    # 按端口杀进程（确保没有残留）
+    local PORT_PIDS=$(ss -tlnp 2>/dev/null | grep ":${APP_PORT}" | grep -oP 'pid=\K\d+' 2>/dev/null || true)
+    if [ -n "$PORT_PIDS" ]; then
+        for p in $PORT_PIDS; do
+            kill -0 "$p" 2>/dev/null && { kill "$p" 2>/dev/null; sleep 1; kill -9 "$p" 2>/dev/null; }
+            log "  已停止端口占用进程 PID=${p}"
+        done
+    fi
+    # 按进程名杀（app.py / python 相关）
+    pkill -f "file-collector" 2>/dev/null || true
+    sleep 1
 
     # 2. 删除虚拟环境
+    log "[2/7] 删除虚拟环境..."
     if [ -d "$VENV_DIR" ]; then
         rm -rf "$VENV_DIR"
-        log "  已删除 venv: ${VENV_DIR}"
+        log "  已删除: ${VENV_DIR}"
     fi
 
-    # 3. 删除 PID 文件
-    rm -f "$PID_FILE"
-
-    # 4. 删除日志文件
-    rm -f "$LOG_FILE"
-
-    # 5. 删除上传目录（UPLOAD_BASE）
+    # 3. 删除上传目录
+    log "[3/8] 删除上传目录..."
     if [ -n "$UPLOAD_BASE" ] && [ -d "$UPLOAD_BASE" ]; then
         rm -rf "$UPLOAD_BASE"
-        log "  已删除上传目录: ${UPLOAD_BASE}"
+        log "  已删除: ${UPLOAD_BASE}"
     fi
 
-    # 6. 删除数据目录（数据库等）
+    # 4. 删除数据库目录（应用文件 data 目录）
+    log "[4/8] 删除数据库目录..."
     if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
         rm -rf "$DATA_DIR"
-        log "  已删除数据目录: ${DATA_DIR}"
+        log "  已删除 DATA_DIR: ${DATA_DIR}"
     fi
 
-    # 7. 删除调试日志
-    rm -f "$DEBUG_LOG"
-    log "  已删除调试日志"
+    # 5. 清理 /var 下的应用运行目录（TRIM_PKGVAR）
+    log "[5/8] 清理 /var 运行目录..."
+    if [ -n "$VAR_DIR" ]; then
+        rm -rf "$VAR_DIR"
+        log "  已删除 VAR_DIR: ${VAR_DIR}"
+    fi
 
-    # 8. 清理 /tmp 备用目录（如果 VAR_DIR 回退到 /tmp）
-    rm -rf /tmp/file-collector 2>/dev/null
+    # 6. 清理 /var/apps 下可能残留的 file-collector 目录
+    log "[6/8] 清理 /var/apps 残留..."
+    for dir in /var/apps/file-collector /var/apps/file-collector-*; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            log "  已删除残留: ${dir}"
+        fi
+    done 2>/dev/null || true
+
+    # 7. 清理 /usr/local/apps 下可能残留的 file-collector 目录
+    log "[7/8] 清理 /usr/local/apps 残留..."
+    for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collector; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            log "  已删除: ${dir}"
+        fi
+    done 2>/dev/null || true
+
+    # 8. 清理 /tmp 和调试日志
+    log "[8/8] 清理临时文件..."
+    rm -f "$PID_FILE" "$LOG_FILE" "$DEBUG_LOG" 2>/dev/null
+    rm -rf /tmp/file-collector /tmp/file-collector-debug.log 2>/dev/null || true
 
     log "=== UNINSTALL 完成 ==="
     exit 0

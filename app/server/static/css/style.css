@@ -275,19 +275,121 @@ tbody tr:hover { background: #fafafa; }
 .col-time { width: 14%; }
 .col-act  { width: 10%; }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .col-ip, .col-dl { display: none; }
+  .col-chk  { width: 6%; }
   .col-name { width: 36%; }
-  .col-src { width: 14%; }
-  .col-time { width: 16%; }
-  .col-act { width: 12%; }
-  .records-table { table-layout: auto; }
+  .col-size { width: 10%; }
+  .col-src  { width: 14%; }
+  .col-time { width: 18%; }
+  .col-act  { width: 16%; }
+}
+@media (max-width: 640px) {
+  /* ---- Records table → card layout, show all columns ---- */
+  .records-table thead { display: none; }
+  .records-table, .records-table tbody, .records-table tr, .records-table td {
+    display: block;
+    width: auto !important;
+  }
+  .records-table tr {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--c-border);
+    margin-bottom: 6px;
+    background: var(--c-white);
+    border-radius: var(--radius);
+    border: 1px solid var(--c-border);
+  }
+  .records-table td {
+    border-bottom: none;
+    padding: 2px 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .records-table td.col-chk {
+    display: inline;
+    margin-right: 6px;
+  }
+  .records-table td.col-chk input { margin: 0; }
+  .records-table td.col-name {
+    display: inline;
+    font-weight: 500;
+  }
+  .records-table td.col-name a {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    max-width: calc(100% - 44px);
+    vertical-align: middle;
+  }
+  /* Meta line: 大小 · 来源 · 下载 · IP · 时间 */
+  .records-table td.col-size,
+  .records-table td.col-src,
+  .records-table td.col-dl,
+  .records-table td.col-ip,
+  .records-table td.col-time {
+    display: inline;
+    font-size: .75rem;
+    color: #888;
+    white-space: nowrap;
+  }
+  .records-table td.col-size::after,
+  .records-table td.col-src::after,
+  .records-table td.col-dl::after,
+  .records-table td.col-ip::after {
+    content: " · ";
+    color: #ccc;
+  }
+  .records-table td.col-time::after { content: none; }
+  .records-table td.col-act {
+    text-align: right;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed #eee;
+  }
+
+  /* ---- Dashboard recent uploads → card layout ---- */
+  .dash-records thead { display: none; }
+  .dash-records tr {
+    display: block;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .dash-records tr:last-child { border-bottom: none; }
+  .dash-records td {
+    display: block;
+    border-bottom: none;
+    padding: 2px 0;
+  }
+  .dash-records td:first-child { font-weight: 500; }
+  .dash-records td:first-child a {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dash-records td:not(:first-child) {
+    display: inline;
+    font-size: .75rem;
+    color: #888;
+  }
+  .dash-records td:not(:first-child):not(:last-child)::after {
+    content: " · ";
+    color: #ccc;
+  }
 }
 @media (max-width: 480px) {
-  .col-src { display: none; }
-  .col-name { width: 44%; }
-  .col-time { width: 22%; }
-  .col-act { width: 14%; }
+  /* Records card：meta line wraps naturally on very small screens */
+  .records-table td.col-name a { max-width: calc(100% - 36px); }
+  .records-table tr { padding: 8px 10px; }
+  .records-table td.col-size,
+  .records-table td.col-src,
+  .records-table td.col-dl,
+  .records-table td.col-ip,
+  .records-table td.col-time { font-size: .7rem; }
+  /* Dashboard card refinements */
+  .dash-records td:not(:first-child) { font-size: .7rem; }
 }
 
 /* ---- Badges ---- */
@@ -508,6 +610,41 @@ tbody tr:hover { background: #fafafa; }
   display: flex;
   gap: 3px;
   flex-wrap: wrap;
+}
+
+/* ---- Links Table ---- */
+.links-table {
+  table-layout: fixed;
+}
+.links-table th, .links-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.col-title  { width: 18%; }
+.col-id     { width: 22%; }
+.col-pass   { width: 9%; }
+.col-limit  { width: 10%; }
+.col-expire { width: 13%; }
+.col-status { width: 8%; }
+.col-time   { width: 12%; }
+.col-act    { width: 8%; }
+.copy-btn-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .col-id, .col-pass, .col-limit, .col-time { display: none; }
+  .copy-btn-mobile { display: inline-block; }
+  .col-title  { width: 32%; }
+  .col-expire { width: 18%; }
+  .col-status { width: 10%; }
+  .col-act    { width: 40%; }
+  .links-table { table-layout: auto; }
+}
+@media (max-width: 640px) {
+  .col-expire { display: none; }
+  .col-title  { width: 34%; }
+  .col-status { width: 14%; }
+  .col-act    { width: 52%; }
 }
 
 /* ---- Settings Grid ---- */
@@ -780,8 +917,9 @@ tbody tr:hover { background: #fafafa; }
   .action-group .btn { flex: 1; }
   .header-nav { gap: 8px; }
   .header-nav a { font-size: .8rem; }
-  /* 链接管理表格 - 隐藏创建时间列 */
-  .links-table .col-id, .links-table .col-time { display: none; }
+  .is-admin .header-brand { padding-left: 12px; }
+  .is-admin .header-nav { padding-right: 15px; }
+  /* 链接管理 - 移动端显示核心列：标题、ID/复制、状态、操作 */
 }
 
 @media (max-width: 480px) {
@@ -792,7 +930,11 @@ tbody tr:hover { background: #fafafa; }
   .card-header { flex-direction: column; align-items: flex-start; }
   thead th, tbody td { padding: 8px 10px; font-size: .78rem; }
   .error-code { font-size: 3rem; }
-  /* 链接管理表格 - 操作按钮竖向排列 */
+  /* 链接管理 - 进一步精简：隐藏状态列 */
+  .col-status { display: none; }
+  .col-title  { width: 42%; }
+  .col-act    { width: 58%; }
+  /* 链接管理 - 操作按钮竖向排列 */
   .action-group { flex-direction: column; width: 100%; gap: 4px; }
   .action-group .btn { width: 100%; text-align: center; }
   .copy-row { flex-wrap: wrap; }

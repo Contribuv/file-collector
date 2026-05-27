@@ -1,3 +1,39 @@
 #!/bin/bash
-### This script is called after the user uninstalls the application.
+### 卸载后回调 - 二次确保所有目录清理干净
+
+APP_NAME="file-collector"
+LOG="/tmp/${APP_NAME}-uninstall-callback.log"
+
+echo "[$(date)] === UNINSTALL CALLBACK ===" >> "$LOG"
+
+clean_dir() {
+    local dir="$1"
+    if [ -d "$dir" ]; then
+        rm -rf "$dir"
+        echo "  已删除: $dir" >> "$LOG"
+    fi
+}
+
+# 清理用户数据目录（数据库） - TRIM_PKGHOME = 用户数据目录
+[ -n "$TRIM_PKGHOME" ] && clean_dir "${TRIM_PKGHOME}/data"
+# 清理上传目录
+[ -n "$TRIM_PKGHOME" ] && clean_dir "${TRIM_PKGHOME}/file-collector-uploads"
+
+# 彻底清理 /var/apps 下的应用残留
+for dir in /var/apps/file-collector /var/apps/file-collector-*; do
+    clean_dir "$dir"
+done 2>/dev/null || true
+
+# 清理 /usr/local/apps 残留
+for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collector; do
+    clean_dir "$dir"
+done 2>/dev/null || true
+
+# 清理 TRIM_PKGVAR（如果 set）
+[ -n "$TRIM_PKGVAR" ] && clean_dir "$TRIM_PKGVAR"
+
+# 清理 /tmp 残留
+rm -rf /tmp/file-collector /tmp/file-collector-* 2>/dev/null || true
+
+echo "[$(date)] callback done" >> "$LOG"
 exit 0

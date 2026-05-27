@@ -17,7 +17,7 @@
             <div class="form-group">
               <label class="form-label" for="title">链接标题 *</label>
               <input type="text" id="title" name="title" class="form-input"
-                     value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" required>
+                     value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" maxlength="20" required>
             </div>
             <div class="form-group">
               <label class="form-label" for="passcode">通行证</label>
@@ -73,34 +73,34 @@
         {% if links %}
         <table class="links-table">
           <thead>
-            <tr><th>标题</th><th class="col-id">ID</th><th>通行证</th><th>限制</th><th>有效期</th><th>状态</th><th class="col-time">创建时间</th><th>操作</th></tr>
+            <tr><th class="col-title">标题</th><th class="col-id">ID</th><th class="col-pass">通行证</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建时间</th><th class="col-act">操作</th></tr>
           </thead>
           <tbody>
             {% for link in links %}
             <tr>
-              <td><strong>{{ link['title'] }}</strong></td>
+              <td class="col-title"><strong>{{ link['title'] }}</strong></td>
               <td class="col-id">
                 <div class="copy-row">
                   <code>{{ link['id'] }}</code>
                   <button class="copy-btn" onclick="copyLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')">复制</button>
                 </div>
               </td>
-              <td>
+              <td class="col-pass">
                 {% if link['passcode'] %}
                 <span class="badge badge-warning">已加密</span>
                 {% else %}
                 <span class="badge">公开</span>
                 {% endif %}
               </td>
-              <td style="color:#666;font-size:.82rem;">{{ link['max_files'] }} 个 / {{ link['max_file_size_gb'] }}GB</td>
-              <td style="font-size:.78rem;">
+              <td class="col-limit" style="color:#666;font-size:.82rem;">{{ link['max_files'] }} 个 / {{ link['max_file_size_gb'] }}GB</td>
+              <td class="col-expire" style="font-size:.78rem;">
                 {% if link['expires_at'] %}
                   <span style="color:#f59e0b;" title="{{ link['expires_at'] }}">{{ link['expires_at'][:16].replace('T', ' ') }}</span>
                 {% else %}
                   <span style="color:#94a3b8;">永不过期</span>
                 {% endif %}
               </td>
-              <td>
+              <td class="col-status">
                 {% if link['status'] == 'active' %}
                 <span class="badge badge-success">活跃</span>
                 {% else %}
@@ -108,8 +108,9 @@
                 {% endif %}
               </td>
               <td class="col-time" style="color:#666;font-size:.82rem;">{{ link['created_at'] }}</td>
-              <td>
+              <td class="col-act">
                 <div class="action-group">
+                  <button class="btn btn-sm copy-btn-mobile" onclick="copyLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')">分享</button>
                   <button class="btn btn-sm" data-link='{{ dict(link)|tojson }}' onclick="editLinkBtn(this)" title="编辑">编辑</button>
                   <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

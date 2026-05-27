@@ -8,16 +8,21 @@
                 "description": "本应用将在端口 5557 启动一个 Flask Web 服务。\n\n安装完成后访问 http://[NAS_IP]:5557/admin\n\n默认管理员账户：admin / admin123\n登录后请立即修改密码！",
                 "helpText": "基于 Web 框架 + 轻量数据库的多链接文件收集系统"
             },
-            {
-                "type": "text",
-                "field": "wizard_upload_dir",
-                "title": "上传文件存储目录",
-                "label": "上传文件存储目录",
-                "initValue": "",
-                "placeholder": "留空则使用默认目录（TRIM_PKGHOME/file-collector-uploads）",
-                "helpText": "上传的文件将存储在此目录下，按收集链接标题分文件夹存放。",
-                "rules": []
-            }
+        {
+            "type": "text",
+            "field": "wizard_upload_dir",
+            "title": "上传文件存储目录",
+            "label": "上传文件存储目录",
+            "initValue": "",
+            "placeholder": "请输入上传文件存储的绝对路径，例如：/vol1/收集文件",
+            "helpText": "上传的文件将存储在此目录下，按收集链接标题分文件夹存放。必须填写！",
+            "rules": [
+                {
+                    "required": true,
+                    "message": "请填写上传文件存储目录"
+                }
+            ]
+        }
         ]
     }
 ]

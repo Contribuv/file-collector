@@ -10,7 +10,7 @@
 
 
 </head>
-<body>
+<body{% if session.is_admin %} class="is-admin"{% endif %}>
   {% if in_wechat %}
   <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
   {% endif %}

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>{{ task_title|default('文件收集') }} - {{ site_title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <style>
+    :root {
+      --cp-max: 960px;
+      --cp-pad-x: 20px;
+      --c-accent: #2563eb;
+      --c-text: #111827;
+      --c-text-soft: #6b7280;
+      --c-border: #e5e7eb;
+      --c-bg: #f3f4f6;
+      --c-white: #ffffff;
+      --c-success: #16a34a;
+      --c-danger: #dc2626;
+      --c-input-bg: #f9fafb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--c-bg);
+      min-height: 100vh;
+      color: var(--c-text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* Topbar — full-width app header */
+    .cp-topbar {
+      height: 44px;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+    }
+    .cp-topbar-inner {
+      max-width: var(--cp-max);
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cp-topbar-logo {
+      width: 22px; height: 22px;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+    .cp-topbar-inner span {
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    /* Wrap */
+    .cp-wrap {
+      width: 100%;
+      max-width: var(--cp-max);
+      margin: 0 auto;
+      padding: 28px var(--cp-pad-x) 80px;
+    }
+
+    /* Header */
+    .cp-header {
+      margin-bottom: 24px;
+    }
+    .cp-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--c-text);
+      margin-bottom: 4px;
+    }
+    .cp-header .cp-desc {
+      font-size: 14px;
+      color: var(--c-text-soft);
+      white-space: pre-wrap;
+      line-height: 1.6;
+      margin-top: 6px;
+    }
+    .cp-meta {
+      margin-top: 10px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .cp-meta-item {
+      font-size: 13px;
+      color: var(--c-text-soft);
+    }
+    .cp-meta-item strong {
+      color: var(--c-text);
+      font-weight: 600;
+    }
+
+    /* Card */
+    .cp-card {
+      background: var(--c-white);
+      border: 1px solid var(--c-border);
+      margin-bottom: 16px;
+    }
+    .cp-card-head {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cp-card-head h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--c-text);
+    }
+    .cp-card-body { padding: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Badge */
+    .cp-badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--c-success);
+      background: #f0faf4;
+      border: 1px solid #bbf7d0;
+      padding: 2px 8px;
+    }
+
+    /* Passcode */
+    .cp-passcode-wrap {
+      max-width: 360px;
+      margin: 0 auto;
+    }
+    .cp-passcode-wrap .cp-card-body {
+      text-align: center;
+      padding: 28px 24px;
+    }
+    .cp-passcode-wrap p {
+      font-size: 14px;
+      color: var(--c-text-soft);
+      margin-bottom: 16px;
+    }
+    .cp-passcode-row {
+      display: flex;
+      gap: 8px;
+    }
+    .cp-passcode-row input {
+      flex: 1;
+      text-align: center;
+      letter-spacing: 1px;
+      padding: 10px 14px;
+      font-size: 15px;
+      border: 1px solid var(--c-border);
+      outline: none;
+      background: var(--c-input-bg);
+      font-family: inherit;
+    }
+    .cp-passcode-row input:focus {
+      border-color: var(--c-accent);
+      background: var(--c-white);
+    }
+    .cp-passcode-btn {
+      flex-shrink: 0;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--c-white);
+      background: var(--c-accent);
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .cp-passcode-btn:hover {
+      background: #1d4ed8;
+    }
+    .cp-passcode-msg {
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    /* Dropzone */
+    .cp-drop {
+      border: 2px dashed #d1d5db;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--c-input-bg);
+      transition: .15s;
+    }
+    .cp-drop:hover,
+    .cp-drop.dragover {
+      border-color: var(--c-accent);
+      background: #eff6ff;
+    }
+    .cp-drop h3 {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--c-text);
+      margin-bottom: 4px;
+    }
+    .cp-drop p {
+      font-size: 13px;
+      color: var(--c-text-soft);
+    }
+
+    /* File list */
+    .cp-files {
+      margin: 14px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cp-file {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--c-input-bg);
+      border: 1px solid var(--c-border);
+    }
+    .cp-file-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .cp-file-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--c-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cp-file-size {
+      font-size: 12px;
+      color: var(--c-text-soft);
+    }
+    .cp-file-del {
+      width: 28px; height: 28px;
+      border: 1px solid transparent;
+      background: none;
+      font-size: 16px;
+      color: #9ca3af;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-family: inherit;
+      line-height: 1;
+    }
+    .cp-file-del:hover {
+      color: var(--c-danger);
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    /* Actions */
+    .cp-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--c-border);
+    }
+    .cp-count {
+      font-size: 13px;
+      color: var(--c-text-soft);
+    }
+    .cp-btns {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      border: 1px solid var(--c-border);
+      background: var(--c-white);
+      color: var(--c-text);
+    }
+    .btn:hover {
+      background: var(--c-input-bg);
+    }
+    .btn-primary {
+      background: var(--c-accent);
+      color: var(--c-white);
+      border-color: var(--c-accent);
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+    .btn-primary:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+    .btn-danger {
+      color: var(--c-danger);
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    .btn-danger:hover {
+      background: #fee2e2;
+    }
+
+    /* Progress */
+    .cp-progress {
+      margin-top: 14px;
+      display: none;
+    }
+    .cp-progress.on {
+      display: block;
+    }
+    .cp-progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--c-text-soft);
+      margin-bottom: 6px;
+    }
+    .cp-bar {
+      height: 4px;
+      background: var(--c-border);
+      overflow: hidden;
+    }
+    .cp-bar-fill {
+      height: 100%;
+      width: 0;
+      background: var(--c-accent);
+      transition: width .2s;
+    }
+    .cp-speed {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--c-text-soft);
+    }
+
+    /* Result */
+    .cp-result {
+      margin-top: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .cp-result.on {
+      display: flex;
+    }
+    .cp-result-item {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-left: 3px solid transparent;
+    }
+    .cp-result-ok {
+      background: #f0fdf4;
+      color: #166534;
+      border-left-color: var(--c-success);
+    }
+    .cp-result-err {
+      background: #fef2f2;
+      color: #991b1b;
+      border-left-color: var(--c-danger);
+    }
+
+    /* History table */
+    .cp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      table-layout: fixed;
+    }
+    .cp-table th {
+      padding: 10px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--c-text-soft);
+      background: var(--c-input-bg);
+      border-bottom: 2px solid var(--c-border);
+      white-space: nowrap;
+    }
+    .cp-table td {
+      padding: 9px 16px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cp-table tr:last-child td { border-bottom: none; }
+    .cp-table tr:hover td { background: var(--c-input-bg); }
+    .cp-table a {
+      color: var(--c-accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .cp-table a:hover {
+      text-decoration: underline;
+    }
+    .cp-cell-muted {
+      color: var(--c-text-soft);
+      font-size: 13px;
+    }
+    .cp-cell-center {
+      text-align: center;
+    }
+    .cp-cell-name {
+      width: 40%;
+    }
+    .cp-cell-size {
+      width: 12%;
+    }
+    .cp-cell-dl {
+      width: 12%;
+    }
+    .cp-cell-time {
+      width: 24%;
+    }
+    .cp-cell-act {
+      width: 12%;
+    }
+    .cp-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--c-text-soft);
+      font-size: 14px;
+    }
+    .cp-empty p:first-child {
+      font-weight: 500;
+      color: var(--c-text);
+      margin-bottom: 2px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #fff;
+      padding: 8px 20px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s;
+      z-index: 999;
+    }
+    .toast.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* WeChat warning */
+    .wechat-warn {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 8px 16px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Footer */
+    .collect-page-footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #9ca3af;
+      border-top: 1px solid var(--c-border);
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      :root { --cp-max: 98%; --cp-pad-x: 12px; }
+      .cp-topbar { padding: 0 12px; }
+      .cp-wrap { padding: 20px var(--cp-pad-x) 72px; }
+      .cp-header h1 { font-size: 18px; }
+      .cp-card-head { padding: 10px 14px; }
+      .cp-card-body { padding: 14px; }
+      .cp-drop { padding: 28px 14px; }
+      .cp-actions { flex-direction: column; align-items: stretch; }
+      .cp-btns { width: 100%; }
+      .cp-btns button { flex: 1; }
+      .cp-passcode-row { flex-direction: column; }
+      .cp-table { table-layout: auto; }
+      .cp-table th, .cp-table td { padding: 7px 8px; font-size: 12px; }
+      .cp-cell-size, .cp-cell-dl { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+{% if in_wechat %}
+<div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
+{% endif %}
+
+<div class="cp-topbar"><div class="cp-topbar-inner"><img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt=""><span>{{ site_title }}</span></div></div>
+
+<div class="cp-wrap">
+
+  <div class="cp-header">
+    <h1>{{ task_title|default('文件收集') }}</h1>
+    {% if description %}<div class="cp-desc">{{ description }}</div>{% endif %}
+    <div class="cp-meta">
+      <span class="cp-meta-item">单文件上限 <strong>{{ max_file_size_gb }} GB</strong></span>
+      <span class="cp-meta-item">每次最多 <strong>{{ max_files }}</strong> 个文件</span>
+    </div>
+  </div>
+
+  {% if not verified %}
+  <div class="cp-passcode-wrap">
+    <div class="cp-card">
+      <div class="cp-card-body">
+        <p>请输入通行证以继续</p>
+        <div class="cp-passcode-row">
+          <input type="text" id="passcode-input" placeholder="通行证" autofocus>
+          <button class="cp-passcode-btn" onclick="verifyPasscode()">验证</button>
+        </div>
+        <div class="cp-passcode-msg" id="passcode-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+
+  <div class="cp-card">
+    <div class="cp-card-head">
+      <h2>上传文件</h2>
+      <span class="cp-badge">通行证有效期 {{ passcode_ttl_display }}</span>
+    </div>
+    <div class="cp-card-body">
+      <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <h3>点击选择文件或将文件拖拽到此处</h3>
+        <p>支持所有文件类型</p>
+      </div>
+      <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)">
+
+      <div class="cp-files" id="file-list"></div>
+
+      <div class="cp-actions" id="upload-actions" style="display:none">
+        <span class="cp-count" id="upload-count">已选择 0 个文件</span>
+        <div class="cp-btns">
+          <button class="btn" onclick="clearFiles()">清空</button>
+          <button class="btn btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
+        </div>
+      </div>
+
+      <div class="cp-progress" id="progress-wrap">
+        <div class="cp-progress-label" id="progress-text"></div>
+        <div class="cp-bar"><div class="cp-bar-fill" id="progress-bar"></div></div>
+        <div class="cp-speed" id="speed-text"></div>
+      </div>
+
+      <div class="cp-result" id="upload-result"></div>
+    </div>
+  </div>
+
+  <div class="cp-card">
+    <div class="cp-card-head"><h2>上传历史</h2></div>
+    <div class="cp-card-body" style="padding:0">
+      <div id="history-wrap">
+        <div class="cp-empty">
+          <p>暂无记录</p>
+          <p>上传文件后在此查看</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+
+{% if collect_footer_text %}
+<div class="collect-page-footer">
+  <div class="collect-footer-content">{{ collect_footer_text }}</div>
+</div>
+{% endif %}
+
+<div class="toast" id="toast"></div>
+
+<script>
+const linkId = '{{ link_id }}';
+let selectedFiles = [];
+const MAX_FILES = {{ max_files }};
+const MAX_FILE_SIZE = {{ max_file_size_gb }} * 1024 * 1024 * 1024;
+
+function showToast(msg, d) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
+}
+
+function formatSize(bytes) {
+  if (bytes === 0) return '0 B';
+  var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  var i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function verifyPasscode() {
+  var code = document.getElementById('passcode-input').value.trim();
+  var msg = document.getElementById('passcode-msg');
+  if (!code) { msg.textContent = '请输入通行证'; msg.style.color = '#dc2626'; return; }
+  msg.textContent = '验证中...'; msg.style.color = '#6b7280';
+  try {
+    var res = await fetch('/collect/' + linkId + '/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: 'passcode=' + encodeURIComponent(code)
+    });
+    var data = await res.json();
+    if (data.success) {
+      msg.textContent = '验证成功，正在刷新...';
+      msg.style.color = '#16a34a';
+      setTimeout(function(){ location.reload(); }, 800);
+    } else {
+      msg.textContent = data.message || '通行证错误';
+      msg.style.color = '#dc2626';
+    }
+  } catch(e) {
+    msg.textContent = '网络错误，请重试';
+    msg.style.color = '#dc2626';
+  }
+}
+document.getElementById('passcode-input') && document.getElementById('passcode-input').addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPasscode(); });
+
+function handleFiles(files) {
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (selectedFiles.length >= MAX_FILES) { showToast('最多选择 ' + MAX_FILES + ' 个文件'); break; }
+    if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制'); continue; }
+    if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
+    selectedFiles.push(f);
+  }
+  renderFileList();
+  document.getElementById('file-input').value = '';
+}
+
+function renderFileList() {
+  var list = document.getElementById('file-list');
+  var actions = document.getElementById('upload-actions');
+  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; return; }
+  actions.style.display = 'flex';
+  document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
+  list.innerHTML = selectedFiles.map(function(f, i){
+    return '<div class="cp-file">' +
+      '<div class="cp-file-info">' +
+        '<div class="cp-file-name" title="' + f.name + '">' + f.name + '</div>' +
+        '<div class="cp-file-size">' + formatSize(f.size) + '</div>' +
+      '</div>' +
+      '<button class="cp-file-del" onclick="removeFile(' + i + ')" title="移除">&times;</button>' +
+    '</div>';
+  }).join('');
+}
+
+function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
+function clearFiles() { selectedFiles = []; renderFileList(); }
+
+var dropzone = document.getElementById('dropzone');
+if (dropzone) {
+  ['dragenter','dragover'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.add('dragover'); }); });
+  ['dragleave','drop'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.remove('dragover'); }); });
+  dropzone.addEventListener('drop', function(e){ handleFiles(e.dataTransfer.files); });
+}
+
+async function startUpload() {
+  if (selectedFiles.length === 0) return;
+  var btn = document.getElementById('upload-btn');
+  btn.disabled = true; btn.textContent = '上传中...';
+
+  var progressWrap = document.getElementById('progress-wrap');
+  var progressBar = document.getElementById('progress-bar');
+  var progressText = document.getElementById('progress-text');
+  var speedText = document.getElementById('speed-text');
+  var resultDiv = document.getElementById('upload-result');
+  progressWrap.classList.add('on');
+  resultDiv.classList.remove('on');
+  resultDiv.innerHTML = '';
+
+  var totalSize = selectedFiles.reduce(function(s,f){ return s+f.size; },0);
+  var uploaded = 0, successCount = 0, failCount = 0;
+  var startTime = Date.now();
+  var lastUpdate = startTime;
+
+  for (var i = 0; i < selectedFiles.length; i++) {
+    var f = selectedFiles[i];
+    var formData = new FormData();
+    formData.append('file', f);
+
+    try {
+      await new Promise(function(resolve){
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/collect/' + linkId + '/upload');
+        xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+
+        xhr.upload.onprogress = function(e){
+          if (!e.lengthComputable) return;
+          var now = Date.now();
+          if (now - lastUpdate < 300) return;
+          lastUpdate = now;
+          var currentUploaded = uploaded + e.loaded;
+          var pct = Math.round((currentUploaded / totalSize) * 100);
+          progressBar.style.width = pct + '%';
+          progressText.innerHTML = '<span>上传中 ' + (i+1) + '/' + selectedFiles.length + '</span><span>' + pct + '%</span>';
+          var elapsed = (now - startTime) / 1000;
+          var speed = elapsed > 0 ? currentUploaded / elapsed : 0;
+          speedText.innerHTML = formatSize(speed) + '/s';
+        };
+
+        xhr.onload = function(){
+          try {
+            var data = JSON.parse(xhr.responseText);
+            if (xhr.status !== 200 || !data.success) {
+              failCount++;
+              var errMsg = data.message || ('服务器错误 (HTTP ' + xhr.status + ')');
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - ' + errMsg + '</div>';
+            } else if (data.results && data.results.length > 0 && data.results[0].success) {
+              uploaded += f.size; successCount++;
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + f.name + ' - 上传成功</div>';
+            } else {
+              failCount++;
+              var errMsg2 = data.message || (data.results && data.results[0] ? data.results[0].message : '服务器未接收到文件');
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - ' + errMsg2 + '</div>';
+            }
+          } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - 服务器响应异常</div>'; }
+          resolve();
+        };
+        xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - 网络错误</div>'; resolve(); };
+        xhr.send(formData);
+      });
+    } catch(e){ failCount++; }
+  }
+
+  progressBar.style.width = '100%';
+  progressText.innerHTML = '<span>完成</span><span>成功 ' + successCount + ' / 失败 ' + failCount + '</span>';
+  speedText.innerHTML = '';
+  resultDiv.classList.add('on');
+  btn.disabled = false; btn.textContent = '开始上传';
+  selectedFiles = []; renderFileList();
+  loadHistory();
+}
+
+async function loadHistory() {
+  try {
+    var res = await fetch('/collect/' + linkId + '/records');
+    var data = await res.json();
+    var wrap = document.getElementById('history-wrap');
+    if (!data.records || data.records.length === 0) {
+      wrap.innerHTML = '<div class="cp-empty"><p>暂无记录</p><p>上传文件后在此查看</p></div>';
+      return;
+    }
+    var html = '<table class="cp-table"><thead><tr>';
+    html += '<th class="cp-cell-name">文件名</th><th class="cp-cell-size">大小</th><th class="cp-cell-dl cp-cell-center">下载</th><th class="cp-cell-time">时间</th><th class="cp-cell-act cp-cell-center">操作</th>';
+    html += '</tr></thead><tbody>';
+    for (var j = 0; j < data.records.length; j++) {
+      var r = data.records[j];
+      html += '<tr>';
+      html += '<td class="cp-cell-name"><a href="/collect/' + linkId + '/download/' + r.id + '" title="' + r.original_name.replace(/"/g,'&quot;') + '">' + r.original_name + '</a></td>';
+      html += '<td class="cp-cell-size cp-cell-muted">' + r.file_size_display + '</td>';
+      html += '<td class="cp-cell-dl cp-cell-muted cp-cell-center">' + (r.download_count || 0) + '</td>';
+      html += '<td class="cp-cell-time cp-cell-muted">' + r.uploaded_at + '</td>';
+      html += '<td class="cp-cell-act cp-cell-center"><button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + r.original_name.replace(/'/g,"\\'") + '\')">删除</button></td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch(e){}
+}
+
+async function deleteRecord(recordId, fileName) {
+  if (!confirm('确定删除「' + fileName + '」？')) return;
+  try {
+    var res = await fetch('/collect/' + linkId + '/delete_record/' + recordId, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    var data = await res.json();
+    if (data.success) { showToast('已删除'); loadHistory(); }
+    else { showToast(data.message || '删除失败'); }
+  } catch(e){ showToast('网络错误'); }
+}
+
+{% if verified %}loadHistory();{% endif %}
+</script>
+
+</body>
+</html>

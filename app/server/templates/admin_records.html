@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}上传记录{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <h3>上传记录</h3>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <form method="GET" action="{{ url_for('admin_records') }}" style="display:flex;gap:6px;align-items:center;">
+            <select name="link_id" class="form-select" style="width:auto;" onchange="this.form.submit()">
+              <option value="">全部链接</option>
+              {% for l in links %}
+              <option value="{{ l['id'] }}" {{ 'selected' if l['id']|string == link_filter }}>{{ l['title'] }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <form id="batch-form" method="POST" action="{{ url_for('batch_delete_records') }}" onsubmit="return prepareBatchDelete()">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-danger" id="batch-btn" disabled>批量删除</button>
+          </form>
+        </div>
+      </div>
+      <div class="table-wrap">
+        {% if records %}
+        <table class="records-table">
+          <thead>
+            <tr>
+              <th class="col-chk">选择</th>
+              <th class="col-name">文件名</th><th class="col-size">大小</th><th class="col-src">来源</th><th class="col-dl">下载</th><th class="col-ip">IP</th><th class="col-time">时间</th><th class="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            <tr>
+              <td class="col-chk"><input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()"></td>
+              <td class="col-name"><a href="{{ url_for('admin_download_record', record_id=r['id']) }}" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a></td>
+              <td class="col-size" style="color:#666;font-size:.82rem;">{{ r['file_size_display'] }}</td>
+              <td class="col-src" style="color:#666;font-size:.82rem;">{{ r['link_title'] or r['link_id'] }}</td>
+              <td class="col-dl" style="color:#666;font-size:.82rem;text-align:center;">{{ r['download_count'] }}</td>
+              <td class="col-ip" style="color:#999;font-size:.78rem;">{{ r['uploader_ip'] }}</td>
+              <td class="col-time" style="color:#666;font-size:.82rem;">{{ r['uploaded_at'] }}</td>
+              <td class="col-act">
+                <form method="POST" action="{{ url_for('delete_record', record_id=r['id']) }}" style="display:inline;"
+                      onsubmit="return confirm('确定删除「{{ r['original_name'] }}」？');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><h3>暂无上传记录</h3></div>
+        {% endif %}
+      </div>
+      {% if total_pages > 1 %}
+      <div class="card-footer">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_records', page=page-1, link_id=link_filter) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(el) {
+  document.querySelectorAll('.record-checkbox').forEach(cb => { cb.checked = el.checked; });
+  updateBatchBtn();
+}
+function updateBatchBtn() {
+  const n = document.querySelectorAll('.record-checkbox:checked').length;
+  document.getElementById('batch-btn').disabled = n === 0;
+  document.getElementById('batch-btn').textContent = n > 0 ? '批量删除 (' + n + ')' : '批量删除';
+}
+function prepareBatchDelete() {
+  const checked = document.querySelectorAll('.record-checkbox:checked');
+  if (!checked.length) return false;
+  if (!confirm('确定删除选中的 ' + checked.length + ' 条记录？')) return false;
+  const form = document.getElementById('batch-form');
+  form.querySelectorAll('input[data-dynamic]').forEach(el => el.remove());
+  checked.forEach(cb => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = cb.value;
+    inp.setAttribute('data-dynamic', '1');
+    form.appendChild(inp);
+  });
+  return true;
+}
+</script>
+{% endblock %}

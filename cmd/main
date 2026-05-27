@@ -1,0 +1,245 @@
+#!/bin/bash
+# ============================================================
+# 文件收集器 - 生命周期管理脚本 (DEBUG v3)
+# fnOS Native App: cmd/main
+# ============================================================
+
+DEBUG_LOG="/tmp/file-collector-debug.log"
+
+echo "" >> "$DEBUG_LOG"
+echo "==========================================" >> "$DEBUG_LOG"
+echo "CMD_MAIN: $0 $@" >> "$DEBUG_LOG"
+echo "时间: $(date '+%Y-%m-%d %H:%M:%S')" >> "$DEBUG_LOG"
+echo "==========================================" >> "$DEBUG_LOG"
+
+# 打印所有环境变量
+echo "--- 环境变量 ---" >> "$DEBUG_LOG"
+env | grep -E "^TRIM_|^wizard_" | sort >> "$DEBUG_LOG"
+echo "--- 系统信息 ---" >> "$DEBUG_LOG"
+echo "USER=$USER PWD=$PWD WHOAMI=$(whoami) ID=$(id)" >> "$DEBUG_LOG"
+
+APP_PORT="5557"
+VAR_DIR="${TRIM_PKGVAR}"
+PID_FILE="${VAR_DIR}/gunicorn.pid"
+LOG_FILE="${VAR_DIR}/gunicorn.log"
+VENV_DIR="${VAR_DIR}/.venv"
+
+export DATA_DIR="${VAR_DIR}"
+export UPLOAD_BASE="${wizard_upload_dir:-${TRIM_PKGHOME}/file-collector-uploads}"
+export PORT="${APP_PORT}"
+
+log() {
+    local msg="[$(date '+%H:%M:%S')] $@"
+    echo "$msg" >> "$DEBUG_LOG"
+    echo "$msg" >> "${LOG_FILE}" 2>/dev/null
+    echo "$msg"
+    [ -n "$TRIM_TEMP_LOGFILE" ] && echo "$msg" >> "$TRIM_TEMP_LOGFILE" 2>/dev/null
+}
+
+# ============================================================
+start() {
+    log "=== START ==="
+
+    # ---- 第1步：Python ----
+    log "[1/5] 查找 Python 3.12..."
+    PYTHON_BIN=""
+    for p in "/var/apps/python312/target/bin/python3" \
+             "/var/apps/python312/target/bin/python" \
+             "/var/apps/python312/bin/python3"; do
+        [ -x "$p" ] && { PYTHON_BIN="$p"; log "  找到: $p"; break; }
+    done
+    [ -z "$PYTHON_BIN" ] && {
+        export PATH="/var/apps/python312/target/bin:$PATH"
+        PYTHON_BIN="$(command -v python3 2>/dev/null)"
+    }
+    [ -z "$PYTHON_BIN" ] && { log "FATAL: 找不到 python3!"; exit 1; }
+    log "  Python: $($PYTHON_BIN --version 2>&1)"
+
+    # ---- 第2步：查找 app.py ----
+    log "[2/5] 查找 app.py..."
+
+    # 打印 TRIM_APPDEST 实际目录结构
+    log "  TRIM_APPDEST = ${TRIM_APPDEST}"
+    if [ -d "$TRIM_APPDEST" ]; then
+        log "  --- TRIM_APPDEST 目录内容 ---"
+        ls -laR "$TRIM_APPDEST" >> "$DEBUG_LOG" 2>&1
+    else
+        log "  WARN: TRIM_APPDEST 目录不存在!"
+    fi
+
+    # 打印 /usr/local/apps 下的结构
+    log "  --- /usr/local/apps/@appcenter 目录 ---"
+    ls -laR /usr/local/apps/@appcenter/ >> "$DEBUG_LOG" 2>&1
+
+    # 全局搜索 app.py
+    log "  搜索所有 app.py 文件..."
+    find /usr/local/apps /var/apps /tmp -maxdepth 10 -name "app.py" -type f 2>/dev/null | head -10 >> "$DEBUG_LOG"
+
+    # 多种可能路径逐一尝试
+    APP_DIR=""
+    for try_dir in \
+        "${TRIM_APPDEST}/app/server" \
+        "${TRIM_APPDEST}/server" \
+        "${TRIM_APPDEST}" \
+        "$(dirname "$(find "${TRIM_APPDEST:-/usr/local/apps}" -maxdepth 5 -name 'app.py' -type f 2>/dev/null | head -1)" 2>/dev/null)"; do
+
+        if [ -f "${try_dir}/app.py" ]; then
+            APP_DIR="$try_dir"
+            log "  找到 app.py 在: ${APP_DIR}"
+            break
+        fi
+    done
+
+    if [ -z "$APP_DIR" ]; then
+        log "FATAL: 找不到 app.py！"
+        # 打印更广泛的搜索
+        find /usr/local /var/apps -maxdepth 8 -name "*.py" -type f 2>/dev/null | grep -i "file.collector\|file_collector\|app" | head -10 >> "$DEBUG_LOG"
+        exit 1
+    fi
+
+    cd "$APP_DIR" || { log "FATAL: 无法进入 ${APP_DIR}"; exit 1; }
+    log "  当前目录: $(pwd)"
+    ls -la >> "$DEBUG_LOG"
+
+    # ---- 第3步：虚拟环境 ----
+    log "[3/5] 虚拟环境..."
+
+    [ ! -d "$VAR_DIR" ] && mkdir -p "$VAR_DIR"
+    touch "${VAR_DIR}/.write_test" 2>/dev/null && rm -f "${VAR_DIR}/.write_test" || {
+        log "  VAR_DIR 不可写，回退到 /tmp"
+        VAR_DIR="/tmp/file-collector"
+        VENV_DIR="${VAR_DIR}/.venv"
+        PID_FILE="${VAR_DIR}/gunicorn.pid"
+        LOG_FILE="${VAR_DIR}/gunicorn.log"
+        export DATA_DIR="${VAR_DIR}"
+        mkdir -p "$VAR_DIR"
+    }
+
+    if [ ! -d "$VENV_DIR" ]; then
+        log "  创建 venv: ${VENV_DIR}"
+        "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$DEBUG_LOG" 2>&1 || {
+            log "  FATAL: venv 创建失败"
+            exit 1
+        }
+        source "$VENV_DIR/bin/activate"
+        log "  安装依赖..."
+        pip install --no-cache-dir \
+            Flask==3.0.0 \
+            Werkzeug==3.0.1 \
+            >> "$DEBUG_LOG" 2>&1 || {
+            log "  FATAL: pip install 失败!"
+            tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
+            exit 1
+        }
+        log "  pip install 完成"
+    else
+        source "$VENV_DIR/bin/activate"
+        log "  复用已有 venv"
+    fi
+
+    log "  $(pip --version)"
+    pip list --format=columns >> "$DEBUG_LOG" 2>&1
+
+    # ---- 第4步：启动 ----
+    log "[4/5] 启动 Flask..."
+    mkdir -p "$DATA_DIR" "$UPLOAD_BASE"
+
+    # 清理旧进程
+    [ -f "$PID_FILE" ] && {
+        OLD=$(cat "$PID_FILE")
+        kill -0 "$OLD" 2>/dev/null && kill -9 "$OLD" 2>/dev/null
+        rm -f "$PID_FILE"
+    }
+
+    python app.py >> "${LOG_FILE}" 2>&1 &
+    APP_PID=$!
+    echo $APP_PID > "$PID_FILE"
+    log "  PID=${APP_PID}"
+
+    # 验证进程存活
+    for i in 1 2 3 4 5; do
+        sleep 1
+        kill -0 $APP_PID 2>/dev/null || {
+            log "  FATAL: 进程 ${i}s 内退出!"
+            tail -30 "${LOG_FILE}" >> "$DEBUG_LOG" 2>&1
+            rm -f "$PID_FILE"
+            exit 1
+        }
+    done
+
+    log "[5/5] 启动成功! 端口 ${APP_PORT}"
+    exit 0
+}
+
+# ============================================================
+stop() {
+    log "=== STOP ==="
+    [ -f "$PID_FILE" ] && {
+        PID=$(cat "$PID_FILE")
+        kill -0 "$PID" 2>/dev/null && { kill "$PID" 2>/dev/null; sleep 1; kill -9 "$PID" 2>/dev/null; }
+        rm -f "$PID_FILE"
+        log "  已停止 PID=${PID}"
+    }
+    exit 0
+}
+
+# ============================================================
+status() {
+    [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null && exit 0
+    ss -tlnp 2>/dev/null | grep -q ":${APP_PORT}" && exit 0
+    exit 3
+}
+
+# ============================================================
+uninstall() {
+    log "=== UNINSTALL 卸载清理 ==="
+
+    # 1. 先停止应用
+    [ -f "$PID_FILE" ] && {
+        PID=$(cat "$PID_FILE")
+        kill -0 "$PID" 2>/dev/null && { kill "$PID" 2>/dev/null; sleep 1; kill -9 "$PID" 2>/dev/null; }
+        log "  已停止进程 PID=${PID}"
+    }
+
+    # 2. 删除虚拟环境
+    if [ -d "$VENV_DIR" ]; then
+        rm -rf "$VENV_DIR"
+        log "  已删除 venv: ${VENV_DIR}"
+    fi
+
+    # 3. 删除 PID 文件
+    rm -f "$PID_FILE"
+
+    # 4. 删除日志文件
+    rm -f "$LOG_FILE"
+
+    # 5. 删除上传目录（UPLOAD_BASE）
+    if [ -n "$UPLOAD_BASE" ] && [ -d "$UPLOAD_BASE" ]; then
+        rm -rf "$UPLOAD_BASE"
+        log "  已删除上传目录: ${UPLOAD_BASE}"
+    fi
+
+    # 6. 删除数据目录（数据库等）
+    if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
+        rm -rf "$DATA_DIR"
+        log "  已删除数据目录: ${DATA_DIR}"
+    fi
+
+    # 7. 删除调试日志
+    rm -f "$DEBUG_LOG"
+    log "  已删除调试日志"
+
+    # 8. 清理 /tmp 备用目录（如果 VAR_DIR 回退到 /tmp）
+    rm -rf /tmp/file-collector 2>/dev/null
+
+    log "=== UNINSTALL 完成 ==="
+    exit 0
+}
+
+case "$1" in
+    start)    start ;;
+    stop)     stop ;;
+    status)   status ;;
+    uninstall) uninstall ;;
+    *)        exit 1 ;;
+esac

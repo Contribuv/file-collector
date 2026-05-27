@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}后台首页{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{ total_links }}</div>
+        <div class="stat-label">收集链接</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ active_links_count }}</div>
+        <div class="stat-label">活跃链接</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ total_uploads }}</div>
+        <div class="stat-label">上传总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ today_uploads }}</div>
+        <div class="stat-label">今日上传</div>
+      </div>
+    </div>
+
+    <div class="quick-links">
+      <a href="{{ url_for('admin_links') }}" class="quick-link">收集链接</a>
+      <a href="{{ url_for('admin_records') }}" class="quick-link">上传记录</a>
+      <a href="{{ url_for('admin_settings') }}" class="quick-link">系统设置</a>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>最近上传</h3>
+        <a href="{{ url_for('admin_records') }}" class="btn btn-sm" style="font-weight:400;">查看全部 →</a>
+      </div>
+      <div class="table-wrap">
+        {% if recent_uploads %}
+        <table>
+          <thead>
+            <tr><th>文件名</th><th>大小</th><th>来源</th><th>下载次数</th><th>时间</th></tr>
+          </thead>
+          <tbody>
+            {% for r in recent_uploads %}
+            <tr>
+              <td><a href="{{ url_for('admin_download_record', record_id=r['id']) }}">{{ r['original_name'] }}</a></td>
+              <td style="color:#666;font-size:.82rem;">{{ r['file_size_display'] }}</td>
+              <td style="color:#666;font-size:.82rem;">{{ r['link_title'] or r['link_id'] }}</td>
+              <td style="color:#666;font-size:.82rem;text-align:center;">{{ r['download_count'] }}</td>
+              <td style="color:#666;font-size:.82rem;">{{ r['uploaded_at'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><h3>暂无上传记录</h3><p>创建收集链接后，用户上传的文件会在此显示</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

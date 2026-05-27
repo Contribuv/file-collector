@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>{% block title %}{{ config_title|default('文件收集器') }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+
+
+</head>
+<body>
+  {% if in_wechat %}
+  <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
+  {% endif %}
+
+  {% block header %}
+  <header class="header">
+    <div class="header-inner">
+      <a href="/admin" class="header-brand"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="">{{ config_title|default('文件收集器') }}</a>
+      {% if session.is_admin %}
+      <nav class="header-nav">
+        <a href="{{ url_for('admin_dashboard') }}">管理后台</a>
+        <a href="{{ url_for('logout') }}" class="logout-link">退出</a>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+  {% endblock %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div style="max-width:1100px;margin:0 auto;padding:12px 20px 0;">
+  {% for category, msg in messages %}
+  {% set cat = 'info' if category == 'message' else category %}
+  <div class="alert alert-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <main class="main">
+    <div class="main-inner">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="footer">
+    {{ collect_footer_text or config_title|default('文件收集器') }}
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  const CSRF_TOKEN = '{{ csrf_token }}';
+  function showToast(msg, d) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._timeout);
+    t._timeout = setTimeout(() => t.classList.remove('show'), d || 2000);
+  }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

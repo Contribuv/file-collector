@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}链接管理{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="toggle-section{% if edit_link %} open{% endif %}" id="create-section">
+      <div class="toggle-header" onclick="toggleSection('create-section')">
+        <span>{{ '编辑链接' if edit_link else '创建新链接' }}</span>
+        <span style="font-size:.78rem;color:#999;">{{ '▲' if edit_link else '▼' }}</span>
+      </div>
+      <div class="toggle-body">
+        <form method="POST" action="{{ url_for('create_link') if not edit_link else url_for('edit_link', link_id=edit_link['id']) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="title">链接标题 *</label>
+              <input type="text" id="title" name="title" class="form-input"
+                     value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="passcode">通行证</label>
+              <input type="text" id="passcode" name="passcode" class="form-input"
+                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="留空则不设密码">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="description">描述</label>
+            <textarea id="description" name="description" class="form-textarea" rows="2"
+                      placeholder="向文件提交者展示的说明">{{ edit_link['description'] if edit_link else '' }}</textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="max_files">最大文件数量</label>
+              <input type="number" id="max_files" name="max_files" class="form-input"
+                     value="{{ edit_link['max_files'] if edit_link else 10 }}" min="1" max="100">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="max_file_size_gb">单文件上限 (GB)</label>
+              <input type="number" id="max_file_size_gb" name="max_file_size_gb" class="form-input"
+                     value="{{ edit_link['max_file_size_gb'] if edit_link else 1 }}" min="0.01" step="0.01">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="expire_days">有效期（天）<span style="color:#94a3b8;font-weight:400;"> 留空则永不过期</span></label>
+              <input type="number" id="expire_days" name="expire_days" class="form-input"
+                     placeholder="如：7" min="1" max="3650">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="expires_at">截止日期和时间</label>
+              <input type="datetime-local" id="expires_at" name="expires_at" class="form-input">
+              <span style="font-size:.75rem;color:#94a3b8;">优先级高于上述天数</span>
+            </div>
+          </div>
+          <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
+          <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建链接' }}</button>
+            {% if edit_link %}<a href="{{ url_for('admin_links') }}" class="btn">取消</a>{% endif %}
+            <button type="button" class="btn btn-sm" onclick="clearExpiry()" style="color:#ef4444;display:none;" id="clear-expiry-btn">清除过期设置</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>收集链接</h3>
+        <span style="font-size:.82rem;color:#999;">{{ links|length }} 个</span>
+      </div>
+      <div class="table-wrap">
+        {% if links %}
+        <table class="links-table">
+          <thead>
+            <tr><th>标题</th><th class="col-id">ID</th><th>通行证</th><th>限制</th><th>有效期</th><th>状态</th><th class="col-time">创建时间</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            {% for link in links %}
+            <tr>
+              <td><strong>{{ link['title'] }}</strong></td>
+              <td class="col-id">
+                <div class="copy-row">
+                  <code>{{ link['id'] }}</code>
+                  <button class="copy-btn" onclick="copyLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')">复制</button>
+                </div>
+              </td>
+              <td>
+                {% if link['passcode'] %}
+                <span class="badge badge-warning">已加密</span>
+                {% else %}
+                <span class="badge">公开</span>
+                {% endif %}
+              </td>
+              <td style="color:#666;font-size:.82rem;">{{ link['max_files'] }} 个 / {{ link['max_file_size_gb'] }}GB</td>
+              <td style="font-size:.78rem;">
+                {% if link['expires_at'] %}
+                  <span style="color:#f59e0b;" title="{{ link['expires_at'] }}">{{ link['expires_at'][:16].replace('T', ' ') }}</span>
+                {% else %}
+                  <span style="color:#94a3b8;">永不过期</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if link['status'] == 'active' %}
+                <span class="badge badge-success">活跃</span>
+                {% else %}
+                <span class="badge badge-danger">停用</span>
+                {% endif %}
+              </td>
+              <td class="col-time" style="color:#666;font-size:.82rem;">{{ link['created_at'] }}</td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn-sm" data-link='{{ dict(link)|tojson }}' onclick="editLinkBtn(this)" title="编辑">编辑</button>
+                  <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm">{{ '停用' if link['status']=='active' else '启用' }}</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('delete_link', link_id=link['id']) }}" style="display:inline;"
+                        onsubmit="return confirm('确定删除链接「{{ link['title'] }}」？上传文件不会被删除。');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建新链接」开始使用</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSection(id) { document.getElementById(id).classList.toggle('open'); }
+
+function copyLink(linkId, passcode) {
+  let url = window.location.origin + '/collect/' + linkId;
+  let text = url + '  上传通行证：' + (passcode || '无') + '\n  请通过此链接提交文件';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('已复制');
+  }
+}
+
+function editLinkBtn(el) {
+  const link = JSON.parse(el.getAttribute('data-link'));
+  document.getElementById('title').value = link.title;
+  document.getElementById('passcode').value = link.passcode || '';
+  document.getElementById('description').value = link.description || '';
+  document.getElementById('max_files').value = link.max_files;
+  document.getElementById('max_file_size_gb').value = link.max_file_size_gb;
+  document.getElementById('expire_days').value = '';
+  document.getElementById('expires_at').value = link.expires_at || '';
+  document.getElementById('clear_expiry').value = '0';
+  document.getElementById('create-section').classList.add('open');
+  document.querySelector('#create-section form').action = '/admin/links/' + link.id + '/edit';
+  document.querySelector('#create-section .btn-primary').textContent = '保存修改';
+  document.querySelector('#create-section .toggle-header span:first-child').textContent = '编辑链接';
+  // 显示/隐藏清除按钮
+  var clearBtn = document.getElementById('clear-expiry-btn');
+  if (clearBtn) clearBtn.style.display = link.expires_at ? '' : 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function clearExpiry() {
+  document.getElementById('expires_at').value = '';
+  document.getElementById('expire_days').value = '';
+  document.getElementById('clear_expiry').value = '1';
+}
+</script>
+{% endblock %}

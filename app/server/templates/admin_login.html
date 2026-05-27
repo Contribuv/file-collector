@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block header %}{% endblock %}
+{% block title %}管理员登录{% endblock %}
+
+{% block content %}
+<style>
+body { background: #f0f2f5; }
+.main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.main-inner { max-width: none; margin: 0; width: 100%; display: flex; justify-content: center; }
+.auth-page { min-height: auto; width: 100%; }
+</style>
+<div class="auth-page">
+  <div class="auth-card">
+    <h1>管理员登录</h1>
+    <p class="auth-subtitle">{{ config_title|default('文件收集器') }}</p>
+
+    <form method="POST" action="{{ url_for('admin_login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-group">
+        <label class="form-label" for="username">用户名</label>
+        <input type="text" id="username" name="username" class="form-input" placeholder="请输入用户名" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">密码</label>
+        <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">登录</button>
+    </form>
+
+    {% if login_tip %}
+    <div class="auth-tip">{{ login_tip }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %}

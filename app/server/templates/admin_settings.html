@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}系统设置{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="settings-grid">
+      <!-- Account -->
+      <div class="card">
+        <div class="card-header"><h3>账号设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="new_username">管理员用户名</label>
+              <input type="text" id="new_username" name="new_username" class="form-input"
+                     value="{{ admin_username }}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="old_password">当前密码 *</label>
+              <input type="password" id="old_password" name="old_password" class="form-input"
+                     placeholder="修改信息需验证" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new_password">新密码</label>
+              <input type="password" id="new_password" name="new_password" class="form-input" placeholder="留空则不修改">
+              <div class="form-hint">需要修改密码时才填写</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="confirm_password">确认新密码</label>
+              <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="再次输入新密码">
+            </div>
+            <button type="submit" name="action" value="account" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Login Tip -->
+      <div class="card">
+        <div class="card-header"><h3>登录页提示</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="login_tip_text">提示文字</label>
+              <textarea id="login_tip_text" name="login_tip_text" class="form-textarea" rows="3"
+                        placeholder="显示在登录页底部的提示信息">{{ defaults.login_tip or '' }}</textarea>
+              <div class="form-hint">例如：默认账户 admin / admin123，请及时修改</div>
+            </div>
+            <button type="submit" name="action" value="login_tip" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Defaults -->
+      <div class="card">
+        <div class="card-header"><h3>默认上传设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="site_title">站点标题</label>
+              <input type="text" id="site_title" name="site_title" class="form-input"
+                     value="{{ defaults.site_title or '文件收集器' }}">
+              <div class="form-hint">显示在收集页页头和页面标题</div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="default_max_files">默认最大文件数</label>
+                <input type="number" id="default_max_files" name="default_max_files" class="form-input"
+                       value="{{ defaults.max_files or 10 }}" min="1" max="100">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_max_size">单文件上限 (GB)</label>
+                <input type="number" id="default_max_size" name="default_max_size" class="form-input"
+                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+              </div>
+            </div>
+            <button type="submit" name="action" value="defaults" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Collect Page -->
+      <div class="card">
+        <div class="card-header"><h3>收集页设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="collect_footer_text">页尾信息</label>
+              <textarea id="collect_footer_text" name="collect_footer_text" class="form-textarea" rows="3"
+                        placeholder="显示在收集页底部，支持多行文字">{{ defaults.collect_footer_text or '' }}</textarea>
+              <div class="form-hint">显示在文件收集页底部，留空则不显示页尾</div>
+            </div>
+            <button type="submit" name="action" value="collect_page" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Passcode TTL -->
+      <div class="card">
+        <div class="card-header"><h3>通行证有效期</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="passcode_ttl_minutes">有效期（分钟）</label>
+              <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input"
+                     value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200">
+              <div class="form-hint">用户验证通行证后，浏览器缓存有效期。默认 120 分钟（2小时），最大 43200 分钟（30天）</div>
+            </div>
+            <button type="submit" name="action" value="passcode_ttl" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Landing Page -->
+      <div class="card">
+        <div class="card-header"><h3>首页设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-check">
+                <input type="checkbox" name="landing_page_enabled" value="1"{{ ' checked' if defaults.landing_page_enabled == '1' else '' }}>
+                <span>启用首页介绍页</span>
+              </label>
+              <div class="form-hint" style="margin-top:6px">开启后访问根路径 / 显示介绍页和进入后台按钮；关闭则显示 404 页面</div>
+            </div>
+            <button type="submit" name="action" value="landing_page" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Database Management -->
+      <div class="card">
+        <div class="card-header"><h3>数据库管理</h3></div>
+        <div class="card-body">
+          <div class="form-group">
+            <a href="{{ url_for('backup_database') }}" class="btn btn-primary btn-block">下载数据库备份</a>
+            <div class="form-hint" style="margin-top:4px">下载当前数据库文件，用于迁移或备份</div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--c-border);margin:16px 0">
+          <form method="POST" action="{{ url_for('restore_database') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="db_file">导入数据库备份</label>
+              <input type="file" id="db_file" name="db_file" class="form-input" accept=".db" required>
+              <div class="form-hint">选择之前备份的 .db 文件，导入前会自动备份当前数据库</div>
+            </div>
+            <button type="submit" class="btn btn-danger btn-block">确认导入</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- System Info -->
+      <div class="card">
+        <div class="card-header"><h3>系统信息</h3></div>
+        <div class="card-body">
+          <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://www.douyin.com/user/MS4wLjABAAAAW7jL-J7wfj6PHwkHII9QjHeHcKUTrwb7vYTvSBWJXqQ?from_tab_name=main" target="_blank" rel="noopener">豪子选房</a></span></div>
+          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">1.0.19</span></div>
+          <div class="info-row"><span class="info-label">数据库</span><span class="info-value">SQLite</span></div>
+          <div class="info-row"><span class="info-label">上传路径</span><span class="info-value">{{ sys_info.upload_base }}</span></div>
+          <div class="info-row"><span class="info-label">数据路径</span><span class="info-value">{{ sys_info.data_dir }}</span></div>
+          <div class="info-row"><span class="info-label">监听端口</span><span class="info-value">{{ sys_info.port }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

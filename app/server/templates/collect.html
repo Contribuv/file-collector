@@ -127,6 +127,11 @@
       background: #f0faf4;
       border: 1px solid #bbf7d0;
       padding: 2px 8px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .cp-badge:hover {
+      background: #dcfce7;
     }
 
     /* Passcode */
@@ -533,6 +538,21 @@
       color: #9ca3af;
       border-top: 1px solid var(--c-border);
     }
+    .collect-copyright {
+      text-align: center;
+      padding: 12px 16px 20px;
+      font-size: 12px;
+      color: #9ca3af;
+      line-height: 1.7;
+    }
+    .collect-copyright a {
+      color: #6b7280;
+      text-decoration: none;
+    }
+    .collect-copyright a:hover {
+      color: #2563eb;
+      text-decoration: underline;
+    }
 
     /* Responsive */
     @media (max-width: 640px) {
@@ -613,7 +633,7 @@
   <div class="cp-card">
     <div class="cp-card-head">
       <h2>上传文件</h2>
-      <span class="cp-badge">通行证有效期 {{ passcode_ttl_display }}</span>
+      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>
     </div>
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
@@ -663,10 +683,23 @@
 </div>
 {% endif %}
 
+<div class="collect-copyright">{{ collect_footer_text or '' }}</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const linkId = '{{ link_id }}';
+{% if allow_delete %}const allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+
+(function() {
+  var publicUrl = '{{ public_url }}'.trim();
+  if (!publicUrl) { publicUrl = window.location.origin; }
+  if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
+  var linkUrl = publicUrl + 'collect/' + linkId;
+ console.log('文件分享器_{ version }}');
+  console.log('收集链接：%c' + linkUrl, 'color:#374151;', 'color:#2563eb;text-decoration:underline;');
+  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#374151;', 'color:#6b7280;');
+})();
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
 const MAX_FILE_SIZE = {{ max_file_size_gb }} * 1024 * 1024 * 1024;
@@ -711,6 +744,24 @@ async function verifyPasscode() {
   }
 }
 document.getElementById('passcode-input') && document.getElementById('passcode-input').addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPasscode(); });
+
+async function logoutPasscode() {
+  if (!confirm('确定退出通行证？退出后需重新输入通行证才能上传文件。')) return;
+  try {
+    var res = await fetch('/collect/' + linkId + '/logout', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    var data = await res.json();
+    if (data.success) {
+      location.reload();
+    } else {
+      showToast(data.message || '退出失败');
+    }
+  } catch(e) {
+    showToast('网络错误');
+  }
+}
 
 function handleFiles(files) {
   for (var i = 0; i < files.length; i++) {
@@ -837,6 +888,7 @@ async function loadHistory() {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无记录</p><p>上传文件后在此查看</p></div>';
       return;
     }
+    var canDelete = allowDelete && (data.allow_delete === true);
     var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
@@ -848,7 +900,9 @@ async function loadHistory() {
       html += '<span>' + r.file_size_display + '</span>';
       html += '<span>下载 ' + (r.download_count || 0) + '</span>';
       html += '</span>';
-      html += '<button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + safeName + '\')">删除</button>';
+      if (canDelete) {
+        html += '<button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + safeName + '\')">删除</button>';
+      }
       html += '</div>';
       html += '<div class="cp-history-card-time">' + r.uploaded_at + '</div>';
       html += '</div>';

@@ -89,6 +89,12 @@
           <form method="POST" action="{{ url_for('admin_settings') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
+              <label class="form-label" for="public_url">公网网址</label>
+              <input type="text" id="public_url" name="public_url" class="form-input"
+                     value="{{ defaults.public_url or '' }}" placeholder="例lucky反代域名：https://file.fnos.com:8080">
+              <div class="form-hint">收集页的公网访问地址，用于在浏览器控制台输出正确的分享链接。留空则按访问链接分享。</div>
+            </div>
+            <div class="form-group">
               <label class="form-label" for="collect_footer_text">页尾信息</label>
               <textarea id="collect_footer_text" name="collect_footer_text" class="form-textarea" rows="3"
                         placeholder="显示在收集页底部，支持多行文字">{{ defaults.collect_footer_text or '' }}</textarea>
@@ -159,10 +165,10 @@
       <div class="card">
         <div class="card-header"><h3>系统信息</h3></div>
         <div class="card-body">
-          <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://www.douyin.com/user/MS4wLjABAAAAW7jL-J7wfj6PHwkHII9QjHeHcKUTrwb7vYTvSBWJXqQ?from_tab_name=main" target="_blank" rel="noopener">豪子选房</a></span></div>
-          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">1.0.36</span></div>
+          <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener">豪子</a></span></div>
+          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">{{ version }}</span></div>
           <div class="info-row"><span class="info-label">数据库</span><span class="info-value">SQLite</span></div>
-          <div class="info-row"><span class="info-label">数据库路径</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
+          <div class="info-row"><span class="info-label">动态数据</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
           <div class="info-row"><span class="info-label">上传路径</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
           <div class="info-row"><span class="info-label">监听端口</span><span class="info-value">{{ sys_info.port }}</span></div>
         </div>

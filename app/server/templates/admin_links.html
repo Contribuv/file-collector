@@ -55,6 +55,14 @@
             </div>
           </div>
           <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
+          <div class="form-row" style="align-items:center; margin-top:4px;">
+            <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="allow_delete" name="allow_delete" value="1" style="width:16px; height:16px; accent-color:#2563eb;">
+              <label for="allow_delete" style="font-size:.85rem; color:#374151; cursor:pointer; margin-bottom:0;">
+                允许上传者删除已上传文件
+              </label>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;">
             <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建链接' }}</button>
             {% if edit_link %}<a href="{{ url_for('admin_links') }}" class="btn">取消</a>{% endif %}
@@ -73,18 +81,12 @@
         {% if links %}
         <table class="links-table">
           <thead>
-            <tr><th class="col-title">标题</th><th class="col-id">ID</th><th class="col-pass">通行证</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建时间</th><th class="col-act">操作</th></tr>
+            <tr><th class="col-title">标题</th><th class="col-pass">通行证</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建时间</th><th class="col-act">操作</th></tr>
           </thead>
           <tbody>
             {% for link in links %}
             <tr>
               <td class="col-title"><strong>{{ link['title'] }}</strong></td>
-              <td class="col-id">
-                <div class="copy-row">
-                  <code>{{ link['id'] }}</code>
-                  <button class="copy-btn" onclick="copyLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')">复制</button>
-                </div>
-              </td>
               <td class="col-pass">
                 {% if link['passcode'] %}
                 <span class="badge badge-warning">已加密</span>
@@ -110,7 +112,8 @@
               <td class="col-time" style="color:#666;font-size:.82rem;">{{ link['created_at'] }}</td>
               <td class="col-act">
                 <div class="action-group">
-                  <button class="btn btn-sm copy-btn-mobile" onclick="copyLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')">分享</button>
+                  <button class="btn btn-sm btn-primary" onclick="copyShareLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')" title="复制分享链接">分享</button>
+                  <button class="btn btn-sm" onclick="copyCollectLink('{{ link['id'] }}', '{{ link['passcode'] or '' }}')" title="复制收集链接">收集</button>
                   <button class="btn btn-sm" data-link='{{ dict(link)|tojson }}' onclick="editLinkBtn(this)" title="编辑">编辑</button>
                   <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -140,18 +143,36 @@
 <script>
 function toggleSection(id) { document.getElementById(id).classList.toggle('open'); }
 
-function copyLink(linkId, passcode) {
-  let url = window.location.origin + '/collect/' + linkId;
-  let text = url + '  上传通行证：' + (passcode || '无') + '\n  请通过此链接提交文件';
+function getBaseUrl() {
+  var pu = '{{ public_url }}'.trim();
+  if (pu) { if (!pu.endsWith('/')) pu += '/'; return pu; }
+  var origin = window.location.origin;
+  if (!origin.endsWith('/')) origin += '/';
+  return origin;
+}
+
+function copyToClipboard(text) {
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+    navigator.clipboard.writeText(text).then(function() { showToast('已复制'); });
   } else {
-    const ta = document.createElement('textarea');
+    var ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); document.body.removeChild(ta);
     showToast('已复制');
   }
+}
+
+function copyShareLink(linkId, passcode) {
+  var url = getBaseUrl() + 'share/' + linkId;
+  var text = url + '\n文件通行证：' + (passcode || '无') + '\n请通过此链接提取文件';
+  copyToClipboard(text);
+}
+
+function copyCollectLink(linkId, passcode) {
+  var url = getBaseUrl() + 'collect/' + linkId;
+  var text = url + '\n上传通行证：' + (passcode || '无') + '\n请通过此链接上传文件';
+  copyToClipboard(text);
 }
 
 function editLinkBtn(el) {
@@ -164,6 +185,7 @@ function editLinkBtn(el) {
   document.getElementById('expire_days').value = '';
   document.getElementById('expires_at').value = link.expires_at || '';
   document.getElementById('clear_expiry').value = '0';
+  document.getElementById('allow_delete').checked = link.allow_delete == 1;
   document.getElementById('create-section').classList.add('open');
   document.querySelector('#create-section form').action = '/admin/links/' + link.id + '/edit';
   document.querySelector('#create-section .btn-primary').textContent = '保存修改';

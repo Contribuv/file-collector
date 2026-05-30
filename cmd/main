@@ -24,10 +24,20 @@ PID_FILE="${VAR_DIR}/gunicorn.pid"
 LOG_FILE="${VAR_DIR}/gunicorn.log"
 VENV_DIR="${VAR_DIR}/.venv"
 
-# 数据库存放在用户数据目录（飞牛持久化存储）
-# TRIM_PKGHOME = 用户数据目录（home），存放长期用户数据，如上传内容和个性化设置
-export DATA_DIR="${TRIM_PKGHOME}/data"
-export UPLOAD_BASE="${wizard_upload_dir}"
+# 数据库存放路径 — 使用 TRIM_DATA_SHARE_PATHS（fnOS 应用文件目录）
+# TRIM_DATA_SHARE_PATHS 是飞牛官方应用数据共享路径，安装时自动分配
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    # 可能包含多个路径（冒号分隔），取第一个
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    export DATA_DIR="${_SHARE_BASE}/data"
+    export UPLOAD_BASE="${wizard_upload_dir:-${_SHARE_BASE}/uploads}"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    export DATA_DIR="${TRIM_PKGVAR}/data"
+    export UPLOAD_BASE="${wizard_upload_dir:-${TRIM_PKGVAR}/uploads}"
+else
+    export DATA_DIR="/tmp/file-collector/data"
+    export UPLOAD_BASE="${wizard_upload_dir:-/tmp/file-collector/uploads}"
+fi
 export PORT="${APP_PORT}"
 
 log() {
@@ -113,7 +123,7 @@ start() {
         VENV_DIR="${VAR_DIR}/.venv"
         PID_FILE="${VAR_DIR}/gunicorn.pid"
         LOG_FILE="${VAR_DIR}/gunicorn.log"
-        # 注意：不覆盖 DATA_DIR，数据库始终在应用文件目录
+        # 数据库路径由 DATA_DIR 环境变量控制，始终保存在持久化目录
         mkdir -p "$VAR_DIR"
     }
 
@@ -223,29 +233,26 @@ uninstall() {
         log "  已删除: ${VENV_DIR}"
     fi
 
-    # 3. 删除上传目录
-    log "[3/8] 删除上传目录..."
-    if [ -n "$UPLOAD_BASE" ] && [ -d "$UPLOAD_BASE" ]; then
-        rm -rf "$UPLOAD_BASE"
-        log "  已删除: ${UPLOAD_BASE}"
-    fi
-
-    # 4. 删除数据库目录（应用文件 data 目录）
-    log "[4/8] 删除数据库目录..."
+    # 3. 保留用户数据 - 数据库和上传文件不删除（升级/重装时保护数据）
+    log "[3/8] 保留用户数据..."
     if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
-        rm -rf "$DATA_DIR"
-        log "  已删除 DATA_DIR: ${DATA_DIR}"
+        log "  保留数据库目录: ${DATA_DIR}"
+    fi
+    if [ -n "$UPLOAD_BASE" ] && [ -d "$UPLOAD_BASE" ]; then
+        log "  保留上传目录: ${UPLOAD_BASE}"
     fi
 
-    # 5. 清理 /var 下的应用运行目录（TRIM_PKGVAR）
-    log "[5/8] 清理 /var 运行目录..."
-    if [ -n "$VAR_DIR" ]; then
-        rm -rf "$VAR_DIR"
-        log "  已删除 VAR_DIR: ${VAR_DIR}"
+    # 4. 清理运行时文件（数据库和上传在 TRIM_PKGVAR 中保留）
+    log "[4/8] 清理 /var 运行时文件..."
+    if [ -n "$VAR_DIR" ] && [ -d "$VAR_DIR" ]; then
+        rm -rf "${VAR_DIR}/.venv" 2>/dev/null || true
+        rm -f "${VAR_DIR}/gunicorn.pid" "${VAR_DIR}/gunicorn.log" 2>/dev/null || true
+        rm -f "${VAR_DIR}/.write_test" 2>/dev/null || true
+        log "  已清理运行时文件"
     fi
 
-    # 6. 清理 /var/apps 下可能残留的 file-collector 目录
-    log "[6/8] 清理 /var/apps 残留..."
+    # 5. 清理 /var/apps 下可能残留的 file-collector 目录
+    log "[5/8] 清理 /var/apps 残留..."
     for dir in /var/apps/file-collector /var/apps/file-collector-*; do
         if [ -d "$dir" ]; then
             rm -rf "$dir"
@@ -253,8 +260,8 @@ uninstall() {
         fi
     done 2>/dev/null || true
 
-    # 7. 清理 /usr/local/apps 下可能残留的 file-collector 目录
-    log "[7/8] 清理 /usr/local/apps 残留..."
+    # 6. 清理 /usr/local/apps 下可能残留的 file-collector 目录
+    log "[6/8] 清理 /usr/local/apps 残留..."
     for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collector; do
         if [ -d "$dir" ]; then
             rm -rf "$dir"
@@ -262,9 +269,13 @@ uninstall() {
         fi
     done 2>/dev/null || true
 
+    # 7. 清理 socket 和 PID 文件
+    log "[7/8] 清理 socket 和 PID..."
+    rm -f "$SOCK_PATH" "$PID_FILE" 2>/dev/null
+
     # 8. 清理 /tmp 和调试日志
     log "[8/8] 清理临时文件..."
-    rm -f "$PID_FILE" "$LOG_FILE" "$DEBUG_LOG" 2>/dev/null
+    rm -f "$LOG_FILE" "$DEBUG_LOG" 2>/dev/null
     rm -rf /tmp/file-collector /tmp/file-collector-debug.log 2>/dev/null || true
 
     log "=== UNINSTALL 完成 ==="

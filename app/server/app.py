@@ -34,6 +34,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
+VERSION = "1.0.63"
+
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -57,12 +59,19 @@ def get_passcode_ttl():
     except (ValueError, TypeError):
         return DEFAULT_PASSCODE_TTL
 
-# 从环境变量读取配置（兼容 fnOS 和 Docker 部署）
-# 数据库优先使用 DATA_DIR 环境变量，其次用飞牛用户数据目录 TRIM_PKGHOME（持久化存储）
-_DATA_BASE = os.environ.get('TRIM_PKGHOME', os.path.dirname(__file__))
+# 从环境变量读取配置
+# 数据库存储：优先 TRIM_DATA_SHARE_PATHS → TRIM_PKGVAR → /tmp
+# TRIM_DATA_SHARE_PATHS 是飞牛官方应用文件目录，安装时自动分配
+_share_raw = os.environ.get('TRIM_DATA_SHARE_PATHS', '')
+_share_base = _share_raw.split(':')[0] if _share_raw else None
+
+_DATA_BASE = (
+    _share_base or
+    os.environ.get('TRIM_PKGVAR') or
+    '/tmp/file-collector'
+)
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_DATA_BASE, 'data'))
-UPLOAD_BASE = os.environ.get('UPLOAD_BASE',
-    os.path.join(os.environ.get('TRIM_PKGHOME', os.path.dirname(__file__)), 'uploads'))
+UPLOAD_BASE = os.environ.get('UPLOAD_BASE', os.path.join(_DATA_BASE, 'uploads'))
 PORT = int(os.environ.get('PORT',
     os.environ.get('TRIM_SERVICE_PORT', 5557)))
 DEBUG_MODE = os.environ.get('FLASK_DEBUG', '0') == '1'
@@ -170,6 +179,15 @@ def init_db():
             conn.commit()
     except Exception as e:
         print(f"数据库迁移错误(expires_at): {e}")
+
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'allow_delete' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN allow_delete INTEGER DEFAULT 0")
+            conn.commit()
+    except Exception as e:
+        print(f"数据库迁移错误(allow_delete): {e}")
 
     # 初始化默认设置
     defaults = {
@@ -393,8 +411,11 @@ def collect_page(link_id):
         in_wechat=is_wechat_browser(),
         max_file_size_gb=link['max_file_size_gb'],
         max_files=link['max_files'],
+        allow_delete=bool(link['allow_delete']),
         site_title=get_setting('site_title', '文件收集器'),
         collect_footer_text=get_setting('collect_footer_text', ''),
+        public_url=get_setting('public_url', ''),
+        version=VERSION,
         passcode_ttl_display=ttl_display)
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
@@ -419,6 +440,182 @@ def verify_passcode(link_id):
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': '通行证错误'}), 403
 
+@app.route('/collect/<link_id>/logout', methods=['POST'])
+def logout_passcode(link_id):
+    """退出通行证，清除当前链接的验证缓存"""
+    session.pop(f'verified_{link_id}', None)
+    return jsonify({'success': True, 'message': '已退出通行证'})
+
+# ============================================================
+# 路由 - 分享页面（仅下载，无上传）
+# ============================================================
+@app.route('/share/<link_id>')
+def share_page(link_id):
+    """文件分享页面（仅查看和下载，无上传功能）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    conn.close()
+
+    if not link:
+        return render_template('error.html',
+            error_code=404,
+            error_title='链接失效',
+            error_message='链接不存在或已被停用'), 404
+
+    if link['expires_at']:
+        try:
+            expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
+            if datetime.now() > expire_time:
+                return render_template('error.html',
+                    error_code=410,
+                    error_title='链接已过期',
+                    error_message='该分享链接已超过有效期。'), 410
+        except (ValueError, TypeError):
+            pass
+
+    verified = is_verified(link_id)
+    ttl_minutes = int(get_setting('passcode_ttl_minutes', '120'))
+    if ttl_minutes >= 60 and ttl_minutes % 60 == 0:
+        ttl_display = f'{ttl_minutes // 60} 小时'
+    elif ttl_minutes >= 60:
+        ttl_display = f'{ttl_minutes // 60} 小时 {ttl_minutes % 60} 分钟'
+    else:
+        ttl_display = f'{ttl_minutes} 分钟'
+
+    return render_template('share.html',
+        link_id=link_id,
+        task_title=link['title'],
+        description=link['description'],
+        verified=verified,
+        in_wechat=is_wechat_browser(),
+        allow_delete=bool(link['allow_delete']),
+        site_title=get_setting('site_title', '文件收集器'),
+        collect_footer_text=get_setting('collect_footer_text', ''),
+        public_url=get_setting('public_url', ''),
+        version=VERSION,
+        passcode_ttl_display=ttl_display)
+
+@app.route('/share/<link_id>/verify', methods=['POST'])
+def share_verify_passcode(link_id):
+    """分享页验证通行证（复用 collect 验证逻辑）"""
+    client_ip = request.remote_addr or '0.0.0.0'
+    if not rate_limit(f'verify_{link_id}_{client_ip}', max_attempts=5, window_seconds=60):
+        return jsonify({'success': False, 'message': '验证过于频繁，请1分钟后再试'}), 429
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    conn.close()
+
+    if not link:
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    passcode = request.form.get('passcode', '').strip()
+    if passcode == link['passcode']:
+        session[f'verified_{link_id}'] = time.time()
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'message': '通行证错误'}), 403
+
+@app.route('/share/<link_id>/logout', methods=['POST'])
+def share_logout_passcode(link_id):
+    """分享页退出通行证"""
+    session.pop(f'verified_{link_id}', None)
+    return jsonify({'success': True, 'message': '已退出通行证'})
+
+@app.route('/share/<link_id>/records', methods=['GET'])
+def share_get_records(link_id):
+    """获取分享页文件列表"""
+    if not is_verified(link_id):
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    records = conn.execute(
+        "SELECT id, original_name, file_size_display, uploaded_at, download_count FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
+        (link_id,)
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        'success': True,
+        'allow_delete': bool(link['allow_delete']),
+        'records': [dict(r) for r in records]
+    })
+
+@app.route('/share/<link_id>/download/<int:record_id>', methods=['GET'])
+def share_download_record(link_id, record_id):
+    """分享页下载文件"""
+    if not is_verified(link_id):
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    conn = get_db()
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+
+    if not record:
+        conn.close()
+        return '文件不存在', 404
+
+    conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+
+    directory = os.path.dirname(record['stored_path'])
+    filename = os.path.basename(record['stored_path'])
+    return send_from_directory(
+        directory, filename,
+        download_name=record['original_name'],
+        as_attachment=True
+    )
+
+@app.route('/share/<link_id>/delete_record/<int:record_id>', methods=['POST'])
+def share_delete_record(link_id, record_id):
+    """分享页删除单条上传记录及文件"""
+    if not is_verified(link_id):
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT allow_delete FROM links WHERE id = ?", (link_id,)
+    ).fetchone()
+
+    if not link or not link['allow_delete']:
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
+
+    record = conn.execute(
+        "SELECT id, stored_path FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+
+    if not record:
+        conn.close()
+        return jsonify({'success': False, 'message': '记录不存在'}), 404
+
+    try:
+        if os.path.exists(record['stored_path']):
+            os.remove(record['stored_path'])
+    except Exception:
+        pass
+
+    conn.execute("DELETE FROM upload_records WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True, 'message': '已删除'})
+
 @app.route('/collect/<link_id>/records', methods=['GET'])
 def get_upload_records(link_id):
     """获取上传历史记录"""
@@ -442,6 +639,7 @@ def get_upload_records(link_id):
 
     return jsonify({
         'success': True,
+        'allow_delete': bool(link['allow_delete']),
         'records': [dict(r) for r in records]
     })
 
@@ -480,6 +678,14 @@ def delete_upload_record(link_id, record_id):
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
     conn = get_db()
+    link = conn.execute(
+        "SELECT allow_delete FROM links WHERE id = ?", (link_id,)
+    ).fetchone()
+
+    if not link or not link['allow_delete']:
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
+
     record = conn.execute(
         "SELECT id, stored_path FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -674,7 +880,7 @@ def admin_links():
         "SELECT * FROM links ORDER BY created_at DESC"
     ).fetchall()
     conn.close()
-    return render_template('admin_links.html', links=links)
+    return render_template('admin_links.html', links=links, public_url=get_setting('public_url', ''))
 
 @app.route('/admin/links/create', methods=['POST'])
 @admin_required
@@ -713,13 +919,14 @@ def create_link():
                 pass
 
     link_id = generate_link_id()
+    allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
 
     conn = get_db()
     conn.execute(
         """INSERT INTO links (id, title, description, passcode,
-           max_file_size_gb, max_files, expires_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (link_id, title, description, passcode, max_file_size_gb, max_files, expires_at or None)
+           max_file_size_gb, max_files, expires_at, allow_delete)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (link_id, title, description, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete)
     )
     conn.commit()
     conn.close()
@@ -763,11 +970,12 @@ def edit_link(link_id):
                 pass
 
     conn = get_db()
+    allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
     conn.execute(
         """UPDATE links SET title=?, description=?, passcode=?,
-           max_file_size_gb=?, max_files=?, expires_at=?, updated_at=CURRENT_TIMESTAMP
+           max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
            WHERE id=?""",
-        (title, description, passcode, max_file_size_gb, max_files, expires_at or None, link_id)
+        (title, description, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
     )
     conn.commit()
     conn.close()
@@ -792,14 +1000,34 @@ def toggle_link(link_id):
 @app.route('/admin/links/<link_id>/delete', methods=['POST'])
 @admin_required
 def delete_link(link_id):
-    """删除链接（保留文件）"""
+    """删除链接及关联的所有上传文件和记录"""
     conn = get_db()
+
+    # 1. 查询所有关联的上传记录
+    records = conn.execute(
+        "SELECT id, stored_path FROM upload_records WHERE link_id = ?", (link_id,)
+    ).fetchall()
+
+    # 2. 删除磁盘上的文件
+    deleted_count = 0
+    for r in records:
+        try:
+            if os.path.exists(r['stored_path']):
+                os.remove(r['stored_path'])
+                deleted_count += 1
+        except OSError:
+            pass
+
+    # 3. 删除上传记录
     conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DELETE FROM upload_records WHERE link_id = ?", (link_id,))
+    # 4. 删除链接
     conn.execute("DELETE FROM links WHERE id = ?", (link_id,))
     conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()
     conn.close()
-    flash('链接已删除，文件已保留')
+
+    flash(f'链接已删除，同时清理了 {deleted_count} 个文件及 {len(records)} 条上传记录')
     return redirect(url_for('admin_links'))
 
 @app.route('/admin/records')
@@ -978,7 +1206,9 @@ def admin_settings():
 
         elif action == 'collect_page':
             footer_text = request.form.get('collect_footer_text', '').strip()
+            public_url = request.form.get('public_url', '').strip()
             set_setting('collect_footer_text', footer_text)
+            set_setting('public_url', public_url)
             flash('收集页设置已保存')
 
         elif action == 'landing_page':
@@ -1008,6 +1238,7 @@ def admin_settings():
         'site_title': get_setting('site_title', '文件收集器'),
         'login_tip': get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
         'collect_footer_text': get_setting('collect_footer_text', ''),
+        'public_url': get_setting('public_url', ''),
         'landing_page_enabled': get_setting('landing_page_enabled', '1'),
         'passcode_ttl_minutes': get_setting('passcode_ttl_minutes', '120'),
     }
@@ -1020,7 +1251,8 @@ def admin_settings():
     return render_template('admin_settings.html',
         defaults=defaults,
         admin_username=admin_user,
-        sys_info=sys_info)
+        sys_info=sys_info,
+        version=VERSION)
 
 @app.route('/admin/settings/backup-db')
 @admin_required

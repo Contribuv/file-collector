@@ -187,7 +187,7 @@ a:hover { text-decoration: underline; }
 .form-input, .form-select, .form-textarea {
   width: 100%;
   padding: 8px 12px;
-  font-size: .88rem;
+  font-size: max(16px, .88rem);
   font-family: var(--font);
   color: var(--c-text);
   border: 1px solid var(--c-border);

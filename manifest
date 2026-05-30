@@ -1,7 +1,7 @@
 appname=file-collector
-version=1.0.36
+version=1.0.63
 display_name=文件收集器
-desc=基于 Web 框架 + 轻量数据库的多链接文件收集系统。<br>管理员可在后台创建多个独立收集链接，每个链接有独立的通行证、上传限制和过期时间。<br>上传者通过链接和通行证即可上传文件。<br><br>功能特性：<br>• 多链接管理（创建/编辑/启用/禁用/删除）<br>• 独立通行证保护<br>• 文件大小和数量限制<br>• 链接有效期设置<br>• 上传记录管理与下载<br>• 微信浏览器检测提示<br>• 响应式界面设计
+desc=注意：更新应用前请先在后台「系统设置」中备份数据库！<br>上传文件失败？请在飞牛应用中心 → 安装时填写的上传目录 → 设置读写权限<br><br>基于 Web + SQLite 的多链接文件收集系统。<br>管理员可在后台创建多个独立收集链接，每个链接有独立的通行证、上传限制和过期时间。<br>上传者通过链接和通行证即可上传文件。<br><br>功能特性：<br>• 多链接管理（创建/编辑/启用/禁用/删除）<br>• 独立通行证保护<br>• 文件大小和数量限制<br>• 链接有效期设置<br>• 上传记录管理与下载<br>• 微信浏览器检测提示<br>• 响应式界面设计
 
 platform=x86
 source=thirdparty
@@ -21,4 +21,4 @@ maintainer_url=https://github.com/Contribuv/file-collector
 distributor=豪子
 distributor_url=https://github.com/Contribuv/file-collector
 
-changelog=初始版本：多链接文件收集系统
+changelog=v1.0.63：数据库改为使用 TRIM_DATA_SHARE_PATHS 飞牛官方应用文件路径

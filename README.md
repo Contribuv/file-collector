@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/28315486/README.md)
 # 文件收集器 (File Collector)
 
 <p align="center">
@@ -10,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.36-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.0.63-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS-orange" alt="platform">
@@ -125,10 +124,12 @@ file-collector/
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
-| `DATA_DIR` | 数据库存储目录 | `$TRIM_PKGHOME/data` |
-| `UPLOAD_BASE` | 上传文件存储根目录 | `$TRIM_PKGHOME/uploads` |
+| `DATA_DIR` | 数据库存储目录 | `$TRIM_DATA_SHARE_PATHS/data` |
+| `UPLOAD_BASE` | 上传文件存储根目录 | `$TRIM_DATA_SHARE_PATHS/uploads` |
 | `PORT` | 监听端口 | `5557` |
 | `FLASK_DEBUG` | 调试模式 | `0` |
+
+> **数据库持久化：** 使用 `TRIM_DATA_SHARE_PATHS`（飞牛官方应用文件目录），安装时自动分配，更新/重装不会丢失数据。
 
 ---
 
@@ -153,9 +154,18 @@ GET /api/status
 
 ## 更新日志
 
+### v1.0.63
+- 数据库改用 `TRIM_DATA_SHARE_PATHS` 飞牛官方应用文件路径
+- 系统信息显示干净的原始路径
+
+### v1.0.59–1.0.62
+- 修复更新/重装丢数据 BUG，数据库路径改为应用自身目录
+- 分享链接 URL 修正（collect → share）
+- 系统设置增加备份提醒和上传目录授权说明
+
 ### v1.0.36
 - 系统信息新增数据库路径实时显示
-- 数据库存储遵循 fnOS 规范，使用 TRIM_PKGHOME 持久化目录
+- 数据库存储遵循 fnOS 规范
 - 上传目录配置改为安装时必填
 
 ---

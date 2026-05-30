@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>{% block title %}{{ config_title|default('文件收集器') }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
@@ -31,12 +31,18 @@
 
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
-  <div style="max-width:1100px;margin:0 auto;padding:12px 20px 0;">
+  <div id="flash-alerts" style="max-width:1100px;margin:0 auto;padding:12px 20px 0;">
   {% for category, msg in messages %}
   {% set cat = 'info' if category == 'message' else category %}
-  <div class="alert alert-{{ cat }}">{{ msg }}</div>
+  <div class="alert alert-{{ cat }}" style="text-align:center;">{{ msg }}</div>
   {% endfor %}
   </div>
+  <script>
+  (function() {
+    var el = document.getElementById('flash-alerts');
+    if (el) setTimeout(function() { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function() { el.style.display = 'none'; }, 300); }, 3000);
+  })();
+  </script>
   {% endif %}
   {% endwith %}
 

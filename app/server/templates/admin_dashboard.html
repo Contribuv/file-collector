@@ -34,17 +34,17 @@
       <div class="records-table-pc">
         <table class="dash-records dash-records--full">
           <thead>
-            <tr><th>文件名</th><th>大小</th><th>来源</th><th>下载</th><th>IP</th><th>时间</th></tr>
+            <tr><th>文件名</th><th class="col-size">大小</th><th class="col-src">来源</th><th class="col-dl">下载</th><th class="col-ip">IP</th><th class="col-time">时间</th></tr>
           </thead>
           <tbody>
             {% for r in recent_uploads %}
             <tr>
               <td class="col-name"><a href="{{ url_for('admin_download_record', record_id=r['id']) }}" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a></td>
-              <td class="col-meta">{{ r['file_size_display'] }}</td>
-              <td class="col-meta">{{ r['link_title'] or r['link_id'] }}</td>
-              <td class="col-meta text-center">{{ r['download_count'] }}</td>
-              <td class="col-meta col-meta-dim">{{ r['uploader_ip'] or '-' }}</td>
-              <td class="col-meta">{{ r['uploaded_at'] }}</td>
+              <td class="col-meta col-size">{{ r['file_size_display'] }}</td>
+              <td class="col-meta col-src">{{ r['link_title'] or r['link_id'] }}</td>
+              <td class="col-meta col-dl text-center">{{ r['download_count'] }}</td>
+              <td class="col-meta col-meta-dim col-ip">{{ r['uploader_ip'] or '-' }}</td>
+              <td class="col-meta col-time">{{ r['uploaded_at'] }}</td>
             </tr>
             {% endfor %}
           </tbody>

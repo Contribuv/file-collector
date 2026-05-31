@@ -30,11 +30,12 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.17"
+VERSION = "1.1.27"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -43,6 +44,10 @@ _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
+
+# 反向代理支持：修正 request.remote_addr / request.scheme
+# x_for=2 表示信任最多 2 层反向代理的 X-Forwarded-For 头
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_prefix=0)
 
 # 会话安全配置
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -341,14 +346,9 @@ def format_file_size(size_bytes):
     return f"{size_bytes:.1f} TB"
 
 def _get_client_ip():
-    """获取客户端真实IP，优先使用反向代理头"""
-    forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-    if forwarded:
-        return forwarded
-    real_ip = request.headers.get('X-Real-IP', '').strip()
-    if real_ip:
-        return real_ip
-    return request.remote_addr or '0.0.0.0'
+    """获取客户端真实IP — ProxyFix 已从 X-Forwarded-For 修正 request.remote_addr"""
+    ip = (request.remote_addr or '0.0.0.0').strip()
+    return ip
 
 def is_wechat_browser():
     """检测是否来自微信浏览器"""

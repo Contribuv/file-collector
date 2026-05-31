@@ -73,7 +73,7 @@ a:active { opacity: .6; }
   padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
 }
 .header-inner {
-  max-width: 800px;
+  max-width: 960px;
   margin: 0 auto;
   height: 100%;
   display: flex;
@@ -116,7 +116,7 @@ a:active { opacity: .6; }
 .main {
   flex: 1;
   padding: 12px 16px;
-  max-width: 800px;
+  max-width: 960px;
   width: 100%;
   margin: 0 auto;
 }
@@ -364,11 +364,22 @@ tbody tr:active { background: #f7f8fa; }
 }
 
 /* --full modifier: records page with checkbox + actions (PC) */
-.dash-records--full { table-layout: auto; }
-.dash-records--full th, .dash-records--full td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-records--full .col-chk { width: 38px; text-align: center; white-space: nowrap; }
+.dash-records--full {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+.dash-records--full th, .dash-records--full td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 8px 6px;
+}
+/* 列宽：checkbox + 文件名(弹性) + 大小/来源/下载/IP/时间 + 操作（用 class 定位，兼容不同列数） */
+.dash-records--full .col-chk { width: 38px; text-align: center; }
 .dash-records--full .col-chk input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--c-primary); }
-.dash-records--full .col-name { max-width: 360px; min-width: 120px; }
+.dash-records--full .col-name { /* 弹性 — 占用剩余宽度 */ }
 .dash-records--full .col-name a {
   display: block;
   overflow: hidden;
@@ -379,9 +390,14 @@ tbody tr:active { background: #f7f8fa; }
   color: var(--c-primary);
 }
 .dash-records--full .col-name a:hover { text-decoration: underline; }
+.dash-records--full .col-size { width: 68px; }
+.dash-records--full .col-src  { width: 92px; }
+.dash-records--full .col-dl   { width: 50px; text-align: center; }
+.dash-records--full .col-ip   { width: 138px; }
+.dash-records--full .col-time { width: 140px; }
 .dash-records--full .col-meta { color: var(--c-text-soft); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-records--full .col-meta-dim { color: var(--c-text-muted); font-size: .78rem; }
-.dash-records--full .col-act { width: 48px; text-align: center; white-space: nowrap; }
+.dash-records--full .col-act { width: 48px; text-align: center; }
 
 /* 删除按钮：统一 × 图标，hover 变红 */
 .btn-record-del {
@@ -423,7 +439,12 @@ tbody tr:active { background: #f7f8fa; }
 /* ============================================================
    Records — PC 表格 / 移动端卡片 切换
    ============================================================ */
-.records-table-pc { display: block; }
+.records-table-pc {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .records-cards-mobile { display: none; }
 
 @media (max-width: 640px) {
@@ -500,25 +521,27 @@ tbody tr:active { background: #f7f8fa; }
 /* ============================================================
    Links Table
    ============================================================ */
-.links-table { table-layout: auto; width: 100%; }
+.links-table { table-layout: fixed; width: 100%; }
 .links-table th, .links-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .links-table tbody td { padding: 8px 10px; }
-.col-title  { min-width: 80px; max-width: 160px; }
-.col-pass   { width: 70px; max-width: 100px; }
-.col-limit  { width: 90px; }
-.col-expire { width: 120px; }
-.col-status { width: 60px; }
-.col-time   { width: 120px; }
-.col-act    { width: 100px; }
+.links-table .col-title  { width: 120px; }
+.links-table .col-limit  { width: 100px; }
+.links-table .col-expire { width: 130px; }
+.links-table .col-status { width: 64px; }
+.links-table .col-time   { width: 145px; }
+.links-table .col-act    { width: 190px; }
 
 @media (max-width: 768px) {
-  .col-pass, .col-limit, .col-time { display: none; }
-  .col-act { width: auto; }
+  .links-table .col-limit, .links-table .col-time { display: none; }
+  .links-table .col-title { width: 110px; }
+  .links-table .col-act   { width: 170px; }
 }
 
 @media (max-width: 480px) {
-  .col-expire { display: none; }
-  .col-title { max-width: 120px; }
+  .links-table .col-expire { display: none; }
+  .links-table .col-title  { width: 90px; }
+  .links-table .col-status { width: 56px; }
+  .links-table .col-act    { width: 100px; }
 }
 
 /* ============================================================

@@ -15,7 +15,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="title">链接标题 *</label>
+              <label class="form-label" for="title">文件夹名称 *</label>
               <input type="text" id="title" name="title" class="form-input"
                      value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" maxlength="20" required>
             </div>
@@ -80,21 +80,12 @@
         {% if links %}
         <table class="links-table">
           <thead>
-            <tr><th class="col-title">标题</th><th class="col-pass">通行证</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建</th><th class="col-act">操作</th></tr>
+            <tr><th class="col-title">文件夹</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建</th><th class="col-act">操作</th></tr>
           </thead>
           <tbody>
             {% for link in links %}
             <tr>
               <td class="col-title"><strong>{{ link['title'] }}</strong></td>
-              <td class="col-pass">
-                {% if link['passcode_plain'] %}
-                <span class="badge badge-warning" title="通行证：{{ link['passcode_plain'] }}">{{ link['passcode_plain'] }}</span>
-                {% elif link['passcode'] %}
-                <span class="badge badge-warning">已加密（请编辑重设）</span>
-                {% else %}
-                <span class="badge">公开</span>
-                {% endif %}
-              </td>
               <td class="col-limit" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['max_files'] }}个/{% if link['max_file_size_gb'] < 1 %}{{ (link['max_file_size_gb'] * 1024)|round(2) }} MB{% else %}{{ link['max_file_size_gb'] }} GB{% endif %}</td>
               <td class="col-expire" style="font-size:.78rem;">
                 {% if link['expires_at'] %}

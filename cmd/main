@@ -19,26 +19,29 @@ echo "--- 系统信息 ---" >> "$DEBUG_LOG"
 echo "USER=$USER PWD=$PWD WHOAMI=$(whoami) ID=$(id)" >> "$DEBUG_LOG"
 
 APP_PORT="5557"
+export PORT="${APP_PORT}"
 VAR_DIR="${TRIM_PKGVAR}"
 PID_FILE="${VAR_DIR}/gunicorn.pid"
 LOG_FILE="${VAR_DIR}/gunicorn.log"
 VENV_DIR="${VAR_DIR}/.venv"
 
-# 数据库存放路径 — 使用 TRIM_DATA_SHARE_PATHS（fnOS 应用文件目录）
-# TRIM_DATA_SHARE_PATHS 是飞牛官方应用数据共享路径，安装时自动分配
+# 数据库存放路径 — 使用 TRIM_PKGVAR（应用私有目录，升级/卸载时保留）
+# 上传文件目录 — 使用 TRIM_DATA_SHARE_PATHS（data-share 共享目录）
+if [ -n "$TRIM_PKGVAR" ]; then
+    export DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    export DATA_DIR="/tmp/file-collector/data"
+fi
+
 if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
     # 可能包含多个路径（冒号分隔），取第一个
     _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
-    export DATA_DIR="${_SHARE_BASE}/data"
-    export UPLOAD_BASE="${wizard_upload_dir:-${_SHARE_BASE}/uploads}"
+    export UPLOAD_BASE="${_SHARE_BASE}/uploads"
 elif [ -n "$TRIM_PKGVAR" ]; then
-    export DATA_DIR="${TRIM_PKGVAR}/data"
-    export UPLOAD_BASE="${wizard_upload_dir:-${TRIM_PKGVAR}/uploads}"
+    export UPLOAD_BASE="${TRIM_PKGVAR}/uploads"
 else
-    export DATA_DIR="/tmp/file-collector/data"
-    export UPLOAD_BASE="${wizard_upload_dir:-/tmp/file-collector/uploads}"
+    export UPLOAD_BASE="/tmp/file-collector/uploads"
 fi
-export PORT="${APP_PORT}"
 
 log() {
     local msg="[$(date '+%H:%M:%S')] $@"
@@ -152,9 +155,46 @@ start() {
     log "  $(pip --version)"
     pip list --format=columns >> "$DEBUG_LOG" 2>&1
 
-    # ---- 第4步：启动 ----
-    log "[4/5] 启动 Flask..."
+    # ---- 第4步：准备目录与权限 ----
+    log "[4/7] 准备目录与权限..."
     mkdir -p "$DATA_DIR" "$UPLOAD_BASE"
+
+    # ---- 第5步：数据库恢复检查 ----
+    log "[5/7] 检查数据库..."
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        DB_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
+        log "  数据库存在: ${DB_PATH} (${DB_SIZE} bytes)"
+    else
+        log "  WARN: 数据库不存在或为空，尝试从备份恢复..."
+        # 尝试多个备份来源恢复
+        RESTORED=0
+        # 来源1: /tmp 升级前备份
+        BACKUP_DIR="/tmp/file-collector-backup"
+        if [ -d "$BACKUP_DIR" ]; then
+            LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+            if [ -n "$LATEST_BACKUP" ] && [ -s "$LATEST_BACKUP" ]; then
+                cp "$LATEST_BACKUP" "$DB_PATH"
+                log "  已从 /tmp 备份恢复数据库: ${LATEST_BACKUP}"
+                RESTORED=1
+            fi
+        fi
+        # 来源2: TRIM_PKGVAR 内备份（如果有的话）
+        if [ $RESTORED -eq 0 ] && [ -n "$TRIM_PKGVAR" ]; then
+            PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
+            if [ -d "$PKG_BACKUP_DIR" ]; then
+                LATEST_PKG_BACKUP=$(ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+                if [ -n "$LATEST_PKG_BACKUP" ] && [ -s "$LATEST_PKG_BACKUP" ]; then
+                    cp "$LATEST_PKG_BACKUP" "$DB_PATH"
+                    log "  已从 PKGVAR 备份恢复数据库: ${LATEST_PKG_BACKUP}"
+                    RESTORED=1
+                fi
+            fi
+        fi
+        if [ $RESTORED -eq 0 ]; then
+            log "  INFO: 未找到备份，将创建新数据库（首次安装）"
+        fi
+    fi
 
     # 清理旧进程
     [ -f "$PID_FILE" ] && {
@@ -162,6 +202,8 @@ start() {
         kill -0 "$OLD" 2>/dev/null && kill -9 "$OLD" 2>/dev/null
         rm -f "$PID_FILE"
     }
+
+    log "  监听端口: ${APP_PORT}"
 
     python app.py >> "${LOG_FILE}" 2>&1 &
     APP_PID=$!
@@ -179,7 +221,7 @@ start() {
         }
     done
 
-    log "[5/5] 启动成功! 端口 ${APP_PORT}"
+    log "[7/7] 启动成功! 端口 ${APP_PORT}"
     exit 0
 }
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-### 卸载后回调 - 二次确保所有目录清理干净
+### 卸载后回调 - 清理应用文件，保留用户数据
 
 APP_NAME="file-collector"
 LOG="/tmp/${APP_NAME}-uninstall-callback.log"
@@ -14,12 +14,23 @@ clean_dir() {
     fi
 }
 
-# 清理用户数据目录（数据库） - TRIM_PKGHOME = 用户数据目录
-[ -n "$TRIM_PKGHOME" ] && clean_dir "${TRIM_PKGHOME}/data"
-# 清理上传目录
-[ -n "$TRIM_PKGHOME" ] && clean_dir "${TRIM_PKGHOME}/file-collector-uploads"
+# ============================================================
+# 保留用户数据（数据库 + 上传文件）
+# TRIM_PKGVAR 中的 data/ 目录包含数据库，升级/重装时需要保留
+# TRIM_DATA_SHARE_PATHS 中的上传文件也需要保留
+# ============================================================
+echo "  保留用户数据（数据库和上传文件）" >> "$LOG"
 
-# 彻底清理 /var/apps 下的应用残留
+# 只清理 venv 和运行时文件，保留 data/ 目录中的数据库
+if [ -n "$TRIM_PKGVAR" ] && [ -d "$TRIM_PKGVAR" ]; then
+    # 仅清理 venv 和运行时文件
+    rm -rf "${TRIM_PKGVAR}/.venv" 2>/dev/null || true
+    rm -f "${TRIM_PKGVAR}/gunicorn.pid" "${TRIM_PKGVAR}/gunicorn.log" 2>/dev/null || true
+    rm -f "${TRIM_PKGVAR}/.write_test" 2>/dev/null || true
+    echo "  已清理 TRIM_PKGVAR 运行时文件（数据库已保留）" >> "$LOG"
+fi
+
+# 清理 /var/apps 下的应用残留（不涉及用户数据）
 for dir in /var/apps/file-collector /var/apps/file-collector-*; do
     clean_dir "$dir"
 done 2>/dev/null || true
@@ -29,11 +40,8 @@ for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collec
     clean_dir "$dir"
 done 2>/dev/null || true
 
-# 清理 TRIM_PKGVAR（如果 set）
-[ -n "$TRIM_PKGVAR" ] && clean_dir "$TRIM_PKGVAR"
-
 # 清理 /tmp 残留
 rm -rf /tmp/file-collector /tmp/file-collector-* 2>/dev/null || true
 
-echo "[$(date)] callback done" >> "$LOG"
+echo "[$(date)] callback done (用户数据已保留)" >> "$LOG"
 exit 0

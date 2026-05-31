@@ -8,9 +8,9 @@
     <div class="card">
       <div class="card-header">
         <h3>上传记录</h3>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <form method="GET" action="{{ url_for('admin_records') }}" style="display:flex;gap:6px;align-items:center;">
-            <select name="link_id" class="form-select" style="width:auto;" onchange="this.form.submit()">
+            <select name="link_id" class="form-select" style="width:auto;padding:6px 28px 6px 10px;font-size:.82rem;border-radius:16px;" onchange="this.form.submit()">
               <option value="">全部链接</option>
               {% for l in links %}
               <option value="{{ l['id'] }}" {{ 'selected' if l['id']|string == link_filter }}>{{ l['title'] }}</option>
@@ -19,17 +19,19 @@
           </form>
           <form id="batch-form" method="POST" action="{{ url_for('batch_delete_records') }}" onsubmit="return prepareBatchDelete()">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn btn-sm btn-danger" id="batch-btn" disabled>批量删除</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger" id="batch-btn" disabled>批量删除</button>
           </form>
         </div>
       </div>
-      <div class="table-wrap">
-        {% if records %}
-        <table class="records-table">
+
+      {% if records %}
+      <!-- PC 端：传统表格 -->
+      <div class="records-table-pc">
+        <table class="dash-records dash-records--full">
           <thead>
             <tr>
-              <th class="col-chk">选择</th>
-              <th class="col-name">文件名</th><th class="col-size">大小</th><th class="col-src">来源</th><th class="col-dl">下载</th><th class="col-ip">IP</th><th class="col-time">时间</th><th class="col-act">操作</th>
+              <th class="col-chk"><input type="checkbox" onchange="toggleAll(this)"></th>
+              <th>文件名</th><th>大小</th><th>来源</th><th>下载</th><th>IP</th><th>时间</th><th class="col-act">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -37,26 +39,58 @@
             <tr>
               <td class="col-chk"><input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()"></td>
               <td class="col-name"><a href="{{ url_for('admin_download_record', record_id=r['id']) }}" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a></td>
-              <td class="col-size" style="color:#666;font-size:.82rem;">{{ r['file_size_display'] }}</td>
-              <td class="col-src" style="color:#666;font-size:.82rem;">{{ r['link_title'] or r['link_id'] }}</td>
-              <td class="col-dl" style="color:#666;font-size:.82rem;text-align:center;">{{ r['download_count'] }}</td>
-              <td class="col-ip" style="color:#999;font-size:.78rem;">{{ r['uploader_ip'] }}</td>
-              <td class="col-time" style="color:#666;font-size:.82rem;">{{ r['uploaded_at'] }}</td>
+              <td class="col-meta">{{ r['file_size_display'] }}</td>
+              <td class="col-meta">{{ r['link_title'] or r['link_id'] }}</td>
+              <td class="col-meta text-center">{{ r['download_count'] }}</td>
+              <td class="col-meta col-meta-dim">{{ r['uploader_ip'] }}</td>
+              <td class="col-meta">{{ r['uploaded_at'] }}</td>
               <td class="col-act">
                 <form method="POST" action="{{ url_for('delete_record', record_id=r['id']) }}" style="display:inline;"
-                      onsubmit="return confirm('确定删除「{{ r['original_name'] }}」？');">
+                      onsubmit="return confirm('确定删除「{{ r['original_name']|e }}」？');">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                  <button type="submit" class="btn-record-del" title="删除此记录">&#x2715;</button>
                 </form>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% else %}
-        <div class="empty-state"><h3>暂无上传记录</h3></div>
-        {% endif %}
       </div>
+
+      <!-- 移动端：卡片列表 -->
+      <div class="records-cards-mobile">
+        {% for r in records %}
+        <div class="record-card">
+          <div class="record-card-left">
+            <label class="record-card-check">
+              <input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()">
+            </label>
+          </div>
+          <div class="record-card-body">
+            <a href="{{ url_for('admin_download_record', record_id=r['id']) }}" class="record-card-name" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a>
+            <div class="record-card-meta">
+              <span>{{ r['file_size_display'] }}</span>
+              <span>{{ r['link_title'] or r['link_id'] }}</span>
+              <span>下载 {{ r['download_count'] }}</span>
+              <span>{{ r['uploader_ip'] }}</span>
+              <span>{{ r['uploaded_at'] }}</span>
+            </div>
+          </div>
+          <div class="record-card-right">
+            <form method="POST" action="{{ url_for('delete_record', record_id=r['id']) }}"
+                  onsubmit="return confirm('确定删除「{{ r['original_name']|e }}」？');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn-record-del" title="删除此记录">&#x2715;</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="empty-state"><h3>暂无上传记录</h3></div>
+      {% endif %}
+
       {% if total_pages > 1 %}
       <div class="card-footer">
         <div class="pagination">

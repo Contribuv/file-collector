@@ -2,15 +2,15 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{% block title %}{{ config_title|default('文件收集器') }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-
-
-
 </head>
 <body{% if session.is_admin %} class="is-admin"{% endif %}>
+
   {% if in_wechat %}
   <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
   {% endif %}
@@ -18,10 +18,12 @@
   {% block header %}
   <header class="header">
     <div class="header-inner">
-      <a href="/admin" class="header-brand"><img src="{{ url_for('static', filename='img/logo.png') }}" alt="">{{ config_title|default('文件收集器') }}</a>
+      <a href="/admin" class="header-brand">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+        {{ config_title|default('文件收集器') }}
+      </a>
       {% if session.is_admin %}
       <nav class="header-nav">
-        <a href="{{ url_for('admin_dashboard') }}">管理后台</a>
         <a href="{{ url_for('logout') }}" class="logout-link">退出</a>
       </nav>
       {% endif %}
@@ -31,16 +33,16 @@
 
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
-  <div id="flash-alerts" style="max-width:1100px;margin:0 auto;padding:12px 20px 0;">
+  <div id="flash-alerts" style="max-width:800px;margin:0 auto;padding:10px 16px 0;">
   {% for category, msg in messages %}
   {% set cat = 'info' if category == 'message' else category %}
-  <div class="alert alert-{{ cat }}" style="text-align:center;">{{ msg }}</div>
+  <div class="alert alert-{{ cat }}" style="justify-content:center;">{{ msg }}</div>
   {% endfor %}
   </div>
   <script>
-  (function() {
-    var el = document.getElementById('flash-alerts');
-    if (el) setTimeout(function() { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function() { el.style.display = 'none'; }, 300); }, 3000);
+  (function(){
+    var el=document.getElementById('flash-alerts');
+    if(el)setTimeout(function(){el.style.transition='opacity .3s';el.style.opacity='0';setTimeout(function(){el.style.display='none'},300)},3000);
   })();
   </script>
   {% endif %}

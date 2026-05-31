@@ -34,7 +34,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.0.63"
+VERSION = "1.1.17"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -42,10 +42,13 @@ _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 
 # 会话安全配置
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# SESSION_COOKIE_SECURE 在 before_request 中动态设置，避免模块加载时无请求上下文
+app.config['SESSION_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 # 上传通行证浏览器缓存有效期默认值（秒）
@@ -60,20 +63,30 @@ def get_passcode_ttl():
         return DEFAULT_PASSCODE_TTL
 
 # 从环境变量读取配置
-# 数据库存储：优先 TRIM_DATA_SHARE_PATHS → TRIM_PKGVAR → /tmp
-# TRIM_DATA_SHARE_PATHS 是飞牛官方应用文件目录，安装时自动分配
-_share_raw = os.environ.get('TRIM_DATA_SHARE_PATHS', '')
-_share_base = _share_raw.split(':')[0] if _share_raw else None
+# 数据库存储：TRIM_PKGVAR（应用私有目录）→ /tmp
+# 上传文件存储：UPLOAD_BASE 环境变量（cmd/main 设置为 data-share 子目录）
+_PKGVAR = os.environ.get('TRIM_PKGVAR', '/tmp/file-collector')
+DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_PKGVAR, 'data'))
 
-_DATA_BASE = (
-    _share_base or
-    os.environ.get('TRIM_PKGVAR') or
-    '/tmp/file-collector'
-)
-DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_DATA_BASE, 'data'))
-UPLOAD_BASE = os.environ.get('UPLOAD_BASE', os.path.join(_DATA_BASE, 'uploads'))
-PORT = int(os.environ.get('PORT',
-    os.environ.get('TRIM_SERVICE_PORT', 5557)))
+PORT = int(os.environ.get('PORT', 5557))
+
+# 上传目录：优先 UPLOAD_BASE 环境变量（cmd/main 设置为 data-share 的 uploads 子目录）
+# → 回退到 TRIM_PKGVAR 下的 uploads
+_DEFAULT_UPLOAD_BASE = os.environ.get('UPLOAD_BASE',
+    os.path.join(_PKGVAR, 'uploads'))
+UPLOAD_BASE = _DEFAULT_UPLOAD_BASE  # 启动时默认，后续可能被自定义覆盖
+
+def get_upload_base():
+    """获取当前上传目录：自定义路径优先 → 默认路径"""
+    custom = get_setting('custom_upload_path', '').strip()
+    if custom and os.path.isdir(custom):
+        return custom
+    return _DEFAULT_UPLOAD_BASE
+
+def refresh_upload_base():
+    """刷新全局 UPLOAD_BASE（数据库设置变更后调用）"""
+    global UPLOAD_BASE
+    UPLOAD_BASE = get_upload_base()
 DEBUG_MODE = os.environ.get('FLASK_DEBUG', '0') == '1'
 
 # 确保目录存在
@@ -120,7 +133,7 @@ def init_db():
             title TEXT NOT NULL,
             description TEXT DEFAULT '',
             passcode TEXT NOT NULL,
-            max_file_size_gb INTEGER DEFAULT 1,
+            max_file_size_gb REAL DEFAULT 1,
             max_files INTEGER DEFAULT 10,
             target_folder TEXT DEFAULT '',
             status TEXT DEFAULT 'active',
@@ -156,8 +169,8 @@ def init_db():
         cursor = conn.execute("PRAGMA table_info(links)")
         columns = [row[1] for row in cursor.fetchall()]
         if 'max_file_size_mb' in columns and 'max_file_size_gb' not in columns:
-            conn.execute("ALTER TABLE links ADD COLUMN max_file_size_gb INTEGER DEFAULT 1")
-            conn.execute("UPDATE links SET max_file_size_gb = max_file_size_mb / 1024 WHERE max_file_size_mb IS NOT NULL AND max_file_size_gb = 1")
+            conn.execute("ALTER TABLE links ADD COLUMN max_file_size_gb REAL DEFAULT 1")
+            conn.execute("UPDATE links SET max_file_size_gb = max_file_size_mb / 1024.0 WHERE max_file_size_mb IS NOT NULL AND max_file_size_gb = 1")
             conn.commit()
     except Exception as e:
         print(f"数据库迁移错误: {e}")
@@ -189,24 +202,59 @@ def init_db():
     except Exception as e:
         print(f"数据库迁移错误(allow_delete): {e}")
 
-    # 初始化默认设置
-    defaults = {
-        'admin_username': DEFAULT_ADMIN_USER,
-        'admin_password_hash': generate_password_hash(DEFAULT_ADMIN_PASS),
-        'max_file_size_gb': str(DEFAULT_MAX_FILE_SIZE_GB),
-        'max_files': str(DEFAULT_MAX_FILES),
-        'site_title': '文件收集器',
-        'secret_key': secrets.token_hex(32),
-        'login_tip': '默认账户 admin / admin123，请及时修改',
-        'collect_footer_text': '',
-        'passcode_ttl_minutes': '120',
-        'landing_page_enabled': '1',
-    }
-    for key, val in defaults.items():
-        conn.execute(
-            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-            (key, val)
-        )
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'passcode_plain' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN passcode_plain TEXT DEFAULT ''")
+            conn.commit()
+    except Exception as e:
+        print(f"数据库迁移错误(passcode_plain): {e}")
+
+    # 检测是否已有数据库（升级场景）
+    existing_admin = conn.execute(
+        "SELECT value FROM settings WHERE key = 'admin_username'"
+    ).fetchone()
+
+    if existing_admin:
+        # 升级安装：数据库已存在，保留所有已有设置，忽略 wizard 环境变量
+        logger.info("检测到已有数据库，保留所有数据（升级安装）")
+        # 仅补充可能缺失的新增设置项（不影响已有数据）
+        new_defaults = {
+            'passcode_ttl_minutes': '120',
+            'landing_page_enabled': '1',
+            'collect_footer_text': '',
+        }
+        for key, val in new_defaults.items():
+            conn.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                (key, val)
+            )
+    else:
+        # 首次安装：使用 wizard 环境变量或默认值初始化
+        wizard_admin_user = os.environ.get('wizard_admin_user', '').strip()
+        wizard_admin_pass = os.environ.get('wizard_admin_pass', '').strip()
+        init_admin_user = wizard_admin_user if wizard_admin_user else DEFAULT_ADMIN_USER
+        init_admin_pass = wizard_admin_pass if wizard_admin_pass else DEFAULT_ADMIN_PASS
+        init_login_tip = '默认账户 admin / admin123，请及时修改' if not wizard_admin_pass else '账户已由安装向导设置'
+
+        defaults = {
+            'admin_username': init_admin_user,
+            'admin_password_hash': generate_password_hash(init_admin_pass),
+            'max_file_size_gb': str(DEFAULT_MAX_FILE_SIZE_GB),
+            'max_files': str(DEFAULT_MAX_FILES),
+            'site_title': '文件收集器',
+            'secret_key': secrets.token_hex(32),
+            'login_tip': init_login_tip,
+            'collect_footer_text': '',
+            'passcode_ttl_minutes': '120',
+            'landing_page_enabled': '1',
+        }
+        for key, val in defaults.items():
+            conn.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                (key, val)
+            )
     conn.commit()
     conn.close()
 
@@ -229,6 +277,7 @@ def set_setting(key, value):
 
 # 初始化
 init_db()
+refresh_upload_base()  # 从数据库恢复自定义上传路径（如果有）
 _key = get_setting('secret_key', None)
 if _key is None:
     _key = secrets.token_hex(32)
@@ -241,8 +290,14 @@ app.secret_key = _key
 _rate_limits = {}
 
 def rate_limit(key, max_attempts=5, window_seconds=60):
-    """简单的内存频率限制"""
+    """简单的内存频率限制（定期清理过期条目防止内存泄漏）"""
     now = time.time()
+    # 每100次调用清理一次过期条目
+    if len(_rate_limits) > 0 and len(_rate_limits) % 100 == 0:
+        expired = [k for k, v in _rate_limits.items() if now - v[1] > window_seconds]
+        for k in expired:
+            del _rate_limits[k]
+
     if key in _rate_limits:
         attempts, first = _rate_limits[key]
         if now - first > window_seconds:
@@ -262,8 +317,8 @@ def generate_csrf_token():
     return session['csrf_token']
 
 def validate_csrf():
-    """验证 CSRF token"""
-    token = request.form.get('csrf_token', '')
+    """验证 CSRF token（支持表单和 AJAX header 两种方式）"""
+    token = request.form.get('csrf_token', '') or request.headers.get('X-CSRFToken', '')
     expected = session.get('csrf_token', '')
     if not token or not expected or not secrets.compare_digest(token, expected):
         flash('安全验证失败，请刷新页面重试')
@@ -284,6 +339,16 @@ def format_file_size(size_bytes):
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024
     return f"{size_bytes:.1f} TB"
+
+def _get_client_ip():
+    """获取客户端真实IP，优先使用反向代理头"""
+    forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+    if forwarded:
+        return forwarded
+    real_ip = request.headers.get('X-Real-IP', '').strip()
+    if real_ip:
+        return real_ip
+    return request.remote_addr or '0.0.0.0'
 
 def is_wechat_browser():
     """检测是否来自微信浏览器"""
@@ -307,10 +372,37 @@ def admin_required(f):
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
         admin_hash = get_setting('admin_password_hash', '')
+        # 默认密码强制修改：非设置页且非退出页，跳转到设置页
         if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
-            flash('安全提醒：您仍在使用默认密码，请立即修改！')
+            allowed = ('admin_settings', 'admin_logout')
+            if request.endpoint not in allowed:
+                flash('安全提醒：您仍在使用默认密码，请立即修改！')
+                return redirect(url_for('admin_settings'))
         return f(*args, **kwargs)
     return decorated
+
+@app.before_request
+def before_request():
+    """每个请求前的处理"""
+    # 动态设置 SESSION_COOKIE_SECURE：HTTPS 环境或反向代理 HTTPS 时启用
+    if os.environ.get('HTTPS', '').lower() in ('1', 'true', 'yes'):
+        app.config['SESSION_COOKIE_SECURE'] = True
+    elif request.headers.get('X-Forwarded-Proto', '') == 'https':
+        app.config['SESSION_COOKIE_SECURE'] = True
+    else:
+        app.config['SESSION_COOKIE_SECURE'] = False
+
+@app.after_request
+def add_security_headers(response):
+    """添加安全响应头"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    # CSP: 允许本站脚本/样式 + 内联脚本（Flask/Jinja2 需要）+ Google Fonts
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
+    response.headers['Content-Security-Policy'] = csp
+    return response
 
 @app.context_processor
 def inject_globals():
@@ -323,9 +415,46 @@ def inject_globals():
         'collect_footer_text': get_setting('collect_footer_text', ''),
     }
 
+def _safe_delete(stored_path):
+    """安全删除文件：校验 stored_path 在 UPLOAD_BASE 范围内，防止路径遍历攻击"""
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(stored_path)
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历删除拦截: stored_path={stored_path}, upload_base={real_base}")
+        return False
+    if os.path.exists(real_path) and os.path.isfile(real_path):
+        os.remove(real_path)
+        return True
+    return False
+
 def allowed_file(filename):
-    """允许所有文件类型上传"""
+    """允许所有文件类型上传，但禁止危险扩展名"""
+    dangerous_ext = {'.exe', '.php', '.jsp', '.asp', '.aspx', '.sh', '.bash', '.bat',
+                     '.cmd', '.ps1', '.py', '.rb', '.pl', '.cgi', '.so', '.dll',
+                     '.jspx', '.php3', '.php4', '.php5', '.phtml', '.shtml'}
+    _, ext = os.path.splitext(filename.lower())
+    if ext in dangerous_ext:
+        return False
     return True
+
+def _safe_download(stored_path, original_name):
+    """安全下载：校验 stored_path 在 UPLOAD_BASE 范围内，防止路径遍历攻击"""
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(stored_path)
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历攻击拦截: stored_path={stored_path}, upload_base={real_base}")
+        abort(403)
+    directory = os.path.dirname(real_path)
+    filename = os.path.basename(real_path)
+    if not os.path.isfile(real_path):
+        abort(404)
+    return send_from_directory(
+        directory, filename,
+        download_name=original_name,
+        as_attachment=True
+    )
 
 def create_upload_dir(link_id):
     """为链接创建上传目录（以标题命名）"""
@@ -371,6 +500,11 @@ def index():
 @app.route('/collect/<link_id>')
 def collect_page(link_id):
     """文件收集页面"""
+    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+        return render_template('error.html',
+            error_code=404,
+            error_title='链接无效',
+            error_message='链接格式不正确'), 404
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
@@ -421,7 +555,10 @@ def collect_page(link_id):
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
     """验证上传通行证"""
-    client_ip = request.remote_addr or '0.0.0.0'
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    client_ip = _get_client_ip()
     if not rate_limit(f'verify_{link_id}_{client_ip}', max_attempts=5, window_seconds=60):
         return jsonify({'success': False, 'message': '验证过于频繁，请1分钟后再试'}), 429
 
@@ -435,7 +572,7 @@ def verify_passcode(link_id):
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
     passcode = request.form.get('passcode', '').strip()
-    if passcode == link['passcode']:
+    if passcode and check_password_hash(link['passcode'], passcode):
         session[f'verified_{link_id}'] = time.time()
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': '通行证错误'}), 403
@@ -443,6 +580,8 @@ def verify_passcode(link_id):
 @app.route('/collect/<link_id>/logout', methods=['POST'])
 def logout_passcode(link_id):
     """退出通行证，清除当前链接的验证缓存"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
     session.pop(f'verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
@@ -500,7 +639,10 @@ def share_page(link_id):
 @app.route('/share/<link_id>/verify', methods=['POST'])
 def share_verify_passcode(link_id):
     """分享页验证通行证（复用 collect 验证逻辑）"""
-    client_ip = request.remote_addr or '0.0.0.0'
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    client_ip = _get_client_ip()
     if not rate_limit(f'verify_{link_id}_{client_ip}', max_attempts=5, window_seconds=60):
         return jsonify({'success': False, 'message': '验证过于频繁，请1分钟后再试'}), 429
 
@@ -514,7 +656,7 @@ def share_verify_passcode(link_id):
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
     passcode = request.form.get('passcode', '').strip()
-    if passcode == link['passcode']:
+    if passcode and check_password_hash(link['passcode'], passcode):
         session[f'verified_{link_id}'] = time.time()
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': '通行证错误'}), 403
@@ -522,6 +664,8 @@ def share_verify_passcode(link_id):
 @app.route('/share/<link_id>/logout', methods=['POST'])
 def share_logout_passcode(link_id):
     """分享页退出通行证"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
     session.pop(f'verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
@@ -572,19 +716,15 @@ def share_download_record(link_id, record_id):
     conn.commit()
     conn.close()
 
-    directory = os.path.dirname(record['stored_path'])
-    filename = os.path.basename(record['stored_path'])
-    return send_from_directory(
-        directory, filename,
-        download_name=record['original_name'],
-        as_attachment=True
-    )
+    return _safe_download(record['stored_path'], record['original_name'])
 
 @app.route('/share/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def share_delete_record(link_id, record_id):
     """分享页删除单条上传记录及文件"""
     if not is_verified(link_id):
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
     conn = get_db()
     link = conn.execute(
@@ -605,8 +745,7 @@ def share_delete_record(link_id, record_id):
         return jsonify({'success': False, 'message': '记录不存在'}), 404
 
     try:
-        if os.path.exists(record['stored_path']):
-            os.remove(record['stored_path'])
+        _safe_delete(record['stored_path'])
     except Exception:
         pass
 
@@ -631,6 +770,10 @@ def get_upload_records(link_id):
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
+    total_uploaded = conn.execute(
+        "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+    ).fetchone()[0]
+
     records = conn.execute(
         "SELECT id, original_name, file_size_display, uploaded_at, download_count FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
         (link_id,)
@@ -640,6 +783,8 @@ def get_upload_records(link_id):
     return jsonify({
         'success': True,
         'allow_delete': bool(link['allow_delete']),
+        'max_files': link['max_files'],
+        'total_uploaded': total_uploaded,
         'records': [dict(r) for r in records]
     })
 
@@ -663,19 +808,15 @@ def download_record(link_id, record_id):
     conn.commit()
     conn.close()
 
-    directory = os.path.dirname(record['stored_path'])
-    filename = os.path.basename(record['stored_path'])
-    return send_from_directory(
-        directory, filename,
-        download_name=record['original_name'],
-        as_attachment=True
-    )
+    return _safe_download(record['stored_path'], record['original_name'])
 
 @app.route('/collect/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def delete_upload_record(link_id, record_id):
     """删除单条上传记录及文件"""
     if not is_verified(link_id):
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
     conn = get_db()
     link = conn.execute(
@@ -696,8 +837,7 @@ def delete_upload_record(link_id, record_id):
         return jsonify({'success': False, 'message': '记录不存在'}), 404
 
     try:
-        if os.path.exists(record['stored_path']):
-            os.remove(record['stored_path'])
+        _safe_delete(record['stored_path'])
     except Exception:
         pass
 
@@ -710,6 +850,14 @@ def delete_upload_record(link_id, record_id):
 @app.route('/collect/<link_id>/upload', methods=['POST'])
 def upload_file(link_id):
     """处理文件上传"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    # 上传频率限制
+    client_ip = _get_client_ip()
+    if not rate_limit(f'upload_{link_id}_{client_ip}', max_attempts=30, window_seconds=60):
+        return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
+
     conn = None
     try:
         conn = get_db()
@@ -737,8 +885,18 @@ def upload_file(link_id):
                 'message': f'单次最多上传 {max_files} 个文件'
             }), 400
 
+        # 检查是否已超过上传总数上限
+        current_count = conn.execute(
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+        ).fetchone()[0]
+        if current_count >= max_files:
+            return jsonify({
+                'success': False,
+                'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
+            }), 400
+
         upload_dir = create_upload_dir(link_id)
-        max_size_bytes = link['max_file_size_gb'] * 1024 * 1024 * 1024
+        max_size_bytes = round(link['max_file_size_gb'] * 1024 * 1024 * 1024)
         results = []
 
         for file in uploaded_files:
@@ -757,9 +915,13 @@ def upload_file(link_id):
             file.seek(0)
 
             if size > max_size_bytes:
+                limit_display = f'{link["max_file_size_gb"]} GB'
+                if link['max_file_size_gb'] < 1:
+                    limit_mb = round(link['max_file_size_gb'] * 1024, 2)
+                    limit_display = f'{limit_mb} MB'
                 result.update({
                     'success': False,
-                    'message': f'文件超过 {link["max_file_size_gb"]}GB 限制'
+                    'message': f'文件大小 {format_file_size(size)} 超过限制（上限 {limit_display}）'
                 })
                 results.append(result)
                 continue
@@ -767,7 +929,10 @@ def upload_file(link_id):
             safe_name = secure_filename(file.filename)
             if not safe_name:
                 safe_name = 'unnamed_file'
-            stored_name = safe_name
+            # 添加时间戳后缀防止同名文件覆盖
+            name_parts = os.path.splitext(safe_name)
+            timestamp_suffix = f'_{int(time.time() * 1000)}'
+            stored_name = f'{name_parts[0]}{timestamp_suffix}{name_parts[1]}'
             stored_path = os.path.join(upload_dir, stored_name)
 
             file.save(stored_path)
@@ -779,7 +944,7 @@ def upload_file(link_id):
                     file_size_display, uploader_ip)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (link_id, file.filename, stored_name, stored_path, size,
-                 format_file_size(size), request.remote_addr)
+                 format_file_size(size), _get_client_ip())
             )
             conn.commit()
 
@@ -799,7 +964,7 @@ def upload_file(link_id):
 
     except Exception as e:
         logger.error(f"上传异常: link={link_id}, error={e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': f'服务器内部错误: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': '服务器内部错误，请稍后重试'}), 500
 
     finally:
         if conn:
@@ -815,7 +980,12 @@ def upload_file(link_id):
 def admin_login():
     """管理员登录"""
     if request.method == 'POST':
-        client_ip = request.remote_addr or '0.0.0.0'
+        if not validate_csrf():
+            flash('安全验证失败，请刷新页面重试')
+            login_tip = get_setting('login_tip', '')
+            return render_template('admin_login.html', login_tip=login_tip)
+
+        client_ip = _get_client_ip()
         if not rate_limit(f'login_{client_ip}', max_attempts=5, window_seconds=60):
             flash('登录尝试过于频繁，请稍后再试')
             login_tip = get_setting('login_tip', '')
@@ -902,31 +1072,53 @@ def create_link():
 
     try:
         max_files = int(max_files)
-        max_file_size_gb = int(float(max_file_size_gb))
+        max_file_size_gb = round(float(max_file_size_gb), 2)
+        if max_file_size_gb <= 0:
+            raise ValueError('文件大小必须大于0')
     except ValueError:
         flash('数字格式错误')
         return redirect(url_for('admin_links'))
 
     expires_at = request.form.get('expires_at', '').strip()
+    _max_expire_days = 30
     if not expires_at:
         expire_days = request.form.get('expire_days', '').strip()
         if expire_days:
             try:
                 days = int(expire_days)
-                if days > 0:
+                if 0 < days <= _max_expire_days:
                     expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
+                else:
+                    flash(f'有效期天数必须在 1-{_max_expire_days} 天之间')
+                    return redirect(url_for('admin_links'))
             except ValueError:
                 pass
+    elif expires_at:
+        # 验证日期格式和合法性（万年历校验）
+        try:
+            parsed = datetime.strptime(expires_at, '%Y-%m-%dT%H:%M')
+            now = datetime.now()
+            max_date = now + timedelta(days=_max_expire_days)
+            if parsed <= now:
+                flash('截止日期必须晚于当前时间')
+                return redirect(url_for('admin_links'))
+            if parsed > max_date:
+                flash(f'截止日期不能超过 {_max_expire_days} 天')
+                return redirect(url_for('admin_links'))
+        except ValueError:
+            flash('日期格式无效，请使用日历选择器选择日期时间')
+            return redirect(url_for('admin_links'))
 
     link_id = generate_link_id()
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
+    passcode_hash = generate_password_hash(passcode)
 
     conn = get_db()
     conn.execute(
-        """INSERT INTO links (id, title, description, passcode,
+        """INSERT INTO links (id, title, description, passcode, passcode_plain,
            max_file_size_gb, max_files, expires_at, allow_delete)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (link_id, title, description, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (link_id, title, description, passcode_hash, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete)
     )
     conn.commit()
     conn.close()
@@ -946,7 +1138,9 @@ def edit_link(link_id):
 
     try:
         max_files = int(max_files)
-        max_file_size_gb = int(float(max_file_size_gb))
+        max_file_size_gb = round(float(max_file_size_gb), 2)
+        if max_file_size_gb <= 0:
+            raise ValueError('文件大小必须大于0')
     except ValueError:
         flash('数字格式错误')
         return redirect(url_for('admin_links'))
@@ -957,6 +1151,7 @@ def edit_link(link_id):
 
     expires_at = request.form.get('expires_at', '').strip()
     clear_expiry = request.form.get('clear_expiry') == '1'
+    _max_expire_days = 30
     if clear_expiry:
         expires_at = None
     elif not expires_at:
@@ -964,18 +1159,44 @@ def edit_link(link_id):
         if expire_days:
             try:
                 days = int(expire_days)
-                if days > 0:
+                if 0 < days <= _max_expire_days:
                     expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
+                else:
+                    flash(f'有效期天数必须在 1-{_max_expire_days} 天之间')
+                    return redirect(url_for('admin_links'))
             except ValueError:
                 pass
+    elif expires_at:
+        # 验证日期格式和合法性（万年历校验）
+        try:
+            parsed = datetime.strptime(expires_at, '%Y-%m-%dT%H:%M')
+            now = datetime.now()
+            max_date = now + timedelta(days=_max_expire_days)
+            if parsed <= now:
+                flash('截止日期必须晚于当前时间')
+                return redirect(url_for('admin_links'))
+            if parsed > max_date:
+                flash(f'截止日期不能超过 {_max_expire_days} 天')
+                return redirect(url_for('admin_links'))
+        except ValueError:
+            flash('日期格式无效，请使用日历选择器选择日期时间')
+            return redirect(url_for('admin_links'))
 
     conn = get_db()
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
+    if passcode:
+        passcode_hash = generate_password_hash(passcode)
+        passcode_plain = passcode
+    else:
+        # 通行证为空则保留原值
+        existing = conn.execute("SELECT passcode, passcode_plain FROM links WHERE id = ?", (link_id,)).fetchone()
+        passcode_hash = existing['passcode'] if existing else generate_password_hash('default')
+        passcode_plain = existing['passcode_plain'] if existing else ''
     conn.execute(
-        """UPDATE links SET title=?, description=?, passcode=?,
+        """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
            max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
            WHERE id=?""",
-        (title, description, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
+        (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
     )
     conn.commit()
     conn.close()
@@ -1008,12 +1229,11 @@ def delete_link(link_id):
         "SELECT id, stored_path FROM upload_records WHERE link_id = ?", (link_id,)
     ).fetchall()
 
-    # 2. 删除磁盘上的文件
+    # 2. 删除磁盘上的文件（使用安全删除函数）
     deleted_count = 0
     for r in records:
         try:
-            if os.path.exists(r['stored_path']):
-                os.remove(r['stored_path'])
+            if _safe_delete(r['stored_path']):
                 deleted_count += 1
         except OSError:
             pass
@@ -1104,13 +1324,7 @@ def admin_download_record(record_id):
     conn.commit()
     conn.close()
 
-    directory = os.path.dirname(record['stored_path'])
-    filename = os.path.basename(record['stored_path'])
-    return send_from_directory(
-        directory, filename,
-        download_name=record['original_name'],
-        as_attachment=True
-    )
+    return _safe_download(record['stored_path'], record['original_name'])
 
 @app.route('/admin/records/<int:record_id>/delete', methods=['POST'])
 @admin_required
@@ -1123,7 +1337,7 @@ def delete_record(record_id):
 
     if record:
         try:
-            os.remove(record['stored_path'])
+            _safe_delete(record['stored_path'])
         except OSError:
             pass
         conn.execute("DELETE FROM upload_records WHERE id = ?", (record_id,))
@@ -1148,7 +1362,7 @@ def batch_delete_records():
         ).fetchone()
         if record:
             try:
-                os.remove(record['stored_path'])
+                _safe_delete(record['stored_path'])
             except OSError:
                 pass
         conn.execute("DELETE FROM upload_records WHERE id = ?", (rid,))
@@ -1179,8 +1393,10 @@ def admin_settings():
             else:
                 set_setting('admin_username', new_username)
                 if new_pass:
-                    if len(new_pass) < 6:
-                        flash('新密码至少6位')
+                    if len(new_pass) < 8:
+                        flash('新密码至少8位，且需包含字母和数字')
+                    elif not re.search(r'[a-zA-Z]', new_pass) or not re.search(r'[0-9]', new_pass):
+                        flash('新密码必须同时包含字母和数字')
                     elif new_pass != confirm_pass:
                         flash('两次密码不一致')
                     else:
@@ -1199,8 +1415,17 @@ def admin_settings():
             max_size = request.form.get('default_max_size', str(DEFAULT_MAX_FILE_SIZE_GB))
             site_title = request.form.get('site_title', '文件收集器')
 
-            set_setting('max_files', max_files)
-            set_setting('max_file_size_gb', max_size)
+            try:
+                max_files = int(max_files)
+                max_size = round(float(max_size), 2)
+                if max_files < 1: raise ValueError
+                if max_size <= 0: raise ValueError
+            except ValueError:
+                flash('默认值格式错误')
+                return redirect(url_for('admin_settings'))
+
+            set_setting('max_files', str(max_files))
+            set_setting('max_file_size_gb', str(max_size))
             set_setting('site_title', site_title)
             flash('设置已保存')
 
@@ -1229,9 +1454,33 @@ def admin_settings():
             set_setting('passcode_ttl_minutes', str(val))
             flash('通行证有效期已保存')
 
+        elif action == 'upload_path':
+            custom_path = request.form.get('custom_upload_path', '').strip()
+            if custom_path:
+                # 清空可能存在的子路径
+                custom_path = os.path.normpath(custom_path)
+                if not os.path.isabs(custom_path):
+                    flash('上传路径必须是绝对路径，例如 /vol2/1000/文件收集')
+                elif not os.path.exists(custom_path):
+                    flash(f'路径不存在: {custom_path}')
+                else:
+                    set_setting('custom_upload_path', custom_path)
+                    refresh_upload_base()
+                    # 确保目录可写
+                    try:
+                        os.makedirs(UPLOAD_BASE, mode=0o755, exist_ok=True)
+                    except PermissionError:
+                        pass
+                    flash('上传路径已更新。请确认飞牛应用设置中已授权该文件夹的读写权限。')
+            else:
+                set_setting('custom_upload_path', '')
+                refresh_upload_base()
+                flash('已恢复默认上传路径')
+
         return redirect(url_for('admin_settings'))
 
     admin_user = get_setting('admin_username', DEFAULT_ADMIN_USER)
+    custom_upload_path = get_setting('custom_upload_path', '')
     defaults = {
         'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
@@ -1243,14 +1492,15 @@ def admin_settings():
         'passcode_ttl_minutes': get_setting('passcode_ttl_minutes', '120'),
     }
     sys_info = {
-        'db_path': DB_PATH,
-        'upload_base': UPLOAD_BASE,
-        'data_dir': DATA_DIR,
+        'db_path': os.path.dirname(DB_PATH),  # 仅显示目录，不暴露完整文件名
+        'upload_base': os.path.basename(get_upload_base()) or get_upload_base(),  # 仅显示目录名
+        'data_dir': os.path.basename(DATA_DIR) or DATA_DIR,
         'port': str(PORT),
     }
     return render_template('admin_settings.html',
         defaults=defaults,
         admin_username=admin_user,
+        custom_upload_path=custom_upload_path,
         sys_info=sys_info,
         version=VERSION)
 
@@ -1294,7 +1544,15 @@ def restore_database():
     try:
         file.save(tmp_path)
 
-        # 验证是否为有效的 SQLite 数据库
+        # 验证文件头：SQLite 数据库前 16 字节必须是 "SQLite format 3\0"
+        with open(tmp_path, 'rb') as f:
+            header = f.read(16)
+        if header != b'SQLite format 3\x00':
+            flash('无效的数据库文件：文件格式不正确')
+            os.unlink(tmp_path)
+            return redirect(url_for('admin_settings'))
+
+        # 验证是否为有效的 SQLite 数据库且包含必要表结构
         try:
             test_conn = sqlite3.connect(tmp_path)
             test_conn.row_factory = sqlite3.Row
@@ -1306,8 +1564,8 @@ def restore_database():
                 flash('无效的数据库文件：缺少必要的表结构')
                 os.unlink(tmp_path)
                 return redirect(url_for('admin_settings'))
-        except sqlite3.Error as e:
-            flash(f'无效的数据库文件：{e}')
+        except sqlite3.Error:
+            flash('无效的数据库文件：无法读取数据库')
             os.unlink(tmp_path)
             return redirect(url_for('admin_settings'))
 
@@ -1321,16 +1579,38 @@ def restore_database():
 
         # 重新初始化（执行迁移）
         init_db()
+        refresh_upload_base()  # 恢复后刷新自定义上传路径
 
-        # 刷新 secret_key
-        global app
-        _key = get_setting('secret_key', None)
-        if _key:
-            app.secret_key = _key
+        # 强制重置 secret_key 和 admin 密码，防止还原数据库导致账户接管
+        new_secret = secrets.token_hex(32)
+        set_setting('secret_key', new_secret)
+        app.secret_key = new_secret
 
-        flash(f'数据库已成功导入！旧数据库已备份至 {os.path.basename(backup_path)}')
+        # 检查还原后的数据库中的路径是否安全（在上传目录范围内）
+        conn = get_db()
+        rows = conn.execute("SELECT id, stored_path FROM upload_records").fetchall()
+        bad_paths = 0
+        upload_base = get_upload_base()
+        real_base = os.path.realpath(upload_base)
+        for row in rows:
+            try:
+                real_path = os.path.realpath(row['stored_path'])
+                if not (real_path.startswith(real_base + os.sep) or real_path == real_base):
+                    logger.warning(f"还原数据库发现不安全路径: {row['stored_path']}")
+                    bad_paths += 1
+            except Exception:
+                bad_paths += 1
+        conn.close()
+
+        flash(f'数据库已成功导入！Secret Key 已重置，请重新登录。旧数据库已备份。')
+        if bad_paths > 0:
+            flash(f'警告：发现 {bad_paths} 条记录的文件路径不在上传目录中，已跳过删除保护。')
+
+        # 清除当前 session 强制重新登录
+        session.clear()
     except Exception as e:
-        flash(f'导入失败：{e}')
+        logger.error(f"数据库还原失败: {e}")
+        flash(f'导入失败，请检查文件是否正确')
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 

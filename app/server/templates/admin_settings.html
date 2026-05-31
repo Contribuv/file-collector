@@ -46,7 +46,7 @@
               <label class="form-label" for="login_tip_text">提示文字</label>
               <textarea id="login_tip_text" name="login_tip_text" class="form-textarea" rows="3"
                         placeholder="显示在登录页底部的提示信息">{{ defaults.login_tip or '' }}</textarea>
-              <div class="form-hint">例如：默认账户 admin / admin123，请及时修改</div>
+              <div class="form-hint">例如：有问题联系管理员</div>
             </div>
             <button type="submit" name="action" value="login_tip" class="btn btn-primary">保存</button>
           </form>
@@ -55,7 +55,7 @@
 
       <!-- Defaults -->
       <div class="card">
-        <div class="card-header"><h3>默认上传设置</h3></div>
+        <div class="card-header"><h3>默认设置</h3></div>
         <div class="card-body">
           <form method="POST" action="{{ url_for('admin_settings') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -91,8 +91,8 @@
             <div class="form-group">
               <label class="form-label" for="public_url">公网网址</label>
               <input type="text" id="public_url" name="public_url" class="form-input"
-                     value="{{ defaults.public_url or '' }}" placeholder="例lucky反代域名：https://file.fnos.com:8080">
-              <div class="form-hint">收集页的公网访问地址，用于在浏览器控制台输出正确的分享链接。留空则按访问链接分享。</div>
+                     value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
+              <div class="form-hint">公网访问地址，用于生成正确的分享链接。留空则按访问链接分享。</div>
             </div>
             <div class="form-group">
               <label class="form-label" for="collect_footer_text">页尾信息</label>
@@ -115,7 +115,7 @@
               <label class="form-label" for="passcode_ttl_minutes">有效期（分钟）</label>
               <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input"
                      value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200">
-              <div class="form-hint">用户验证通行证后，浏览器缓存有效期。默认 120 分钟（2小时），最大 43200 分钟（30天）</div>
+              <div class="form-hint">用户验证通行证后，浏览器缓存有效期。默认 120 分钟，最大 43200 分钟（30天）</div>
             </div>
             <button type="submit" name="action" value="passcode_ttl" class="btn btn-primary">保存</button>
           </form>
@@ -144,11 +144,9 @@
       <div class="card">
         <div class="card-header"><h3>数据库管理</h3></div>
         <div class="card-body">
-          <div class="form-group">
-            <a href="{{ url_for('backup_database') }}" class="btn btn-primary btn-block">下载数据库备份</a>
-            <div class="form-hint" style="margin-top:4px">下载当前数据库文件，用于迁移或备份</div>
-          </div>
-          <hr style="border:none;border-top:1px solid var(--c-border);margin:16px 0">
+          <a href="{{ url_for('backup_database') }}" class="btn btn-primary btn-block">下载数据库备份</a>
+          <div class="form-hint" style="margin-top:6px;margin-bottom:16px;">下载当前数据库文件，用于迁移或备份</div>
+          <hr style="border:none;border-top:.5px solid var(--c-border);margin:16px 0">
           <form method="POST" action="{{ url_for('restore_database') }}" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
@@ -161,6 +159,29 @@
         </div>
       </div>
 
+      <!-- Upload Path -->
+      <div class="card">
+        <div class="card-header"><h3>上传路径</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="custom_upload_path">自定义上传目录</label>
+              <input type="text" id="custom_upload_path" name="custom_upload_path" class="form-input"
+                     value="{{ custom_upload_path }}" placeholder="例：/vol2/1000/文件收集">
+              <div class="form-hint">
+                {% if custom_upload_path %}
+                当前路径：<strong>{{ custom_upload_path }}</strong><br>
+                {% endif %}
+                填写绝对路径可自定义上传文件存储位置。留空则使用默认路径。<br>
+                自定义后，请到「飞牛应用中心 → 应用设置 → 存储空间授权」中添加该文件夹并授权读写，且重启该应用则生效，否则上传会失败。
+              </div>
+            </div>
+            <button type="submit" name="action" value="upload_path" class="btn btn-primary">保存</button>
+          </form>
+        </div>
+      </div>
+
       <!-- System Info -->
       <div class="card">
         <div class="card-header"><h3>系统信息</h3></div>
@@ -168,8 +189,8 @@
           <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener">豪子</a></span></div>
           <div class="info-row"><span class="info-label">版本号</span><span class="info-value">{{ version }}</span></div>
           <div class="info-row"><span class="info-label">数据库</span><span class="info-value">SQLite</span></div>
-          <div class="info-row"><span class="info-label">动态数据</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
-          <div class="info-row"><span class="info-label">上传路径</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
+          <div class="info-row"><span class="info-label">数据目录</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
+          <div class="info-row"><span class="info-label">上传目录名</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
           <div class="info-row"><span class="info-label">监听端口</span><span class="info-value">{{ sys_info.port }}</span></div>
         </div>
       </div>

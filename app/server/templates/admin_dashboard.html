@@ -24,35 +24,52 @@
       </div>
     </div>
 
-
-
     <div class="card">
       <div class="card-header">
         <h3>最近上传</h3>
-        <a href="{{ url_for('admin_records') }}" class="btn btn-sm" style="font-weight:400;">查看全部 →</a>
+        <a href="{{ url_for('admin_records') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
       </div>
-      <div class="table-wrap">
-        {% if recent_uploads %}
-        <table class="dash-records">
+      {% if recent_uploads %}
+      <!-- PC 端：完整表格 -->
+      <div class="records-table-pc">
+        <table class="dash-records dash-records--full">
           <thead>
-            <tr><th>文件名</th><th>大小</th><th>来源</th><th>下载次数</th><th>时间</th></tr>
+            <tr><th>文件名</th><th>大小</th><th>来源</th><th>下载</th><th>IP</th><th>时间</th></tr>
           </thead>
           <tbody>
             {% for r in recent_uploads %}
             <tr>
-              <td><a href="{{ url_for('admin_download_record', record_id=r['id']) }}">{{ r['original_name'] }}</a></td>
-              <td style="color:#666;font-size:.82rem;">{{ r['file_size_display'] }}</td>
-              <td style="color:#666;font-size:.82rem;">{{ r['link_title'] or r['link_id'] }}</td>
-              <td style="color:#666;font-size:.82rem;text-align:center;">{{ r['download_count'] }}</td>
-              <td style="color:#666;font-size:.82rem;">{{ r['uploaded_at'] }}</td>
+              <td class="col-name"><a href="{{ url_for('admin_download_record', record_id=r['id']) }}" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a></td>
+              <td class="col-meta">{{ r['file_size_display'] }}</td>
+              <td class="col-meta">{{ r['link_title'] or r['link_id'] }}</td>
+              <td class="col-meta text-center">{{ r['download_count'] }}</td>
+              <td class="col-meta col-meta-dim">{{ r['uploader_ip'] or '-' }}</td>
+              <td class="col-meta">{{ r['uploaded_at'] }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% else %}
-        <div class="empty-state"><h3>暂无上传记录</h3><p>创建收集链接后，用户上传的文件会在此显示</p></div>
-        {% endif %}
       </div>
+      <!-- 移动端：卡片列表 -->
+      <div class="records-cards-mobile">
+        {% for r in recent_uploads %}
+        <div class="record-card">
+          <div class="record-card-body">
+            <a href="{{ url_for('admin_download_record', record_id=r['id']) }}" class="record-card-name" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a>
+            <div class="record-card-meta">
+              <span>{{ r['file_size_display'] }}</span>
+              <span>{{ r['link_title'] or r['link_id'] }}</span>
+              <span>下载 {{ r['download_count'] }}</span>
+              <span>{{ r['uploader_ip'] or '-' }}</span>
+              <span>{{ r['uploaded_at'] }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state"><h3>暂无上传记录</h3><p>创建收集链接后，用户上传的文件会在此显示</p></div>
+      {% endif %}
     </div>
   </div>
 </div>

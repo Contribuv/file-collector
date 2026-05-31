@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.17-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.19-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -183,16 +183,24 @@ GET /api/status
 
 ## 更新日志
 
+### v1.1.19
+- 修复后台首页最近上传表格 PC 端显示不全的问题
+- 采用 PC 完整表格 + 移动端卡片的双模式布局，与 /admin/records 一致
+
+### v1.1.18
+- 修复 SESSION_COOKIE_SECURE 在模块加载时引用 request.headers 导致 RuntimeError 的问题
+- 改为 before_request 钩子动态设置，避免无请求上下文时崩溃
+
 ### v1.1.17
-- 🔒 安全加固：文件删除路径遍历防护（高危）
-- 🔒 安全加固：数据库还原防篡改、重置 Secret Key
-- 🔒 安全加固：默认密码强制跳转修改页
-- 🔒 安全加固：添加 CSP/Frame/Content-Type 等安全响应头
-- 🔒 安全加固：拦截 .exe/.php/.sh 等危险文件类型上传
-- 🔒 安全加固：密码要求至少8位且含字母+数字
-- 🔒 安全加固：IP 获取优先使用反向代理头
-- 🛡️ 系统信息页面路径脱敏，不暴露完整路径
-- 🛡️ 上传大小硬限制 64GB 防止恶意耗尽磁盘
+- 安全加固：文件删除路径遍历防护（高危）
+- 全加固：数据库还原防篡改、重置 Secret Key
+- 安全加固：默认密码强制跳转修改页
+- 安全加固：添加 CSP/Frame/Content-Type 等安全响应头
+- 安全加固：拦截 .exe/.php/.sh 等危险文件类型上传
+- 安全加固：密码要求至少8位且含字母+数字
+- 安全加固：IP 获取优先使用反向代理头
+- 系统信息页面路径脱敏，不暴露完整路径
+- 上传大小硬限制 64GB 防止恶意耗尽磁盘
 
 ### v1.1.16
 - 修复复制链接时通行证显示为哈希值的问题

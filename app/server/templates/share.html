@@ -2,292 +2,177 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{{ task_title|default('文件分享') }} - {{ site_title }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <style>
     :root {
-      --cp-max: 960px;
-      --cp-pad-x: 20px;
-      --c-accent: #2563eb;
-      --c-text: #111827;
-      --c-text-soft: #6b7280;
-      --c-border: #e5e7eb;
-      --c-bg: #f3f4f6;
-      --c-white: #ffffff;
-      --c-success: #16a34a;
-      --c-danger: #dc2626;
-      --c-input-bg: #f9fafb;
+      --cp-max: 720px;
+      --cp-pad: 20px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       background: var(--c-bg);
       min-height: 100vh;
+      min-height: 100dvh;
       color: var(--c-text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      font-family: var(--font);
       font-size: 15px;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    /* Topbar */
     .cp-topbar {
       height: 44px;
-      background: #fafbfc;
-      border-bottom: 1px solid var(--c-border);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: .5px solid var(--c-border);
       display: flex;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .cp-topbar-inner {
       max-width: var(--cp-max);
       width: 100%;
       margin: 0 auto;
-      padding-left: 15px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .cp-topbar-logo {
-      width: 22px; height: 22px;
-      flex-shrink: 0;
-      object-fit: contain;
-    }
-    .cp-topbar-inner span {
-      font-size: 13px;
-      font-weight: 500;
-      color: #374151;
-    }
+    .cp-topbar-logo { width: 26px; height: 26px; border-radius: 0px; flex-shrink: 0; object-fit: contain; }
+    .cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: var(--c-text); letter-spacing: -.3px; }
 
-    /* Wrap */
     .cp-wrap {
       width: 100%;
       max-width: var(--cp-max);
       margin: 0 auto;
-      padding: 28px var(--cp-pad-x) 80px;
+      padding: 20px var(--cp-pad) 100px;
     }
 
-    /* Header */
-    .cp-header {
-      margin-bottom: 24px;
-    }
-    .cp-header h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--c-text);
-      margin-bottom: 4px;
-    }
-    .cp-header .cp-desc {
-      font-size: 14px;
-      color: var(--c-text-soft);
-      white-space: pre-wrap;
-      line-height: 1.6;
-      margin-top: 6px;
-    }
-    .cp-meta {
-      margin-top: 10px;
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .cp-meta-item {
-      font-size: 13px;
-      color: var(--c-text-soft);
-    }
-    .cp-meta-item strong {
-      color: var(--c-text);
-      font-weight: 600;
-    }
+    .cp-header { margin-bottom: 20px; }
+    .cp-header h1 { font-size: 1.4rem; font-weight: 800; color: var(--c-text); margin-bottom: 4px; letter-spacing: -.4px; }
+    .cp-header .cp-desc { font-size: .9rem; color: var(--c-text-soft); white-space: pre-wrap; line-height: 1.6; margin-top: 6px; }
 
-    /* Card */
     .cp-card {
       background: var(--c-white);
-      border: 1px solid var(--c-border);
-      margin-bottom: 16px;
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
     }
     .cp-card-head {
-      padding: 12px 20px;
-      border-bottom: 1px solid var(--c-border);
+      padding: 12px 16px;
+      border-bottom: .5px solid var(--c-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .cp-card-head h2 {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--c-text);
-    }
-    .cp-card-body { padding: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cp-card-head h2 { font-size: .95rem; font-weight: 600; }
+    .cp-card-body { padding: 16px; }
 
-    /* Badge */
     .cp-badge {
-      font-size: 12px;
+      font-size: .72rem;
       font-weight: 500;
       color: var(--c-success);
-      background: #f0faf4;
-      border: 1px solid #bbf7d0;
-      padding: 2px 8px;
+      background: #ecfdf5;
+      border-radius: 10px;
+      padding: 3px 10px;
       cursor: pointer;
-      transition: background .15s;
     }
-    .cp-badge:hover {
-      background: #dcfce7;
-    }
+    .cp-badge:active { background: #d1fae5; }
 
-    /* Passcode */
-    .cp-passcode-wrap {
-      max-width: 360px;
-      margin: 0 auto;
-    }
-    .cp-passcode-wrap .cp-card-body {
-      text-align: center;
-    }
-    .cp-passcode-wrap p {
-      font-size: 14px;
-      color: var(--c-text-soft);
-      margin-bottom: 12px;
-    }
-    .cp-passcode-row {
-      display: flex;
-      gap: 8px;
-    }
+    .cp-passcode-wrap {margin: 0 auto; }
+    .cp-passcode-wrap .cp-card-body { text-align: center; padding: 32px 24px; }
+    .cp-passcode-wrap p { font-size: .9rem; color: var(--c-text-soft); margin-bottom: 18px; }
+    .cp-passcode-row { display: flex; gap: 10px; }
     .cp-passcode-row input {
-      flex: 1;
-      height: 40px;
-      padding: 0 12px;
-      border: 1px solid var(--c-border);
-      font-size: 14px;
-      background: var(--c-input-bg);
+      flex: 1; text-align: center; letter-spacing: 1px;
+      padding: 11px 16px; font-size: 1rem;
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      outline: none; background: #f7f8fa;
+      font-family: var(--font);
+      transition: all .15s;
     }
+    .cp-passcode-row input:focus { border-color: var(--c-primary); background: var(--c-white); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
     .cp-passcode-btn {
-      height: 40px;
-      padding: 0 20px;
-      background: var(--c-accent);
-      color: #fff;
-      border: none;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
+      flex-shrink: 0; padding: 11px 22px;
+      font-size: .92rem; font-weight: 600;
+      color: #fff; background: var(--c-primary);
+      border: none; border-radius: var(--radius-sm);
+      cursor: pointer; font-family: var(--font);
       white-space: nowrap;
+      min-width: 64px;
     }
-    .cp-passcode-msg {
-      margin-top: 10px;
-      font-size: 13px;
-      min-height: 20px;
-    }
+    .cp-passcode-btn:active { background: var(--c-primary-hover); }
+    .cp-passcode-msg { margin-top: 12px; font-size: .82rem; }
 
-    /* WeChat warning */
-    .wechat-warn {
-      background: #fef3c7;
-      color: #92400e;
-      text-align: center;
-      padding: 8px;
-      font-size: 13px;
-    }
-
-    /* History */
-    .cp-history-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 12px;
-      padding: 20px;
-    }
+    /* History grid */
+    .cp-history-grid { display: flex; flex-direction: column; }
     .cp-history-card {
-      background: #fafbfc;
-      border: 1px solid var(--c-border);
-      padding: 14px;
+      padding: 11px 14px;
+      border-bottom: .5px solid #f2f3f5;
+      display: flex; flex-direction: column; gap: 3px;
     }
-    .cp-history-card-name {
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 8px;
-      word-break: break-all;
+    .cp-history-card:last-child { border-bottom: none; }
+    .cp-history-card:active { background: #f7f8fa; }
+    .cp-history-card-name { font-size: .9rem; font-weight: 600; word-break: break-all; }
+    .cp-history-card-name a { color: var(--c-primary); text-decoration: none; }
+    .cp-history-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .78rem; color: var(--c-text-soft); flex-wrap: wrap; }
+    .cp-history-card-meta-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cp-history-card-time { font-size: .75rem; color: var(--c-text-muted); }
+
+    .cp-empty { text-align: center; padding: 36px 16px; color: var(--c-text-soft); font-size: .88rem; }
+    .cp-empty p:first-child { font-weight: 500; color: var(--c-text); margin-bottom: 2px; }
+
+    .cp-toast {
+      position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: rgba(30,30,40,.92); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #fff; padding: 10px 22px; border-radius: 20px;
+      font-size: .82rem; font-weight: 500; z-index: 999;
+      opacity: 0; transition: all .25s cubic-bezier(.4,0,.2,1);
+      pointer-events: none; white-space: nowrap;
     }
-    .cp-history-card-name a {
-      color: var(--c-accent);
-      text-decoration: none;
-    }
-    .cp-history-card-name a:hover {
-      text-decoration: underline;
-    }
-    .cp-history-card-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--c-text-soft);
-    }
-    .cp-history-card-meta-left {
-      display: flex;
-      gap: 12px;
-    }
-    .cp-history-card-time {
-      font-size: 11px;
-      color: #94a3b8;
-      margin-top: 6px;
-    }
-    .cp-empty {
-      text-align: center;
-      padding: 32px 20px;
-      color: var(--c-text-soft);
-      font-size: 14px;
+    .cp-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .wechat-warn {
+      background: #fffbeb; border-bottom: 1px solid #fcd34d;
+      text-align: center; padding: 8px 16px; font-size: .8rem;
+      color: #92400e; font-weight: 500;
     }
 
-    .btn { display:inline-block; padding:6px 14px; font-size:13px; border:1px solid var(--c-border); background:var(--c-white); cursor:pointer; border-radius:0; text-decoration:none; color:var(--c-text); }
-    .btn-primary { background:var(--c-accent); color:#fff; border-color:var(--c-accent); }
-    .btn-danger { color:var(--c-danger); border-color:var(--c-danger); }
-    .btn-sm { padding:4px 10px; font-size:12px; }
-
-    /* Footer */
     .collect-page-footer {
-      text-align: center;
-      padding: 16px;
-      font-size: 12px;
-      color: #9ca3af;
-      border-top: 1px solid var(--c-border);
-    }
-    .collect-copyright {
-      text-align: center;
-      padding: 12px 16px 20px;
-      font-size: 12px;
-      color: #9ca3af;
-      line-height: 1.7;
-    }
-    .collect-copyright a {
-      color: #6b7280;
-      text-decoration: none;
-    }
-    .collect-copyright a:hover {
-      color: #2563eb;
-      text-decoration: underline;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      text-align: center; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      font-size: .75rem; color: var(--c-text-muted);
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: .5px solid var(--c-border);
+      z-index: 50;
     }
 
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #1f2937;
-      color: #fff;
-      padding: 8px 20px;
-      font-size: 13px;
-      opacity: 0;
-      transition: opacity .25s;
-      pointer-events: none;
-      z-index: 999;
-    }
-    .toast.show { opacity: 1; }
-
-    /* Responsive */
-    @media (max-width: 640px) {
-      :root { --cp-max: 98%; --cp-pad-x: 12px; }
-      .cp-topbar { padding: 0 12px; }
-      .cp-topbar-inner { padding-left: 0; }
-      .cp-wrap { padding: 20px var(--cp-pad-x) 72px; }
-      .cp-header h1 { font-size: 18px; }
-      .cp-history-grid { grid-template-columns: 1fr; padding: 12px; }
+    @media (max-width: 480px) {
+      :root { --cp-pad: 12px; }
+      .cp-wrap { padding: 16px var(--cp-pad) 90px; }
+      .cp-header h1 { font-size: 1.2rem; }
+      .cp-card-head { padding: 10px 14px; }
+      .cp-card-body { padding: 12px; }
+      .cp-passcode-row { flex-direction: column; }
+      .cp-history-card { padding: 10px 12px; }
+      .cp-history-card-name { font-size: .85rem; }
+      .cp-history-card-meta { font-size: .73rem; }
     }
   </style>
 </head>
@@ -325,7 +210,7 @@
   <div class="cp-card">
     <div class="cp-card-head">
       <h2>文件列表</h2>
-      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>
+      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>
     </div>
     <div class="cp-card-body" style="padding:0">
       <div id="history-wrap">
@@ -340,28 +225,33 @@
   {% endif %}
 </div>
 
-{% if collect_footer_text %}
 <div class="collect-page-footer">
-  <div class="collect-footer-content">{{ collect_footer_text }}</div>
+  {% if collect_footer_text %}
+  {{ collect_footer_text }}
+  {% else %}
+  Powered by File Collector
+  {% endif %}
 </div>
-{% endif %}
 
-<div class="collect-copyright">{{ collect_footer_text or '' }}</div>
-
-<div class="toast" id="toast"></div>
+<div class="cp-toast" id="toast"></div>
 
 <script>
 const linkId = '{{ link_id }}';
-{% if allow_delete %}const allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+
+// XSS防护：HTML实体转义函数
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 (function() {
   var publicUrl = '{{ public_url }}'.trim();
   if (!publicUrl) { publicUrl = window.location.origin; }
   if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
   var linkUrl = publicUrl + 'share/' + linkId;
-  console.log('文件分享器_{ version }}');
-  console.log('分享链接：%c' + linkUrl, 'color:#374151;', 'color:#2563eb;text-decoration:underline;');
-  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#374151;', 'color:#6b7280;');
+  console.log('文件分享器');
+  console.log('分享链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
+  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
 })();
 
 function showToast(msg, d) {
@@ -374,7 +264,7 @@ function showToast(msg, d) {
 async function verifyPasscode() {
   var code = document.getElementById('passcode-input').value.trim();
   var msg = document.getElementById('passcode-msg');
-  if (!code) { msg.textContent = '请输入通行证'; msg.style.color = '#dc2626'; return; }
+  if (!code) { msg.textContent = '请输入通行证'; msg.style.color = '#ef4444'; return; }
   msg.textContent = '验证中...'; msg.style.color = '#6b7280';
   try {
     var res = await fetch('/share/' + linkId + '/verify', {
@@ -385,15 +275,15 @@ async function verifyPasscode() {
     var data = await res.json();
     if (data.success) {
       msg.textContent = '验证成功，正在刷新...';
-      msg.style.color = '#16a34a';
+      msg.style.color = '#10b981';
       setTimeout(function(){ location.reload(); }, 800);
     } else {
       msg.textContent = data.message || '通行证错误';
-      msg.style.color = '#dc2626';
+      msg.style.color = '#ef4444';
     }
   } catch(e) {
     msg.textContent = '网络错误，请重试';
-    msg.style.color = '#dc2626';
+    msg.style.color = '#ef4444';
   }
 }
 document.getElementById('passcode-input') && document.getElementById('passcode-input').addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPasscode(); });
@@ -406,14 +296,9 @@ async function logoutPasscode() {
       headers: { 'X-CSRFToken': '{{ csrf_token }}' }
     });
     var data = await res.json();
-    if (data.success) {
-      location.reload();
-    } else {
-      showToast(data.message || '退出失败');
-    }
-  } catch(e) {
-    showToast('网络错误');
-  }
+    if (data.success) { location.reload(); }
+    else { showToast(data.message || '退出失败'); }
+  } catch(e) { showToast('网络错误'); }
 }
 
 async function loadHistory() {
@@ -425,41 +310,26 @@ async function loadHistory() {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无文件</p><p>还没有上传过文件</p></div>';
       return;
     }
-    var canDelete = allowDelete && (data.allow_delete === true);
     var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
-      var safeName = r.original_name.replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      var escapedName = escapeHtml(r.original_name);
+      var escapedTime = escapeHtml(r.uploaded_at);
+      var escapedSize = escapeHtml(r.file_size_display);
       html += '<div class="cp-history-card">';
-      html += '<div class="cp-history-card-name"><a href="/share/' + linkId + '/download/' + r.id + '" title="' + r.original_name.replace(/"/g,'&quot;') + '">' + r.original_name + '</a></div>';
+      html += '<div class="cp-history-card-name"><a href="/share/' + linkId + '/download/' + r.id + '" title="' + escapedName + '">' + escapedName + '</a></div>';
       html += '<div class="cp-history-card-meta">';
       html += '<span class="cp-history-card-meta-left">';
-      html += '<span>' + r.file_size_display + '</span>';
+      html += '<span>' + escapedSize + '</span>';
       html += '<span>下载 ' + (r.download_count || 0) + '</span>';
       html += '</span>';
-      if (canDelete) {
-        html += '<button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + safeName + '\')">删除</button>';
-      }
       html += '</div>';
-      html += '<div class="cp-history-card-time">' + r.uploaded_at + '</div>';
+      html += '<div class="cp-history-card-time">' + escapedTime + '</div>';
       html += '</div>';
     }
     html += '</div>';
     wrap.innerHTML = html;
   } catch(e){}
-}
-
-async function deleteRecord(recordId, fileName) {
-  if (!confirm('确定删除「' + fileName + '」？')) return;
-  try {
-    var res = await fetch('/share/' + linkId + '/delete_record/' + recordId, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-    });
-    var data = await res.json();
-    if (data.success) { showToast('已删除'); loadHistory(); }
-    else { showToast(data.message || '删除失败'); }
-  } catch(e){ showToast('网络错误'); }
 }
 
 {% if verified %}loadHistory();{% endif %}

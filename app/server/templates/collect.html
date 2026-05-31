@@ -2,596 +2,269 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{{ task_title|default('文件收集') }} - {{ site_title }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <style>
     :root {
-      --cp-max: 960px;
-      --cp-pad-x: 20px;
-      --c-accent: #2563eb;
-      --c-text: #111827;
-      --c-text-soft: #6b7280;
-      --c-border: #e5e7eb;
-      --c-bg: #f3f4f6;
-      --c-white: #ffffff;
-      --c-success: #16a34a;
-      --c-danger: #dc2626;
-      --c-input-bg: #f9fafb;
+      --cp-max: 720px;
+      --cp-pad: 20px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       background: var(--c-bg);
       min-height: 100vh;
+      min-height: 100dvh;
       color: var(--c-text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      font-family: var(--font);
       font-size: 15px;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    /* Topbar — full-width app header */
+    /* Topbar */
     .cp-topbar {
       height: 44px;
-      background: #fafbfc;
-      border-bottom: 1px solid var(--c-border);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: .5px solid var(--c-border);
       display: flex;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
     .cp-topbar-inner {
       max-width: var(--cp-max);
       width: 100%;
       margin: 0 auto;
-      padding-left: 15px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .cp-topbar-logo {
-      width: 22px; height: 22px;
-      flex-shrink: 0;
-      object-fit: contain;
-    }
-    .cp-topbar-inner span {
-      font-size: 13px;
-      font-weight: 500;
-      color: #374151;
-    }
+    .cp-topbar-logo { width: 26px; height: 26px; border-radius: 0px; flex-shrink: 0; object-fit: contain; }
+    .cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: var(--c-text); letter-spacing: -.3px; }
 
     /* Wrap */
     .cp-wrap {
       width: 100%;
       max-width: var(--cp-max);
       margin: 0 auto;
-      padding: 28px var(--cp-pad-x) 80px;
+      padding: 20px var(--cp-pad) 100px;
     }
 
     /* Header */
-    .cp-header {
-      margin-bottom: 24px;
-    }
-    .cp-header h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--c-text);
-      margin-bottom: 4px;
-    }
-    .cp-header .cp-desc {
-      font-size: 14px;
-      color: var(--c-text-soft);
-      white-space: pre-wrap;
-      line-height: 1.6;
-      margin-top: 6px;
-    }
-    .cp-meta {
-      margin-top: 10px;
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
+    .cp-header { margin-bottom: 20px; }
+    .cp-header h1 { font-size: 1.4rem; font-weight: 800; color: var(--c-text); margin-bottom: 4px; letter-spacing: -.4px; }
+    .cp-header .cp-desc { font-size: .9rem; color: var(--c-text-soft); white-space: pre-wrap; line-height: 1.6; margin-top: 6px; }
+    .cp-meta { margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; }
     .cp-meta-item {
-      font-size: 13px;
-      color: var(--c-text-soft);
+      font-size: .78rem; color: var(--c-text-soft);
+      background: var(--c-white); padding: 4px 10px; border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
     }
-    .cp-meta-item strong {
-      color: var(--c-text);
-      font-weight: 600;
-    }
+    .cp-meta-item strong { color: var(--c-text); font-weight: 600; }
 
     /* Card */
     .cp-card {
       background: var(--c-white);
-      border: 1px solid var(--c-border);
-      margin-bottom: 16px;
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
     }
     .cp-card-head {
-      padding: 12px 20px;
-      border-bottom: 1px solid var(--c-border);
+      padding: 12px 16px;
+      border-bottom: .5px solid var(--c-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .cp-card-head h2 {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--c-text);
-    }
-    .cp-card-body { padding: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cp-card-head h2 { font-size: .95rem; font-weight: 600; }
+    .cp-card-body { padding: 16px; }
 
     /* Badge */
     .cp-badge {
-      font-size: 12px;
+      font-size: .72rem;
       font-weight: 500;
       color: var(--c-success);
-      background: #f0faf4;
-      border: 1px solid #bbf7d0;
-      padding: 2px 8px;
+      background: #ecfdf5;
+      border-radius: 10px;
+      padding: 3px 10px;
       cursor: pointer;
-      transition: background .15s;
     }
-    .cp-badge:hover {
-      background: #dcfce7;
-    }
+    .cp-badge:active { background: #d1fae5; }
 
     /* Passcode */
-    .cp-passcode-wrap {
-      max-width: 360px;
-      margin: 0 auto;
-    }
-    .cp-passcode-wrap .cp-card-body {
-      text-align: center;
-      padding: 28px 24px;
-    }
-    .cp-passcode-wrap p {
-      font-size: 14px;
-      color: var(--c-text-soft);
-      margin-bottom: 16px;
-    }
-    .cp-passcode-row {
-      display: flex;
-      gap: 8px;
-    }
+    .cp-passcode-wrap {margin: 0 auto; }
+    .cp-passcode-wrap .cp-card-body { text-align: center; padding: 32px 24px; }
+    .cp-passcode-wrap p { font-size: .9rem; color: var(--c-text-soft); margin-bottom: 18px; }
+    .cp-passcode-row { display: flex; gap: 10px; }
     .cp-passcode-row input {
-      flex: 1;
-      text-align: center;
-      letter-spacing: 1px;
-      padding: 10px 14px;
-      font-size: 15px;
-      border: 1px solid var(--c-border);
-      outline: none;
-      background: var(--c-input-bg);
-      font-family: inherit;
+      flex: 1; text-align: center; letter-spacing: 1px;
+      padding: 11px 16px; font-size: 1rem;
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      outline: none; background: #f7f8fa;
+      font-family: var(--font);
+      transition: all .15s;
     }
-    .cp-passcode-row input:focus {
-      border-color: var(--c-accent);
-      background: var(--c-white);
-    }
+    .cp-passcode-row input:focus { border-color: var(--c-primary); background: var(--c-white); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
     .cp-passcode-btn {
-      flex-shrink: 0;
-      padding: 10px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--c-white);
-      background: var(--c-accent);
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
+      flex-shrink: 0; padding: 11px 22px;
+      font-size: .92rem; font-weight: 600;
+      color: #fff; background: var(--c-primary);
+      border: none; border-radius: var(--radius-sm);
+      cursor: pointer; font-family: var(--font);
+      white-space: nowrap;
+      min-width: 64px;
     }
-    .cp-passcode-btn:hover {
-      background: #1d4ed8;
-    }
-    .cp-passcode-msg {
-      margin-top: 10px;
-      font-size: 13px;
-    }
+    .cp-passcode-btn:active { background: var(--c-primary-hover); }
+    .cp-passcode-msg { margin-top: 12px; font-size: .82rem; }
 
     /* Dropzone */
     .cp-drop {
-      border: 2px dashed #d1d5db;
+      border: 2px dashed var(--c-border);
+      border-radius: var(--radius);
       padding: 36px 20px;
       text-align: center;
       cursor: pointer;
-      background: var(--c-input-bg);
-      transition: .15s;
+      background: #fafbfc;
+      transition: all .15s;
     }
-    .cp-drop:hover,
-    .cp-drop.dragover {
-      border-color: var(--c-accent);
-      background: #eff6ff;
-    }
-    .cp-drop h3 {
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--c-text);
-      margin-bottom: 4px;
-    }
-    .cp-drop p {
-      font-size: 13px;
-      color: var(--c-text-soft);
-    }
+    .cp-drop:active, .cp-drop.dragover { border-color: var(--c-primary); background: var(--c-primary-light); }
+    .cp-drop h3 { font-size: .95rem; font-weight: 500; color: var(--c-text); margin-bottom: 4px; }
+    .cp-drop p { font-size: .8rem; color: var(--c-text-soft); }
 
     /* File list */
-    .cp-files {
-      margin: 14px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
+    .cp-files { margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
     .cp-file {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      background: var(--c-input-bg);
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      background: #f7f8fa; border-radius: var(--radius-sm);
       border: 1px solid var(--c-border);
     }
-    .cp-file-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .cp-file-name {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--c-text);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cp-file-size {
-      font-size: 12px;
-      color: var(--c-text-soft);
-    }
+    .cp-file-info { flex: 1; min-width: 0; }
+    .cp-file-name { font-size: .88rem; font-weight: 500; color: var(--c-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-file-size { font-size: .75rem; color: var(--c-text-soft); }
     .cp-file-del {
-      width: 28px; height: 28px;
-      border: 1px solid transparent;
-      background: none;
-      font-size: 16px;
-      color: #9ca3af;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-family: inherit;
-      line-height: 1;
+      width: 28px; height: 28px; border: none; background: none;
+      font-size: 1.2rem; color: var(--c-text-muted);
+      cursor: pointer; flex-shrink: 0; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font); line-height: 1;
     }
-    .cp-file-del:hover {
-      color: var(--c-danger);
-      background: #fef2f2;
-      border-color: #fecaca;
-    }
+    .cp-file-del:active { background: #fef2f2; color: var(--c-danger); }
 
     /* Actions */
     .cp-actions {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid var(--c-border);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-top: 14px; padding-top: 12px;
+      border-top: .5px solid var(--c-border);
     }
-    .cp-count {
-      font-size: 13px;
-      color: var(--c-text-soft);
-    }
-    .cp-btns {
-      display: flex;
-      gap: 8px;
-    }
+    .cp-count { font-size: .82rem; color: var(--c-text-soft); }
+    .cp-btns { display: flex; gap: 8px; }
 
     /* Buttons */
-    .btn {
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      font-family: inherit;
-      border: 1px solid var(--c-border);
-      background: var(--c-white);
-      color: var(--c-text);
+    .cp-btn {
+      padding: 8px 18px; font-size: .85rem; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+      border: none; border-radius: 20px;
+      background: #f0f0f5; color: var(--c-text);
+      transition: all .15s;
     }
-    .btn:hover {
-      background: var(--c-input-bg);
-    }
-    .btn-primary {
-      background: var(--c-accent);
-      color: var(--c-white);
-      border-color: var(--c-accent);
-    }
-    .btn-primary:hover {
-      background: #1d4ed8;
-      border-color: #1d4ed8;
-    }
-    .btn-primary:disabled {
-      opacity: .6;
-      cursor: not-allowed;
-    }
-    .btn-sm {
-      padding: 4px 10px;
-      font-size: 12px;
-    }
-    .btn-danger {
-      color: var(--c-danger);
-      border-color: #fecaca;
-      background: #fef2f2;
-    }
-    .btn-danger:hover {
-      background: #fee2e2;
-    }
+    .cp-btn:active { transform: scale(.96); opacity: .8; }
+    .cp-btn-primary { background: var(--c-primary); color: #fff; }
+    .cp-btn-primary:disabled { opacity: .4; pointer-events: none; }
+    .cp-btn-danger { background: #fef2f2; color: var(--c-danger); border: 1.5px solid #fecaca; }
+    .cp-btn-sm { padding: 4px 12px; font-size: .75rem; border-radius: 14px; }
 
     /* Progress */
-    .cp-progress {
-      margin-top: 14px;
-      display: none;
-    }
-    .cp-progress.on {
-      display: block;
-    }
-    .cp-progress-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--c-text-soft);
-      margin-bottom: 6px;
-    }
-    .cp-bar {
-      height: 4px;
-      background: var(--c-border);
-      overflow: hidden;
-    }
-    .cp-bar-fill {
-      height: 100%;
-      width: 0;
-      background: var(--c-accent);
-      transition: width .2s;
-    }
-    .cp-speed {
-      margin-top: 4px;
-      font-size: 12px;
-      color: var(--c-text-soft);
-    }
+    .cp-progress { margin-top: 14px; display: none; }
+    .cp-progress.on { display: block; }
+    .cp-progress-label { display: flex; justify-content: space-between; font-size: .75rem; color: var(--c-text-soft); margin-bottom: 6px; }
+    .cp-bar { height: 4px; background: var(--c-border); border-radius: 2px; overflow: hidden; }
+    .cp-bar-fill { height: 100%; width: 0; background: var(--c-primary); border-radius: 2px; transition: width .2s; }
+    .cp-speed { margin-top: 4px; font-size: .75rem; color: var(--c-text-soft); }
 
     /* Result */
-    .cp-result {
-      margin-top: 12px;
-      display: none;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .cp-result.on {
-      display: flex;
-    }
-    .cp-result-item {
-      padding: 6px 10px;
-      font-size: 13px;
-      border-left: 3px solid transparent;
-    }
-    .cp-result-ok {
-      background: #f0fdf4;
-      color: #166534;
-      border-left-color: var(--c-success);
-    }
-    .cp-result-err {
-      background: #fef2f2;
-      color: #991b1b;
-      border-left-color: var(--c-danger);
-    }
+    .cp-result { margin-top: 12px; display: none; flex-direction: column; gap: 4px; }
+    .cp-result.on { display: flex; }
+    .cp-result-item { padding: 8px 12px; font-size: .82rem; border-radius: var(--radius-sm); overflow-wrap: break-word; word-break: break-all; }
+    .cp-result-ok { background: #ecfdf5; color: #065f46; }
+    .cp-result-err { background: #fef2f2; color: #991b1b; }
 
-    /* History table */
-    .cp-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-      table-layout: fixed;
-    }
-    .cp-table th {
-      padding: 10px 16px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 12px;
-      color: var(--c-text-soft);
-      background: var(--c-input-bg);
-      border-bottom: 2px solid var(--c-border);
-      white-space: nowrap;
-    }
-    .cp-table td {
-      padding: 9px 16px;
-      border-bottom: 1px solid #f3f4f6;
-      vertical-align: middle;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cp-table tr:last-child td { border-bottom: none; }
-    .cp-table tr:hover td { background: var(--c-input-bg); }
-    .cp-table a {
-      color: var(--c-accent);
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .cp-table a:hover {
-      text-decoration: underline;
-    }
-    .cp-cell-muted {
-      color: var(--c-text-soft);
-      font-size: 13px;
-    }
-    .cp-cell-center {
-      text-align: center;
-    }
-    .cp-cell-name {
-      width: 40%;
-    }
-    .cp-cell-size {
-      width: 12%;
-    }
-    .cp-cell-dl {
-      width: 12%;
-    }
-    .cp-cell-time {
-      width: 24%;
-    }
-    .cp-cell-act {
-      width: 12%;
-    }
-    .cp-empty {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--c-text-soft);
-      font-size: 14px;
-    }
-    .cp-empty p:first-child {
-      font-weight: 500;
-      color: var(--c-text);
-      margin-bottom: 2px;
-    }
-
-    /* History grid (replaces table) */
-    .cp-history-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1px;
-      background: var(--c-border);
-      border: 1px solid var(--c-border);
-    }
+    /* History grid */
+    .cp-history-grid { display: flex; flex-direction: column; }
     .cp-history-card {
-      background: var(--c-white);
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      padding: 11px 14px;
+      border-bottom: .5px solid #f2f3f5;
+      display: flex; flex-direction: column; gap: 3px;
     }
-    .cp-history-card-name {
-      font-size: 14px;
-      font-weight: 500;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cp-history-card-name a {
-      color: var(--c-accent);
-      text-decoration: none;
-    }
-    .cp-history-card-name a:hover {
-      text-decoration: underline;
-    }
-    .cp-history-card-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--c-text-soft);
-      flex-wrap: wrap;
-    }
-    .cp-history-card-meta-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .cp-history-card-time {
-      font-size: 12px;
-      color: var(--c-text-soft);
-    }
-    .cp-history-card .btn-sm {
-      flex-shrink: 0;
-    }
+    .cp-history-card:last-child { border-bottom: none; }
+    .cp-history-card:active { background: #f7f8fa; }
+    .cp-history-card-name { font-size: .9rem; font-weight: 600; word-break: break-all; }
+    .cp-history-card-name a { color: var(--c-primary); text-decoration: none; }
+    .cp-history-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .78rem; color: var(--c-text-soft); flex-wrap: wrap; }
+    .cp-history-card-meta-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cp-history-card-time { font-size: .75rem; color: var(--c-text-muted); }
+
+    .cp-empty { text-align: center; padding: 36px 16px; color: var(--c-text-soft); font-size: .88rem; }
+    .cp-empty p:first-child { font-weight: 500; color: var(--c-text); margin-bottom: 2px; }
 
     /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #1f2937;
-      color: #fff;
-      padding: 8px 20px;
-      font-size: 13px;
-      opacity: 0;
-      pointer-events: none;
-      transition: .2s;
-      z-index: 999;
+    .cp-toast {
+      position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: rgba(30,30,40,.92); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #fff; padding: 10px 22px; border-radius: 20px;
+      font-size: .82rem; font-weight: 500; z-index: 999;
+      opacity: 0; transition: all .25s cubic-bezier(.4,0,.2,1);
+      pointer-events: none; white-space: nowrap;
     }
-    .toast.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    .cp-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* WeChat warning */
+    /* WeChat */
     .wechat-warn {
-      background: #fef3c7;
-      color: #92400e;
-      padding: 8px 16px;
-      text-align: center;
-      font-size: 13px;
-      font-weight: 500;
+      background: #fffbeb; border-bottom: 1px solid #fcd34d;
+      text-align: center; padding: 8px 16px; font-size: .8rem;
+      color: #92400e; font-weight: 500;
     }
 
     /* Footer */
     .collect-page-footer {
-      text-align: center;
-      padding: 16px;
-      font-size: 12px;
-      color: #9ca3af;
-      border-top: 1px solid var(--c-border);
-    }
-    .collect-copyright {
-      text-align: center;
-      padding: 12px 16px 20px;
-      font-size: 12px;
-      color: #9ca3af;
-      line-height: 1.7;
-    }
-    .collect-copyright a {
-      color: #6b7280;
-      text-decoration: none;
-    }
-    .collect-copyright a:hover {
-      color: #2563eb;
-      text-decoration: underline;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      text-align: center; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      font-size: .75rem; color: var(--c-text-muted);
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: .5px solid var(--c-border);
+      z-index: 50;
     }
 
-    /* Responsive */
-    @media (max-width: 640px) {
-      :root { --cp-max: 98%; --cp-pad-x: 12px; }
-      .cp-topbar { padding: 0 12px; }
-      .cp-topbar-inner { padding-left: 0; }
-      .cp-wrap { padding: 20px var(--cp-pad-x) 72px; }
-      .cp-header h1 { font-size: 18px; }
+    @media (max-width: 480px) {
+      :root { --cp-pad: 12px; }
+      .cp-wrap { padding: 16px var(--cp-pad) 90px; }
+      .cp-header h1 { font-size: 1.2rem; }
       .cp-card-head { padding: 10px 14px; }
-      .cp-card-body { padding: 14px; }
+      .cp-card-body { padding: 12px; }
       .cp-drop { padding: 28px 14px; }
       .cp-actions { flex-direction: column; align-items: stretch; }
       .cp-btns { width: 100%; }
       .cp-btns button { flex: 1; }
       .cp-passcode-row { flex-direction: column; }
-      .cp-table { table-layout: auto; }
-      .cp-table th, .cp-table td { padding: 7px 8px; font-size: 12px; }
-      .cp-cell-size, .cp-cell-dl { display: none; }
-      /* History grid: 1 column on mobile */
-      .cp-history-grid {
-        grid-template-columns: 1fr;
-      }
-      .cp-history-card {
-        padding: 8px 10px;
-        gap: 3px;
-      }
-      .cp-history-card-name {
-        font-size: 12px;
-      }
-      .cp-history-card-meta {
-        font-size: 11px;
-      }
-      .cp-history-card-time {
-        font-size: 11px;
-      }
-      .cp-history-card .btn-sm {
-        padding: 3px 7px;
-        font-size: 11px;
-      }
+      .cp-history-card { padding: 10px 12px; }
+      .cp-history-card-name { font-size: .85rem; }
+      .cp-history-card-meta { font-size: .73rem; }
     }
   </style>
 </head>
@@ -609,8 +282,9 @@
     <h1>{{ task_title|default('文件收集') }}</h1>
     {% if description %}<div class="cp-desc">{{ description }}</div>{% endif %}
     <div class="cp-meta">
-      <span class="cp-meta-item">单文件上限 <strong>{{ max_file_size_gb }} GB</strong></span>
-      <span class="cp-meta-item">每次最多 <strong>{{ max_files }}</strong> 个文件</span>
+      <span class="cp-meta-item">单文件上限 <strong>{% if max_file_size_gb < 1 %}{{ (max_file_size_gb * 1024)|round(2) }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</strong></span>
+      <span class="cp-meta-item">最大数量 <strong>{{ max_files }}</strong> 个</span>
+      {% if verified %}<span class="cp-meta-item" id="remaining-slot" style="color:#059669;background:#ecfdf5;">还可上传 <strong id="remaining-count">-</strong> 个</span>{% endif %}
     </div>
   </div>
 
@@ -633,11 +307,11 @@
   <div class="cp-card">
     <div class="cp-card-head">
       <h2>上传文件</h2>
-      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>
+      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>
     </div>
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <h3>点击选择文件或将文件拖拽到此处</h3>
+        <h3>点击选择文件或拖拽到此处</h3>
         <p>支持所有文件类型</p>
       </div>
       <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)">
@@ -647,8 +321,8 @@
       <div class="cp-actions" id="upload-actions" style="display:none">
         <span class="cp-count" id="upload-count">已选择 0 个文件</span>
         <div class="cp-btns">
-          <button class="btn" onclick="clearFiles()">清空</button>
-          <button class="btn btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
+          <button class="cp-btn" onclick="clearFiles()">清空</button>
+          <button class="cp-btn cp-btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
         </div>
       </div>
 
@@ -677,32 +351,75 @@
   {% endif %}
 </div>
 
-{% if collect_footer_text %}
 <div class="collect-page-footer">
-  <div class="collect-footer-content">{{ collect_footer_text }}</div>
+  {% if collect_footer_text %}
+  {{ collect_footer_text }}
+  {% else %}
+  Powered by File Collector
+  {% endif %}
 </div>
-{% endif %}
 
-<div class="collect-copyright">{{ collect_footer_text or '' }}</div>
-
-<div class="toast" id="toast"></div>
+<div class="cp-toast" id="toast"></div>
 
 <script>
 const linkId = '{{ link_id }}';
 {% if allow_delete %}const allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+
+// XSS防护：HTML实体转义函数
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 (function() {
   var publicUrl = '{{ public_url }}'.trim();
   if (!publicUrl) { publicUrl = window.location.origin; }
   if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
   var linkUrl = publicUrl + 'collect/' + linkId;
- console.log('文件分享器_{ version }}');
-  console.log('收集链接：%c' + linkUrl, 'color:#374151;', 'color:#2563eb;text-decoration:underline;');
-  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#374151;', 'color:#6b7280;');
+  console.log('文件收集器');
+  console.log('收集链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
+  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
 })();
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
-const MAX_FILE_SIZE = {{ max_file_size_gb }} * 1024 * 1024 * 1024;
+const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
+let totalUploaded = 0;  // 服务端已上传的文件总数
+let remainingSlots = MAX_FILES;  // 还可上传数量
+
+function updateRemainingDisplay() {
+  remainingSlots = MAX_FILES - totalUploaded - selectedFiles.length;
+  var el = document.getElementById('remaining-count');
+  var slotEl = document.getElementById('remaining-slot');
+  if (!el || !slotEl) return;
+  el.textContent = Math.max(0, remainingSlots);
+
+  var totalUsed = totalUploaded + selectedFiles.length;
+  if (totalUsed > MAX_FILES) {
+    // 已超过上限，禁止继续
+    slotEl.style.color = '#991b1b';
+    slotEl.style.background = '#fef2f2';
+    document.getElementById('upload-btn').disabled = true;
+    document.getElementById('dropzone').style.opacity = '0.4';
+    document.getElementById('dropzone').style.pointerEvents = 'none';
+    document.getElementById('file-input').disabled = true;
+    showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
+  } else if (totalUsed === MAX_FILES) {
+    // 刚好满额：禁用新增但允许上传已选文件
+    slotEl.style.color = '#92400e';
+    slotEl.style.background = '#fffbeb';
+    document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
+    document.getElementById('dropzone').style.opacity = '0.4';
+    document.getElementById('dropzone').style.pointerEvents = 'none';
+    document.getElementById('file-input').disabled = true;
+  } else {
+    slotEl.style.color = '#059669';
+    slotEl.style.background = '#ecfdf5';
+    document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
+    document.getElementById('dropzone').style.opacity = '';
+    document.getElementById('dropzone').style.pointerEvents = '';
+    document.getElementById('file-input').disabled = false;
+  }
+}
 
 function showToast(msg, d) {
   var t = document.getElementById('toast');
@@ -721,7 +438,7 @@ function formatSize(bytes) {
 async function verifyPasscode() {
   var code = document.getElementById('passcode-input').value.trim();
   var msg = document.getElementById('passcode-msg');
-  if (!code) { msg.textContent = '请输入通行证'; msg.style.color = '#dc2626'; return; }
+  if (!code) { msg.textContent = '请输入通行证'; msg.style.color = '#ef4444'; return; }
   msg.textContent = '验证中...'; msg.style.color = '#6b7280';
   try {
     var res = await fetch('/collect/' + linkId + '/verify', {
@@ -732,15 +449,15 @@ async function verifyPasscode() {
     var data = await res.json();
     if (data.success) {
       msg.textContent = '验证成功，正在刷新...';
-      msg.style.color = '#16a34a';
+      msg.style.color = '#10b981';
       setTimeout(function(){ location.reload(); }, 800);
     } else {
       msg.textContent = data.message || '通行证错误';
-      msg.style.color = '#dc2626';
+      msg.style.color = '#ef4444';
     }
   } catch(e) {
     msg.textContent = '网络错误，请重试';
-    msg.style.color = '#dc2626';
+    msg.style.color = '#ef4444';
   }
 }
 document.getElementById('passcode-input') && document.getElementById('passcode-input').addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPasscode(); });
@@ -753,21 +470,23 @@ async function logoutPasscode() {
       headers: { 'X-CSRFToken': '{{ csrf_token }}' }
     });
     var data = await res.json();
-    if (data.success) {
-      location.reload();
-    } else {
-      showToast(data.message || '退出失败');
-    }
-  } catch(e) {
-    showToast('网络错误');
-  }
+    if (data.success) { location.reload(); }
+    else { showToast(data.message || '退出失败'); }
+  } catch(e) { showToast('网络错误'); }
 }
 
 function handleFiles(files) {
+  var totalUsed = totalUploaded + selectedFiles.length;
+  if (totalUsed >= MAX_FILES) {
+    showToast('已上传满 ' + MAX_FILES + ' 个文件，无法继续添加', 4000);
+    document.getElementById('file-input').value = '';
+    return;
+  }
+  var canAdd = MAX_FILES - totalUsed;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
-    if (selectedFiles.length >= MAX_FILES) { showToast('最多选择 ' + MAX_FILES + ' 个文件'); break; }
-    if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制'); continue; }
+    if (selectedFiles.length >= canAdd) { showToast('还可添加 ' + canAdd + ' 个文件（总共上限 ' + MAX_FILES + ' 个）'); break; }
+    if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制（上限 ' + formatSize(MAX_FILE_SIZE) + '）', 3000); continue; }
     if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
     selectedFiles.push(f);
   }
@@ -778,7 +497,7 @@ function handleFiles(files) {
 function renderFileList() {
   var list = document.getElementById('file-list');
   var actions = document.getElementById('upload-actions');
-  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; return; }
+  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; updateRemainingDisplay(); return; }
   actions.style.display = 'flex';
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
   list.innerHTML = selectedFiles.map(function(f, i){
@@ -790,6 +509,7 @@ function renderFileList() {
       '<button class="cp-file-del" onclick="removeFile(' + i + ')" title="移除">&times;</button>' +
     '</div>';
   }).join('');
+  updateRemainingDisplay();
 }
 
 function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
@@ -804,6 +524,11 @@ if (dropzone) {
 
 async function startUpload() {
   if (selectedFiles.length === 0) return;
+  var totalUsed = totalUploaded + selectedFiles.length;
+  if (totalUsed > MAX_FILES) {
+    showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
+    return;
+  }
   var btn = document.getElementById('upload-btn');
   btn.disabled = true; btn.textContent = '上传中...';
 
@@ -883,6 +608,8 @@ async function loadHistory() {
   try {
     var res = await fetch('/collect/' + linkId + '/records');
     var data = await res.json();
+    totalUploaded = data.total_uploaded || 0;
+    updateRemainingDisplay();
     var wrap = document.getElementById('history-wrap');
     if (!data.records || data.records.length === 0) {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无记录</p><p>上传文件后在此查看</p></div>';
@@ -892,19 +619,21 @@ async function loadHistory() {
     var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
-      var safeName = r.original_name.replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      var escapedName = escapeHtml(r.original_name);
+      var escapedTime = escapeHtml(r.uploaded_at);
+      var escapedSize = escapeHtml(r.file_size_display);
       html += '<div class="cp-history-card">';
-      html += '<div class="cp-history-card-name"><a href="/collect/' + linkId + '/download/' + r.id + '" title="' + r.original_name.replace(/"/g,'&quot;') + '">' + r.original_name + '</a></div>';
+      html += '<div class="cp-history-card-name"><a href="/collect/' + linkId + '/download/' + r.id + '" title="' + escapedName + '">' + escapedName + '</a></div>';
       html += '<div class="cp-history-card-meta">';
       html += '<span class="cp-history-card-meta-left">';
-      html += '<span>' + r.file_size_display + '</span>';
+      html += '<span>' + escapedSize + '</span>';
       html += '<span>下载 ' + (r.download_count || 0) + '</span>';
       html += '</span>';
       if (canDelete) {
-        html += '<button class="btn btn-danger btn-sm" onclick="deleteRecord(' + r.id + ',\'' + safeName + '\')">删除</button>';
+        html += '<button class="cp-btn cp-btn-danger cp-btn-sm" onclick="deleteRecord(' + r.id + ')">删除</button>';
       }
       html += '</div>';
-      html += '<div class="cp-history-card-time">' + r.uploaded_at + '</div>';
+      html += '<div class="cp-history-card-time">' + escapedTime + '</div>';
       html += '</div>';
     }
     html += '</div>';
@@ -912,8 +641,8 @@ async function loadHistory() {
   } catch(e){}
 }
 
-async function deleteRecord(recordId, fileName) {
-  if (!confirm('确定删除「' + fileName + '」？')) return;
+async function deleteRecord(recordId) {
+  if (!confirm('确定删除该记录？')) return;
   try {
     var res = await fetch('/collect/' + linkId + '/delete_record/' + recordId, {
       method: 'POST',

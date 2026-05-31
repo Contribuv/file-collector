@@ -1,4 +1,4 @@
-# 飞牛nas文件收集器 (FN_File_Collector)
+# 文件收集器 (File Collector)
 
 <p align="center">
   <img src="logo.png" alt="文件收集器" width="200">
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.15-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -64,6 +64,8 @@
 3. 安装向导中填写**上传文件存储目录**（绝对路径，如 `/vol1/收集文件`）
 4. 安装完成后访问 `http://[NAS_IP]:5557/admin`
 
+> ⚠️ **注意：此应用强制使用 IP+5557 访问，请使用 Lucky 反代访问！**
+
 ### 默认账户
 
 | 用户名 | 密码 |
@@ -71,19 +73,6 @@
 | `admin` | `admin123` |
 
 > ⚠️ 首次登录后请立即修改密码！
-
-### 方式二：Docker 部署
-
-```bash
-docker run -d \
-  --name file-collector \
-  -p 5557:5557 \
-  -v /your/data:/app/data \
-  -v /your/uploads:/app/uploads \
-  -e DATA_DIR=/app/data \
-  -e UPLOAD_BASE=/your/uploads \
-  file-collector:latest
-```
 
 ---
 
@@ -193,6 +182,48 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.15
+- 更新描述文案，强调使用 Lucky 反代访问
+
+### v1.1.14
+- 全面安全加固；修复 XSS 漏洞；修复路径遍历；通行证哈希存储；CSRF 保护；文件名防覆盖；上传频率限制
+
+### v1.1.11
+- 完善升级/卸载数据保护机制
+- 升级前自动备份数据库到安全位置
+- 升级后验证数据库完整性并记录统计信息
+- 卸载时保留数据库和上传文件，不再强制清理
+- 首次安装与升级安装自动区分，升级时保留所有已有设置
+
+### v1.1.10
+- 系统设置新增自定义上传路径
+- 底部系统信息跟随自定义路径动态显示
+- 需手动在飞牛应用设置中授权自定义文件夹
+
+### v1.1.9
+- 重设计上传记录页：PC 表格 + 移动端卡片双布局
+- 删除按钮改为圆形 × 图标，hover 红底
+- 文件名列加宽至 360px，解决溢出问题
+- 表头新增全选 checkbox
+
+### v1.1.8
+- 上传文件存储重构至 data-share 目录
+- 数据库保持 TRIM_PKGVAR 私有目录
+- 移除多余共享目录声明
+
+### v1.1.7
+- 后台新增数据库管理卡片，支持一键备份和导入恢复
+- 导入时自动验证表结构，导入前自动备份当前数据库
+
+### v1.1.6
+- 新增首页介绍页（可开关）
+- 新增通行证有效期配置
+- 链接管理新增允许上传者删除选项
+
+### v1.1.5
+- 新增公网网址配置，支持反向代理场景
+- 新增页尾自定义文字
 
 ### v1.1.4
 - 新增全平台支持：x86、ARM、LoongArch、RISC-V（`platform=all`）

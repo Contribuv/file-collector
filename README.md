@@ -1,4 +1,4 @@
-# 文件收集器 (File Collector)
+# 飞牛nas_文件收集器.fpk (File Collector)
 
 <p align="center">
   <img src="logo.png" alt="文件收集器" width="200">

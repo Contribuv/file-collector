@@ -234,6 +234,7 @@ a:active { opacity: .6; }
 .btn-sm { padding: 5px 14px; font-size: .78rem; border-radius: 16px; }
 .btn-xs { padding: 3px 10px; font-size: .72rem; border-radius: 12px; }
 .btn-block { display: flex; width: 100%; }
+.text-center { text-align: center; }
 .btn-icon {
   width: 36px; height: 36px; padding: 0;
   border-radius: 50%;

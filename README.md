@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.27-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.30-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -183,6 +183,47 @@ GET /api/status
 
 ## 更新日志
 
+### v1.1.30
+- 修复链接管理页分享/收集按钮 `Uncaught SyntaxError`（`tojson` 双引号在 `onclick` 内截断 HTML 属性）
+- 改为 `data-*` 属性传参，避免内联 JS 注入问题
+
+### v1.1.29
+- 上传文件保持原文件名，同名冲突提示"文件名已存在"并禁止上传
+- 后台设置新增「禁止上传的文件类型」配置，管理员可自定义禁止的扩展名
+- 留空则使用默认危险类型拦截列表（.exe .php .sh 等）
+
+### v1.1.28
+- 通行证输入框改为密码模式（`type="password"`），防窥屏脱敏
+- 全项目代码审查与修复（变量位置、死代码标注等）
+- 补充缺失 CSS 工具类 `.text-center`
+- 累积更新与稳定性优化
+
+### v1.1.27
+- 累积更新
+
+### v1.1.26
+- 更新日志优化，累积更新
+
+### v1.1.25
+- 后台链接管理去除明文通行证列，改用复制链接时带出通行证
+- 优化链接表格列宽分配（`table-layout: fixed`），PC/移动端排版更协调
+
+### v1.1.24
+- 版本维护更新，统一版本号标记
+
+### v1.1.23
+- 重新设计收集页和分享页通行证验证 UI
+- 锁图标 + 标题「验证通行证」+ 链接名称提示
+- 圆角胶囊输入框 + 圆圈箭头提交按钮，一键回车验证
+- 错误时输入框抖动反馈 + 按钮防重复点击
+- PC/移动端自适应
+
+### v1.1.22
+- 修复 `/admin/records` PC 端表格溢出（IPv6 等长内容截断 + 固定列宽布局）
+- Dashboard 首页表格同步修复
+- 启用 Werkzeug ProxyFix 中间件，反向代理下正确获取真实客户端 IP
+- 统一全局版本号
+
 ### v1.1.19
 - 修复后台首页最近上传表格 PC 端显示不全的问题
 - 采用 PC 完整表格 + 移动端卡片的双模式布局，与 /admin/records 一致
@@ -238,32 +279,6 @@ GET /api/status
 ### v1.1.7
 - 后台新增数据库管理卡片，支持一键备份和导入恢复
 - 导入时自动验证表结构，导入前自动备份当前数据库
-
-### v1.1.27
-- 累积更新
-
-### v1.1.26
-- 更新日志优化，累积更新
-
-### v1.1.25
-- 后台链接管理去除明文通行证列，改用复制链接时带出通行证
-- 优化链接表格列宽分配（`table-layout: fixed`），PC/移动端排版更协调
-
-### v1.1.24
-- 版本维护更新，统一版本号标记
-
-### v1.1.23
-- 重新设计收集页和分享页通行证验证 UI
-- 锁图标 + 标题「验证通行证」+ 链接名称提示
-- 圆角胶囊输入框 + 圆圈箭头提交按钮，一键回车验证
-- 错误时输入框抖动反馈 + 按钮防重复点击
-- PC/移动端自适应
-
-### v1.1.22
-- 修复 `/admin/records` PC 端表格溢出（IPv6 等长内容截断 + 固定列宽布局）
-- Dashboard 首页表格同步修复
-- 启用 Werkzeug ProxyFix 中间件，反向代理下正确获取真实客户端 IP
-- 统一全局版本号
 
 ### v1.1.6
 - 新增首页介绍页（可开关）

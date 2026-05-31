@@ -43,7 +43,7 @@
       max-width: var(--cp-max);
       width: 100%;
       margin: 0 auto;
-      padding: 0 16px;
+      padding: 0 10px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -197,6 +197,17 @@
     .cp-empty { text-align: center; padding: 36px 16px; color: var(--c-text-soft); font-size: .88rem; }
     .cp-empty p:first-child { font-weight: 500; color: var(--c-text); margin-bottom: 2px; }
 
+    .cp-btn {
+      padding: 8px 18px; font-size: .85rem; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+      border: none; border-radius: 20px;
+      background: #f0f0f5; color: var(--c-text);
+      transition: all .15s;
+    }
+    .cp-btn:active { transform: scale(.96); opacity: .8; }
+    .cp-btn-danger { background: #fef2f2; color: var(--c-danger); border: 1.5px solid #fecaca; }
+    .cp-btn-sm { padding: 4px 12px; font-size: .75rem; border-radius: 14px; }
+
     .cp-toast {
       position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%;
       transform: translateX(-50%) translateY(60px);
@@ -267,8 +278,7 @@
       <h2 class="cp-passcode-title">验证通行证</h2>
       <p class="cp-passcode-sub">{{ task_title|default('文件分享') }}需要通行证才能查看</p>
       <div class="cp-passcode-row" id="passcode-row">
-        <input type="text" id="passcode-input" placeholder="输入通行证" autofocus
-               onkeydown="if(event.key==='Enter')verifyPasscode()">
+        <input type="password" id="passcode-input" placeholder="输入通行证" autofocus>
         <button class="cp-passcode-btn" onclick="verifyPasscode()" title="验证">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
@@ -311,28 +321,19 @@
 
 <script>
 const linkId = '{{ link_id }}';
-
-// XSS防护：HTML实体转义函数
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-(function() {
-  var publicUrl = '{{ public_url }}'.trim();
-  if (!publicUrl) { publicUrl = window.location.origin; }
-  if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
-  var linkUrl = publicUrl + 'share/' + linkId;
-  console.log('文件分享器');
-  console.log('分享链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
-  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
-})();
+{% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
 
 function showToast(msg, d) {
   var t = document.getElementById('toast');
+  if (!t) return;
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._timeout);
   t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 async function verifyPasscode() {
@@ -393,6 +394,7 @@ async function loadHistory() {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无文件</p><p>还没有上传过文件</p></div>';
       return;
     }
+    var canDelete = allowDelete && (data.allow_delete === true);
     var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
@@ -406,6 +408,9 @@ async function loadHistory() {
       html += '<span>' + escapedSize + '</span>';
       html += '<span>下载 ' + (r.download_count || 0) + '</span>';
       html += '</span>';
+      if (canDelete) {
+        html += '<button class="cp-btn cp-btn-danger cp-btn-sm" onclick="deleteRecord(' + r.id + ')">删除</button>';
+      }
       html += '</div>';
       html += '<div class="cp-history-card-time">' + escapedTime + '</div>';
       html += '</div>';
@@ -414,6 +419,30 @@ async function loadHistory() {
     wrap.innerHTML = html;
   } catch(e){}
 }
+
+async function deleteRecord(recordId) {
+  if (!confirm('确定删除该文件？')) return;
+  try {
+    var res = await fetch('/share/' + linkId + '/delete_record/' + recordId, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    var data = await res.json();
+    if (data.success) { showToast('已删除'); loadHistory(); }
+    else { showToast(data.message || '删除失败'); }
+  } catch(e) { showToast('网络错误'); }
+}
+
+(function() {
+  try {
+    var publicUrl = {{ public_url|tojson }};
+    if (!publicUrl) { publicUrl = window.location.origin; }
+    if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
+    var linkUrl = publicUrl + 'share/' + linkId;
+    console.log('分享链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
+    console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
+  } catch(e) { console.error(e); }
+})();
 
 {% if verified %}loadHistory();{% endif %}
 </script>

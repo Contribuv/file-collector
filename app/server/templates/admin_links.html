@@ -105,15 +105,15 @@
               <td class="col-act">
                 <div class="action-group">
                   {% set pass_text = link['passcode_plain'] or ('' if not link['passcode'] else '') %}
-                  <button class="btn btn-xs btn-primary" onclick="copyLinkBtn('share', '{{ link['id'] }}', '{{ pass_text }}', {{ 'true' if link['passcode'] and not link['passcode_plain'] else 'false' }})">分享</button>
-                  <button class="btn btn-xs btn-info" onclick="copyLinkBtn('collect', '{{ link['id'] }}', '{{ pass_text }}', {{ 'true' if link['passcode'] and not link['passcode_plain'] else 'false' }})">收集</button>
+                  <button class="btn btn-xs btn-primary" data-type="share" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ '1' if link['passcode'] and not link['passcode_plain'] else '0' }}" onclick="copyLinkBtn(this)">分享</button>
+                  <button class="btn btn-xs btn-info" data-type="collect" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ '1' if link['passcode'] and not link['passcode_plain'] else '0' }}" onclick="copyLinkBtn(this)">收集</button>
                   <button class="btn btn-xs btn-purple" data-link='{{ dict(link)|tojson }}' onclick="editLinkBtn(this)">编辑</button>
                   <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-xs {{ 'btn-warning' if link['status']=='active' else 'btn-success' }}">{{ '停用' if link['status']=='active' else '启用' }}</button>
                   </form>
                   <form method="POST" action="{{ url_for('delete_link', link_id=link['id']) }}" style="display:inline;"
-                        onsubmit="return confirm('确定删除链接「{{ link['title']|e }}」？上传文件不会被删除。');">
+                        onsubmit="return confirm('确定删除链接「' + {{ link['title']|tojson }} + '」？上传文件不会被删除。');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-xs btn-danger">删除</button>
                   </form>
@@ -137,7 +137,7 @@
 function toggleSection(id) { document.getElementById(id).classList.toggle('open'); }
 
 function getBaseUrl() {
-  var pu = '{{ public_url }}'.trim();
+  var pu = {{ public_url|tojson }}.trim();
   if (pu) { if (!pu.endsWith('/')) pu += '/'; return pu; }
   var origin = window.location.origin;
   if (!origin.endsWith('/')) origin += '/';
@@ -156,7 +156,11 @@ function copyToClipboard(text) {
   }
 }
 
-function copyLinkBtn(type, linkId, passcode, needReset) {
+function copyLinkBtn(el) {
+  var type = el.getAttribute('data-type');
+  var linkId = el.getAttribute('data-link-id');
+  var passcode = el.getAttribute('data-passcode');
+  var needReset = el.getAttribute('data-need-reset') === '1';
   var url = getBaseUrl() + type + '/' + linkId;
   if (needReset) {
     alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
@@ -182,7 +186,7 @@ function editLinkBtn(el) {
   document.getElementById('clear_expiry').value = '0';
   document.getElementById('allow_delete').checked = link.allow_delete == 1;
   document.getElementById('create-section').classList.add('open');
-  document.querySelector('#create-section form').action = '/admin/links/' + link.id + '/edit';
+  document.querySelector('#create-section form').action = {{ url_for('edit_link', link_id='_PLACEHOLDER_')|tojson }}.replace('_PLACEHOLDER_', link.id);
   document.querySelector('#create-section .btn-primary').textContent = '保存修改';
   document.querySelector('#create-section .toggle-header span:first-child').textContent = '编辑链接';
   var clearBtn = document.getElementById('clear-expiry-btn');

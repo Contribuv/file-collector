@@ -44,7 +44,7 @@
       max-width: var(--cp-max);
       width: 100%;
       margin: 0 auto;
-      padding: 0 16px;
+      padding: 0 10px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -363,8 +363,7 @@
       <h2 class="cp-passcode-title">验证通行证</h2>
       <p class="cp-passcode-sub">{{ task_title|default('文件收集') }}需要通行证才能上传</p>
       <div class="cp-passcode-row" id="passcode-row">
-        <input type="text" id="passcode-input" placeholder="输入通行证" autofocus
-               onkeydown="if(event.key==='Enter')verifyPasscode()">
+        <input type="password" id="passcode-input" placeholder="输入通行证" autofocus>
         <button class="cp-passcode-btn" onclick="verifyPasscode()" title="验证">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
@@ -436,28 +435,33 @@
 
 <script>
 const linkId = '{{ link_id }}';
-{% if allow_delete %}const allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+{% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
 
-// XSS防护：HTML实体转义函数
+function showToast(msg, d) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-(function() {
-  var publicUrl = '{{ public_url }}'.trim();
-  if (!publicUrl) { publicUrl = window.location.origin; }
-  if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
-  var linkUrl = publicUrl + 'collect/' + linkId;
-  console.log('文件收集器');
-  console.log('收集链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
-  console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
-})();
+function formatSize(bytes) {
+  if (bytes === 0) return '0 B';
+  var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  var i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
 const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
-let totalUploaded = 0;  // 服务端已上传的文件总数
-let remainingSlots = MAX_FILES;  // 还可上传数量
+let totalUploaded = 0;
+let remainingSlots = MAX_FILES;
 
 function updateRemainingDisplay() {
   remainingSlots = MAX_FILES - totalUploaded - selectedFiles.length;
@@ -492,20 +496,6 @@ function updateRemainingDisplay() {
     document.getElementById('dropzone').style.pointerEvents = '';
     document.getElementById('file-input').disabled = false;
   }
-}
-
-function showToast(msg, d) {
-  var t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._timeout);
-  t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
-}
-
-function formatSize(bytes) {
-  if (bytes === 0) return '0 B';
-  var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
-  var i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 async function verifyPasscode() {
@@ -735,6 +725,17 @@ async function deleteRecord(recordId) {
     else { showToast(data.message || '删除失败'); }
   } catch(e){ showToast('网络错误'); }
 }
+
+(function() {
+  try {
+    var publicUrl = {{ public_url|tojson }};
+    if (!publicUrl) { publicUrl = window.location.origin; }
+    if (!publicUrl.endsWith('/')) { publicUrl += '/'; }
+    var linkUrl = publicUrl + 'collect/' + linkId;
+    console.log('收集链接：%c' + linkUrl, 'color:#2563eb;text-decoration:underline;');
+    console.log('GitHub：%chttps://github.com/Contribuv/file-collector', 'color:#6b7280;');
+  } catch(e) { console.error(e); }
+})();
 
 {% if verified %}loadHistory();{% endif %}
 </script>

@@ -46,7 +46,7 @@
               <td class="col-meta col-time">{{ r['uploaded_at'] }}</td>
               <td class="col-act">
                 <form method="POST" action="{{ url_for('delete_record', record_id=r['id']) }}" style="display:inline;"
-                      onsubmit="return confirm('确定删除「{{ r['original_name']|e }}」？');">
+                      onsubmit="return confirm('确定删除「' + {{ r['original_name']|tojson }} + '」？');">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn-record-del" title="删除此记录">&#x2715;</button>
                 </form>
@@ -78,7 +78,7 @@
           </div>
           <div class="record-card-right">
             <form method="POST" action="{{ url_for('delete_record', record_id=r['id']) }}"
-                  onsubmit="return confirm('确定删除「{{ r['original_name']|e }}」？');">
+                  onsubmit="return confirm('确定删除「' + {{ r['original_name']|tojson }} + '」？');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn-record-del" title="删除此记录">&#x2715;</button>
             </form>

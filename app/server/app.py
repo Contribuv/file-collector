@@ -35,7 +35,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.27"
+VERSION = "1.1.30"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -92,6 +92,7 @@ def refresh_upload_base():
     """刷新全局 UPLOAD_BASE（数据库设置变更后调用）"""
     global UPLOAD_BASE
     UPLOAD_BASE = get_upload_base()
+
 DEBUG_MODE = os.environ.get('FLASK_DEBUG', '0') == '1'
 
 # 确保目录存在
@@ -140,7 +141,7 @@ def init_db():
             passcode TEXT NOT NULL,
             max_file_size_gb REAL DEFAULT 1,
             max_files INTEGER DEFAULT 10,
-            target_folder TEXT DEFAULT '',
+            target_folder TEXT DEFAULT '',  -- 预留字段，当前未使用
             status TEXT DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -229,6 +230,7 @@ def init_db():
             'passcode_ttl_minutes': '120',
             'landing_page_enabled': '1',
             'collect_footer_text': '',
+            'blocked_extensions': '',
         }
         for key, val in new_defaults.items():
             conn.execute(
@@ -429,14 +431,33 @@ def _safe_delete(stored_path):
     return False
 
 def allowed_file(filename):
-    """允许所有文件类型上传，但禁止危险扩展名"""
-    dangerous_ext = {'.exe', '.php', '.jsp', '.asp', '.aspx', '.sh', '.bash', '.bat',
-                     '.cmd', '.ps1', '.py', '.rb', '.pl', '.cgi', '.so', '.dll',
-                     '.jspx', '.php3', '.php4', '.php5', '.phtml', '.shtml'}
+    """允许所有文件类型上传，但禁止用户配置的危险扩展名"""
+    blocked = get_blocked_extensions()
+    if not blocked:
+        return True
     _, ext = os.path.splitext(filename.lower())
-    if ext in dangerous_ext:
+    if ext in blocked:
         return False
     return True
+
+def get_blocked_extensions():
+    """从设置中获取禁止上传的扩展名列表"""
+    raw = get_setting('blocked_extensions', '').strip()
+    if not raw:
+        # 默认：禁止危险脚本和可执行文件
+        default_blocked = {'.exe', '.php', '.jsp', '.asp', '.aspx', '.sh', '.bash', '.bat',
+                           '.cmd', '.ps1', '.py', '.rb', '.pl', '.cgi', '.so', '.dll',
+                           '.jspx', '.php3', '.php4', '.php5', '.phtml', '.shtml'}
+        return default_blocked
+    # 用户自定义：逗号或空格分隔
+    exts = set()
+    for part in raw.replace(',', ' ').split():
+        part = part.strip().lower()
+        if part and not part.startswith('.'):
+            part = '.' + part
+        if part:
+            exts.add(part)
+    return exts
 
 def _safe_download(stored_path, original_name):
     """安全下载：校验 stored_path 在 UPLOAD_BASE 范围内，防止路径遍历攻击"""
@@ -469,19 +490,31 @@ def create_upload_dir(link_id):
     else:
         folder_name = 'unnamed'
 
+    # 防止 .. 等路径遍历攻击
+    folder_name = os.path.normpath(folder_name).lstrip(os.sep).lstrip('.')
+    if not folder_name:
+        folder_name = 'unnamed'
+
     upload_dir = os.path.join(UPLOAD_BASE, folder_name)
-    os.makedirs(upload_dir, mode=0o755, exist_ok=True)
+    # 双重确保：realpath 必须在 UPLOAD_BASE 范围内
+    real_dir = os.path.realpath(upload_dir)
+    real_base = os.path.realpath(UPLOAD_BASE)
+    if not real_dir.startswith(real_base + os.sep) and real_dir != real_base:
+        upload_dir = os.path.join(UPLOAD_BASE, 'unnamed')
+        real_dir = os.path.realpath(upload_dir)
+
+    os.makedirs(real_dir, mode=0o755, exist_ok=True)
 
     # 确保目录可写（修复 NAS 上权限不一致的问题）
-    if not os.access(upload_dir, os.W_OK):
+    if not os.access(real_dir, os.W_OK):
         try:
-            os.chmod(upload_dir, 0o755)
+            os.chmod(real_dir, 0o755)
         except Exception:
             pass
-        if not os.access(upload_dir, os.W_OK):
-            raise PermissionError(f'上传目录无写入权限: {upload_dir}')
+        if not os.access(real_dir, os.W_OK):
+            raise PermissionError(f'上传目录无写入权限: {real_dir}')
 
-    return upload_dir
+    return real_dir
 
 # ============================================================
 # 路由 - 文件收集页
@@ -929,11 +962,16 @@ def upload_file(link_id):
             safe_name = secure_filename(file.filename)
             if not safe_name:
                 safe_name = 'unnamed_file'
-            # 添加时间戳后缀防止同名文件覆盖
-            name_parts = os.path.splitext(safe_name)
-            timestamp_suffix = f'_{int(time.time() * 1000)}'
-            stored_name = f'{name_parts[0]}{timestamp_suffix}{name_parts[1]}'
+            # 保持原文件名，同名则提示重复并禁止上传
+            stored_name = safe_name
             stored_path = os.path.join(upload_dir, stored_name)
+            if os.path.exists(stored_path):
+                result.update({
+                    'success': False,
+                    'message': f'文件名 "{file.filename}" 已存在，请重命名后重新上传'
+                })
+                results.append(result)
+                continue
 
             file.save(stored_path)
             logger.info(f"文件已保存: {stored_path} ({format_file_size(size)})")
@@ -1145,8 +1183,8 @@ def edit_link(link_id):
         flash('数字格式错误')
         return redirect(url_for('admin_links'))
 
-    if not title or not passcode:
-        flash('标题和通行证不能为空')
+    if not title:
+        flash('标题不能为空')
         return redirect(url_for('admin_links'))
 
     expires_at = request.form.get('expires_at', '').strip()
@@ -1477,6 +1515,18 @@ def admin_settings():
                 refresh_upload_base()
                 flash('已恢复默认上传路径')
 
+        elif action == 'blocked_extensions':
+            raw = request.form.get('blocked_extensions_input', '').strip()
+            # 留空则使用默认禁止列表
+            if raw:
+                import re as _re
+                cleaned = _re.sub(r'\s+', ' ', raw).strip()
+                set_setting('blocked_extensions', cleaned)
+                flash('禁止上传的文件类型已更新')
+            else:
+                set_setting('blocked_extensions', '')
+                flash('已恢复默认禁止列表（.exe .php .sh .bat 等危险类型）')
+
         return redirect(url_for('admin_settings'))
 
     admin_user = get_setting('admin_username', DEFAULT_ADMIN_USER)
@@ -1490,6 +1540,7 @@ def admin_settings():
         'public_url': get_setting('public_url', ''),
         'landing_page_enabled': get_setting('landing_page_enabled', '1'),
         'passcode_ttl_minutes': get_setting('passcode_ttl_minutes', '120'),
+        'blocked_extensions': get_setting('blocked_extensions', ''),
     }
     sys_info = {
         'db_path': os.path.dirname(DB_PATH),  # 仅显示目录，不暴露完整文件名

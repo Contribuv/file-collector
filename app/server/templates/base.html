@@ -61,7 +61,6 @@
   <div class="toast" id="toast"></div>
 
   <script>
-  const CSRF_TOKEN = '{{ csrf_token }}';
   function showToast(msg, d) {
     const t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');

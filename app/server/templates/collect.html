@@ -573,9 +573,10 @@ function renderFileList() {
   actions.style.display = 'flex';
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
   list.innerHTML = selectedFiles.map(function(f, i){
+    var esc = escapeHtml(f.name);
     return '<div class="cp-file">' +
       '<div class="cp-file-info">' +
-        '<div class="cp-file-name" title="' + f.name + '">' + f.name + '</div>' +
+        '<div class="cp-file-name" title="' + esc + '">' + esc + '</div>' +
         '<div class="cp-file-size">' + formatSize(f.size) + '</div>' +
       '</div>' +
       '<button class="cp-file-del" onclick="removeFile(' + i + ')" title="移除">&times;</button>' +
@@ -649,19 +650,19 @@ async function startUpload() {
             if (xhr.status !== 200 || !data.success) {
               failCount++;
               var errMsg = data.message || ('服务器错误 (HTTP ' + xhr.status + ')');
-              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - ' + errMsg + '</div>';
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(errMsg) + '</div>';
             } else if (data.results && data.results.length > 0 && data.results[0].success) {
               uploaded += f.size; successCount++;
-              resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + f.name + ' - 上传成功</div>';
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
             } else {
               failCount++;
               var errMsg2 = data.message || (data.results && data.results[0] ? data.results[0].message : '服务器未接收到文件');
-              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - ' + errMsg2 + '</div>';
+              resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(errMsg2) + '</div>';
             }
-          } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - 服务器响应异常</div>'; }
+          } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 服务器响应异常</div>'; }
           resolve();
         };
-        xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + f.name + ' - 网络错误</div>'; resolve(); };
+        xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 网络错误</div>'; resolve(); };
         xhr.send(formData);
       });
     } catch(e){ failCount++; }

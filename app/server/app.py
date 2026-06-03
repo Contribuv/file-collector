@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.40"
+VERSION = "1.1.41"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -53,8 +53,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_prefix=0)
 # 会话安全配置
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+
+@app.before_request
+def set_session_cookie_secure():
+    """根据实际请求协议动态设置 Secure 标志"""
+    # ProxyFix 修正后 request.scheme 反映真实协议
+    app.config['SESSION_COOKIE_SECURE'] = (request.scheme == 'https')
 
 # 上传通行证浏览器缓存有效期默认值（秒）
 DEFAULT_PASSCODE_TTL = 7200  # 2小时

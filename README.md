@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.40-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.41-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -182,6 +182,10 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.41
+- 修复 collect.html 文件名未转义导致的 HTML 注入/XSS 风险（`escapeHtml` 包裹 `f.name`）
+- `SESSION_COOKIE_SECURE` 改为 `before_request` 动态设置，HTTPS 代理下自动启用
 
 ### v1.1.40
 - 系统设置页版本号新增自动检查更新功能：仅当 GitHub Releases 有新版本时才显示「发现新版本」链接

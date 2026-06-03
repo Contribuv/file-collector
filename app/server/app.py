@@ -13,13 +13,14 @@ import os
 import re
 import time
 import uuid
-import hashlib
 import sqlite3
 import shutil
 import secrets
 import logging
 import traceback
 import tempfile
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
@@ -35,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.30"
+VERSION = "1.1.40"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -52,7 +53,6 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_prefix=0)
 # 会话安全配置
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-# SESSION_COOKIE_SECURE 在 before_request 中动态设置，避免模块加载时无请求上下文
 app.config['SESSION_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
@@ -324,10 +324,13 @@ def generate_csrf_token():
     return session['csrf_token']
 
 def validate_csrf():
-    """验证 CSRF token（支持表单和 AJAX header 两种方式）"""
+    """验证 CSRF token"""
     token = request.form.get('csrf_token', '') or request.headers.get('X-CSRFToken', '')
     expected = session.get('csrf_token', '')
-    if not token or not expected or not secrets.compare_digest(token, expected):
+    if not token:
+        flash('安全验证失败：缺少验证令牌，请刷新页面重试')
+        return False
+    if not expected or not secrets.compare_digest(token, expected):
         flash('安全验证失败，请刷新页面重试')
         return False
     return True
@@ -383,26 +386,14 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-@app.before_request
-def before_request():
-    """每个请求前的处理"""
-    # 动态设置 SESSION_COOKIE_SECURE：HTTPS 环境或反向代理 HTTPS 时启用
-    if os.environ.get('HTTPS', '').lower() in ('1', 'true', 'yes'):
-        app.config['SESSION_COOKIE_SECURE'] = True
-    elif request.headers.get('X-Forwarded-Proto', '') == 'https':
-        app.config['SESSION_COOKIE_SECURE'] = True
-    else:
-        app.config['SESSION_COOKIE_SECURE'] = False
-
 @app.after_request
 def add_security_headers(response):
     """添加安全响应头"""
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-    # CSP: 允许本站脚本/样式 + 内联脚本（Flask/Jinja2 需要）+ Google Fonts
-    csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.github.com"
     response.headers['Content-Security-Policy'] = csp
     return response
 
@@ -1088,7 +1079,9 @@ def admin_links():
         "SELECT * FROM links ORDER BY created_at DESC"
     ).fetchall()
     conn.close()
-    return render_template('admin_links.html', links=links, public_url=get_setting('public_url', ''))
+    return render_template('admin_links.html', links=links, public_url=get_setting('public_url', ''),
+                           defaults={'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
+                                     'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))})
 
 @app.route('/admin/links/create', methods=['POST'])
 @admin_required
@@ -1105,16 +1098,21 @@ def create_link():
         return redirect(url_for('admin_links'))
 
     if not passcode:
-        flash('通行证不能为空')
+        flash('为了保证安全暂时不支持空通行证')
         return redirect(url_for('admin_links'))
 
     try:
-        max_files = int(max_files)
+        _mf = float(max_files)
+        if _mf != int(_mf):
+            raise ValueError('最大文件数量必须为整数')
+        max_files = int(_mf)
         max_file_size_gb = round(float(max_file_size_gb), 2)
-        if max_file_size_gb <= 0:
-            raise ValueError('文件大小必须大于0')
-    except ValueError:
-        flash('数字格式错误')
+        if max_files < 1 or max_files > 50:
+            raise ValueError('最大文件数量必须在 1-50 之间')
+        if max_file_size_gb < 0.01 or max_file_size_gb > 64:
+            raise ValueError('单文件上限必须在 0.01-64 GB 之间')
+    except ValueError as e:
+        flash(str(e) if '必须' in str(e) else '数字格式错误')
         return redirect(url_for('admin_links'))
 
     expires_at = request.form.get('expires_at', '').strip()
@@ -1175,12 +1173,17 @@ def edit_link(link_id):
     max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
     try:
-        max_files = int(max_files)
+        _mf = float(max_files)
+        if _mf != int(_mf):
+            raise ValueError('最大文件数量必须为整数')
+        max_files = int(_mf)
         max_file_size_gb = round(float(max_file_size_gb), 2)
-        if max_file_size_gb <= 0:
-            raise ValueError('文件大小必须大于0')
-    except ValueError:
-        flash('数字格式错误')
+        if max_files < 1 or max_files > 50:
+            raise ValueError('最大文件数量必须在 1-50 之间')
+        if max_file_size_gb < 0.01 or max_file_size_gb > 64:
+            raise ValueError('单文件上限必须在 0.01-64 GB 之间')
+    except ValueError as e:
+        flash(str(e) if '必须' in str(e) else '数字格式错误')
         return redirect(url_for('admin_links'))
 
     if not title:
@@ -1454,12 +1457,17 @@ def admin_settings():
             site_title = request.form.get('site_title', '文件收集器')
 
             try:
-                max_files = int(max_files)
+                _mf = float(max_files)
+                if _mf != int(_mf):
+                    raise ValueError('默认最大文件数必须为整数')
+                max_files = int(_mf)
                 max_size = round(float(max_size), 2)
-                if max_files < 1: raise ValueError
-                if max_size <= 0: raise ValueError
-            except ValueError:
-                flash('默认值格式错误')
+                if max_files < 1 or max_files > 50:
+                    raise ValueError('默认最大文件数必须在 1-50 之间')
+                if max_size < 0.01 or max_size > 64:
+                    raise ValueError('单文件上限必须在 0.01-64 GB 之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '默认值格式错误')
                 return redirect(url_for('admin_settings'))
 
             set_setting('max_files', str(max_files))
@@ -1482,13 +1490,15 @@ def admin_settings():
         elif action == 'passcode_ttl':
             minutes = request.form.get('passcode_ttl_minutes', '120')
             try:
-                val = int(minutes)
-                if val < 1:
-                    val = 1
-                elif val > 43200:
-                    val = 43200
-            except ValueError:
-                val = 120
+                _m = float(minutes)
+                if _m != int(_m):
+                    raise ValueError('通行证有效期必须为整数')
+                val = int(_m)
+                if val < 1 or val > 43200:
+                    raise ValueError('通行证有效期必须在 1-43200 分钟之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '通行证有效期格式错误')
+                return redirect(url_for('admin_settings'))
             set_setting('passcode_ttl_minutes', str(val))
             flash('通行证有效期已保存')
 
@@ -1544,7 +1554,7 @@ def admin_settings():
     }
     sys_info = {
         'db_path': os.path.dirname(DB_PATH),  # 仅显示目录，不暴露完整文件名
-        'upload_base': os.path.basename(get_upload_base()) or get_upload_base(),  # 仅显示目录名
+        'upload_base': get_upload_base(),
         'data_dir': os.path.basename(DATA_DIR) or DATA_DIR,
         'port': str(PORT),
     }
@@ -1692,6 +1702,45 @@ def api_status():
         'db_ok': db_ok,
         'upload_dir_exists': os.path.isdir(UPLOAD_BASE),
     })
+
+@app.route('/api/check-update')
+@admin_required
+def check_update():
+    """检查 GitHub Releases 是否有新版本"""
+    try:
+        req = urllib.request.Request(
+            'https://api.github.com/repos/Contribuv/file-collector/releases',
+            headers={
+                'User-Agent': 'file-collector/' + VERSION,
+                'Accept': 'application/vnd.github.v3+json',
+            }
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            import json
+            releases = json.loads(resp.read().decode('utf-8'))
+
+        if not releases:
+            return jsonify({'has_update': False})
+
+        # 从最新 release 提取版本号
+        latest = releases[0]
+        tag = latest.get('tag_name', '').lstrip('v')
+        html_url = latest.get('html_url', 'https://github.com/Contribuv/file-collector/releases')
+
+        def parse_version(v):
+            parts = v.split('.')
+            return tuple(int(p) for p in parts if p.isdigit())
+
+        try:
+            if parse_version(tag) > parse_version(VERSION):
+                return jsonify({'has_update': True, 'latest_version': tag, 'url': html_url})
+        except (ValueError, IndexError):
+            pass
+
+        return jsonify({'has_update': False})
+    except Exception as e:
+        logger.warning(f"检查更新失败: {e}")
+        return jsonify({'has_update': False, 'error': '检查更新失败'})
 
 # ============================================================
 # 错误处理

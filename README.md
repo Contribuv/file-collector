@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.30-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.40-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -182,6 +182,49 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.40
+- 系统设置页版本号新增自动检查更新功能：仅当 GitHub Releases 有新版本时才显示「发现新版本」链接
+- 后端新增 `/api/check-update` 接口，调用 GitHub API 比对版本号
+
+### v1.1.39
+- 有效期（天）默认值改为 15 天
+- 最大文件数量和单文件上限输入框加 `required`，防止提交空值
+
+### v1.1.38
+- 修复通行证 placeholder 与后端空通行证拦截的矛盾（创建时提示"请设置通行证"+required，编辑时移除required）
+- 前端创建链接时 JS 拦截空通行证提交
+- 单文件上限前端验证增加 isNaN 检查，防止非数字输入绕过
+- 通行证有效期后端超范围时改为 flash 报错（不再静默截断），与其他字段行为一致
+- 通行证有效期输入框补 step="1" 限制整数
+
+### v1.1.37
+- 创建链接时「最大文件数量」和「单文件上限」默认值关联设置页配置（不再硬编码）
+- 设置页「单文件上限」约束与链接页统一（0.01-64GB）
+
+### v1.1.36
+- 设置页「默认最大文件数」与链接页约束统一（1-50 整数、单文件上限 ≤64GB）
+- 设置页整数输入框（默认最大文件数、通行证有效期）实时过滤小数点
+- 前后端双重验证对齐
+
+### v1.1.35
+- 最大文件数量和有效期（天）不能为 0
+
+### v1.1.34
+- 整数输入框（最大文件数量、有效期天数）实时过滤小数点，无法输入小数
+
+### v1.1.33
+- 截止日期选择器限制最长30天（动态 min/max）
+- 最大文件数量仅限整数输入
+- 表单数值约束：最大文件数量 ≤50、单文件上限 ≤64GB、有效期天数仅限整数 1-30
+- 空通行证创建链接时，明确提示「为了保证安全暂时不支持空通行证」
+
+### v1.1.32
+- 表单数值约束：最大文件数量 ≤50、单文件上限 ≤64GB、有效期天数仅限整数 1-30
+- 空通行证创建链接时，明确提示「为了保证安全暂时不支持空通行证」
+
+### v1.1.31
+- 系统信息显示完整上传目录路径（不再只显示目录名）
 
 ### v1.1.30
 - 修复链接管理页分享/收集按钮 `Uncaught SyntaxError`（`tojson` 双引号在 `onclick` 内截断 HTML 属性）

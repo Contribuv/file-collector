@@ -22,7 +22,7 @@
             <div class="form-group">
               <label class="form-label" for="passcode">通行证</label>
               <input type="text" id="passcode" name="passcode" class="form-input"
-                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="留空则不设密码">
+                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="请设置通行证" required>
             </div>
           </div>
           <div class="form-group">
@@ -34,19 +34,19 @@
             <div class="form-group">
               <label class="form-label" for="max_files">最大文件数量</label>
               <input type="number" id="max_files" name="max_files" class="form-input"
-                     value="{{ edit_link['max_files'] if edit_link else 10 }}" min="1" max="100">
+                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="1" max="50" step="1" required>
             </div>
             <div class="form-group">
               <label class="form-label" for="max_file_size_gb">单文件上限 (GB)</label>
               <input type="number" id="max_file_size_gb" name="max_file_size_gb" class="form-input"
-                     value="{{ edit_link['max_file_size_gb'] if edit_link else 1 }}" min="0.01" step="0.01">
+                     value="{{ edit_link['max_file_size_gb'] if edit_link else defaults['max_file_size_gb'] }}" min="0.01" max="64" step="0.01" required>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 留空则永不过期，最长30天</span></label>
               <input type="number" id="expire_days" name="expire_days" class="form-input"
-                     placeholder="如：7" min="1" max="30">
+                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else 15 }}" placeholder="这里只能是整数，最大输入30" min="1" max="30" step="1">
             </div>
             <div class="form-group">
               <label class="form-label" for="expires_at">截止日期和时间</label>
@@ -178,6 +178,7 @@ function editLinkBtn(el) {
   // 通行证已哈希存储，编辑时留空，仅当用户输入新值时才更新
   document.getElementById('passcode').value = '';
   document.getElementById('passcode').placeholder = '留空则不修改通行证';
+  document.getElementById('passcode').removeAttribute('required');
   document.getElementById('description').value = link.description || '';
   document.getElementById('max_files').value = link.max_files;
   document.getElementById('max_file_size_gb').value = link.max_file_size_gb;
@@ -203,7 +204,42 @@ function clearExpiry() {
 (function() {
   var form = document.querySelector('#create-section form');
   if (!form) return;
+
+  // 动态设置截止日期选择器的 min/max
+  var expiresAtInput = document.getElementById('expires_at');
+  if (expiresAtInput) {
+    var now = new Date();
+    var maxDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    function pad(n) { return n < 10 ? '0' + n : n; }
+    function toLocalISOString(d) {
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    expiresAtInput.setAttribute('min', toLocalISOString(now));
+    expiresAtInput.setAttribute('max', toLocalISOString(maxDate));
+  }
+
+  // 实时拦截：整数输入框禁止输入小数点
+  ['max_files', 'expire_days'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function() {
+        if (this.value.includes('.')) {
+          this.value = this.value.split('.')[0];
+        }
+      });
+    }
+  });
+
   form.addEventListener('submit', function(e) {
+    // 创建链接时通行证必填
+    var isCreate = !form.action.includes('/edit');
+    var passcode = document.getElementById('passcode').value.trim();
+    if (isCreate && !passcode) {
+      e.preventDefault();
+      alert('为了保证安全暂时不支持空通行证');
+      return false;
+    }
     var expAt = document.getElementById('expires_at').value;
     if (expAt) {
       var selected = new Date(expAt);
@@ -220,12 +256,30 @@ function clearExpiry() {
         return false;
       }
     }
-    var expDays = document.getElementById('expire_days').value;
-    if (expDays) {
-      var d = parseInt(expDays, 10);
-      if (d < 1 || d > 30) {
+    var maxFiles = document.getElementById('max_files').value;
+    if (maxFiles !== '') {
+      var mf = parseInt(maxFiles, 10);
+      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 1 || mf > 50) {
         e.preventDefault();
-        alert('有效期天数必须在 1-30 天之间');
+        alert('最大文件数量必须是 1-50 的整数');
+        return false;
+      }
+    }
+    var maxSize = document.getElementById('max_file_size_gb').value;
+    if (maxSize !== '') {
+      var ms = parseFloat(maxSize);
+      if (isNaN(ms) || ms < 0.01 || ms > 64) {
+        e.preventDefault();
+        alert('单文件上限必须在 0.01-64 GB 之间');
+        return false;
+      }
+    }
+    var expDays = document.getElementById('expire_days').value;
+    if (expDays !== '') {
+      var d = parseInt(expDays, 10);
+      if (isNaN(d) || d < 1 || d > 30 || String(d) !== expDays.trim()) {
+        e.preventDefault();
+        alert('有效期天数必须是 1-30 的整数');
         return false;
       }
     }

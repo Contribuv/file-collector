@@ -69,12 +69,12 @@
               <div class="form-group">
                 <label class="form-label" for="default_max_files">默认最大文件数</label>
                 <input type="number" id="default_max_files" name="default_max_files" class="form-input"
-                       value="{{ defaults.max_files or 10 }}" min="1" max="100">
+                       value="{{ defaults.max_files or 10 }}" min="1" max="50" step="1">
               </div>
               <div class="form-group">
                 <label class="form-label" for="default_max_size">单文件上限 (GB)</label>
                 <input type="number" id="default_max_size" name="default_max_size" class="form-input"
-                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" max="64" step="0.01">
               </div>
             </div>
             <button type="submit" name="action" value="defaults" class="btn btn-primary">保存</button>
@@ -114,7 +114,7 @@
             <div class="form-group">
               <label class="form-label" for="passcode_ttl_minutes">有效期（分钟）</label>
               <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input"
-                     value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200">
+                     value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
               <div class="form-hint">用户验证通行证后，浏览器缓存有效期。默认 120 分钟，最大 43200 分钟（30天）</div>
             </div>
             <button type="submit" name="action" value="passcode_ttl" class="btn btn-primary">保存</button>
@@ -214,14 +214,84 @@
         <div class="card-header"><h3>系统信息</h3></div>
         <div class="card-body">
           <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener">豪子</a></span></div>
-          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">{{ version }}</span></div>
+          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">{{ version }} <a id="update-link" href="https://github.com/Contribuv/file-collector/releases" target="_blank" rel="noopener" style="display:none;font-size:.78rem;color:var(--c-primary);">发现新版本</a></span></div>
           <div class="info-row"><span class="info-label">数据库</span><span class="info-value">SQLite</span></div>
           <div class="info-row"><span class="info-label">数据目录</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
-          <div class="info-row"><span class="info-label">上传目录名</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
+          <div class="info-row"><span class="info-label">上传目录</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
           <div class="info-row"><span class="info-label">监听端口</span><span class="info-value">{{ sys_info.port }}</span></div>
         </div>
       </div>
     </div>
   </div>
 </div>
+<script>
+(function() {
+  // 实时拦截：整数输入框禁止输入小数点
+  ['default_max_files', 'passcode_ttl_minutes'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function() {
+        if (this.value.includes('.')) {
+          this.value = this.value.split('.')[0];
+        }
+      });
+    }
+  });
+
+  // 默认设置表单提交验证
+  var defaultsBtn = document.querySelector('button[value="defaults"]');
+  if (defaultsBtn) {
+    var form = defaultsBtn.closest('form');
+    form.addEventListener('submit', function(e) {
+      var mf = document.getElementById('default_max_files');
+      var ms = document.getElementById('default_max_size');
+      if (mf && mf.value !== '') {
+        var v = parseInt(mf.value, 10);
+        if (isNaN(v) || String(v) !== mf.value.trim() || v < 1 || v > 50) {
+          e.preventDefault();
+          alert('默认最大文件数必须是 1-50 的整数');
+          return false;
+        }
+      }
+      if (ms && ms.value !== '') {
+        var v2 = parseFloat(ms.value);
+        if (isNaN(v2) || v2 < 0.01 || v2 > 64) {
+          e.preventDefault();
+          alert('单文件上限必须在 0.01-64 GB 之间');
+          return false;
+        }
+      }
+    });
+  }
+
+  // 通行证有效期表单提交验证
+  var ttlBtn = document.querySelector('button[value="passcode_ttl"]');
+  if (ttlBtn) {
+    var ttlForm = ttlBtn.closest('form');
+    ttlForm.addEventListener('submit', function(e) {
+      var el = document.getElementById('passcode_ttl_minutes');
+      if (el && el.value !== '') {
+        var v = parseInt(el.value, 10);
+        if (isNaN(v) || String(v) !== el.value.trim() || v < 1 || v > 43200) {
+          e.preventDefault();
+          alert('通行证有效期必须是 1-43200 的整数（分钟）');
+          return false;
+        }
+      }
+    });
+  }
+
+  // 异步检查版本更新
+  var updateLink = document.getElementById('update-link');
+  if (updateLink) {
+    fetch('{{ url_for("check_update") }}').then(function(r) { return r.json(); }).then(function(data) {
+      if (data.has_update) {
+        if (data.url) updateLink.href = data.url;
+        if (data.latest_version) updateLink.textContent = '发现新版本 v' + data.latest_version;
+        updateLink.style.display = '';
+      }
+    }).catch(function() {});
+  }
+})();
+</script>
 {% endblock %}

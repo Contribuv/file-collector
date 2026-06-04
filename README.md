@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.45-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.47-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -182,6 +182,9 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.46
+- 彻底修复反向代理下 /admin 登录"安全验证失败"问题（移除 `before_request` 中动态修改 `SESSION_COOKIE_SECURE` 导致的竞态条件）
 
 ### v1.1.45
 - 修复空通行证无法上传/下载/删除文件的问题（`is_verified` 传入 link 对象，空通行证直接放行）

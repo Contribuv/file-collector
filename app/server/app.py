@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.47"
+VERSION = "1.1.48"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1198,8 +1198,6 @@ def create_link():
         max_file_size_gb = round(float(max_file_size_gb), 2)
         if max_files < 0:
             raise ValueError('最大文件数量不能为负数')
-        if max_files > 0 and max_files > 50:
-            raise ValueError('最大文件数量必须在 1-50 之间（0表示不限制）')
         if max_file_size_gb < 0.01 or max_file_size_gb > 64:
             raise ValueError('单文件上限必须在 0.01-64 GB 之间')
     except ValueError as e:
@@ -1277,8 +1275,6 @@ def edit_link(link_id):
         max_file_size_gb = round(float(max_file_size_gb), 2)
         if max_files < 0:
             raise ValueError('最大文件数量不能为负数')
-        if max_files > 0 and max_files > 50:
-            raise ValueError('最大文件数量必须在 1-50 之间（0表示不限制）')
         if max_file_size_gb < 0.01 or max_file_size_gb > 64:
             raise ValueError('单文件上限必须在 0.01-64 GB 之间')
     except ValueError as e:
@@ -1328,15 +1324,9 @@ def edit_link(link_id):
         passcode_hash = generate_password_hash(passcode)
         passcode_plain = passcode
     else:
-        # 通行证输入框为空：保留原有通行证设置不变
-        existing = conn.execute("SELECT passcode, passcode_plain FROM links WHERE id = ?", (link_id,)).fetchone()
-        if existing:
-            passcode_hash = existing['passcode']
-            passcode_plain = existing['passcode_plain']
-        else:
-            # 链接不存在（理论上不会到这里），使用空通行证
-            passcode_hash = generate_password_hash('')
-            passcode_plain = ''
+        # 通行证输入框为空：设置为空通行证（允许任何人访问）
+        passcode_hash = generate_password_hash('')
+        passcode_plain = ''
     conn.execute(
         """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
            max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
@@ -1568,8 +1558,6 @@ def admin_settings():
                 max_size = round(float(max_size), 2)
                 if max_files < 0:
                     raise ValueError('默认最大文件数不能为负数')
-                if max_files > 0 and max_files > 50:
-                    raise ValueError('默认最大文件数必须在 1-50 之间（0表示不限制）')
                 if max_size < 0.01 or max_size > 64:
                     raise ValueError('单文件上限必须在 0.01-64 GB 之间')
             except ValueError as e:

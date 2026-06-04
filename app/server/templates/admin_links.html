@@ -35,7 +35,7 @@
             <div class="form-group">
               <label class="form-label" for="max_files">最大文件数量</label>
               <input type="number" id="max_files" name="max_files" class="form-input"
-                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="0" max="50" step="1" required>
+                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="0" step="1" required>
               <div class="form-hint">0 表示不限制</div>
             </div>
             <div class="form-group">
@@ -267,9 +267,9 @@ function clearExpiry() {
     var maxFiles = document.getElementById('max_files').value;
     if (maxFiles !== '') {
       var mf = parseInt(maxFiles, 10);
-      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 0 || mf > 50) {
+      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 0) {
         e.preventDefault();
-        alert('最大文件数量必须是 0-50 的整数（0表示不限制）');
+        alert('最大文件数量必须是大于等于0的整数（0表示不限制）');
         return false;
       }
     }

@@ -69,7 +69,7 @@
               <div class="form-group">
                 <label class="form-label" for="default_max_files">默认最大文件数</label>
                 <input type="number" id="default_max_files" name="default_max_files" class="form-input"
-                       value="{{ defaults.max_files or 10 }}" min="0" max="50" step="1">
+                       value="{{ defaults.max_files or 10 }}" min="0" step="1">
                 <div class="form-hint">0 表示不限制</div>
               </div>
               <div class="form-group">
@@ -248,9 +248,9 @@
       var ms = document.getElementById('default_max_size');
       if (mf && mf.value !== '') {
         var v = parseInt(mf.value, 10);
-        if (isNaN(v) || String(v) !== mf.value.trim() || v < 0 || v > 50) {
+        if (isNaN(v) || String(v) !== mf.value.trim() || v < 0) {
           e.preventDefault();
-          alert('默认最大文件数必须是 0-50 的整数（0表示不限制）');
+          alert('默认最大文件数必须是大于等于0的整数（0表示不限制）');
           return false;
         }
       }

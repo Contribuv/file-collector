@@ -22,7 +22,8 @@
             <div class="form-group">
               <label class="form-label" for="passcode">通行证</label>
               <input type="text" id="passcode" name="passcode" class="form-input"
-                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="请设置通行证" required>
+                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="留空则无需通行证">
+              <div class="form-hint">留空时访问者无需验证即可上传/下载，请谨慎使用</div>
             </div>
           </div>
           <div class="form-group">
@@ -34,7 +35,8 @@
             <div class="form-group">
               <label class="form-label" for="max_files">最大文件数量</label>
               <input type="number" id="max_files" name="max_files" class="form-input"
-                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="1" max="50" step="1" required>
+                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="0" max="50" step="1" required>
+              <div class="form-hint">0 表示不限制</div>
             </div>
             <div class="form-group">
               <label class="form-label" for="max_file_size_gb">单文件上限 (GB)</label>
@@ -86,7 +88,7 @@
             {% for link in links %}
             <tr>
               <td class="col-title"><strong>{{ link['title'] }}</strong></td>
-              <td class="col-limit" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['max_files'] }}个/{% if link['max_file_size_gb'] < 1 %}{{ (link['max_file_size_gb'] * 1024)|round(2) }} MB{% else %}{{ link['max_file_size_gb'] }} GB{% endif %}</td>
+              <td class="col-limit" style="color:var(--c-text-soft);font-size:.82rem;">{% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}/{% if link['max_file_size_gb'] < 1 %}{{ (link['max_file_size_gb'] * 1024)|round(2) }} MB{% else %}{{ link['max_file_size_gb'] }} GB{% endif %}</td>
               <td class="col-expire" style="font-size:.78rem;">
                 {% if link['expires_at'] %}
                   <span style="color:#f59e0b;" title="{{ link['expires_at'] }}">{{ link['expires_at'][:16].replace('T', ' ') }}</span>
@@ -104,10 +106,12 @@
               <td class="col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
               <td class="col-act">
                 <div class="action-group">
-                  {% set pass_text = link['passcode_plain'] or ('' if not link['passcode'] else '') %}
-                  <button class="btn btn-xs btn-primary" data-type="share" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ '1' if link['passcode'] and not link['passcode_plain'] else '0' }}" onclick="copyLinkBtn(this)">分享</button>
-                  <button class="btn btn-xs btn-info" data-type="collect" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ '1' if link['passcode'] and not link['passcode_plain'] else '0' }}" onclick="copyLinkBtn(this)">收集</button>
-                  <button class="btn btn-xs btn-purple" data-link='{{ dict(link)|tojson }}' onclick="editLinkBtn(this)">编辑</button>
+                  {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
+                  {% set need_reset = '1' if link['_is_legacy'] else '0' %}
+                  <button class="btn btn-xs btn-primary" data-type="share" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">分享</button>
+                  <button class="btn btn-xs btn-info" data-type="collect" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">收集</button>
+                  {% set link_data = {'id': link['id'], 'title': link['title'], 'description': link['description'], 'max_files': link['max_files'], 'max_file_size_gb': link['max_file_size_gb'], 'expires_at': link['expires_at'], 'allow_delete': link['allow_delete']} %}
+                  <button class="btn btn-xs btn-purple" data-link='{{ link_data|tojson }}' onclick="editLinkBtn(this)">编辑</button>
                   <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-xs {{ 'btn-warning' if link['status']=='active' else 'btn-success' }}">{{ '停用' if link['status']=='active' else '启用' }}</button>
@@ -166,9 +170,14 @@ function copyLinkBtn(el) {
     alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
     return;
   }
-  var passLabel = type === 'collect' ? '上传通行证' : '文件通行证';
   var actionHint = type === 'collect' ? '请通过此链接上传文件' : '请通过此链接提取文件';
-  var text = url + '\n' + passLabel + '：' + (passcode || '无') + '\n' + actionHint;
+  var text;
+  if (passcode) {
+    var passLabel = type === 'collect' ? '上传通行证' : '文件通行证';
+    text = url + '\n' + passLabel + '：' + passcode + '\n' + actionHint;
+  } else {
+    text = url + '\n\n' + actionHint;
+  }
   copyToClipboard(text);
 }
 
@@ -232,13 +241,12 @@ function clearExpiry() {
   });
 
   form.addEventListener('submit', function(e) {
-    // 创建链接时通行证必填
-    var isCreate = !form.action.includes('/edit');
     var passcode = document.getElementById('passcode').value.trim();
-    if (isCreate && !passcode) {
-      e.preventDefault();
-      alert('为了保证安全暂时不支持空通行证');
-      return false;
+    if (!passcode) {
+      if (!confirm('通行证为空意味着任何人都可以直接访问链接，确定要继续吗？')) {
+        e.preventDefault();
+        return false;
+      }
     }
     var expAt = document.getElementById('expires_at').value;
     if (expAt) {
@@ -259,9 +267,9 @@ function clearExpiry() {
     var maxFiles = document.getElementById('max_files').value;
     if (maxFiles !== '') {
       var mf = parseInt(maxFiles, 10);
-      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 1 || mf > 50) {
+      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 0 || mf > 50) {
         e.preventDefault();
-        alert('最大文件数量必须是 1-50 的整数');
+        alert('最大文件数量必须是 0-50 的整数（0表示不限制）');
         return false;
       }
     }

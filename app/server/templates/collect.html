@@ -345,12 +345,13 @@
     {% if description %}<div class="cp-desc">{{ description }}</div>{% endif %}
     <div class="cp-meta">
       <span class="cp-meta-item">单文件上限 <strong>{% if max_file_size_gb < 1 %}{{ (max_file_size_gb * 1024)|round(2) }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</strong></span>
-      <span class="cp-meta-item">最大数量 <strong>{{ max_files }}</strong> 个</span>
-      {% if verified %}<span class="cp-meta-item" id="remaining-slot" style="color:#059669;background:#ecfdf5;">还可上传 <strong id="remaining-count">-</strong> 个</span>{% endif %}
+      <span class="cp-meta-item">最大数量 <strong>{% if max_files == 0 %}不限制{% else %}{{ max_files }}{% endif %}</strong> 个</span>
+      {% if verified and max_files > 0 %}<span class="cp-meta-item" id="remaining-slot" style="color:#059669;background:#ecfdf5;">还可上传 <strong id="remaining-count">-</strong> 个</span>{% endif %}
     </div>
   </div>
 
   {% if not verified %}
+  {% if has_passcode %}
   <div class="cp-card">
     <div class="cp-card-body cp-passcode-body">
       <div class="cp-passcode-icon">
@@ -375,11 +376,15 @@
   </div>
 
   {% else %}
+  <!-- 通行证为空，直接显示上传页面 -->
+  {% endif %}
+
+  {% else %}
 
   <div class="cp-card">
     <div class="cp-card-head">
       <h2>上传文件</h2>
-      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>
+      {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.41-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.45-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -182,6 +182,29 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.45
+- 修复空通行证无法上传/下载/删除文件的问题（`is_verified` 传入 link 对象，空通行证直接放行）
+- 修复 admin_links 页面 500 错误（sqlite3.Row 不可变，转为 dict 处理）
+- 修复空通行证验证路由直接放行逻辑
+- 修复编辑链接时通行证保留逻辑
+
+### v1.1.44
+- 修复 admin_links 页面 500 错误（sqlite3.Row 对象不可变，转为 dict 处理）
+- 修复空通行证验证路由：collect/share 验证时直接放行，无需输入通行证
+- 修复编辑链接时通行证保留逻辑（移除错误的 generate_password_hash('default') 回退）
+- 编辑按钮 data-link 数据过滤内部字段（_is_legacy/_has_passcode 不暴露到前端）
+
+### v1.1.43
+- 修复空通行证链接分享/收集按钮无法复制的问题（区分空通行证与旧版加密存储）
+- 空通行证链接复制格式优化：无通行证行，仅显示 URL + 操作提示
+
+### v1.1.42
+- 修复外网访问 /admin 安全验证失败（ProxyFix 增强，信任更多代理头）
+- 通行证支持为空，创建时弹出风险提示，collect/share 页无通行证时跳过验证页面
+- 最大文件数支持 0 表示不限制，后台设置与链接创建同步生效
+- 收集页/分享页退出通行证按钮仅在设置通行证时显示
+- 收集页最大文件数为 0 时显示"不限制"，隐藏剩余槽位计数
 
 ### v1.1.41
 - 修复 collect.html 文件名未转义导致的 HTML 注入/XSS 风险（`escapeHtml` 包裹 `f.name`）

@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.41"
+VERSION = "1.1.45"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -48,7 +48,8 @@ app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，�
 
 # 反向代理支持：修正 request.remote_addr / request.scheme
 # x_for=2 表示信任最多 2 层反向代理的 X-Forwarded-For 头
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_prefix=0)
+# x_port=1 信任 X-Forwarded-Port，确保 request.scheme 在外网代理下也能正确识别
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
 # 会话安全配置
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -59,7 +60,11 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 def set_session_cookie_secure():
     """根据实际请求协议动态设置 Secure 标志"""
     # ProxyFix 修正后 request.scheme 反映真实协议
+    # 外网代理可能未正确传递 X-Forwarded-Proto，此时不强制 Secure
     app.config['SESSION_COOKIE_SECURE'] = (request.scheme == 'https')
+    # 确保 CSRF token 在 session 中初始化（避免外网首次访问时 session 未建立）
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
 
 # 上传通行证浏览器缓存有效期默认值（秒）
 DEFAULT_PASSCODE_TTL = 7200  # 2小时
@@ -365,10 +370,25 @@ def is_wechat_browser():
     ua = request.headers.get('User-Agent', '').lower()
     return 'micromessenger' in ua
 
-def is_verified(link_id):
-    """检查当前 session 中通行证是否已验证且未过期"""
+def is_verified(link_id, link=None):
+    """检查当前 session 中通行证是否已验证且未过期
+    如果传入 link 对象且为空通行证，直接返回 True
+    """
+    if link is not None:
+        pp = link['passcode_plain']
+        if not pp or not pp.strip():
+            return True
     ts = session.get(f'verified_{link_id}', 0)
     return isinstance(ts, (int, float)) and (time.time() - ts) < get_passcode_ttl()
+
+def link_has_passcode(link_id):
+    """检查链接是否设置了通行证（passcode_plain 非空）"""
+    conn = get_db()
+    row = conn.execute("SELECT passcode_plain FROM links WHERE id = ?", (link_id,)).fetchone()
+    conn.close()
+    if not row:
+        return False
+    return bool(row['passcode_plain'] and row['passcode_plain'].strip())
 
 def admin_required(f):
     """管理员认证装饰器"""
@@ -557,7 +577,8 @@ def collect_page(link_id):
         except (ValueError, TypeError):
             pass
 
-    verified = is_verified(link_id)
+    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    verified = is_verified(link_id) if has_passcode else True
     ttl_minutes = int(get_setting('passcode_ttl_minutes', '120'))
     if ttl_minutes >= 60 and ttl_minutes % 60 == 0:
         ttl_display = f'{ttl_minutes // 60} 小时'
@@ -571,6 +592,7 @@ def collect_page(link_id):
         task_title=link['title'],
         description=link['description'],
         verified=verified,
+        has_passcode=has_passcode,
         in_wechat=is_wechat_browser(),
         max_file_size_gb=link['max_file_size_gb'],
         max_files=link['max_files'],
@@ -599,6 +621,12 @@ def verify_passcode(link_id):
 
     if not link:
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    # 空通行证：直接放行
+    if not has_passcode:
+        session[f'verified_{link_id}'] = time.time()
+        return jsonify({'success': True})
 
     passcode = request.form.get('passcode', '').strip()
     if passcode and check_password_hash(link['passcode'], passcode):
@@ -643,7 +671,8 @@ def share_page(link_id):
         except (ValueError, TypeError):
             pass
 
-    verified = is_verified(link_id)
+    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    verified = is_verified(link_id) if has_passcode else True
     ttl_minutes = int(get_setting('passcode_ttl_minutes', '120'))
     if ttl_minutes >= 60 and ttl_minutes % 60 == 0:
         ttl_display = f'{ttl_minutes // 60} 小时'
@@ -657,6 +686,7 @@ def share_page(link_id):
         task_title=link['title'],
         description=link['description'],
         verified=verified,
+        has_passcode=has_passcode,
         in_wechat=is_wechat_browser(),
         allow_delete=bool(link['allow_delete']),
         site_title=get_setting('site_title', '文件收集器'),
@@ -684,6 +714,12 @@ def share_verify_passcode(link_id):
     if not link:
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
+    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    # 空通行证：直接放行
+    if not has_passcode:
+        session[f'verified_{link_id}'] = time.time()
+        return jsonify({'success': True})
+
     passcode = request.form.get('passcode', '').strip()
     if passcode and check_password_hash(link['passcode'], passcode):
         session[f'verified_{link_id}'] = time.time()
@@ -701,9 +737,6 @@ def share_logout_passcode(link_id):
 @app.route('/share/<link_id>/records', methods=['GET'])
 def share_get_records(link_id):
     """获取分享页文件列表"""
-    if not is_verified(link_id):
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
@@ -712,6 +745,10 @@ def share_get_records(link_id):
     if not link:
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
     records = conn.execute(
         "SELECT id, original_name, file_size_display, uploaded_at, download_count FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
@@ -728,10 +765,18 @@ def share_get_records(link_id):
 @app.route('/share/<link_id>/download/<int:record_id>', methods=['GET'])
 def share_download_record(link_id, record_id):
     """分享页下载文件"""
-    if not is_verified(link_id):
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
     conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return '链接不存在或已失效', 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return '请先验证通行证', 403
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -750,17 +795,23 @@ def share_download_record(link_id, record_id):
 @app.route('/share/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def share_delete_record(link_id, record_id):
     """分享页删除单条上传记录及文件"""
-    if not is_verified(link_id):
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    if not is_verified(link_id, link):
+        conn.close()
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
-    conn = get_db()
-    link = conn.execute(
-        "SELECT allow_delete FROM links WHERE id = ?", (link_id,)
-    ).fetchone()
-
-    if not link or not link['allow_delete']:
+    if not link['allow_delete']:
         conn.close()
         return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
 
@@ -787,9 +838,6 @@ def share_delete_record(link_id, record_id):
 @app.route('/collect/<link_id>/records', methods=['GET'])
 def get_upload_records(link_id):
     """获取上传历史记录"""
-    if not is_verified(link_id):
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
@@ -798,6 +846,10 @@ def get_upload_records(link_id):
     if not link:
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
     total_uploaded = conn.execute(
         "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
@@ -820,10 +872,18 @@ def get_upload_records(link_id):
 @app.route('/collect/<link_id>/download/<int:record_id>', methods=['GET'])
 def download_record(link_id, record_id):
     """下载上传历史记录中的文件"""
-    if not is_verified(link_id):
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
     conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return '链接不存在或已失效', 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return '请先验证通行证', 403
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -842,17 +902,23 @@ def download_record(link_id, record_id):
 @app.route('/collect/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def delete_upload_record(link_id, record_id):
     """删除单条上传记录及文件"""
-    if not is_verified(link_id):
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    if not is_verified(link_id, link):
+        conn.close()
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
-    conn = get_db()
-    link = conn.execute(
-        "SELECT allow_delete FROM links WHERE id = ?", (link_id,)
-    ).fetchone()
-
-    if not link or not link['allow_delete']:
+    if not link['allow_delete']:
         conn.close()
         return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
 
@@ -897,7 +963,8 @@ def upload_file(link_id):
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
-        if not is_verified(link_id):
+        # 空通行证直接放行，有通行证才需要验证
+        if not is_verified(link_id, link):
             return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
         uploaded_files = request.files.getlist('file')
@@ -908,21 +975,23 @@ def upload_file(link_id):
             return jsonify({'success': False, 'message': '没有接收到文件'}), 400
 
         max_files = link['max_files']
-        if len(uploaded_files) > max_files:
+        # max_files=0 表示不限制
+        if max_files > 0 and len(uploaded_files) > max_files:
             return jsonify({
                 'success': False,
                 'message': f'单次最多上传 {max_files} 个文件'
             }), 400
 
-        # 检查是否已超过上传总数上限
-        current_count = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-        ).fetchone()[0]
-        if current_count >= max_files:
-            return jsonify({
-                'success': False,
-                'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
-            }), 400
+        # 检查是否已超过上传总数上限（max_files=0 不限制）
+        if max_files > 0:
+            current_count = conn.execute(
+                "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+            ).fetchone()[0]
+            if current_count >= max_files:
+                return jsonify({
+                    'success': False,
+                    'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
+                }), 400
 
         upload_dir = create_upload_dir(link_id)
         max_size_bytes = round(link['max_file_size_gb'] * 1024 * 1024 * 1024)
@@ -1084,7 +1153,23 @@ def admin_links():
         "SELECT * FROM links ORDER BY created_at DESC"
     ).fetchall()
     conn.close()
-    return render_template('admin_links.html', links=links, public_url=get_setting('public_url', ''),
+
+    # 为每个链接标记通行证状态（sqlite3.Row 不可变，需转为 dict）
+    processed_links = []
+    for link in links:
+        d = dict(link)
+        pp = d['passcode_plain']
+        ph = d['passcode']
+        # has_passcode_plain: 是否有明文通行证（非空字符串）
+        link_has_pp = bool(pp and pp.strip())
+        # is_empty_passcode: 是否为空通行证（passcode 是空字符串的哈希）
+        is_empty_pc = check_password_hash(ph, '')
+        # is_legacy: 旧版加密存储（passcode 不是空哈希，但没有明文）
+        d['_is_legacy'] = not link_has_pp and not is_empty_pc
+        d['_has_passcode'] = link_has_pp
+        processed_links.append(d)
+
+    return render_template('admin_links.html', links=processed_links, public_url=get_setting('public_url', ''),
                            defaults={'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))})
 
@@ -1102,9 +1187,8 @@ def create_link():
         flash('标题不能为空')
         return redirect(url_for('admin_links'))
 
-    if not passcode:
-        flash('为了保证安全暂时不支持空通行证')
-        return redirect(url_for('admin_links'))
+    # 通行证为空时给出警告提示（前端已拦截，此处为后端兜底）
+    # 允许空通行证，但需要记录
 
     try:
         _mf = float(max_files)
@@ -1112,8 +1196,10 @@ def create_link():
             raise ValueError('最大文件数量必须为整数')
         max_files = int(_mf)
         max_file_size_gb = round(float(max_file_size_gb), 2)
-        if max_files < 1 or max_files > 50:
-            raise ValueError('最大文件数量必须在 1-50 之间')
+        if max_files < 0:
+            raise ValueError('最大文件数量不能为负数')
+        if max_files > 0 and max_files > 50:
+            raise ValueError('最大文件数量必须在 1-50 之间（0表示不限制）')
         if max_file_size_gb < 0.01 or max_file_size_gb > 64:
             raise ValueError('单文件上限必须在 0.01-64 GB 之间')
     except ValueError as e:
@@ -1152,14 +1238,20 @@ def create_link():
 
     link_id = generate_link_id()
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
-    passcode_hash = generate_password_hash(passcode)
+    if passcode:
+        passcode_hash = generate_password_hash(passcode)
+        passcode_plain = passcode
+    else:
+        # 空通行证：使用空字符串的哈希，passcode_plain 为空
+        passcode_hash = generate_password_hash('')
+        passcode_plain = ''
 
     conn = get_db()
     conn.execute(
         """INSERT INTO links (id, title, description, passcode, passcode_plain,
            max_file_size_gb, max_files, expires_at, allow_delete)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (link_id, title, description, passcode_hash, passcode, max_file_size_gb, max_files, expires_at or None, allow_delete)
+        (link_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete)
     )
     conn.commit()
     conn.close()
@@ -1183,8 +1275,10 @@ def edit_link(link_id):
             raise ValueError('最大文件数量必须为整数')
         max_files = int(_mf)
         max_file_size_gb = round(float(max_file_size_gb), 2)
-        if max_files < 1 or max_files > 50:
-            raise ValueError('最大文件数量必须在 1-50 之间')
+        if max_files < 0:
+            raise ValueError('最大文件数量不能为负数')
+        if max_files > 0 and max_files > 50:
+            raise ValueError('最大文件数量必须在 1-50 之间（0表示不限制）')
         if max_file_size_gb < 0.01 or max_file_size_gb > 64:
             raise ValueError('单文件上限必须在 0.01-64 GB 之间')
     except ValueError as e:
@@ -1234,10 +1328,15 @@ def edit_link(link_id):
         passcode_hash = generate_password_hash(passcode)
         passcode_plain = passcode
     else:
-        # 通行证为空则保留原值
+        # 通行证输入框为空：保留原有通行证设置不变
         existing = conn.execute("SELECT passcode, passcode_plain FROM links WHERE id = ?", (link_id,)).fetchone()
-        passcode_hash = existing['passcode'] if existing else generate_password_hash('default')
-        passcode_plain = existing['passcode_plain'] if existing else ''
+        if existing:
+            passcode_hash = existing['passcode']
+            passcode_plain = existing['passcode_plain']
+        else:
+            # 链接不存在（理论上不会到这里），使用空通行证
+            passcode_hash = generate_password_hash('')
+            passcode_plain = ''
     conn.execute(
         """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
            max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
@@ -1467,8 +1566,10 @@ def admin_settings():
                     raise ValueError('默认最大文件数必须为整数')
                 max_files = int(_mf)
                 max_size = round(float(max_size), 2)
-                if max_files < 1 or max_files > 50:
-                    raise ValueError('默认最大文件数必须在 1-50 之间')
+                if max_files < 0:
+                    raise ValueError('默认最大文件数不能为负数')
+                if max_files > 0 and max_files > 50:
+                    raise ValueError('默认最大文件数必须在 1-50 之间（0表示不限制）')
                 if max_size < 0.01 or max_size > 64:
                     raise ValueError('单文件上限必须在 0.01-64 GB 之间')
             except ValueError as e:

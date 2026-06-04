@@ -266,6 +266,7 @@
   </div>
 
   {% if not verified %}
+  {% if has_passcode %}
   <div class="cp-card">
     <div class="cp-card-body cp-passcode-body">
       <div class="cp-passcode-icon">
@@ -290,11 +291,15 @@
   </div>
 
   {% else %}
+  <!-- 通行证为空，直接显示文件列表 -->
+  {% endif %}
+
+  {% else %}
 
   <div class="cp-card">
     <div class="cp-card-head">
       <h2>文件列表</h2>
-      <span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>
+      {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body" style="padding:0">
       <div id="history-wrap">

@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
-<body{% if session.is_admin %} class="is-admin"{% endif %}>
+<body class="{% if session.is_admin %}is-admin{% endif %}{% block body_class %}{% endblock %}">
 
   {% if in_wechat %}
   <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>

@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.48"
+VERSION = "1.1.61"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -587,6 +587,14 @@ def collect_page(link_id):
     else:
         ttl_display = f'{ttl_minutes} 分钟'
 
+    expire_display = '永不过期'
+    if link['expires_at']:
+        try:
+            expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
+            expire_display = expire_time.strftime('%Y-%m-%d %H:%M')
+        except (ValueError, TypeError):
+            pass
+
     return render_template('collect.html',
         link_id=link_id,
         task_title=link['title'],
@@ -601,7 +609,8 @@ def collect_page(link_id):
         collect_footer_text=get_setting('collect_footer_text', ''),
         public_url=get_setting('public_url', ''),
         version=VERSION,
-        passcode_ttl_display=ttl_display)
+        passcode_ttl_display=ttl_display,
+        expire_display=expire_display)
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
@@ -681,6 +690,14 @@ def share_page(link_id):
     else:
         ttl_display = f'{ttl_minutes} 分钟'
 
+    expire_display = '永不过期'
+    if link['expires_at']:
+        try:
+            expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
+            expire_display = expire_time.strftime('%Y-%m-%d %H:%M')
+        except (ValueError, TypeError):
+            pass
+
     return render_template('share.html',
         link_id=link_id,
         task_title=link['title'],
@@ -693,7 +710,8 @@ def share_page(link_id):
         collect_footer_text=get_setting('collect_footer_text', ''),
         public_url=get_setting('public_url', ''),
         version=VERSION,
-        passcode_ttl_display=ttl_display)
+        passcode_ttl_display=ttl_display,
+        expire_display=expire_display)
 
 @app.route('/share/<link_id>/verify', methods=['POST'])
 def share_verify_passcode(link_id):
@@ -761,6 +779,55 @@ def share_get_records(link_id):
         'allow_delete': bool(link['allow_delete']),
         'records': [dict(r) for r in records]
     })
+
+@app.route('/share/<link_id>/preview/<int:record_id>', methods=['GET'])
+def share_preview_record(link_id, record_id):
+    """预览分享页的文件（内联显示）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return '链接不存在或已失效', 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return '请先验证通行证', 403
+
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    conn.close()
+    if not record:
+        return '文件不存在', 404
+
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}, upload_base={real_base}")
+        abort(403)
+    directory = os.path.dirname(real_path)
+    filename = os.path.basename(real_path)
+    if not os.path.isfile(real_path):
+        abort(404)
+
+    ext = os.path.splitext(record['original_name'])[1].lower()
+    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    pdf_ext = '.pdf'
+    video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
+
+    if ext in image_exts:
+        return send_from_directory(directory, filename, mimetype=f'image/{ext[1:]}', as_attachment=False)
+    elif ext == pdf_ext:
+        return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
+    elif ext in video_exts:
+        return send_from_directory(directory, filename, as_attachment=False)
+    else:
+        return send_from_directory(directory, filename, as_attachment=True)
+
 
 @app.route('/share/<link_id>/download/<int:record_id>', methods=['GET'])
 def share_download_record(link_id, record_id):
@@ -868,6 +935,55 @@ def get_upload_records(link_id):
         'total_uploaded': total_uploaded,
         'records': [dict(r) for r in records]
     })
+
+@app.route('/collect/<link_id>/preview/<int:record_id>', methods=['GET'])
+def preview_record(link_id, record_id):
+    """预览上传的文件（内联显示）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return '链接不存在或已失效', 404
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return '请先验证通行证', 403
+
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    conn.close()
+    if not record:
+        return '文件不存在', 404
+
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}, upload_base={real_base}")
+        abort(403)
+    directory = os.path.dirname(real_path)
+    filename = os.path.basename(real_path)
+    if not os.path.isfile(real_path):
+        abort(404)
+
+    ext = os.path.splitext(record['original_name'])[1].lower()
+    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    pdf_ext = '.pdf'
+    video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
+
+    if ext in image_exts:
+        return send_from_directory(directory, filename, mimetype=f'image/{ext[1:]}', as_attachment=False)
+    elif ext == pdf_ext:
+        return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
+    elif ext in video_exts:
+        return send_from_directory(directory, filename, as_attachment=False)
+    else:
+        return send_from_directory(directory, filename, as_attachment=True)
+
 
 @app.route('/collect/<link_id>/download/<int:record_id>', methods=['GET'])
 def download_record(link_id, record_id):
@@ -1211,10 +1327,12 @@ def create_link():
         if expire_days:
             try:
                 days = int(expire_days)
-                if 0 < days <= _max_expire_days:
+                if days == 0:
+                    expires_at = None
+                elif 1 <= days <= _max_expire_days:
                     expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
                 else:
-                    flash(f'有效期天数必须在 1-{_max_expire_days} 天之间')
+                    flash(f'有效期天数必须在 0-{_max_expire_days} 天之间')
                     return redirect(url_for('admin_links'))
             except ValueError:
                 pass
@@ -1295,10 +1413,12 @@ def edit_link(link_id):
         if expire_days:
             try:
                 days = int(expire_days)
-                if 0 < days <= _max_expire_days:
+                if days == 0:
+                    expires_at = None
+                elif 1 <= days <= _max_expire_days:
                     expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
                 else:
-                    flash(f'有效期天数必须在 1-{_max_expire_days} 天之间')
+                    flash(f'有效期天数必须在 0-{_max_expire_days} 天之间')
                     return redirect(url_for('admin_links'))
             except ValueError:
                 pass

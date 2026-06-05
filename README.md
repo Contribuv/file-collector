@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.48-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.61-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -182,6 +182,47 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v1.1.61
+- 常规版本更新
+
+### v1.1.60
+- 设置页面所有卡片恢复为始终展开显示（移除折叠功能）
+
+### v1.1.59
+- 系统信息卡片改为始终展开显示（移除折叠功能）
+
+### v1.1.58
+- 优化设置页面卡片折叠样式，使用 SVG 箭头图标
+
+### v1.1.57
+- 设置页面卡片默认折叠，点击标题展开/收起
+
+### v1.1.56
+- 统一应用图标（ICON.PNG、ICON_256.PNG、logo.png 均使用 256x256 尺寸）
+
+### v1.1.55
+- 确认 share 页面文件预览功能已完整实现（支持图片、PDF、视频预览）
+
+### v1.1.54
+- 调整 share 页面有效期显示位置（移到描述内容下方）
+
+### v1.1.53
+- 优化 share 页面有效期显示位置调整（移到标题下方描述上方）
+
+### v1.1.52
+- 优化 share 页面有效期显示样式，添加时钟图标并放置在标题下方
+
+### v1.1.51
+- 修复 base.html 模板 body_class block 重复定义导致的 500 错误
+- 修复 collect.css 中 CSS 变量与 style.css 冲突问题
+- 优化预览弹窗居中显示（修改 display 属性为 flex）
+
+### v1.1.50
+- 修复 admin_links.html 有效期天数不能输入 0 的问题（0 表示永不过期）
+- collect.html/share.html 页面显示有效期信息（永不过期显示"永不过期"，其他显示实际天数）
+- 上传历史记录新增文件预览功能（支持图片、视频、PDF）和下载按钮
+- 将 HTML 页面的内联 CSS 提取到外部文件（collect.css、share.css、landing.css），提升代码可维护性
 
 ### v1.1.48
 - 修复编辑链接时通行证无法清除的问题（通行证输入框留空 = 设置为空通行证）

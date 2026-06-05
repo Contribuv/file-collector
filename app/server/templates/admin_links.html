@@ -46,9 +46,9 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 留空则永不过期，最长30天</span></label>
+              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长30天</span></label>
               <input type="number" id="expire_days" name="expire_days" class="form-input"
-                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else 15 }}" placeholder="这里只能是整数，最大输入30" min="1" max="30" step="1">
+                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else 15 }}" placeholder="0或留空则永不过期，最大输入30" min="0" max="30" step="1">
             </div>
             <div class="form-group">
               <label class="form-label" for="expires_at">截止日期和时间</label>
@@ -285,9 +285,9 @@ function clearExpiry() {
     var expDays = document.getElementById('expire_days').value;
     if (expDays !== '') {
       var d = parseInt(expDays, 10);
-      if (isNaN(d) || d < 1 || d > 30 || String(d) !== expDays.trim()) {
+      if (isNaN(d) || d < 0 || d > 30 || String(d) !== expDays.trim()) {
         e.preventDefault();
-        alert('有效期天数必须是 1-30 的整数');
+        alert('有效期天数必须是 0-30 的整数（0表示永不过期）');
         return false;
       }
     }

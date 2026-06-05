@@ -770,6 +770,19 @@ tbody tr:active { background: #f7f8fa; }
   padding: 20px;
   background: var(--c-bg);
 }
+/* 登录页专用布局覆盖 */
+.auth-layout .main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.auth-layout .main-inner {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
 .auth-card {
   background: var(--c-white);
   border-radius: 20px;

@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.61"
+VERSION = "1.1.63"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -861,46 +861,8 @@ def share_download_record(link_id, record_id):
 
 @app.route('/share/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def share_delete_record(link_id, record_id):
-    """分享页删除单条上传记录及文件"""
-    conn = get_db()
-    link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
-    ).fetchone()
-
-    if not link:
-        conn.close()
-        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-
-    if not is_verified(link_id, link):
-        conn.close()
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
-
-    if not link['allow_delete']:
-        conn.close()
-        return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
-
-    record = conn.execute(
-        "SELECT id, stored_path FROM upload_records WHERE id = ? AND link_id = ?",
-        (record_id, link_id)
-    ).fetchone()
-
-    if not record:
-        conn.close()
-        return jsonify({'success': False, 'message': '记录不存在'}), 404
-
-    try:
-        _safe_delete(record['stored_path'])
-    except Exception:
-        pass
-
-    conn.execute("DELETE FROM upload_records WHERE id = ?", (record_id,))
-    conn.commit()
-    conn.close()
-
-    return jsonify({'success': True, 'message': '已删除'})
+    """分享页删除单条上传记录及文件 - 已禁用"""
+    return jsonify({'success': False, 'message': '分享页面不支持删除操作'}), 403
 
 @app.route('/collect/<link_id>/records', methods=['GET'])
 def get_upload_records(link_id):
@@ -1382,6 +1344,7 @@ def edit_link(link_id):
     title = request.form.get('title', '').strip()
     description = request.form.get('description', '').strip()
     passcode = request.form.get('passcode', '').strip()
+    empty_passcode = request.form.get('empty_passcode') == 'on'  # 新的空通行证复选框
     max_files = request.form.get('max_files', DEFAULT_MAX_FILES)
     max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
@@ -1440,19 +1403,37 @@ def edit_link(link_id):
 
     conn = get_db()
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
-    if passcode:
-        passcode_hash = generate_password_hash(passcode)
-        passcode_plain = passcode
-    else:
-        # 通行证输入框为空：设置为空通行证（允许任何人访问）
+
+    # 处理通行证更新逻辑（新的复选框方案）
+    if empty_passcode:
+        # 用户勾选了空通行证：清空通行证（允许任何人访问）
         passcode_hash = generate_password_hash('')
         passcode_plain = ''
-    conn.execute(
-        """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-           max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
-           WHERE id=?""",
-        (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
-    )
+        conn.execute(
+            """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
+               max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
+        )
+    elif passcode:
+        # 用户输入了新通行证：设置新通行证
+        passcode_hash = generate_password_hash(passcode)
+        passcode_plain = passcode
+        conn.execute(
+            """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
+               max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
+        )
+    else:
+        # 保持原有通行证不变 - 只更新其他字段
+        conn.execute(
+            """UPDATE links SET title=?, description=?,
+               max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, link_id)
+        )
+
     conn.commit()
     conn.close()
 

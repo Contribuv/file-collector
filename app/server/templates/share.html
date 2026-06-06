@@ -107,7 +107,6 @@
 
 <script>
 const linkId = '{{ link_id }}';
-{% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
 
 function showToast(msg, d) {
   var t = document.getElementById('toast');
@@ -180,7 +179,6 @@ async function loadHistory() {
       wrap.innerHTML = '<div class="cp-empty"><p>暂无文件</p><p>还没有上传过文件</p></div>';
       return;
     }
-    var canDelete = allowDelete && (data.allow_delete === true);
     var html = '<div class="cp-history-grid">';
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
@@ -201,9 +199,6 @@ async function loadHistory() {
         html += '<button class="cp-btn cp-btn-sm cp-btn-outline" onclick="previewFile(\'' + linkId + '\', ' + r.id + ', \'' + escapedName + '\')">预览</button>';
       }
       html += '<button class="cp-btn cp-btn-sm cp-btn-primary" onclick="downloadFile(\'' + linkId + '\', ' + r.id + ')">下载</button>';
-      if (canDelete) {
-        html += '<button class="cp-btn cp-btn-sm cp-btn-danger" onclick="deleteRecord(' + r.id + ')">删除</button>';
-      }
       html += '</span>';
       html += '</div>';
       html += '<div class="cp-history-card-time">' + escapedTime + '</div>';
@@ -243,24 +238,16 @@ function previewFile(linkId, recordId, fileName) {
 }
 
 function closePreview() {
+  // 暂停视频播放
+  var video = document.querySelector('#preview-modal video');
+  if (video) {
+    video.pause();
+  }
   document.getElementById('preview-modal').style.display = 'none';
 }
 
 function downloadFile(linkId, recordId) {
   window.open('/share/' + linkId + '/download/' + recordId, '_blank');
-}
-
-async function deleteRecord(recordId) {
-  if (!confirm('确定删除该文件？')) return;
-  try {
-    var res = await fetch('/share/' + linkId + '/delete_record/' + recordId, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-    });
-    var data = await res.json();
-    if (data.success) { showToast('已删除'); loadHistory(); }
-    else { showToast(data.message || '删除失败'); }
-  } catch(e) { showToast('网络错误'); }
 }
 
 (function() {

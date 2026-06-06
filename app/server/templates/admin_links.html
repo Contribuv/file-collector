@@ -19,13 +19,22 @@
               <input type="text" id="title" name="title" class="form-input"
                      value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" maxlength="20" required>
             </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="passcode">通行证</label>
               <input type="text" id="passcode" name="passcode" class="form-input"
-                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="留空则无需通行证">
-              <div class="form-hint">留空时访问者无需验证即可上传/下载，请谨慎使用</div>
+                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="请输入通行证">
+            </div>
+            <div class="form-group" style="align-self: flex-end;">
+              <label class="form-checkbox">
+                <input type="checkbox" id="empty_passcode" name="empty_passcode" 
+                       onchange="togglePasscodeInput()">
+                <i class="form-icon"></i> 空通行证（无需验证）
+              </label>
             </div>
           </div>
+          <div class="form-hint" id="passcode-hint">{% if edit_link %}<span style="color:var(--c-text-muted);">提示：保持不变则留空，修改请输入新通行证</span>{% else %}留空时保持不变，输入则更新通行证{% endif %}</div>
           <div class="form-group">
             <label class="form-label" for="description">描述</label>
             <textarea id="description" name="description" class="form-textarea" rows="2"
@@ -110,7 +119,7 @@
                   {% set need_reset = '1' if link['_is_legacy'] else '0' %}
                   <button class="btn btn-xs btn-primary" data-type="share" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">分享</button>
                   <button class="btn btn-xs btn-info" data-type="collect" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">收集</button>
-                  {% set link_data = {'id': link['id'], 'title': link['title'], 'description': link['description'], 'max_files': link['max_files'], 'max_file_size_gb': link['max_file_size_gb'], 'expires_at': link['expires_at'], 'allow_delete': link['allow_delete']} %}
+                  {% set link_data = {'id': link['id'], 'title': link['title'], 'description': link['description'], 'max_files': link['max_files'], 'max_file_size_gb': link['max_file_size_gb'], 'expires_at': link['expires_at'], 'allow_delete': link['allow_delete'], 'has_passcode': link['_has_passcode']} %}
                   <button class="btn btn-xs btn-purple" data-link='{{ link_data|tojson }}' onclick="editLinkBtn(this)">编辑</button>
                   <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -184,10 +193,19 @@ function copyLinkBtn(el) {
 function editLinkBtn(el) {
   const link = JSON.parse(el.getAttribute('data-link'));
   document.getElementById('title').value = link.title;
-  // 通行证已哈希存储，编辑时留空，仅当用户输入新值时才更新
+  // 通行证已哈希存储，编辑时留空
   document.getElementById('passcode').value = '';
-  document.getElementById('passcode').placeholder = '留空则不修改通行证';
+  document.getElementById('passcode').placeholder = '留空则保持原有通行证';
   document.getElementById('passcode').removeAttribute('required');
+  // 设置空通行证复选框状态：原链接有通行证则不勾选，无通行证则勾选
+  document.getElementById('empty_passcode').checked = !link.has_passcode;
+  // 更新提示文字
+  var passcodeHint = document.getElementById('passcode-hint');
+  if (passcodeHint) {
+    passcodeHint.innerHTML = '<span style="color:var(--c-text-muted);">提示：留空则保持原有通行证不变</span>';
+  }
+  // 切换输入框状态
+  togglePasscodeInput();
   document.getElementById('description').value = link.description || '';
   document.getElementById('max_files').value = link.max_files;
   document.getElementById('max_file_size_gb').value = link.max_file_size_gb;
@@ -202,6 +220,27 @@ function editLinkBtn(el) {
   var clearBtn = document.getElementById('clear-expiry-btn');
   if (clearBtn) clearBtn.style.display = link.expires_at ? '' : 'none';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// 切换通行证输入框状态
+function togglePasscodeInput() {
+  var emptyPasscode = document.getElementById('empty_passcode').checked;
+  var passcodeInput = document.getElementById('passcode');
+  
+  if (emptyPasscode) {
+    // 空通行证：禁用输入框，清空内容
+    passcodeInput.disabled = true;
+    passcodeInput.value = '';
+    passcodeInput.placeholder = '空通行证（无需验证）';
+    passcodeInput.style.opacity = '0.5';
+    passcodeInput.style.cursor = 'not-allowed';
+  } else {
+    // 有通行证：启用输入框
+    passcodeInput.disabled = false;
+    passcodeInput.placeholder = '请输入通行证';
+    passcodeInput.style.opacity = '1';
+    passcodeInput.style.cursor = 'text';
+  }
 }
 
 function clearExpiry() {
@@ -241,8 +280,9 @@ function clearExpiry() {
   });
 
   form.addEventListener('submit', function(e) {
-    var passcode = document.getElementById('passcode').value.trim();
-    if (!passcode) {
+    var emptyPasscode = document.getElementById('empty_passcode').checked;
+    // 只有在选中"空通行证"时才提示确认
+    if (emptyPasscode) {
       if (!confirm('通行证为空意味着任何人都可以直接访问链接，确定要继续吗？')) {
         e.preventDefault();
         return false;

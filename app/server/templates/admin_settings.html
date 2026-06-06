@@ -59,12 +59,6 @@
         <div class="card-body">
           <form method="POST" action="{{ url_for('admin_settings') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-group">
-              <label class="form-label" for="site_title">站点标题</label>
-              <input type="text" id="site_title" name="site_title" class="form-input"
-                     value="{{ defaults.site_title or '文件收集器' }}">
-              <div class="form-hint">显示在收集页页头和页面标题</div>
-            </div>
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" for="default_max_files">默认最大文件数</label>
@@ -93,7 +87,7 @@
               <label class="form-label" for="public_url">公网网址</label>
               <input type="text" id="public_url" name="public_url" class="form-input"
                      value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
-              <div class="form-hint">公网访问地址，用于生成正确的分享链接。留空则按访问链接分享。</div>
+              <div class="form-hint">公网访问地址，用于生成正确的分享链接。留空则按访问链接分享。<a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="collect_footer_text">页尾信息</label>
@@ -225,7 +219,162 @@
     </div>
   </div>
 </div>
+
+<!-- 反向代理设置方法弹窗 -->
+<div class="modal-overlay" id="proxy-modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>反向代理设置方法</h3>
+      <button class="modal-close" onclick="closeProxyModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>请在飞牛应用中心下载 <b>反向代理服务器</b> 由<b> laok </b>大佬开发。</p>
+      <p>请根据以下图示设置即可通过外网访问，然后将反代的URL地址填入上方。</p>
+      <p><strong>举例：</strong>假如你的DDNS域名为 nas.fons.com，且配置了飞牛证书，根据图下设置，那么你的公网地址为 <code>https://nas.fons.com:7786</code> 即可。</p>
+      <div class="modal-image-container">
+        <img src="{{ url_for('static', filename='img/fd.png') }}" alt="反向代理设置图示" class="modal-image">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeProxyModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--c-text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--c-text-soft);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--c-bg-hover);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(80vh - 120px);
+}
+
+.modal-body p {
+  line-height: 1.8;
+  margin: 0 0 12px 0;
+  color: var(--c-text);
+}
+
+.modal-body code {
+  background: var(--c-bg-hover);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: var(--c-primary);
+}
+
+.modal-image-container {
+  margin-top: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.modal-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--c-border);
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+  
+  .modal-content {
+    border-radius: 8px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
+}
+</style>
+
 <script>
+function showProxyGuide() {
+  document.getElementById('proxy-modal').style.display = 'flex';
+}
+
+function closeProxyModal() {
+  document.getElementById('proxy-modal').style.display = 'none';
+}
+
+// 点击遮罩层关闭弹窗
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = document.getElementById('proxy-modal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeProxyModal();
+      }
+    });
+  }
+});
+
 (function() {
   // 实时拦截：整数输入框禁止输入小数点
   ['default_max_files', 'passcode_ttl_minutes'].forEach(function(id) {

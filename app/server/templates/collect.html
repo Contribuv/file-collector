@@ -167,31 +167,45 @@ let totalUploaded = 0;
 let remainingSlots = MAX_FILES;
 
 function updateRemainingDisplay() {
-  remainingSlots = MAX_FILES - totalUploaded - selectedFiles.length;
+  if (MAX_FILES > 0) {
+    remainingSlots = MAX_FILES - totalUploaded - selectedFiles.length;
+  } else {
+    remainingSlots = Infinity; // 不限制
+  }
   var el = document.getElementById('remaining-count');
   var slotEl = document.getElementById('remaining-slot');
   if (!el || !slotEl) return;
   el.textContent = Math.max(0, remainingSlots);
 
   var totalUsed = totalUploaded + selectedFiles.length;
-  if (totalUsed > MAX_FILES) {
-    // 已超过上限，禁止继续
-    slotEl.style.color = '#991b1b';
-    slotEl.style.background = '#fef2f2';
-    document.getElementById('upload-btn').disabled = true;
-    document.getElementById('dropzone').style.opacity = '0.4';
-    document.getElementById('dropzone').style.pointerEvents = 'none';
-    document.getElementById('file-input').disabled = true;
-    showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
-  } else if (totalUsed === MAX_FILES) {
-    // 刚好满额：禁用新增但允许上传已选文件
-    slotEl.style.color = '#92400e';
-    slotEl.style.background = '#fffbeb';
-    document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
-    document.getElementById('dropzone').style.opacity = '0.4';
-    document.getElementById('dropzone').style.pointerEvents = 'none';
-    document.getElementById('file-input').disabled = true;
+  if (MAX_FILES > 0) {
+    if (totalUsed > MAX_FILES) {
+      // 已超过上限，禁止继续
+      slotEl.style.color = '#991b1b';
+      slotEl.style.background = '#fef2f2';
+      document.getElementById('upload-btn').disabled = true;
+      document.getElementById('dropzone').style.opacity = '0.4';
+      document.getElementById('dropzone').style.pointerEvents = 'none';
+      document.getElementById('file-input').disabled = true;
+      showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
+    } else if (totalUsed === MAX_FILES) {
+      // 刚好满额：禁用新增但允许上传已选文件
+      slotEl.style.color = '#92400e';
+      slotEl.style.background = '#fffbeb';
+      document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
+      document.getElementById('dropzone').style.opacity = '0.4';
+      document.getElementById('dropzone').style.pointerEvents = 'none';
+      document.getElementById('file-input').disabled = true;
+    } else {
+      slotEl.style.color = '#059669';
+      slotEl.style.background = '#ecfdf5';
+      document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
+      document.getElementById('dropzone').style.opacity = '';
+      document.getElementById('dropzone').style.pointerEvents = '';
+      document.getElementById('file-input').disabled = false;
+    }
   } else {
+    // MAX_FILES == 0，不限制上传
     slotEl.style.color = '#059669';
     slotEl.style.background = '#ecfdf5';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
@@ -252,15 +266,16 @@ async function logoutPasscode() {
 
 function handleFiles(files) {
   var totalUsed = totalUploaded + selectedFiles.length;
-  if (totalUsed >= MAX_FILES) {
+  // max_files=0 表示不限制，跳过数量检查
+  if (MAX_FILES > 0 && totalUsed >= MAX_FILES) {
     showToast('已上传满 ' + MAX_FILES + ' 个文件，无法继续添加', 4000);
     document.getElementById('file-input').value = '';
     return;
   }
-  var canAdd = MAX_FILES - totalUsed;
+  var canAdd = MAX_FILES > 0 ? MAX_FILES - totalUsed : files.length;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
-    if (selectedFiles.length >= canAdd) { showToast('还可添加 ' + canAdd + ' 个文件（总共上限 ' + MAX_FILES + ' 个）'); break; }
+    if (MAX_FILES > 0 && selectedFiles.length >= canAdd) { showToast('还可添加 ' + canAdd + ' 个文件（总共上限 ' + MAX_FILES + ' 个）'); break; }
     if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制（上限 ' + formatSize(MAX_FILE_SIZE) + '）', 3000); continue; }
     if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
     selectedFiles.push(f);
@@ -301,7 +316,7 @@ if (dropzone) {
 async function startUpload() {
   if (selectedFiles.length === 0) return;
   var totalUsed = totalUploaded + selectedFiles.length;
-  if (totalUsed > MAX_FILES) {
+  if (MAX_FILES > 0 && totalUsed > MAX_FILES) {
     showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
     return;
   }
@@ -454,6 +469,11 @@ function previewFile(linkId, recordId, fileName) {
 }
 
 function closePreview() {
+  // 暂停视频播放
+  var video = document.querySelector('#preview-modal video');
+  if (video) {
+    video.pause();
+  }
   document.getElementById('preview-modal').style.display = 'none';
 }
 

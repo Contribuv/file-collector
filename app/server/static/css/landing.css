@@ -24,7 +24,6 @@ body {
   margin: 0 auto 24px;
   display: block;
   border-radius: 0px;
-  box-shadow: 0 8px 32px rgba(59,130,246,.15);
 }
 .landing-card h1 {
   font-size: 1.5rem;

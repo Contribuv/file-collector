@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.62-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.63-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -183,10 +183,17 @@ GET /api/status
 
 ## 更新日志
 
-### v1.1.62
-- landing.css 去除 logo 样式
+### v1.1.63
+- 修复 share/collect 页面预览窗口关闭时视频仍播放的问题
+- share 页面移除删除文件功能
+- 修复 collect 页面 max_files=0 时无法上传文件的 bug
+- admin_settings 添加反向代理设置方法弹窗
+- 站点标题改为只读禁止修改
+- 修复通行证编辑逻辑：留空保持原有通行证，清空则清除通行证
+- 彻底修复 collect 页面 max_files=0 时提示"已超过最大上传数（0个）"的 bug
+- 通行证编辑改为复选框方案：勾选"空通行证"时输入框变灰禁用，更直观清晰
 
-### v1.1.61
+### v1.1.62
 - 常规版本更新
 
 ### v1.1.60

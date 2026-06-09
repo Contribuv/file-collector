@@ -87,7 +87,7 @@
               <label class="form-label" for="public_url">公网网址</label>
               <input type="text" id="public_url" name="public_url" class="form-input"
                      value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
-              <div class="form-hint">公网访问地址，用于生成正确的分享链接。留空则按访问链接分享。<a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a></div>
+              <div class="form-hint">公网访问地址，用于生成正确的分享链接。留空则按访问链接分享。</br><a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="collect_footer_text">页尾信息</label>
@@ -230,7 +230,9 @@
     <div class="modal-body">
       <p>请在飞牛应用中心下载 <b>反向代理服务器</b> 由<b> laok </b>大佬开发。</p>
       <p>请根据以下图示设置即可通过外网访问，然后将反代的URL地址填入上方。</p>
-      <p><strong>举例：</strong>假如你的DDNS域名为 nas.fons.com，且配置了飞牛证书，根据图下设置，那么你的公网地址为 <code>https://nas.fons.com:7786</code> 即可。</p>
+      <p><strong>反代举例：</strong>假如你的DDNS域名为 nas.fons.com，且配置了飞牛证书，根据图下设置，那么你的公网地址为 <code>https://nas.fons.com:7786</code> 即可。
+      </p>
+      <p><b>高级设置：</b>启用 HSTS , 强制跳转 HTTPS , 保留原始主机头</p>
       <div class="modal-image-container">
         <img src="{{ url_for('static', filename='img/fd.png') }}" alt="反向代理设置图示" class="modal-image">
       </div>

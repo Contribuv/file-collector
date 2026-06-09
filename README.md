@@ -183,6 +183,9 @@ GET /api/status
 
 ## 更新日志
 
+### v1.1.64
+- 优化客户端 IP 获取逻辑，支持 Unix Socket 反向代理场景
+
 ### v1.1.63
 - 修复 share/collect 页面预览窗口关闭时视频仍播放的问题
 - share 页面移除删除文件功能

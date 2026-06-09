@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.63"
+VERSION = "1.1.64"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -361,8 +361,50 @@ def format_file_size(size_bytes):
     return f"{size_bytes:.1f} TB"
 
 def _get_client_ip():
-    """获取客户端真实IP — ProxyFix 已从 X-Forwarded-For 修正 request.remote_addr"""
-    ip = (request.remote_addr or '0.0.0.0').strip()
+    """获取客户端真实IP
+    
+    支持多种反向代理场景：
+    - 普通 HTTP 反向代理（X-Forwarded-For）
+    - Unix Socket 反向代理（remote_addr 为空或特殊值）
+    - 多层反向代理（X-Forwarded-For 包含多个IP）
+    """
+    # 优先从 X-Forwarded-For 获取（支持多层代理）
+    x_forwarded_for = request.headers.get('X-Forwarded-For', '')
+    if x_forwarded_for:
+        # X-Forwarded-For 格式: client, proxy1, proxy2, ...
+        ip = x_forwarded_for.split(',')[0].strip()
+        if ip and ip != 'unknown':
+            return ip
+    
+    # 其次检查 X-Real-IP（某些代理使用此头）
+    x_real_ip = request.headers.get('X-Real-IP', '').strip()
+    if x_real_ip and x_real_ip != 'unknown':
+        return x_real_ip
+    
+    # 最后使用 remote_addr（ProxyFix 已修正，或直接连接）
+    ip = (request.remote_addr or '').strip()
+    
+    # Unix Socket 场景：remote_addr 可能为空或特殊值
+    if not ip or ip == 'unknown' or ip.startswith('unix'):
+        # 尝试从其他常见头获取
+        for header in ['X-Client-IP', 'X-Forwarded', 'Forwarded-For', 'Forwarded']:
+            val = request.headers.get(header, '').strip()
+            if val and val != 'unknown':
+                # 处理 Forwarded 头格式: for=192.168.0.1;proto=http;host=example.com
+                if header.lower() == 'forwarded':
+                    for part in val.split(';'):
+                        part = part.strip()
+                        if part.lower().startswith('for='):
+                            ip_val = part[4:].strip()
+                            # 移除可能的引号
+                            if ip_val.startswith(('"', "'")):
+                                ip_val = ip_val[1:-1]
+                            return ip_val
+                else:
+                    return val
+        # 如果都没有，返回一个标识性值
+        return 'unknown'
+    
     return ip
 
 def is_wechat_browser():

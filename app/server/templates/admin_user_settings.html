@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}个人设置{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="settings-grid">
+      <!-- 通行证有效期 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>通行证有效期</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="passcode_ttl_minutes">有效期（分钟）</label>
+              <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input form-input-sm"
+                     value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
+              <div class="form-hint">验证后浏览器缓存有效期，默认 120 分钟</div>
+            </div>
+            <button type="submit" name="action" value="passcode_ttl" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 默认设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>默认设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="default_max_files">默认最大文件数</label>
+                <input type="number" id="default_max_files" name="default_max_files" class="form-input form-input-sm"
+                       value="{{ defaults.max_files or 10 }}" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_max_size">单文件上限 (GB)</label>
+                <input type="number" id="default_max_size" name="default_max_size" class="form-input form-input-sm"
+                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" max="64" step="0.01">
+              </div>
+            </div>
+            <div class="form-hint" style="margin-bottom:8px;">创建链接时的默认参数，留空则使用管理员全局设置</div>
+            <button type="submit" name="action" value="defaults" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 链接有效期 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>默认链接有效期</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="default_link_expire_days">最大有效期（天）</label>
+              <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
+                     value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
+              <div class="form-hint">创建链接时的默认有效期上限，默认 30 天</div>
+            </div>
+            <button type="submit" name="action" value="default_link_expiry" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 收集链接显示数量 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>收集链接显示数量/页</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="links_per_page_val">每页显示数量</label>
+              <input type="number" id="links_per_page_val" name="links_per_page_val" class="form-input form-input-sm"
+                     value="{{ defaults.links_per_page or '10' }}" min="5" max="100" step="1">
+              <div class="form-hint">收集链接列表每页显示条数，默认 10 条，范围 5-100</div>
+            </div>
+            <button type="submit" name="action" value="links_per_page" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 上传记录单页数量 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>上传记录单页数量</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="records_per_page_val">每页显示数量</label>
+              <input type="number" id="records_per_page_val" name="records_per_page_val" class="form-input form-input-sm"
+                     value="{{ defaults.records_per_page or '10' }}" min="5" max="200" step="1">
+              <div class="form-hint">上传记录列表每页显示条数，默认 10 条，范围 5-200（仅对自己生效）</div>
+            </div>
+            <button type="submit" name="action" value="records_per_page" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+.card-compact { margin-bottom: 10px; }
+.card-compact .card-header { padding: 10px 14px; }
+.card-compact .card-header h3 { font-size: 0.88rem; }
+.card-compact .card-body { padding: 12px 14px; }
+.card-compact .form-group { margin-bottom: 10px; }
+.card-compact .form-label { font-size: 0.75rem; margin-bottom: 4px; }
+.card-compact .form-hint { font-size: 0.68rem; margin-top: 2px; color: var(--c-text-soft); }
+
+.form-input-sm { padding: 7px 11px; font-size: 0.82rem; }
+.form-textarea-sm { min-height: 52px; font-size: 0.82rem; }
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .settings-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

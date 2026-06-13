@@ -98,6 +98,15 @@ a:active { opacity: .6; }
   object-fit: contain;
 }
 .header-nav { display: flex; align-items: center; gap: 4px; }
+.header-nav .header-user {
+  font-size: .8rem;
+  color: var(--c-text-soft);
+  font-weight: 500;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .header-nav a {
   font-size: .85rem;
   color: var(--c-primary);
@@ -398,7 +407,7 @@ tbody tr:active { background: #f7f8fa; }
 .dash-records--full .col-time { width: 140px; }
 .dash-records--full .col-meta { color: var(--c-text-soft); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-records--full .col-meta-dim { color: var(--c-text-muted); font-size: .78rem; }
-.dash-records--full .col-act { width: 48px; text-align: center; }
+.dash-records--full .col-act { width: 140px; text-align: center; }
 
 /* 删除按钮：统一 × 图标，hover 变红 */
 .btn-record-del {
@@ -662,6 +671,47 @@ tbody tr:active { background: #f7f8fa; }
 .admin-content { flex: 1; min-width: 0; width: 100%; }
 
 /* ============================================================
+   Quick Actions — 快捷入口
+   ============================================================ */
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-radius: var(--radius);
+}
+.quick-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--c-white);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--c-text);
+  font-size: .88rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  transition: all .2s;
+}
+.quick-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.quick-action-btn:active {
+  transform: translateY(0);
+}
+.quick-action-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.quick-action-text {
+  white-space: nowrap;
+}
+
+/* ============================================================
    Action Group — 按钮组
    ============================================================ */
 .action-group {
@@ -759,7 +809,7 @@ tbody tr:active { background: #f7f8fa; }
 }
 
 /* ============================================================
-   Auth Page — 登录页
+   Auth Page — 登录/注册页
    ============================================================ */
 .auth-page {
   min-height: 100vh;
@@ -768,15 +818,9 @@ tbody tr:active { background: #f7f8fa; }
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: var(--c-bg);
 }
-/* 登录页专用布局覆盖 */
 .auth-layout .main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+  padding: 0;
 }
 .auth-layout .main-inner {
   max-width: none;

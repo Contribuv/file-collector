@@ -1,13 +1,27 @@
 {% extends "base.html" %}
 {% block body_class %} auth-layout{% endblock %}
 {% block header %}{% endblock %}
-{% block title %}管理员登录{% endblock %}
+{% block footer %}{% endblock %}
+{% block title %}登录{% endblock %}
 
 {% block content %}
 <div class="auth-page">
   <div class="auth-card">
-    <h1>管理员登录</h1>
-    <p class="auth-subtitle">{{ config_title|default('文件收集器') }}</p>
+    {% if no_permission %}
+    <div class="auth-no-perm">
+      <div class="auth-no-perm-icon">!</div>
+      <p>当前账户 <strong>{{ username }}</strong> 无管理后台权限</p>
+      <p class="auth-no-perm-sub">管理后台仅对管理员开放，请联系管理员获取权限</p>
+    </div>
+    <div style="text-align:center; margin-bottom:20px;">
+      <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary">退出登录</a>
+    </div>
+    {% else %}
+    <div class="auth-logo">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+    </div>
+    <h1>{{ config_title|default('文件收集器') }}</h1>
+    <p class="auth-subtitle">登录以继续使用</p>
 
     <form method="POST" action="{{ url_for('admin_login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -22,10 +36,47 @@
       <button type="submit" class="btn btn-primary btn-block">登录</button>
     </form>
 
+    <div class="auth-extra">
+      <a href="{{ url_for('forgot_password') }}">忘记密码？</a>
+      {% if allow_registration %}
+      &nbsp;|&nbsp;<a href="{{ url_for('register') }}">立即注册</a>
+      {% endif %}
+    </div>
+
     {% if login_tip %}
     <div class="auth-tip">{{ login_tip }}</div>
+    {% endif %}
     {% endif %}
   </div>
 </div>
 {% endblock %}
+
+{% block styles %}
+<style>
+.auth-logo { text-align: center; margin-bottom: 20px; }
+.auth-logo img { width: 48px; height: 48px; border-radius: 10px; }
+.auth-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
+.auth-subtitle { color: #86868b; margin-bottom: 28px; }
+.auth-extra {
+  margin-top: 18px; text-align: center; font-size: .85rem; color: #86868b;
+}
+.auth-extra a { color: var(--c-primary); font-weight: 500; }
+.auth-extra a:hover { text-decoration: underline; }
+.auth-tip {
+  background: #fef9f0; border: 1px solid #f5e6c8; color: #8b6914;
+  padding: 10px 14px; border-radius: 8px; margin-top: 16px; font-size: .85rem;
+}
+.auth-no-perm {
+  background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
+  padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px;
+}
+.auth-no-perm-icon {
+  width: 40px; height: 40px; line-height: 40px; background: #dc2626; color: #fff;
+  border-radius: 50%; font-size: 1.2rem; font-weight: bold; margin: 0 auto 12px;
+}
+.auth-no-perm p { margin: 4px 0; font-size: .95rem; }
+.auth-no-perm-sub { color: #86868b !important; font-size: .85rem !important; }
+</style>
+{% endblock %}
+
 {% block scripts %}{% endblock %}

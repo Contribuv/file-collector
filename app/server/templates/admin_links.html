@@ -15,7 +15,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="title">文件夹名称 *</label>
+              <label class="form-label" for="title">收集名称 *</label>
               <input type="text" id="title" name="title" class="form-input"
                      value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" maxlength="20" required>
             </div>
@@ -23,8 +23,8 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="passcode">通行证</label>
-              <input type="text" id="passcode" name="passcode" class="form-input"
-                     value="{{ edit_link['passcode'] if edit_link else '' }}" placeholder="请输入通行证">
+              <input type="password" id="passcode" name="passcode" class="form-input"
+                     autocomplete="off" placeholder="请输入通行证">
             </div>
             <div class="form-group" style="align-self: flex-end;">
               <label class="form-checkbox">
@@ -34,11 +34,13 @@
               </label>
             </div>
           </div>
-          <div class="form-hint" id="passcode-hint">{% if edit_link %}<span style="color:var(--c-text-muted);">提示：保持不变则留空，修改请输入新通行证</span>{% else %}留空时保持不变，输入则更新通行证{% endif %}</div>
+          <div class="form-hint" id="passcode-hint"><span style="color:var(--c-text-muted);">输入通行证用于访问验证，留空则不设通行证</span></div>
           <div class="form-group">
-            <label class="form-label" for="description">描述</label>
-            <textarea id="description" name="description" class="form-textarea" rows="2"
-                      placeholder="向文件提交者展示的说明">{{ edit_link['description'] if edit_link else '' }}</textarea>
+            <label class="form-label">描述</label>
+            <div id="description-toolbar" style="border:1px solid #d0d5dd;border-bottom:none;border-radius:6px 6px 0 0;background:#fafbfc;"></div>
+            <div id="description-editor" style="border:1px solid #d0d5dd;border-top:none;border-radius:0 0 6px 6px;min-height:300px;max-height:400px;overflow-y:auto;">
+            </div>
+            <textarea id="description" name="description" style="display:none;"></textarea>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -55,15 +57,15 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长30天</span></label>
+              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
               <input type="number" id="expire_days" name="expire_days" class="form-input"
-                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else 15 }}" placeholder="0或留空则永不过期，最大输入30" min="0" max="30" step="1">
+                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else defaults.expire_days }}" placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
             </div>
             <div class="form-group">
               <label class="form-label" for="expires_at">截止日期和时间</label>
               <input type="datetime-local" id="expires_at" name="expires_at" class="form-input"
                      onkeydown="return false;">
-              <span style="font-size:.72rem;color:var(--c-text-muted);">优先级高于上述天数，最长30天</span>
+              <span style="font-size:.72rem;color:var(--c-text-muted);">优先级高于上述天数，最长 {{ defaults.expire_days }} 天</span>
             </div>
           </div>
           <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
@@ -85,52 +87,64 @@
     <div class="card">
       <div class="card-header">
         <h3>收集链接</h3>
-        <span style="font-size:.78rem;color:var(--c-text-muted);">{{ links|length }} 个</span>
+        <span style="font-size:.78rem;color:var(--c-text-muted);">共 {{ total }} 个，第 {{ page }}/{{ total_pages }} 页</span>
       </div>
       <div class="table-wrap">
         {% if links %}
-        <table class="links-table">
+        <table class="admin-table admin-links-table">
           <thead>
-            <tr><th class="col-title">文件夹</th><th class="col-limit">限制</th><th class="col-expire">有效期</th><th class="col-status">状态</th><th class="col-time">创建</th><th class="col-act">操作</th></tr>
+            <tr>
+              <th class="col-title">收集名称</th>
+              <th class="col-hide-mobile col-limit">限制</th>
+              <th class="col-status">状态</th>
+              <th class="col-hide-mobile col-time">创建</th>
+              <th class="col-act">操作</th>
+            </tr>
           </thead>
           <tbody>
             {% for link in links %}
             <tr>
               <td class="col-title"><strong>{{ link['title'] }}</strong></td>
-              <td class="col-limit" style="color:var(--c-text-soft);font-size:.82rem;">{% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}/{% if link['max_file_size_gb'] < 1 %}{{ (link['max_file_size_gb'] * 1024)|round(2) }} MB{% else %}{{ link['max_file_size_gb'] }} GB{% endif %}</td>
-              <td class="col-expire" style="font-size:.78rem;">
-                {% if link['expires_at'] %}
-                  <span style="color:#f59e0b;" title="{{ link['expires_at'] }}">{{ link['expires_at'][:16].replace('T', ' ') }}</span>
-                {% else %}
-                  <span style="color:var(--c-text-muted);">永不过期</span>
-                {% endif %}
+              <td class="col-hide-mobile col-limit" style="color:var(--c-text-soft);font-size:.82rem;">
+                {% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}
               </td>
               <td class="col-status">
                 {% if link['status'] == 'active' %}
-                <span class="badge badge-success">活跃</span>
+                <span class="badge badge-success" style="display:inline-flex;align-items:center;gap:3px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  活跃
+                </span>
                 {% else %}
-                <span class="badge badge-danger">停用</span>
+                <span class="badge badge-danger" style="display:inline-flex;align-items:center;gap:3px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  停用
+                </span>
+                {% endif %}
+                {% if link['expires_at'] %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
                 {% endif %}
               </td>
-              <td class="col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
+              <td class="col-hide-mobile col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
               <td class="col-act">
-                <div class="action-group">
-                  {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
-                  {% set need_reset = '1' if link['_is_legacy'] else '0' %}
-                  <button class="btn btn-xs btn-primary" data-type="share" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">分享</button>
-                  <button class="btn btn-xs btn-info" data-type="collect" data-link-id="{{ link['id'] }}" data-passcode="{{ pass_text }}" data-need-reset="{{ need_reset }}" onclick="copyLinkBtn(this)">收集</button>
-                  {% set link_data = {'id': link['id'], 'title': link['title'], 'description': link['description'], 'max_files': link['max_files'], 'max_file_size_gb': link['max_file_size_gb'], 'expires_at': link['expires_at'], 'allow_delete': link['allow_delete'], 'has_passcode': link['_has_passcode']} %}
-                  <button class="btn btn-xs btn-purple" data-link='{{ link_data|tojson }}' onclick="editLinkBtn(this)">编辑</button>
-                  <form method="POST" action="{{ url_for('toggle_link', link_id=link['id']) }}" style="display:inline;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-xs {{ 'btn-warning' if link['status']=='active' else 'btn-success' }}">{{ '停用' if link['status']=='active' else '启用' }}</button>
-                  </form>
-                  <form method="POST" action="{{ url_for('delete_link', link_id=link['id']) }}" style="display:inline;"
-                        onsubmit="return confirm('确定删除链接「' + {{ link['title']|tojson }} + '」？上传文件不会被删除。');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-xs btn-danger">删除</button>
-                  </form>
-                </div>
+                {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
+                {% set need_reset = '1' if link['_is_legacy'] else '0' %}
+                {% set max_size_mb = (link['max_file_size_gb'] * 1024)|round(0)|int if link['max_file_size_gb'] < 1 else none %}
+                <button class="btn btn-sm btn-outline btn-more-link" title="更多操作"
+                  data-link-id="{{ link['id'] }}"
+                  data-title="{{ link['title']|e }}"
+                  data-description="{{ link['description']|e if link['description'] else '' }}"
+                  data-status="{{ link['status'] }}"
+                  data-max-files="{{ link['max_files'] }}"
+                  data-max-size-gb="{{ link['max_file_size_gb'] }}"
+                  data-expires-at="{{ link['expires_at'] or '' }}"
+                  data-created-at="{{ link['created_at'] }}"
+                  data-creator="{{ link['creator_name']|e }}"
+                  data-passcode="{{ pass_text }}"
+                  data-has-passcode="{{ link['_has_passcode']|lower }}"
+                  data-is-legacy="{{ need_reset }}"
+                  data-allow-delete="{{ link['allow_delete'] }}">更多..</button>
               </td>
             </tr>
             {% endfor %}
@@ -140,18 +154,257 @@
         <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建新链接」开始使用</p></div>
         {% endif %}
       </div>
+      {% if total_pages > 1 %}
+      <div class="card-footer">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_links', page=page-1) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_links', page=page+1) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
+</div>
+
+<!-- 链接浮窗遮罩层 -->
+<div id="link-popover-overlay" class="link-popover-overlay" style="display:none;" onclick="closeLinkPopover()"></div>
+<!-- 链接浮窗 -->
+<div id="link-popover" class="link-popover" style="display:none;">
+  <div class="link-popover-header">
+    <strong id="lp-title"></strong>
+    <button class="link-popover-close" onclick="closeLinkPopover()">&times;</button>
+  </div>
+  <div class="link-popover-info" id="lp-info"></div>
+  <div class="link-popover-actions" id="lp-actions"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<!-- WangEditor v5 富文本编辑器 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wangeditor.css') }}">
+<style>
+/* 更多按钮 */
+.btn-more-link {
+  background: transparent;
+  color: var(--c-primary);
+  border: 1px solid var(--c-primary);
+  font-size: 0.8rem;
+  padding: 3px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-more-link:hover { background: var(--c-primary-light); }
+.btn-more-link.active { background: var(--c-primary); color: #fff; }
+
+/* 移动端隐藏列 */
+@media (max-width: 640px) {
+  .col-hide-mobile { display: none !important; }
+  .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
+}
+
+/* 浮窗遮罩 */
+.link-popover-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 浮窗 */
+.link-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  animation: popoverCenterIn 0.25s ease;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 浮窗头部 */
+.link-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+  border-radius: 16px 16px 0 0;
+}
+.link-popover-header strong {
+  font-size: 1rem;
+  color: var(--c-text);
+  word-break: break-all;
+  padding-right: 8px;
+}
+.link-popover-close {
+  background: none; border: none; font-size: 22px; color: #aaa; cursor: pointer;
+  padding: 0; width: 30px; height: 30px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.link-popover-close:hover { background: #f0f0f0; color: #666; }
+
+/* 信息区 */
+.link-popover-info {
+  padding: 12px 18px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.link-popover-info .lp-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.link-popover-info .lp-row .lp-label {
+  color: #999;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+.link-popover-info .lp-row .lp-val {
+  color: #333;
+  flex: 1;
+  word-break: break-all;
+}
+.link-popover-info .lp-row .lp-val.lp-desc {
+  color: #666;
+  font-size: .76rem;
+  overflow-y: auto;
+}
+
+/* 操作区 */
+.link-popover-actions {
+  padding: 6px 0;
+}
+.link-popover-actions .lp-action-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 20px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: .85rem;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid #fafafa;
+}
+.link-popover-actions .lp-action-btn:last-child { border-bottom: none; }
+.link-popover-actions .lp-action-btn:hover { background: #f5f7fa; }
+.link-popover-actions .lp-action-btn.primary { color: var(--c-primary); }
+.link-popover-actions .lp-action-btn.warning { color: #d97706; }
+.link-popover-actions .lp-action-btn.danger { color: #dc2626; }
+.link-popover-actions .lp-action-btn.danger:hover { background: #fef2f2; }
+.link-popover-actions form { margin: 0; }
+.link-popover-actions form .lp-action-btn { width: 100%; }
+.link-popover-actions .lp-action-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 16px;
+}
+
+/* 双排按钮行 */
+.lp-action-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+}
+.lp-action-row .lp-action-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 10px 6px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  border-bottom: none;
+  white-space: nowrap;
+  min-width: 0;
+}
+.lp-action-row .lp-action-btn svg {
+  margin-right: 4px !important;
+  flex-shrink: 0;
+}
+.lp-action-row form {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.lp-action-row form .lp-action-btn {
+  width: 100%;
+}
+
+/* 隐藏 wangeditor 选中文本时的悬浮工具栏（顶部已有固定工具栏，无需重复） */
+.w-e-hover-bar { display: none !important; }
+
+@media (max-width: 640px) {
+  .link-popover {
+    width: calc(100vw - 24px);
+    border-radius: 18px;
+  }
+  .link-popover-header { padding: 14px 16px; }
+  .link-popover-header strong { font-size: .95rem; }
+  .link-popover-info { padding: 10px 16px; }
+  .link-popover-info .lp-row { font-size: .78rem; }
+  .link-popover-actions .lp-action-btn:not(.lp-action-row .lp-action-btn) { padding: 12px 18px; font-size: .84rem; }
+  /* 移动端双排按钮缩小字号和间距 */
+  .lp-action-row { gap: 4px; padding: 5px 8px; }
+  .lp-action-row .lp-action-btn { font-size: 0.76rem; padding: 10px 4px; }
+  .lp-action-row .lp-action-btn svg { width: 14px; height: 14px; margin-right: 2px !important; }
+}
+</style>
+
 <script>
-function toggleSection(id) { document.getElementById(id).classList.toggle('open'); }
+// WangEditor v5（异步加载，懒初始化）
+var _wangEditorInited = false;
+var _wangScript = document.createElement('script');
+_wangScript.src = '{{ url_for("static", filename="js/wangeditor.min.js") }}';
+_wangScript.onload = function() {
+  // 如果折叠区已展开（编辑模式），立即初始化
+  if (document.getElementById('create-section').classList.contains('open')) {
+    initWangEditor();
+    _wangEditorInited = true;
+  }
+};
+document.head.appendChild(_wangScript);
+
+var _lpBtn = null;
+var _editDesc = '';
+
+function toggleSection(id) {
+  var el = document.getElementById(id);
+  el.classList.toggle('open');
+  // 首次展开时初始化 wangEditor（容器可见才能正确计算高度）
+  if (!_wangEditorInited && el.classList.contains('open') && window.wangEditor) {
+    initWangEditor();
+    _wangEditorInited = true;
+  }
+}
 
 function getBaseUrl() {
-  var pu = {{ public_url|tojson }}.trim();
-  if (pu) { if (!pu.endsWith('/')) pu += '/'; return pu; }
+  var pu = {{ public_url|tojson }};
+  if (pu) {
+    pu = String(pu).trim();
+    if (pu && !pu.endsWith('/')) pu += '/';
+    if (pu) return pu;
+  }
   var origin = window.location.origin;
   if (!origin.endsWith('/')) origin += '/';
   return origin;
@@ -169,13 +422,145 @@ function copyToClipboard(text) {
   }
 }
 
-function copyLinkBtn(el) {
-  var type = el.getAttribute('data-type');
-  var linkId = el.getAttribute('data-link-id');
-  var passcode = el.getAttribute('data-passcode');
-  var needReset = el.getAttribute('data-need-reset') === '1';
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeJs(str) {
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n');
+}
+
+function stripHtml(html) {
+  var tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+/* ==================== 浮窗 ==================== */
+
+function showLinkPopover(btn) {
+  if (_lpBtn === btn) { closeLinkPopover(); return; }
+  closeLinkPopover();
+
+  _lpBtn = btn;
+  btn.classList.add('active');
+
+  // 读取数据
+  var d = {
+    linkId:   btn.getAttribute('data-link-id'),
+    title:    btn.getAttribute('data-title'),
+    desc:     btn.getAttribute('data-description'),
+    status:   btn.getAttribute('data-status'),
+    maxFiles: btn.getAttribute('data-max-files'),
+    maxSizeGb:btn.getAttribute('data-max-size-gb'),
+    expiresAt:btn.getAttribute('data-expires-at'),
+    createdAt:btn.getAttribute('data-created-at'),
+    creator:  btn.getAttribute('data-creator') || '未知用户',
+    passcode: btn.getAttribute('data-passcode'),
+    hasPasscode: btn.getAttribute('data-has-passcode') === 'true',
+    isLegacy: btn.getAttribute('data-is-legacy') === '1',
+    allowDelete: btn.getAttribute('data-allow-delete') === '1',
+    csrfToken: document.querySelector('input[name="csrf_token"]').value
+  };
+
+  // 描述内容存入全局变量，避免通过 onclick 属性传递 HTML 造成转义异常
+  _editDesc = d.desc;
+
+  var isActive = d.status === 'active';
+  var statusText = isActive ? '<span style="color:#059669;font-weight:500;">● 活跃</span>' : '<span style="color:#dc2626;font-weight:500;">● 已停用</span>';
+
+  // 限制
+  var limitText;
+  if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }
+  else { limitText = d.maxFiles + ' 个'; }
+  limitText += ' / ';
+  if (parseFloat(d.maxSizeGb) < 1) {
+    limitText += Math.round(parseFloat(d.maxSizeGb) * 1024) + ' MB';
+  } else {
+    limitText += d.maxSizeGb + ' GB';
+  }
+
+  // 有效期
+  var expireText;
+  if (d.expiresAt) {
+    expireText = '<span style="color:#f59e0b;">' + escapeHtml(d.expiresAt.replace('T',' ')) + '</span>';
+  } else {
+    expireText = '<span style="color:#999;">永不过期</span>';
+  }
+
+  // 描述（浮窗内显示纯文本摘要，最长80字）
+  var descPlain = d.desc ? stripHtml(d.desc).replace(/\s+/g, ' ').trim() : '';
+  if (descPlain.length > 80) descPlain = descPlain.substring(0, 80) + '...';
+  var descHtml = descPlain ? '<div class="lp-row"><span class="lp-label">描述</span><span class="lp-val lp-desc">' + escapeHtml(descPlain) + '</span></div>' : '';
+
+  // 填充信息区
+  document.getElementById('lp-title').textContent = d.title;
+  document.getElementById('lp-info').innerHTML =
+    '<div class="lp-row"><span class="lp-label">状态</span><span class="lp-val">' + statusText + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">限制</span><span class="lp-val">' + escapeHtml(limitText) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">有效期</span><span class="lp-val">' + expireText + '</span></div>' +
+    descHtml +
+    '<div class="lp-row"><span class="lp-label">创建</span><span class="lp-val" style="font-size:.76rem;color:#999;">' + escapeHtml(d.createdAt) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>';
+
+  // 操作按钮
+  var toggleLabel = isActive ? '停用链接' : '启用链接';
+  var toggleClass = isActive ? 'warning' : 'primary';
+  var html = '';
+
+  // SVG 图标定义
+  var svgCopy = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  var svgDownload = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  var svgEdit = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  // 启停使用不同图标：活跃时显示停止图标，停用时显示播放图标
+  var svgToggleStop = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
+  var svgTogglePlay = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
+  var svgToggle = isActive ? svgToggleStop : svgTogglePlay;
+  var svgDelete = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  // 预构建启停表单URL
+  var toggleUrl = '{{ url_for("toggle_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+  var deleteUrl = '{{ url_for("delete_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+
+  // 第一排：分享 & 收集
+  html += '<div class="lp-action-row">';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + d.linkId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgCopy + '复制分享链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + d.linkId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
+  html += '</div>';
+
+  html += '<div class="lp-action-divider"></div>';
+
+  // 第二排：编辑 / 启停 / 删除
+  html += '<div class="lp-action-row">';
+  // 编辑
+  html += '<button class="lp-action-btn" onclick="closeLinkPopover();popoverEditLink(\'' + d.linkId + '\',\'' + escapeJs(d.title) + '\',' + d.maxFiles + ',' + d.maxSizeGb + ',\'' + escapeJs(d.expiresAt) + '\',' + d.allowDelete + ',' + d.hasPasscode + ')">' + svgEdit + '编辑链接</button>';
+  // 启停
+  html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +
+    '</form>';
+  // 删除
+  html += '<form method="POST" action="' + deleteUrl + '" onsubmit="return confirm(\'确定删除链接「' + escapeJs(d.title) + '」？上传文件不会被删除。\');">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="submit" class="lp-action-btn danger">' + svgDelete + '删除链接</button>' +
+    '</form>';
+  html += '</div>';
+
+  document.getElementById('lp-actions').innerHTML = html;
+
+  // 显示
+  document.getElementById('link-popover-overlay').style.display = '';
+  document.getElementById('link-popover').style.display = '';
+}
+
+function closeLinkPopover() {
+  if (_lpBtn) { _lpBtn.classList.remove('active'); _lpBtn = null; }
+  document.getElementById('link-popover-overlay').style.display = 'none';
+  document.getElementById('link-popover').style.display = 'none';
+}
+
+function popoverCopyLink(type, linkId, passcode, isLegacy) {
   var url = getBaseUrl() + type + '/' + linkId;
-  if (needReset) {
+  if (isLegacy) {
     alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
     return;
   }
@@ -190,52 +575,57 @@ function copyLinkBtn(el) {
   copyToClipboard(text);
 }
 
-function editLinkBtn(el) {
-  const link = JSON.parse(el.getAttribute('data-link'));
-  document.getElementById('title').value = link.title;
-  // 通行证已哈希存储，编辑时留空
+function popoverEditLink(linkId, title, maxFiles, maxSizeGb, expiresAt, allowDelete, hasPasscode) {
+  document.getElementById('title').value = title;
   document.getElementById('passcode').value = '';
   document.getElementById('passcode').placeholder = '留空则保持原有通行证';
   document.getElementById('passcode').removeAttribute('required');
-  // 设置空通行证复选框状态：原链接有通行证则不勾选，无通行证则勾选
-  document.getElementById('empty_passcode').checked = !link.has_passcode;
-  // 更新提示文字
+  document.getElementById('empty_passcode').checked = !hasPasscode;
+  togglePasscodeInput();
   var passcodeHint = document.getElementById('passcode-hint');
   if (passcodeHint) {
     passcodeHint.innerHTML = '<span style="color:var(--c-text-muted);">提示：留空则保持原有通行证不变</span>';
   }
-  // 切换输入框状态
-  togglePasscodeInput();
-  document.getElementById('description').value = link.description || '';
-  document.getElementById('max_files').value = link.max_files;
-  document.getElementById('max_file_size_gb').value = link.max_file_size_gb;
+  // 如果编辑器尚未初始化（懒加载），则先初始化
+  if (!_wangEditorInited && window.wangEditor) {
+    initWangEditor();
+    _wangEditorInited = true;
+  }
+  if (window._descEditor) {
+    window._descEditor.setHtml(_editDesc || '');
+    // setHtml 后同步 textarea（change 事件可能不触发或延迟）
+    var descEl = document.getElementById('description');
+    if (descEl) {
+      try { descEl.value = window._descEditor.getHtml(); } catch(e) {}
+    }
+  }
+  document.getElementById('max_files').value = maxFiles;
+  document.getElementById('max_file_size_gb').value = maxSizeGb;
   document.getElementById('expire_days').value = '';
-  document.getElementById('expires_at').value = link.expires_at || '';
+  document.getElementById('expires_at').value = expiresAt;
   document.getElementById('clear_expiry').value = '0';
-  document.getElementById('allow_delete').checked = link.allow_delete == 1;
+  document.getElementById('allow_delete').checked = allowDelete;
   document.getElementById('create-section').classList.add('open');
-  document.querySelector('#create-section form').action = {{ url_for('edit_link', link_id='_PLACEHOLDER_')|tojson }}.replace('_PLACEHOLDER_', link.id);
+  document.querySelector('#create-section form').action = {{ url_for('edit_link', link_id='_PLACEHOLDER_')|tojson }}.replace('_PLACEHOLDER_', linkId);
   document.querySelector('#create-section .btn-primary').textContent = '保存修改';
   document.querySelector('#create-section .toggle-header span:first-child').textContent = '编辑链接';
   var clearBtn = document.getElementById('clear-expiry-btn');
-  if (clearBtn) clearBtn.style.display = link.expires_at ? '' : 'none';
+  if (clearBtn) clearBtn.style.display = expiresAt ? '' : 'none';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// 切换通行证输入框状态
+/* ==================== 原有功能（保留） ==================== */
+
 function togglePasscodeInput() {
   var emptyPasscode = document.getElementById('empty_passcode').checked;
   var passcodeInput = document.getElementById('passcode');
-  
   if (emptyPasscode) {
-    // 空通行证：禁用输入框，清空内容
     passcodeInput.disabled = true;
     passcodeInput.value = '';
     passcodeInput.placeholder = '空通行证（无需验证）';
     passcodeInput.style.opacity = '0.5';
     passcodeInput.style.cursor = 'not-allowed';
   } else {
-    // 有通行证：启用输入框
     passcodeInput.disabled = false;
     passcodeInput.placeholder = '请输入通行证';
     passcodeInput.style.opacity = '1';
@@ -249,15 +639,103 @@ function clearExpiry() {
   document.getElementById('clear_expiry').value = '1';
 }
 
+/* ==================== WangEditor 初始化 ==================== */
+
+function initWangEditor() {
+  var editorElem = document.getElementById('description-editor');
+  if (!editorElem || !window.wangEditor) return;
+
+  var descInitial = {{ (edit_link.get('description', '') if edit_link else '')|tojson }};
+
+  var editorConfig = {
+    placeholder: '向文件提交者展示的说明（支持富文本）',
+    autoFocus: false,
+  };
+
+  try {
+    var editor = window.wangEditor.createEditor({
+      selector: '#description-editor',
+      html: descInitial,
+      config: editorConfig,
+      mode: 'default',
+    });
+
+    var toolbarConfig = {
+      toolbarKeys: [
+        'headerSelect',
+        'bold', 'italic', 'underline', 'through',
+        'color', 'bgColor',
+        'fontSize',
+        '|',
+        'bulletedList', 'numberedList',
+        'blockquote', 'codeBlock',
+        'insertLink',
+        '|',
+        'undo', 'redo',
+        'clearStyle',
+      ]
+    };
+
+    window.wangEditor.createToolbar({
+      editor: editor,
+      selector: '#description-toolbar',
+      config: toolbarConfig,
+      mode: 'default',
+    });
+  } catch(e) {
+    console.error('wangEditor 初始化失败:', e);
+    // 编辑器初始化失败时，显示原始 textarea 作为降级
+    var fallback = document.getElementById('description');
+    if (fallback) fallback.style.display = '';
+    return;
+  }
+
+  // 保存全局引用
+  window._descEditor = editor;
+
+  // ★ 同步函数：将编辑器 HTML 写入隐藏 textarea
+  var syncDesc = function() {
+    var descEl = document.getElementById('description');
+    if (!descEl) return;
+    try {
+      var html = editor.getHtml();
+      if (html) descEl.value = html;
+    } catch(e) { console.error('wangEditor sync error:', e); }
+  };
+
+  // ★ 实时同步：每次内容变化立即写入
+  editor.on('change', syncDesc);
+
+  // ★ 失焦同步：编辑器失焦时再同步一次（兜底）
+  editor.on('blur', syncDesc);
+
+  // ★ 表单提交时同步（双保险）
+  var form = document.querySelector('#create-section form');
+  if (form) {
+    form.addEventListener('submit', function() {
+      // 优先使用全局引用，确保同步时机正确
+      var ed = window._descEditor || editor;
+      syncDesc();
+    });
+  }
+}
+
+// 绑定"更多.."按钮
 (function() {
+  var btns = document.querySelectorAll('.btn-more-link');
+  btns.forEach(function(btn) {
+    btn.addEventListener('click', function() { showLinkPopover(this); });
+  });
+
   var form = document.querySelector('#create-section form');
   if (!form) return;
 
-  // 动态设置截止日期选择器的 min/max
+  var maxExpireDays = {{ defaults.expire_days }};
+
   var expiresAtInput = document.getElementById('expires_at');
   if (expiresAtInput) {
     var now = new Date();
-    var maxDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    var maxDate = new Date(now.getTime() + maxExpireDays * 24 * 60 * 60 * 1000);
     function pad(n) { return n < 10 ? '0' + n : n; }
     function toLocalISOString(d) {
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
@@ -267,68 +745,53 @@ function clearExpiry() {
     expiresAtInput.setAttribute('max', toLocalISOString(maxDate));
   }
 
-  // 实时拦截：整数输入框禁止输入小数点
   ['max_files', 'expire_days'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', function() {
-        if (this.value.includes('.')) {
-          this.value = this.value.split('.')[0];
-        }
+        if (this.value.includes('.')) this.value = this.value.split('.')[0];
       });
     }
   });
 
   form.addEventListener('submit', function(e) {
     var emptyPasscode = document.getElementById('empty_passcode').checked;
-    // 只有在选中"空通行证"时才提示确认
     if (emptyPasscode) {
       if (!confirm('通行证为空意味着任何人都可以直接访问链接，确定要继续吗？')) {
-        e.preventDefault();
-        return false;
+        e.preventDefault(); return false;
       }
     }
     var expAt = document.getElementById('expires_at').value;
     if (expAt) {
       var selected = new Date(expAt);
-      var now = new Date();
-      var maxDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      if (selected <= now) {
-        e.preventDefault();
-        alert('截止日期必须晚于当前时间');
-        return false;
+      var nowD = new Date();
+      var maxD = new Date(nowD.getTime() + maxExpireDays * 24 * 60 * 60 * 1000);
+      if (selected <= nowD) {
+        e.preventDefault(); alert('截止日期必须晚于当前时间'); return false;
       }
-      if (selected > maxDate) {
-        e.preventDefault();
-        alert('截止日期不能超过30天');
-        return false;
+      if (selected > maxD) {
+        e.preventDefault(); alert('截止日期不能超过' + maxExpireDays + '天'); return false;
       }
     }
     var maxFiles = document.getElementById('max_files').value;
     if (maxFiles !== '') {
       var mf = parseInt(maxFiles, 10);
       if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 0) {
-        e.preventDefault();
-        alert('最大文件数量必须是大于等于0的整数（0表示不限制）');
-        return false;
+        e.preventDefault(); alert('最大文件数量必须是大于等于0的整数（0表示不限制）'); return false;
       }
     }
     var maxSize = document.getElementById('max_file_size_gb').value;
     if (maxSize !== '') {
       var ms = parseFloat(maxSize);
       if (isNaN(ms) || ms < 0.01 || ms > 64) {
-        e.preventDefault();
-        alert('单文件上限必须在 0.01-64 GB 之间');
-        return false;
+        e.preventDefault(); alert('单文件上限必须在 0.01-64 GB 之间'); return false;
       }
     }
     var expDays = document.getElementById('expire_days').value;
     if (expDays !== '') {
       var d = parseInt(expDays, 10);
-      if (isNaN(d) || d < 0 || d > 30 || String(d) !== expDays.trim()) {
-        e.preventDefault();
-        alert('有效期天数必须是 0-30 的整数（0表示永不过期）');
-        return false;
+      if (isNaN(d) || d < 0 || d > maxExpireDays || String(d) !== expDays.trim()) {
+        e.preventDefault(); alert('有效期天数必须是 0-' + maxExpireDays + ' 的整数（0表示永不过期）'); return false;
       }
     }
   });

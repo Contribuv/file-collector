@@ -42,7 +42,61 @@ if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
     fi
 fi
 
-# 3. 如果数据库丢失，从备份自动恢复
+# 3. 关键：执行数据库迁移（创建新表和字段）
+echo "  执行数据库迁移..." >> "$LOG"
+if command -v sqlite3 &>/dev/null && [ -f "$DB_PATH" ]; then
+    # 创建 users 表（如果不存在）
+    sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        is_admin INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login_at TIMESTAMP
+    );" 2>> "$LOG"
+    echo "  users 表检查完成" >> "$LOG"
+
+    # 创建 invite_codes 表（如果不存在）
+    sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS invite_codes (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used_by TEXT,
+        used_at TIMESTAMP,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );" 2>> "$LOG"
+    echo "  invite_codes 表检查完成" >> "$LOG"
+
+    # 为 links 表添加 user_id 字段（如果不存在）
+    USER_ID_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(links);" 2>/dev/null | grep -c "user_id")
+    if [ "$USER_ID_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE links ADD COLUMN user_id TEXT DEFAULT '';" 2>> "$LOG"
+        echo "  links 表添加 user_id 字段" >> "$LOG"
+    fi
+
+    # 为 upload_records 表添加 user_id 字段（如果不存在）
+    USER_ID_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(upload_records);" 2>/dev/null | grep -c "user_id")
+    if [ "$USER_ID_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE upload_records ADD COLUMN user_id TEXT DEFAULT '';" 2>> "$LOG"
+        echo "  upload_records 表添加 user_id 字段" >> "$LOG"
+    fi
+
+    # 为 upload_records 表添加 source 字段（如果不存在）
+    SOURCE_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(upload_records);" 2>/dev/null | grep -c "source")
+    if [ "$SOURCE_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE upload_records ADD COLUMN source TEXT DEFAULT 'upload';" 2>> "$LOG"
+        echo "  upload_records 表添加 source 字段" >> "$LOG"
+    fi
+
+    echo "  数据库迁移完成" >> "$LOG"
+else
+    echo "  WARN: sqlite3 命令不可用，跳过迁移（应用启动时会执行）" >> "$LOG"
+fi
+
+# 4. 如果数据库丢失，从备份自动恢复
 if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
     echo "  WARN: 数据库丢失，尝试自动恢复..." >> "$LOG"
     RESTORED=0
@@ -61,7 +115,7 @@ if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
     [ $RESTORED -eq 0 ] && echo "  FATAL: 数据库恢复失败，所有备份来源均无效!" >> "$LOG"
 fi
 
-# 4. 清理旧备份（保留最近5个）
+# 5. 清理旧备份（保留最近5个）
 for BACKUP_DIR in "/tmp/file-collector-backup" "${TRIM_PKGVAR}/backups"; do
     if [ -d "$BACKUP_DIR" ]; then
         ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null

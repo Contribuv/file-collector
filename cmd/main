@@ -141,6 +141,8 @@ start() {
         pip install --no-cache-dir \
             Flask==3.0.0 \
             Werkzeug==3.0.1 \
+            gunicorn==21.2.0 \
+            bleach==6.1.0 \
             >> "$DEBUG_LOG" 2>&1 || {
             log "  FATAL: pip install 失败!"
             tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
@@ -150,6 +152,8 @@ start() {
     else
         source "$VENV_DIR/bin/activate"
         log "  复用已有 venv"
+        # 确保 gunicorn 已安装（升级场景兼容）
+        pip install --no-cache-dir gunicorn==21.2.0 bleach==6.1.0 >> "$DEBUG_LOG" 2>&1 || true
     fi
 
     log "  $(pip --version)"

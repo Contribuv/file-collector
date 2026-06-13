@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}邀请码管理{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <h3>邀请码管理</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <form method="POST" action="{{ url_for('generate_invite_code_route') }}" style="display:flex;gap:6px;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="number" name="expire_days" class="form-input" value="7" min="1" max="365" style="width:70px;" placeholder="天数">
+            <span style="font-size:0.8rem;color:#6b7280;white-space:nowrap;">天 有效期</span>
+            <button type="submit" class="btn btn-sm btn-primary btn-invite-gen">生成邀请码</button>
+          </form>
+          <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline btn-invite-gen">管理用户</a>
+        </div>
+      </div>
+
+      {% if invite_codes %}
+      <div class="table-responsive">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>邀请码</th>
+              <th>有效期至</th>
+              <th>使用状态</th>
+              <th>使用用户</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for code in invite_codes %}
+            {% set is_expired = code.expires_at < now %}
+            {% set is_used = code.used_by is not none %}
+            <tr>
+              <td><code>{{ code.code }}</code></td>
+              <td>{{ code.expires_at }}</td>
+              <td>
+                {% if is_used %}
+                <span class="badge badge-used">已使用</span>
+                {% elif is_expired %}
+                <span class="badge badge-expired">已过期</span>
+                {% else %}
+                <span class="badge badge-active">未使用</span>
+                {% endif %}
+              </td>
+              <td>{{ code.used_by_name or '-' }}</td>
+              <td>{{ code.created_at }}</td>
+              <td>
+                {% if not is_used and not is_expired %}
+                <button class="btn btn-sm btn-outline" onclick="copyCode('{{ code.code }}')" title="复制邀请码">
+                  复制
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% else %}
+      <div class="empty-state">
+        <h3>暂无邀请码</h3>
+        <p>点击上方按钮生成邀请码供用户注册</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyCode(code) {
+  navigator.clipboard.writeText(code).then(function() {
+    alert('邀请码已复制到剪贴板');
+  }, function() {
+    alert('复制失败，请手动复制');
+  });
+}
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-used {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge-expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+code {
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+/* 管理表格样式 */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.admin-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tr:hover {
+  background: #f8fafc;
+}
+
+/* 表格响应式设计 */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+/* 邀请码表格特定样式 */
+.admin-table code {
+  font-size: 0.875rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 4px 8px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.admin-table .btn {
+  white-space: nowrap;
+}
+
+/* 统一按钮尺寸 */
+.btn-invite-gen {
+  min-width: 100px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  line-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .admin-table th,
+  .admin-table td {
+    padding: 10px 12px;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-table {
+    min-width: 600px;
+  }
+  
+  .table-responsive {
+    margin-left: -16px;
+    margin-right: -16px;
+    width: calc(100% + 32px);
+  }
+  
+  .admin-table th:nth-child(4), /* 使用用户 */
+  .admin-table td:nth-child(4),
+  .admin-table th:nth-child(5), /* 创建时间 */
+  .admin-table td:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-table {
+    min-width: 500px;
+  }
+  
+  .admin-table th:nth-child(2), /* 有效期至 */
+  .admin-table td:nth-child(2),
+  .admin-table th:nth-child(3), /* 使用状态 */
+  .admin-table td:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-table {
+    min-width: 400px;
+  }
+  
+  .admin-table th,
+  .admin-table td {
+    font-size: 0.75rem;
+    padding: 8px 10px;
+  }
+  
+  .admin-table code {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+  }
+  
+  .admin-table .btn {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+}
+</style>
+{% endblock %}

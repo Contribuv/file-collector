@@ -25,7 +25,7 @@
   align-items: center;
   gap: 8px;
 }
-.cp-topbar-logo { width: 26px; height: 26px; border-radius: 0px; flex-shrink: 0; object-fit: contain; }
+.cp-topbar-logo { width: 26px; height: 26px; border-radius: 0px; flex-shrink: 0; object-fit: contain; margin-left: 5px;}
 .cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: var(--c-text); letter-spacing: -.3px; }
 
 /* Wrap */
@@ -39,7 +39,15 @@
 /* Header */
 .cp-header { margin-bottom: 20px; }
 .cp-header h1 { font-size: 1.4rem; font-weight: 800; color: var(--c-text); margin-bottom: 4px; letter-spacing: -.4px; }
-.cp-header .cp-desc { font-size: .9rem; color: var(--c-text-soft); white-space: pre-wrap; line-height: 1.6; margin-top: 6px; }
+.cp-header .cp-desc { font-size: .9rem; color: var(--c-text-soft); line-height: 1.6; margin-top: 6px; word-break: break-word; }
+.cp-header .cp-desc p { margin: 0 0 6px; }
+.cp-header .cp-desc p:last-child { margin-bottom: 0; }
+.cp-header .cp-desc ul, .cp-header .cp-desc ol { margin: 4px 0; padding-left: 20px; }
+.cp-header .cp-desc blockquote { margin: 6px 0; padding: 4px 12px; border-left: 3px solid #d0d5dd; color: #888; }
+.cp-header .cp-desc pre { background: #f5f7fa; border-radius: 6px; padding: 8px 12px; font-size: .82rem; overflow-x: auto; margin: 6px 0; }
+.cp-header .cp-desc code { background: #f5f7fa; border-radius: 3px; padding: 1px 4px; font-size: .82rem; }
+.cp-header .cp-desc pre code { background: none; padding: 0; }
+.cp-header .cp-desc a { color: var(--c-primary); }
 .cp-meta { margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; }
 .cp-meta-item {
   font-size: .78rem; color: var(--c-text-soft);
@@ -289,13 +297,12 @@
   z-index: 50;
 }
 
-/* History Card Actions */
-.cp-history-card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+.cp-btn-outline {
+  background: #fff; color: var(--c-text);
+  border: 1.5px solid #d1d5db;
 }
+.cp-btn-outline:active { background: #f3f4f6; }
+
 .cp-history-card-actions {
   display: flex;
   gap: 6px;
@@ -326,6 +333,7 @@
   bottom: 0;
   background: rgba(0,0,0,.7);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .cp-modal-content {
   position: relative;
@@ -428,4 +436,8 @@
   .cp-history-card { padding: 10px 12px; }
   .cp-history-card-name { font-size: .85rem; }
   .cp-history-card-meta { font-size: .73rem; }
+}
+/* 隐藏 JIT Viewer 重复的文件名工具栏，preview-header 已显示 */
+.jv-toolbar__filename {
+  display: none !important;
 }

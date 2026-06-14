@@ -448,7 +448,8 @@ async function loadHistory() {
     wrap.innerHTML = html;
   } catch(e){
     console.error('loadHistory error:', e);
-    wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
+    var wrap = document.getElementById('history-wrap');
+    if (wrap) { wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>'; }
   }
 }
 

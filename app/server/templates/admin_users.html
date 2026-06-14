@@ -60,7 +60,7 @@
                   data-email="{{ user.email or '' }}"
                   data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
                   data-status="{{ user.status }}"
-                  data-created="{{ user.created_at }}">更多..</button>
+                  data-created="{{ user.created_at }}">功能</button>
                 {% else %}
                 <span class="text-muted">管理员</span>
                 {% endif %}
@@ -244,26 +244,35 @@
 .user-popover-info .info-line .info-val {
   color: #333; flex: 1; word-break: break-all;
 }
-.user-popover-body { padding: 4px 0; }
+.user-popover-body {
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.user-popover-row { display: contents; }
+/* 第二排上方加横线 */
+.user-popover-body > :nth-child(n+3) { border-top: 1px solid #f0f0f0; }
+/* 第二列加左边线 */
+.user-popover-body > :nth-child(even) { border-left: 1px solid #f0f0f0; }
 .user-popover-item {
   display: flex;
   align-items: center;
-  width: 100%;
-  padding: 11px 18px;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px 14px;
   border: none;
   background: none;
-  text-align: left;
+  text-align: center;
   font-size: 0.85rem;
   color: #333;
   cursor: pointer;
   transition: background 0.1s;
-  border-bottom: 1px solid #fafafa;
 }
-.user-popover-item:last-child { border-bottom: none; }
 .user-popover-item:hover { background: #f5f7fa; }
 .user-popover-item.danger { color: #dc2626; }
 .user-popover-item.danger:hover { background: #fef2f2; }
-.user-popover-body form { margin: 0; }
+.user-popover-body form { margin: 0; min-width: 0; display: flex; }
+.user-popover-body form .user-popover-item { width: 100%; }
 
 /* 浮窗动画 */
 @keyframes popoverCenterIn {
@@ -303,7 +312,8 @@
   .user-popover { max-width: calc(100vw - 32px); min-width: 240px; border-radius: 18px; }
   .user-popover-header { padding: 12px 14px; }
   .user-popover-header strong { font-size: .88rem; }
-  .user-popover-item { padding: 12px 16px; font-size: .84rem; }
+  .user-popover-item { padding: 11px 8px; font-size: .82rem; }
+  .user-popover-item svg { width: 14px; height: 14px; margin-right: 4px !important; }
 }
 </style>
 {% endblock %}
@@ -368,16 +378,20 @@ function showUserPopover(btn) {
       '<div class="info-line"><span class="info-dot">注册</span><span class="info-val">' + escapeHtml(created) + '</span></div>' +
     '</div>' +
     '<div class="user-popover-body">' +
-      '<form method="POST" action="/admin/users/' + userId + '/toggle" style="margin:0;" onsubmit="return confirm(\'确定' + toggleLabel + '用户\u300c' + escapeJs(username) + '\u300d？\');">' +
-        '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
-        '<button type="submit" class="user-popover-item" style="display:flex;align-items:center;">' + svgToggleUser + toggleLabel + '用户</button>' +
-      '</form>' +
-      '<button class="user-popover-item" style="display:flex;align-items:center;" onclick="closeUserPopover();showEditModal(\'' + userId + '\',\'' + escapeJs(username) + '\',\'' + escapeJs(email) + '\')">' + svgEditUser + '编辑信息</button>' +
-      '<button class="user-popover-item" style="display:flex;align-items:center;" onclick="closeUserPopover();showResetModal(\'' + userId + '\',\'' + escapeJs(username) + '\')">' + svgResetKey + '重置密码</button>' +
-      '<form method="POST" action="/admin/users/' + userId + '/delete" style="margin:0;" onsubmit="return confirm(\'确定删除用户\u300c' + escapeJs(username) + '\u300d？此操作不可恢复！\');">' +
-        '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
-        '<button type="submit" class="user-popover-item danger" style="display:flex;align-items:center;">' + svgDeleteUser + '删除用户</button>' +
-      '</form>' +
+      '<div class="user-popover-row">' +
+        '<form method="POST" action="/admin/users/' + userId + '/toggle" style="margin:0;" onsubmit="return confirm(\'确定' + toggleLabel + '用户\u300c' + escapeJs(username) + '\u300d？\');">' +
+          '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
+          '<button type="submit" class="user-popover-item">' + svgToggleUser + toggleLabel + '用户</button>' +
+        '</form>' +
+        '<button class="user-popover-item" onclick="closeUserPopover();showEditModal(\'' + userId + '\',\'' + escapeJs(username) + '\',\'' + escapeJs(email) + '\')">' + svgEditUser + '编辑信息</button>' +
+      '</div>' +
+      '<div class="user-popover-row">' +
+        '<button class="user-popover-item" onclick="closeUserPopover();showResetModal(\'' + userId + '\',\'' + escapeJs(username) + '\')">' + svgResetKey + '重置密码</button>' +
+        '<form method="POST" action="/admin/users/' + userId + '/delete" style="margin:0;" onsubmit="return confirm(\'确定删除用户\u300c' + escapeJs(username) + '\u300d？此操作不可恢复！\');">' +
+          '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
+          '<button type="submit" class="user-popover-item danger">' + svgDeleteUser + '删除用户</button>' +
+        '</form>' +
+      '</div>' +
     '</div>';
   
   popover.addEventListener('click', function(e) { e.stopPropagation(); });

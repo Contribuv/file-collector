@@ -456,10 +456,19 @@ tbody tr:active { background: #f7f8fa; }
   -webkit-overflow-scrolling: touch;
 }
 .records-cards-mobile { display: none; }
+.records-mobile-header {
+  display: none;
+  justify-content: space-between;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  border-bottom: 1px solid #e5e7eb;
+}
 
 @media (max-width: 640px) {
   .records-table-pc { display: none; }
   .records-cards-mobile { display: block; }
+  .records-mobile-header { display: flex; }
 }
 
 /* 记录卡片 */
@@ -498,8 +507,8 @@ tbody tr:active { background: #f7f8fa; }
 .record-card-name {
   display: block;
   font-size: .94rem;
-  font-weight: 600;
-  color: var(--c-primary);
+  font-weight: 400;
+  color: #121820;
   text-decoration: none;
   line-height: 1.45;
   word-break: break-word;

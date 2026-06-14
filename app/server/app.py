@@ -69,7 +69,7 @@ for _ext, _mime in _ESSENTIAL_MIMETYPES.items():
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "1.1.124"
+VERSION = "2.0.0"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2141,10 +2141,10 @@ def upload_file(link_id):
 
             conn.execute(
                 """INSERT INTO upload_records
-                   (link_id, original_name, stored_name, stored_path, file_size,
+                   (link_id, user_id, original_name, stored_name, stored_path, file_size,
                     file_size_display, uploader_ip, uploaded_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (link_id, file.filename, stored_name, stored_path, size,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (link_id, link['user_id'] or '', file.filename, stored_name, stored_path, size,
                  format_file_size(size), _get_client_ip(), datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             )
             conn.commit()

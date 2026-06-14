@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.124-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,34 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.0.0 🎉 正式发布
+- 全面代码审查：修复上传记录 user_id 缺失（数据一致性）、HTML 模板 catch 块空指针、编辑器初始化 DOM 未就绪检查
+- 编辑器体验优化：默认高度180px、右下角可拖拽调整高度、内容增多自动增高、抑制 wangEditor <300px 警告
+- 多用户体系完善、Office 在线预览、数据库备份恢复、SMTP 邮件通知等全面就绪
+
+### v1.1.132
+
+### v1.1.131
+- 编辑器高度修复（wangEditor hoverbar 定位异常）、邀请码卡片透明间隙、通行证提示文案与间距优化
+
+### v1.1.130
+- 移动端UI细节优化：用户弹窗按钮对齐、链接标题去粗体、邀请码卡片去嵌套边框、仪表盘补标题行
+
+### v1.1.129
+- 版本号递增
+
+### v1.1.128
+- **邀请码管理页移动端重构**：≤640px 切换为卡片布局（每张卡片展示邀请码、状态、有效期、使用用户、创建时间、复制按钮），不再逐列隐藏导致信息丢失；头部操作区也做了 flex-wrap 自适应
+
+### v1.1.127
+- "预览文件"按钮文字统一精简为"预览"
+
+### v1.1.126
+- **用户管理浮窗按钮双排布局**：禁用用户+编辑信息一排，重置密码+删除用户一排，两行两列，移动端自适应不溢出
+
+### v1.1.125
+- **UI 优化**：邀请码管理页移动端自适应修复；仪表盘和上传记录页文件名取消超链接改为纯文本；链接列表状态"活跃"改为"启用"；全局"更多.."按钮统一改为"功能"
 
 ### v1.1.124
 - **修复手动放入文件前端不显示**：文件夹扫描时 `stored_path` 误存为目录路径，导致后台误判为孤儿记录自动清理，已修正为完整文件路径

@@ -34,13 +34,13 @@
       <div class="records-table-pc">
         <table class="admin-table admin-table--records">
           <thead>
-            <tr><th>文件名</th><th style="width:80px;text-align:right;">详情</th></tr>
+            <tr><th>文件名</th><th style="width:80px;text-align:center;">详情</th></tr>
           </thead>
           <tbody>
             {% for r in recent_uploads %}
             {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
             <tr>
-              <td class="col-name"><a href="{{ url_for('admin_download_record', record_id=r['id']) }}" title="{{ r['original_name'] }}">{{ r['original_name'] }}</a></td>
+              <td class="col-name"><span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span></td>
               <td style="text-align:right;">
                 <button class="btn btn-sm btn-outline btn-more" title="查看详情"
                   data-record-id="{{ r['id'] }}"
@@ -51,7 +51,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] or '-' }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">更多..</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
               </td>
             </tr>
             {% endfor %}
@@ -60,12 +60,16 @@
       </div>
       <!-- 移动端：卡片列表 -->
       <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <span>文件名</span>
+          <span>操作</span>
+        </div>
         {% for r in recent_uploads %}
         {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
         <div class="record-card">
           <div class="record-card-body">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-              <a href="{{ url_for('admin_download_record', record_id=r['id']) }}" class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</a>
+              <span class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</span>
               <button class="btn btn-sm btn-outline btn-more" title="查看详情"
                 data-record-id="{{ r['id'] }}"
                 data-filename="{{ r['original_name']|e }}"
@@ -75,7 +79,7 @@
                 data-downloads="{{ r['download_count'] }}"
                 data-ip="{{ r['uploader_ip'] or '-' }}"
                 data-time="{{ r['uploaded_at'] }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">更多..</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
             </div>
           </div>
         </div>
@@ -350,7 +354,7 @@ function toggleDetailPopover(btn) {
   // 构建操作按钮
   var footerHtml = '';
   if (previewable) {
-    footerHtml += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\');closeAllPopovers();">预览文件</button>';
+    footerHtml += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\');closeAllPopovers();">预览</button>';
   }
   footerHtml += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
   

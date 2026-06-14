@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.1-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.0.4-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -266,6 +266,19 @@ GET /api/status
 ---
 
 ## 📝 更新日志
+
+### v2.0.4
+
+- **CSP Worker 加固**：新增 `worker-src 'self' blob:`，彻底封死 Safari / 嵌入式 WebView 的 PDF.js Worker 兼容性问题
+
+### v2.0.3
+
+- **PDF 预览 CSP 兼容**：`Content-Security-Policy` 的 `script-src` 补充 `blob:`，解决 PDF.js Worker 脚本执行被拦截（fake worker failed）
+
+### v2.0.2
+
+- **PDF 预览修复**：PDF 改用 JIT Viewer（内置 PDF.js）渲染，彻底解决 iframe + `X-Frame-Options: DENY` 导致的预览白屏
+- **管理后台**：新增 PDF 预览支持（此前 admin 端完全不显示 PDF 预览按钮）
 
 ### v2.0.1
 

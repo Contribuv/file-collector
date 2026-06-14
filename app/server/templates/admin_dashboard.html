@@ -51,7 +51,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] or '-' }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -79,7 +79,7 @@
                 data-downloads="{{ r['download_count'] }}"
                 data-ip="{{ r['uploader_ip'] or '-' }}"
                 data-time="{{ r['uploaded_at'] }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
             </div>
           </div>
         </div>
@@ -450,7 +450,7 @@ function previewFile(recordId, fileName) {
       })
       .catch(function() { content.innerHTML = '<p class="error">无法预览该文件</p>'; });
   }
-  else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+  else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
     content.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
     var fileUrl = window.location.origin + '/admin/records/' + recordId + '/preview_file';
     loadJitViewer().then(function() {

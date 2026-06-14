@@ -37,7 +37,7 @@
           <div class="form-hint" id="passcode-hint" style="margin:2px 0 8px;">设置后访问者需输入通行证才能进入；留空则无需验证</div>
           <div class="form-group">
             <label class="form-label">描述</label>
-            <div id="description-toolbar" style="border:1px solid #d0d5dd;border-bottom:none;border-radius:6px 6px 0 0;background:#fafbfc;"></div>
+            <div id="description-toolbar" style="border:1px solid #d0d5dd;border-radius:6px 6px 0 0;background:#fafbfc;"></div>
             <div id="description-editor" style="border:1px solid #d0d5dd;border-top:none;border-radius:0 0 6px 6px;height:180px;min-height:140px;max-height:500px;overflow:hidden;resize:vertical;">
             </div>
             <textarea id="description" name="description" style="display:none;"></textarea>
@@ -87,7 +87,7 @@
     <div class="card">
       <div class="card-header">
         <h3>收集链接</h3>
-        <span style="font-size:.78rem;color:var(--c-text-muted);">共 {{ total }} 个，第 {{ page }}/{{ total_pages }} 页</span>
+        <span class="links-page-info">共 {{ total }} 个，第 {{ page }}/{{ total_pages }} 页</span>
       </div>
       <div class="table-wrap">
         {% if links %}
@@ -124,6 +124,10 @@
                 <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;visibility:hidden;" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="transparent" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
                 {% endif %}
               </td>
               <td class="col-hide-mobile col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
@@ -144,7 +148,7 @@
                   data-passcode="{{ pass_text }}"
                   data-has-passcode="{{ link['_has_passcode']|lower }}"
                   data-is-legacy="{{ need_reset }}"
-                  data-allow-delete="{{ link['allow_delete'] }}">功能</button>
+                  data-allow-delete="{{ link['allow_delete'] }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -195,7 +199,7 @@
   border: 1px solid var(--c-primary);
   font-size: 0.8rem;
   padding: 3px 12px;
-  border-radius: 14px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -203,10 +207,24 @@
 .btn-more-link:hover { background: var(--c-primary-light); }
 .btn-more-link.active { background: var(--c-primary); color: #fff; }
 
-/* 移动端隐藏列 */
+/* PC端 /admin/links 表格：名称列自适应，状态/操作右对齐 */
+.admin-links-table { table-layout: auto; }
+.admin-links-table .col-title { width: auto; min-width: 0; }
+.admin-links-table .col-status { white-space: nowrap; text-align: right; width: 1px; }
+.admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
+/* 操作列 th 文字与按钮文字右对齐（补回按钮 padding-right 偏移：14px th pad + 12px btn pad = 26px） */
+.admin-links-table th.col-act { padding-right: 26px; }
+
+/* 移动端隐藏列 + 右对齐状态/操作 */
 @media (max-width: 640px) {
   .col-hide-mobile { display: none !important; }
+  .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
+  .links-page-info { font-size: .72rem !important; flex-shrink: 0; }
+  .col-title { width: auto; min-width: 0; }
+  .col-status { white-space: nowrap; text-align: right; width: 1px; }
+  .col-act { white-space: nowrap; text-align: right; width: 1px; }
+  .admin-links-table th.col-act { padding-right: 22px; }
 }
 
 /* 浮窗遮罩 */
@@ -773,7 +791,7 @@ function initWangEditor() {
   }
 }
 
-// 绑定"功能"按钮
+// 绑定"操作"按钮
 (function() {
   var btns = document.querySelectorAll('.btn-more-link');
   btns.forEach(function(btn) {

@@ -8,67 +8,103 @@
     <div class="card">
       <div class="card-header">
         <h3>用户管理</h3>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <a href="{{ url_for('admin_invite_codes') }}" class="btn btn-sm btn-outline">管理邀请码</a>
-        </div>
+        <a href="{{ url_for('admin_invite_codes') }}" class="btn btn-sm btn-link">管理邀请码</a>
       </div>
 
       {% if users %}
-      <div class="table-responsive">
-        <table class="admin-table admin-users-table">
-          <thead>
-            <tr>
-              <th>用户名</th>
-              <th class="col-hide-mobile">邮箱</th>
-              <th>角色</th>
-              <th class="col-hide-mobile">状态</th>
-              <th>注册时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for user in users %}
-            <tr>
-              <td class="col-user">{{ user.username }}</td>
-              <td class="col-hide-mobile col-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ user.email or '' }}">{{ user.email or '—' }}</td>
-              <td>
-                {% if user.is_admin %}
-                <span class="badge badge-admin">管理员</span>
-                {% else %}
-                <span class="badge badge-user">普通用户</span>
-                {% endif %}
-              </td>
-              <td class="col-hide-mobile">
-                {% if user.status == 'active' %}
-                <span class="badge badge-status badge-active" style="display:inline-flex;align-items:center;gap:4px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                  启用
-                </span>
-                {% else %}
-                <span class="badge badge-status badge-inactive" style="display:inline-flex;align-items:center;gap:4px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  禁用
-                </span>
-                {% endif %}
-              </td>
-              <td class="col-time">{{ user.created_at }}</td>
-              <td>
-                {% if not user.is_admin %}
-                <button class="btn btn-sm btn-outline btn-more-user" title="更多操作"
-                  data-user-id="{{ user.id }}"
-                  data-username="{{ user.username }}"
-                  data-email="{{ user.email or '' }}"
-                  data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
-                  data-status="{{ user.status }}"
-                  data-created="{{ user.created_at }}">功能</button>
-                {% else %}
-                <span class="text-muted">管理员</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <!-- PC 端：表格 -->
+      <div class="records-table-pc">
+        <div class="table-responsive">
+          <table class="admin-table admin-users-table">
+            <thead>
+              <tr>
+                <th>用户名</th>
+                <th class="col-hide-mobile">邮箱</th>
+                <th>角色</th>
+                <th class="col-hide-mobile">状态</th>
+                <th>注册时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+              <tr>
+                <td class="col-user">{{ user.username }}</td>
+                <td class="col-hide-mobile col-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ user.email or '' }}">{{ user.email or '—' }}</td>
+                <td>
+                  {% if user.is_admin %}
+                  <span class="badge badge-admin">管理员</span>
+                  {% else %}
+                  <span class="badge badge-user">普通用户</span>
+                  {% endif %}
+                </td>
+                <td class="col-hide-mobile">
+                  {% if user.status == 'active' %}
+                  <span class="badge badge-status badge-active" style="display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    启用
+                  </span>
+                  {% else %}
+                  <span class="badge badge-status badge-inactive" style="display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    禁用
+                  </span>
+                  {% endif %}
+                </td>
+                <td class="col-time">{{ user.created_at }}</td>
+                <td>
+                  {% if not user.is_admin %}
+                  <button class="btn btn-sm btn-outline btn-more-user" title="更多操作"
+                    data-user-id="{{ user.id }}"
+                    data-username="{{ user.username }}"
+                    data-email="{{ user.email or '' }}"
+                    data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
+                    data-status="{{ user.status }}"
+                    data-created="{{ user.created_at }}">操作</button>
+                  {% else %}
+                  <span class="text-muted">管理员</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 移动端：卡片列表 -->
+      <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <span>用户名</span>
+          <span>操作</span>
+        </div>
+        {% for user in users %}
+        <div class="record-card">
+          <div class="record-card-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <div style="flex:1;min-width:0;overflow:hidden;">
+                <span class="record-card-name">{{ user.username }}</span>
+                <div class="record-card-meta">
+                  <span>{{ user.created_at[:10] }}</span>
+                  <span>{% if user.is_admin %}管理员{% else %}普通用户{% endif %}</span>
+                  <span style="{% if user.status == 'active' %}color:#059669;{% else %}color:#dc2626;{% endif %}">{% if user.status == 'active' %}已启用{% else %}已禁用{% endif %}</span>
+                </div>
+              </div>
+              {% if not user.is_admin %}
+              <button class="btn btn-sm btn-outline btn-more-user" title="更多操作"
+                data-user-id="{{ user.id }}"
+                data-username="{{ user.username }}"
+                data-email="{{ user.email or '' }}"
+                data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
+                data-status="{{ user.status }}"
+                data-created="{{ user.created_at }}">操作</button>
+              {% else %}
+              <span class="text-muted">管理员</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
 
       {% else %}
@@ -164,7 +200,7 @@
   border: 1px solid var(--c-primary);
   font-size: 0.8rem;
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;

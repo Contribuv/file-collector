@@ -77,7 +77,7 @@
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button type="submit" name="action" value="smtp_config" class="btn btn-primary btn-sm">保存配置</button>
-              <button type="button" id="test-smtp-btn" class="btn btn-outline btn-sm">📧 发送测试邮件</button>
+              <button type="button" id="test-smtp-btn" class="btn btn-outline btn-sm">发送测试邮件</button>
             </div>
             <div id="smtp-test-result" style="margin-top:8px;font-size:.82rem;display:none;"></div>
           </form>
@@ -397,6 +397,8 @@
   max-width: 600px;
   width: 100%;
   max-height: 80vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
@@ -438,7 +440,8 @@
 .modal-body {
   padding: 20px;
   overflow-y: auto;
-  max-height: calc(80vh - 120px);
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-body p {
@@ -472,6 +475,7 @@
   padding: 16px 20px;
   border-top: 1px solid var(--c-border);
   text-align: right;
+  flex-shrink: 0;
 }
 
 @media (max-width: 640px) {
@@ -670,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .finally(function() {
           testBtn.disabled = false;
-          testBtn.textContent = '📧 发送测试邮件';
+          testBtn.textContent = '发送测试邮件';
         });
     });
   }

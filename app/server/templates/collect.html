@@ -9,9 +9,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <!-- JIT Viewer SDK for Office Preview -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/jit-viewer.min.css') }}">
-  <script src="{{ url_for('static', filename='js/jit-viewer.min.js') }}"></script>
 </head>
 <body>
 
@@ -19,7 +16,7 @@
 <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
 {% endif %}
 
-<div class="cp-topbar"><div class="cp-topbar-inner"><img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt=""><span>{{ site_title }}</span></div></div>
+<div class="cp-topbar"><div class="cp-topbar-inner"><img class="cp-topbar-logo" src="{{ url_for('static', filename='img/up.png') }}" alt=""><span>{{ site_title }}</span></div></div>
 
 <div class="cp-wrap">
 
@@ -49,10 +46,11 @@
       <p class="cp-passcode-sub">{{ task_title|default('文件收集') }}需要通行证才能上传</p>
       <div class="cp-passcode-row" id="passcode-row">
         <input type="password" id="passcode-input" placeholder="输入通行证" autofocus>
-        <button class="cp-passcode-btn" onclick="verifyPasscode()" title="验证">
+        <button class="cp-passcode-btn" onclick="verifyPasscode()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
+          验证
         </button>
       </div>
       <div class="cp-passcode-msg" id="passcode-msg"></div>
@@ -142,6 +140,28 @@
 <script>
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+
+/* 按需加载 JIT Viewer SDK（~10MB），仅 Office 预览时动态注入 */
+var _jitLoadState = 0, _jitLoadPromise = null;
+function loadJitViewer() {
+  if (_jitLoadState === 2) return Promise.resolve();
+  if (_jitLoadState === 1) return _jitLoadPromise;
+  if (_jitLoadState === -1) return Promise.reject(new Error('JIT Viewer 加载失败'));
+  _jitLoadState = 1;
+  _jitLoadPromise = new Promise(function(resolve, reject) {
+    try {
+      var css = document.createElement('link'); css.rel = 'stylesheet';
+      css.href = '{{ url_for("static", filename="css/jit-viewer.min.css") }}';
+      document.head.appendChild(css);
+      var s = document.createElement('script');
+      s.src = '{{ url_for("static", filename="js/jit-viewer.min.js") }}';
+      s.onload = function() { _jitLoadState = 2; resolve(); };
+      s.onerror = function() { _jitLoadState = -1; reject(new Error('JIT Viewer 脚本加载失败')); };
+      document.head.appendChild(s);
+    } catch(e) { _jitLoadState = -1; reject(e); }
+  });
+  return _jitLoadPromise;
+}
 
 function showToast(msg, d) {
   var t = document.getElementById('toast');
@@ -356,6 +376,7 @@ async function startUpload() {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/collect/' + linkId + '/upload');
         xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+        xhr.timeout = 0; // 不限制超时，由服务器端 MAX_CONTENT_LENGTH 兜底
 
         xhr.upload.onprogress = function(e){
           if (!e.lengthComputable) return;
@@ -390,6 +411,7 @@ async function startUpload() {
           resolve();
         };
         xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 网络错误</div>'; resolve(); };
+        xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 上传超时，文件过大或网络过慢</div>'; resolve(); };
         xhr.send(formData);
       });
     } catch(e){ failCount++; }
@@ -477,17 +499,11 @@ function previewFile(linkId, recordId, fileName) {
   } else if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext)) {
     body.innerHTML = '<video src="' + previewUrl + '" controls class="cp-preview-video" poster="" oncanplay="this.poster=\'\'" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
   } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
-    // Office文件预览（使用JIT Viewer SDK）
+    // Office文件预览（使用JIT Viewer SDK - 按需加载）
     body.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
     var fileUrl = window.location.origin + '/collect/' + linkId + '/preview_file/' + recordId;
     
-    // 检查 SDK 是否正确加载
-    if (typeof window.JitViewer === 'undefined') {
-      body.innerHTML = '<p class="cp-preview-error">Office预览组件未加载</p><p>请尝试下载文件查看</p>';
-      return;
-    }
-    
-    try {
+    loadJitViewer().then(function() {
       // 创建预览器实例
       var viewer = window.JitViewer.createViewer({
         target: document.getElementById('office-preview-container'),
@@ -516,11 +532,10 @@ function previewFile(linkId, recordId, fileName) {
       viewer.mount();
       window.currentViewer = viewer;
       
-    } catch (err) {
-      console.error('JIT Viewer init error:', err);
-      var errorMsg = err && err.message ? err.message : (typeof err === 'string' ? err : '初始化失败');
-      body.innerHTML = '<p class="cp-preview-error">预览组件初始化失败: ' + errorMsg + '</p><p>请尝试下载文件查看</p>';
-    }
+    }).catch(function(err) {
+      var errorMsg = err && err.message ? err.message : 'Office预览组件加载失败';
+      body.innerHTML = '<p class="cp-preview-error">' + errorMsg + '</p><p>请尝试下载文件查看</p>';
+    });
   } else {
     body.innerHTML = '<p>不支持预览该文件类型</p>';
   }

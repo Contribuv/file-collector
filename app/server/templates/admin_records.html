@@ -50,7 +50,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -81,7 +81,7 @@
               data-downloads="{{ r['download_count'] }}"
               data-ip="{{ r['uploader_ip'] }}"
               data-time="{{ r['uploaded_at'] }}"
-              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
+              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
           </div>
         </div>
         {% endfor %}
@@ -152,9 +152,10 @@
 }
 @media (max-width: 640px) {
   .records-card-header { gap: 6px; }
-  .records-card-header h3 { font-size: .95rem; }
-  .records-toolbar { width: 100%; justify-content: space-between; }
+  .records-card-header h3 { font-size: .95rem; margin: 0; }
+  .records-toolbar { width: 100%; justify-content: space-between; gap: 6px; }
   .records-filter-select { max-width: 140px; font-size: .78rem; padding: 5px 24px 5px 8px; }
+  .records-toolbar .btn-sm { font-size: .73rem; padding: 4px 10px; flex-shrink: 0; }
 }
 
 /* 更多按钮 */
@@ -164,7 +165,7 @@
   border: 1px solid var(--c-primary);
   font-size: 0.8rem;
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -537,7 +538,7 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeAllPopovers();
 });
 
-// 绑定所有"功能"按钮
+// 绑定所有"操作"按钮
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.btn-more').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
@@ -599,7 +600,7 @@ function previewFile(recordId, fileName) {
         content.innerHTML = '<p class="error">无法预览该文件</p>';
       });
   }
-  // Office文件预览（使用JIT Viewer SDK）
+  // Office文件预览（使用JIT Viewer SDK - 按需加载）
   else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
     // 创建预览容器
     content.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
@@ -607,13 +608,7 @@ function previewFile(recordId, fileName) {
     // 获取文件URL
     const fileUrl = window.location.origin + '/admin/records/' + recordId + '/preview_file';
     
-    // 检查 SDK 是否正确加载
-    if (typeof window.JitViewer === 'undefined') {
-      content.innerHTML = '<p class="error">Office预览组件未加载</p><p>请尝试下载文件查看</p>';
-      return;
-    }
-    
-    try {
+    loadJitViewer().then(function() {
       // 创建预览器实例
       const viewer = window.JitViewer.createViewer({
         target: document.getElementById('office-preview-container'),
@@ -651,18 +646,17 @@ function previewFile(recordId, fileName) {
       // 保存实例以便关闭时销毁
       window.currentViewer = viewer;
       
-    } catch (err) {
-      console.error('JIT Viewer init error:', err);
-      const errorMsg = err && err.message ? err.message : (typeof err === 'string' ? err : '初始化失败');
+    }).catch(function(err) {
+      const errorMsg = err && err.message ? err.message : 'Office预览组件加载失败';
       content.innerHTML = '';
       var p = document.createElement('p');
       p.className = 'error';
-      p.textContent = '预览组件初始化失败: ' + errorMsg;
+      p.textContent = errorMsg;
       content.appendChild(p);
       var p2 = document.createElement('p');
       p2.textContent = '请尝试下载文件查看';
       content.appendChild(p2);
-    }
+    });
   }
   else {
     content.innerHTML = '<p class="info">该文件类型不支持预览</p>';

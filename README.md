@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.0.1-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -189,9 +189,19 @@ GET /api/status
 
 ## 更新日志
 
-### v2.0.0 🎉 正式发布
-- 全面代码审查：修复上传记录 user_id 缺失（数据一致性）、HTML 模板 catch 块空指针、编辑器初始化 DOM 未就绪检查
-- 编辑器体验优化：默认高度180px、右下角可拖拽调整高度、内容增多自动增高、抑制 wangEditor <300px 警告
+### v2.0.1
+- **性能优化**：模板预编译 + 关闭热重载 + 静态资源强缓存，首次访问 TTFB 从 ~11s 降至 ~1s
+- **性能优化**：JIT Viewer SDK（~10MB）按需加载，仅 Office 预览时动态注入，管理后台不阻塞
+- **大文件上传修复**：Gunicorn timeout 不限、Werkzeug 流式写磁盘（>1MB）、客户端 XHR 不限时
+- **HTML 响应压缩**：去除注释、压缩空白，减小 ~15-30% 传输体积
+- **全局断点统一**：768px→640px，iPad 680px 不再样式割裂；landing / auth 页面 480px 微调
+- **UI 整体优化**：全站按钮圆角统一（标准 6px / 小 4px）；`.btn` 纵向 padding 匹配输入框高度
+- **通行证验证重新设计**：图标 12px 圆角、输入框 6px 圆角、按钮矩形（箭头+文字），风格与全站统一
+- **管理后台美化**：页脚毛玻璃固定底部、导航栏链接去边框、按钮圆角优化、当前页高亮
+- **表格响应式**：/admin/users 移动端卡片布局；/admin/links PC+移动端状态/操作列右对齐 + 名称列自适应
+- **编辑器增强**：默认高度 180px、可拖拽调整高度、自动增高、抑制 <300px 警告
+- **累积修复**：操作列对齐、状态列图标占位、长页面滚动条位移、反向代理弹窗溢出
+- 延迟导入 smtplib/email 重型模块；logo.png 更换为 up.png
 - 多用户体系完善、Office 在线预览、数据库备份恢复、SMTP 邮件通知等全面就绪
 
 ### v1.1.132

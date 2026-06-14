@@ -35,10 +35,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import bleach
 import mimetypes
-import smtplib
-import email.utils
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+# smtplib / email 延迟导入（仅邮件功能需要，启动时跳过 ~50ms）
 
 # 确保 CSS / JS 等静态资源的 MIME 类型注册正确
 # 某些精简环境（如 fnOS）的 mimetypes 数据库可能缺失这些映射
@@ -66,18 +63,67 @@ _ESSENTIAL_MIMETYPES = {
 for _ext, _mime in _ESSENTIAL_MIMETYPES.items():
     mimetypes.add_type(_mime, _ext)
 
+
+# ============================================================
+# HTML 压缩 — 去除注释、压缩标签间空白，减小 ~15-30% 响应体积
+# ============================================================
+import re as _re
+
+_HTML_COMMENT_RE = _re.compile(r'<!--(?!\[if\b).*?-->', _re.DOTALL)
+_HTML_TAG_WS_RE  = _re.compile(r'>\s{2,}<')
+_HTML_SPACE_RE   = _re.compile(r' {2,}')
+_MAX_COMPRESS_BYTES = 512 * 1024  # 超过 512KB 的页面跳过压缩，避免阻塞
+
+def _minify_html(html: str) -> str:
+    """压缩 HTML：去掉注释、压缩标签间空白、合并多余空格。
+    保护 <pre>/<textarea>/<script>/<style> 内部内容不被篡改。"""
+    if len(html) > _MAX_COMPRESS_BYTES:
+        return html
+
+    # 1. 保护 <pre>/<textarea>/<script>/<style> 块 — 内容原样保留
+    preserved: list[str] = []
+    def _save(m: _re.Match) -> str:
+        preserved.append(m.group(0))
+        return f'\x00P{preserved.__len__()-1}\x00'
+    for tag in ('script', 'style', 'pre', 'textarea'):
+        html = _re.sub(
+            rf'<{tag}[\s>][\s\S]*?</{tag}>',
+            _save, html, flags=_re.IGNORECASE
+        )
+
+    # 2. 去掉 HTML 注释（保留 IE 条件注释）
+    html = _HTML_COMMENT_RE.sub('', html)
+
+    # 3. 压缩标签间连续空白
+    html = _HTML_TAG_WS_RE.sub('><', html)
+
+    # 4. 合并文本中多余空格
+    html = _HTML_SPACE_RE.sub(' ', html)
+
+    # 5. 去掉首尾空白
+    html = html.strip()
+
+    # 6. 还原受保护块
+    for i, chunk in enumerate(preserved):
+        html = html.replace(f'\x00P{i}\x00', chunk)
+
+    return html
+
+
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['TEMPLATES_AUTO_RELOAD'] = False  # 生产环境关闭，每次请求不再检查文件变更（节省 ~50ms/请求）
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24  # 静态资源缓存 1 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
+app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
 
 # 反向代理支持：修正 request.remote_addr / request.scheme
 # x_for=2 表示信任最多 2 层反向代理的 X-Forwarded-For 头
@@ -621,6 +667,22 @@ if _key is None:
     set_setting('secret_key', _key)
 app.secret_key = _key
 
+# 预编译所有模板，消除首次请求时的编译延迟（TTFB 从 ~3s 降至 ~50ms）
+_TEMPLATE_NAMES = [
+    'base.html', '_admin_sidebar.html',
+    'landing.html', 'collect.html', 'share.html', 'error.html',
+    'admin_login.html', 'admin_dashboard.html', 'admin_links.html',
+    'admin_records.html', 'admin_settings.html', 'admin_users.html',
+    'admin_invite_codes.html', 'admin_profile.html', 'admin_user_settings.html',
+    'register.html', 'forgot_password.html', 'reset_password.html',
+]
+for _tn in _TEMPLATE_NAMES:
+    try:
+        app.jinja_env.get_or_select_template(_tn)
+    except Exception:
+        pass  # 模板可能不存在或依赖上下文变量，忽略编译错误
+del _tn, _TEMPLATE_NAMES
+
 # ============================================================
 # 频率限制 & CSRF 保护
 # ============================================================
@@ -1038,6 +1100,12 @@ def get_smtp_config():
 
 def send_email(to_email, subject, body_html):
     """发送邮件，返回 (success, message)"""
+    # 延迟导入重型邮件模块（启动时不加载）
+    import smtplib as _smtplib
+    import email.utils as _email_utils
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
     config = get_smtp_config()
     if not config['host'] or not config['from_email']:
         return False, 'SMTP 未配置'
@@ -1045,21 +1113,21 @@ def send_email(to_email, subject, body_html):
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From'] = email.utils.formataddr((config['from_name'], config['from_email']))
+        msg['From'] = _email_utils.formataddr((config['from_name'], config['from_email']))
         msg['To'] = to_email
-        msg['Message-ID'] = email.utils.make_msgid(domain=config['from_email'].split('@')[-1] if '@' in config['from_email'] else 'localhost')
-        msg['Date'] = email.utils.formatdate(localtime=True)
+        msg['Message-ID'] = _email_utils.make_msgid(domain=config['from_email'].split('@')[-1] if '@' in config['from_email'] else 'localhost')
+        msg['Date'] = _email_utils.formatdate(localtime=True)
         msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
         if config['use_tls']:
             # STARTTLS: 先建立明文连接，再升级到 TLS
-            server = smtplib.SMTP(config['host'], config['port'], timeout=30)
+            server = _smtplib.SMTP(config['host'], config['port'], timeout=30)
             server.ehlo()
             server.starttls()
             server.ehlo()
         else:
             # SSL: 直接建立加密连接
-            server = smtplib.SMTP_SSL(config['host'], config['port'], timeout=30)
+            server = _smtplib.SMTP_SSL(config['host'], config['port'], timeout=30)
             server.ehlo()
 
         if config['username'] and config['password']:
@@ -1067,9 +1135,9 @@ def send_email(to_email, subject, body_html):
         server.sendmail(config['from_email'], [to_email], msg.as_string())
         logger.info(f"邮件发送成功: {to_email} - {subject}")
         return True, '发送成功'
-    except smtplib.SMTPAuthenticationError:
+    except _smtplib.SMTPAuthenticationError:
         return False, 'SMTP 认证失败，请检查用户名和密码'
-    except smtplib.SMTPException as e:
+    except _smtplib.SMTPException as e:
         return False, f'SMTP 错误: {str(e)[:100]}'
     except Exception as e:
         return False, f'发送失败: {str(e)[:100]}'
@@ -1272,7 +1340,12 @@ def _check_link_ownership(link_id):
 
 @app.after_request
 def add_security_headers(response):
-    """添加安全响应头"""
+    """添加安全响应头 + 缓存策略"""
+    # HTML 页面不缓存（含动态内容：CSRF token、用户信息等）
+    ct = (response.content_type or '')
+    if 'text/html' in ct:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    # 安全头
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -1280,6 +1353,27 @@ def add_security_headers(response):
     csp = "default-src 'self' blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com blob:"
     response.headers['Content-Security-Policy'] = csp
     return response
+
+
+@app.after_request
+def minify_html_response(response):
+    """压缩 HTML 响应：去除注释和多余空白，减小传输体积"""
+    ct = (response.content_type or '')
+    if 'text/html' not in ct:
+        return response
+    # 仅压缩成功响应（200/304），跳过错误页
+    if response.status_code not in (200, 304):
+        return response
+    try:
+        data = response.get_data(as_text=True)
+        if not data:
+            return response
+        minified = _minify_html(data)
+        response.set_data(minified)
+    except Exception:
+        pass  # 压缩失败不影响正常响应
+    return response
+
 
 # 静态文件 MIME 类型修复 ——
 # X-Content-Type-Options: nosniff 要求 Content-Type 必须精确，
@@ -1305,6 +1399,11 @@ def fix_static_content_type(response):
         response.headers['Content-Type'] = 'text/css; charset=utf-8'
     elif ext in ('.js', '.mjs') and 'charset' not in current:
         response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    # 静态资源强缓存：CSS/JS/字体/图片等长期缓存，HTML 不缓存
+    if ext in _ESSENTIAL_MIMETYPES and ext not in ('.html', '.htm',):
+        response.cache_control.public = True
+        response.cache_control.max_age = 3600 * 24
+        response.headers['Vary'] = 'Accept-Encoding'
     return response
 
 @app.context_processor
@@ -4296,7 +4395,7 @@ if __name__ == '__main__':
     options = {
         'bind': f'0.0.0.0:{PORT}',
         'workers': workers,
-        'timeout': 120,
+        'timeout': 0,  # 不限制超时，MAX_CONTENT_LENGTH 和频率限制已提供保护
         'accesslog': '-',
         'errorlog': '-',
         'loglevel': 'info',

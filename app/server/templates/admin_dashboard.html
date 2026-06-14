@@ -27,14 +27,14 @@
     <div class="card">
       <div class="card-header">
         <h3>最近上传</h3>
-        <a href="{{ url_for('admin_records') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+        <a href="{{ url_for('admin_records') }}" class="btn btn-sm btn-link">查看全部</a>
       </div>
       {% if recent_uploads %}
       <!-- PC 端：精简表格 -->
       <div class="records-table-pc">
         <table class="admin-table admin-table--records">
           <thead>
-            <tr><th>文件名</th><th style="width:80px;text-align:center;">详情</th></tr>
+            <tr><th>文件名</th><th style="width:80px;text-align:right;padding-right:24px;">操作</th></tr>
           </thead>
           <tbody>
             {% for r in recent_uploads %}
@@ -51,7 +51,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] or '-' }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -79,7 +79,7 @@
                 data-downloads="{{ r['download_count'] }}"
                 data-ip="{{ r['uploader_ip'] or '-' }}"
                 data-time="{{ r['uploaded_at'] }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">功能</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx'] else '0' }}">操作</button>
             </div>
           </div>
         </div>
@@ -126,7 +126,7 @@
   border: 1px solid var(--c-primary);
   font-size: 0.8rem;
   padding: 3px 10px;
-  border-radius: 14px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -453,11 +453,7 @@ function previewFile(recordId, fileName) {
   else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
     content.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
     var fileUrl = window.location.origin + '/admin/records/' + recordId + '/preview_file';
-    if (typeof window.JitViewer === 'undefined') {
-      content.innerHTML = '<p class="error">Office预览组件未加载</p><p>请尝试下载文件查看</p>';
-      return;
-    }
-    try {
+    loadJitViewer().then(function() {
       var viewer = window.JitViewer.createViewer({
         target: document.getElementById('office-preview-container'),
         file: fileUrl,
@@ -473,10 +469,10 @@ function previewFile(recordId, fileName) {
       });
       viewer.mount();
       window._jitViewer = viewer;
-    } catch(err) {
-      var em = err && err.message ? err.message : (typeof err === 'string' ? err : '初始化失败');
-      content.innerHTML = '<p class="error">预览组件初始化失败: ' + em + '</p><p>请尝试下载文件查看</p>';
-    }
+    }).catch(function(err) {
+      var em = err && err.message ? err.message : 'Office预览组件加载失败';
+      content.innerHTML = '<p class="error">' + em + '</p><p>请尝试下载文件查看</p>';
+    });
   }
   else {
     content.innerHTML = '<p class="info">该文件类型不支持预览</p>';

@@ -38,6 +38,7 @@ html {
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  overflow-y: scroll;
 }
 
 body {
@@ -107,17 +108,25 @@ a:active { opacity: .6; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.header-nav a {
-  font-size: .85rem;
-  color: var(--c-primary);
+.header-nav-link {
+  font-size: .82rem;
   text-decoration: none;
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 5px 12px;
+  border-radius: 6px;
   font-weight: 500;
-  transition: background .15s;
+  color: var(--c-text-soft);
+  background: transparent;
+  transition: all .15s;
 }
-.header-nav a:active { background: var(--c-primary-light); }
-.header-nav a.logout-link { color: var(--c-danger); }
+.header-nav-link:hover { background: var(--c-bg-hover); color: var(--c-text); }
+.header-nav-link.active { color: var(--c-primary) !important; background: rgba(var(--c-primary-rgb, 59 130 246), .1) !important; }
+.header-nav-link:active { background: rgba(0,0,0,.06); }
+.header-nav-logout {
+  color: #e5484d !important;
+  background: rgba(229,72,77,.08);
+}
+.header-nav-logout:hover { background: rgba(229,72,77,.15); color: #e5484d !important; }
+.header-nav-logout:active { background: rgba(229,72,77,.22); }
 
 /* ============================================================
    Main Content
@@ -139,6 +148,22 @@ a:active { opacity: .6; }
   padding: 12px 16px calc(12px + var(--safe-bottom));
   font-size: .75rem;
   color: var(--c-text-muted);
+}
+
+/* 管理后台页脚 — 固定在底部 + 毛玻璃效果（参考 share 页） */
+.is-admin .footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: .5px solid var(--c-border);
+}
+.is-admin .main {
+  padding-bottom: 50px;
 }
 
 /* ============================================================
@@ -211,11 +236,11 @@ a:active { opacity: .6; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 8px 18px;
+  padding: 10px 18px;
   font-size: .85rem;
   font-weight: 500;
   font-family: var(--font);
-  border-radius: 20px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
   line-height: 1.4;
@@ -240,8 +265,12 @@ a:active { opacity: .6; }
 .btn-outline-primary { background: transparent; border: 1.5px solid var(--c-primary); color: var(--c-primary); }
 .btn-outline-danger { background: transparent; border: 1.5px solid var(--c-danger); color: var(--c-danger); }
 
-.btn-sm { padding: 5px 14px; font-size: .78rem; border-radius: 16px; }
-.btn-xs { padding: 3px 10px; font-size: .72rem; border-radius: 12px; }
+.btn-link { background: transparent; border: none; border-radius: 4px; color: var(--c-primary); cursor: pointer; text-decoration: none; transition: all .15s; }
+.btn-link:hover { background: var(--c-primary-light); }
+.btn-link:active { transform: scale(.96); opacity: .8; }
+
+.btn-sm { padding: 5px 14px; font-size: .78rem; border-radius: 4px; }
+.btn-xs { padding: 3px 10px; font-size: .72rem; border-radius: 4px; }
 .btn-block { display: flex; width: 100%; }
 .text-center { text-align: center; }
 .btn-icon {
@@ -469,6 +498,9 @@ tbody tr:active { background: #f7f8fa; }
   .records-table-pc { display: none; }
   .records-cards-mobile { display: block; }
   .records-mobile-header { display: flex; }
+  .card-header { flex-wrap: wrap; gap: 8px; }
+  .card-header h3 { font-size: .95rem; margin: 0; }
+  .card-header .btn-sm { font-size: .75rem; padding: 4px 12px; flex-shrink: 0; }
 }
 
 /* 记录卡片 */
@@ -743,7 +775,7 @@ tbody tr:active { background: #f7f8fa; }
     text-align: center;
     font-size: .75rem;
     padding: 6px 14px;
-    border-radius: 16px;
+    border-radius: 4px;
   }
   .action-group form {
     width: 100%;
@@ -857,6 +889,14 @@ tbody tr:active { background: #f7f8fa; }
   margin-bottom: 24px;
   text-align: center;
 }
+
+@media (max-width: 480px) {
+  .auth-page { padding: 10px; }
+  .auth-card { padding: 28px 18px; border-radius: 16px; max-width: 100%; }
+  .auth-card h1 { font-size: 1.15rem; }
+  .auth-card .auth-subtitle { font-size: .8rem; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+}
 .auth-tip {
   margin-top: 16px;
   padding: 10px 14px;
@@ -949,7 +989,7 @@ tbody tr:active { background: #f7f8fa; }
   background: var(--c-primary-light);
   color: var(--c-primary);
   border: 1.5px solid #bfdbfe;
-  border-radius: 12px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -986,11 +1026,11 @@ tbody tr:active { background: #f7f8fa; }
 /* ============================================================
    Responsive Global
    ============================================================ */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   html { font-size: 15px; }
   .main { padding: 10px 12px; }
   .form-row { grid-template-columns: 1fr; }
-  .header-nav a { font-size: .8rem; padding: 5px 10px; }
+  .header-nav-link { font-size: .78rem; padding: 4px 10px; }
 }
 
 @media (max-width: 480px) {

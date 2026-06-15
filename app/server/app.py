@@ -115,7 +115,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.0.14"
+VERSION = "2.0.18"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2705,6 +2705,8 @@ def chunk_upload_init(link_id):
             _log_upload(link_id, 'chunk_init',
                         details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'resumed', 'uploaded': len(uploaded)})
             return jsonify({
+                'success': True,
+                'upload_id': upload_id,
                 'total_chunks': total_chunks,
                 'chunk_size': chunk_size_int,
                 'total_size': file_size_int,
@@ -2725,6 +2727,8 @@ def chunk_upload_init(link_id):
             _log_upload(link_id, 'chunk_init',
                         details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'initialized'})
             return jsonify({
+                'success': True,
+                'upload_id': upload_id,
                 'total_chunks': total_chunks,
                 'chunk_size': chunk_size_int,
                 'total_size': file_size_int,
@@ -2824,14 +2828,42 @@ def chunk_upload(link_id):
             os.remove(chunk_path)
             return jsonify({'success': False, 'message': '分片大小异常'}), 400
 
-        # 更新上传列表
-        uploaded.append(chunk_index)
-        uploaded.sort()
-        conn.execute(
-            "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-            (json.dumps(uploaded), upload_id)
-        )
-        conn.commit()
+        # 使用 BEGIN IMMEDIATE 事务防止并发写覆盖（读-改-写竞态条件）
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            # 重新读取最新的 uploaded_chunks，避免覆盖其他 worker 的写入
+            fresh = conn.execute(
+                "SELECT uploaded_chunks FROM chunk_uploads WHERE upload_id = ?",
+                (upload_id,)
+            ).fetchone()
+            fresh_uploaded = []
+            if fresh and fresh['uploaded_chunks']:
+                try:
+                    fresh_uploaded = json.loads(fresh['uploaded_chunks'])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if chunk_index not in fresh_uploaded:
+                fresh_uploaded.append(chunk_index)
+                fresh_uploaded.sort()
+            conn.execute(
+                "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                (json.dumps(fresh_uploaded), upload_id)
+            )
+            conn.commit()
+            uploaded = fresh_uploaded
+        except Exception:
+            conn.execute("ROLLBACK")
+            # 回退到简单更新（写入失败时仍返回成功，容错）
+            uploaded.append(chunk_index)
+            uploaded.sort()
+            try:
+                conn.execute(
+                    "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                    (json.dumps(uploaded), upload_id)
+                )
+                conn.commit()
+            except Exception:
+                pass
 
         return jsonify({
             'success': True,
@@ -2896,14 +2928,34 @@ def chunk_merge(link_id):
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        upload_dir = create_upload_dir(link_id)
+        chunk_dir = _get_chunk_dir(upload_dir, upload_id)
         total_chunks = session_row['total_chunks']
+
+        # 容错：DB 记录可能因并发写丢失了部分分片，检查磁盘实际文件
         if len(uploaded) != total_chunks:
-            missing = [i for i in range(total_chunks) if i not in uploaded]
-            return jsonify({
-                'success': False,
-                'message': f'还有 {len(missing)} 个分片未上传',
-                'missing_chunks': missing
-            }), 400
+            missing_in_db = [i for i in range(total_chunks) if i not in uploaded]
+            actual_missing = []
+            for ci in missing_in_db:
+                chunk_path = os.path.join(chunk_dir, f'chunk_{ci:05d}')
+                if os.path.exists(chunk_path):
+                    # 分片文件存在，补齐 DB 记录
+                    uploaded.append(ci)
+                else:
+                    actual_missing.append(ci)
+            if actual_missing:
+                return jsonify({
+                    'success': False,
+                    'message': f'还有 {len(actual_missing)} 个分片未上传',
+                    'missing_chunks': actual_missing
+                }), 400
+            # 补齐后更新 DB
+            uploaded.sort()
+            conn.execute(
+                "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                (json.dumps(uploaded), upload_id)
+            )
+            conn.commit()
 
         # 标记为合并中
         conn.execute(
@@ -2913,8 +2965,6 @@ def chunk_merge(link_id):
         conn.commit()
 
         # 合并分片
-        upload_dir = create_upload_dir(link_id)
-        chunk_dir = _get_chunk_dir(upload_dir, upload_id)
         stored_name = session_row['stored_name']
         stored_path = os.path.join(upload_dir, stored_name)
 

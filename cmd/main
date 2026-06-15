@@ -56,7 +56,7 @@ start() {
     log "=== START ==="
 
     # ---- 第1步：Python ----
-    log "[1/5] 查找 Python 3.12..."
+    log "[1/7] 查找 Python 3.12..."
     PYTHON_BIN=""
     for p in "/var/apps/python312/target/bin/python3" \
              "/var/apps/python312/target/bin/python" \
@@ -71,7 +71,7 @@ start() {
     log "  Python: $($PYTHON_BIN --version 2>&1)"
 
     # ---- 第2步：查找 app.py ----
-    log "[2/5] 查找 app.py..."
+    log "[2/7] 查找 app.py..."
 
     # 打印 TRIM_APPDEST 实际目录结构
     log "  TRIM_APPDEST = ${TRIM_APPDEST}"
@@ -117,7 +117,7 @@ start() {
     ls -la >> "$DEBUG_LOG"
 
     # ---- 第3步：虚拟环境 ----
-    log "[3/5] 虚拟环境..."
+    log "[3/7] 虚拟环境..."
 
     [ ! -d "$VAR_DIR" ] && mkdir -p "$VAR_DIR"
     touch "${VAR_DIR}/.write_test" 2>/dev/null && rm -f "${VAR_DIR}/.write_test" || {
@@ -200,7 +200,8 @@ start() {
         fi
     fi
 
-    # 清理旧进程
+    # ---- 第6步：清理旧进程并启动 ----
+    log "[6/7] 清理旧进程并启动..."
     [ -f "$PID_FILE" ] && {
         OLD=$(cat "$PID_FILE")
         kill -0 "$OLD" 2>/dev/null && kill -9 "$OLD" 2>/dev/null
@@ -253,7 +254,7 @@ uninstall() {
     log "=== UNINSTALL 卸载清理 ==="
 
     # 1. 强制停止所有相关进程
-    log "[1/7] 停止进程..."
+    log "[1/8] 停止进程..."
     # 按 PID 文件停止
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
@@ -268,12 +269,12 @@ uninstall() {
             log "  已停止端口占用进程 PID=${p}"
         done
     fi
-    # 按进程名杀（app.py / python 相关）
-    pkill -f "file-collector" 2>/dev/null || true
+    # 按进程名杀（仅匹配 python app.py 进程）
+    pkill -f "python.*file-collector.*app\.py" 2>/dev/null || true
     sleep 1
 
     # 2. 删除虚拟环境
-    log "[2/7] 删除虚拟环境..."
+    log "[2/8] 删除虚拟环境..."
     if [ -d "$VENV_DIR" ]; then
         rm -rf "$VENV_DIR"
         log "  已删除: ${VENV_DIR}"
@@ -315,9 +316,9 @@ uninstall() {
         fi
     done 2>/dev/null || true
 
-    # 7. 清理 socket 和 PID 文件
-    log "[7/8] 清理 socket 和 PID..."
-    rm -f "$SOCK_PATH" "$PID_FILE" 2>/dev/null
+    # 7. 清理 PID 文件
+    log "[7/8] 清理 PID 文件..."
+    rm -f "$PID_FILE" 2>/dev/null
 
     # 8. 清理 /tmp 和调试日志
     log "[8/8] 清理临时文件..."

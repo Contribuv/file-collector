@@ -71,7 +71,11 @@
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
         <h3>点击选择文件或拖拽到此处</h3>
-        <p>支持所有文件类型</p>
+        <p class="cp-hint-resume">
+          <span class="cp-hint-short">支持断点续传</span>
+          <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传，无需重头开始</span>
+          <span class="cp-hint-toggle" onclick="var p=this.closest('.cp-hint-resume');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'收起 ▴':'展开 ▾';event.stopPropagation()" title="查看详情">展开 ▾</span>
+        </p>
       </div>
       <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)">
 
@@ -178,6 +182,7 @@ const CHUNK_SIZE = 5 * 1024 * 1024;        // 5MB per chunk
 const CHUNK_MAX_CONCURRENT = 3;             // 最大并发分片数
 const CHUNK_MAX_RETRIES = 3;                // 每个分片最大重试次数
 let isUploadPaused = false;                 // 暂停标志
+let failedChunkedFiles = [];                // 记录分片上传失败的文件，供重试
 
 function updateRemainingDisplay() {
   if (MAX_FILES > 0) {
@@ -584,6 +589,7 @@ async function startUpload() {
   var successCount = 0, failCount = 0;
   var regularDone = 0;
   var chunkedBaseBytes = {}; // 追踪每个大文件的已完成字节
+  failedChunkedFiles = [];   // 每次上传前清空失败列表
 
   var globalCtx = { startTime: startTime, regularDone: 0 };
 
@@ -604,7 +610,11 @@ async function startUpload() {
         resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功（分片续传）</div>';
       } catch(e) {
         failCount++;
-        resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message) + '</div>';
+        var fid = 'fail_' + failedChunkedFiles.length;
+        failedChunkedFiles.push({id: fid, file: f, name: f.name});
+        resultDiv.innerHTML += '<div class="cp-result-item cp-result-err" id="' + fid + '">' +
+          escapeHtml(f.name) + ' - ' + escapeHtml(e.message) +
+          ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button></div>';
       }
       continue;
     }
@@ -673,9 +683,89 @@ async function startUpload() {
   progressText.innerHTML = '<span>完成</span><span>成功 ' + successCount + ' / 失败 ' + failCount + '</span>';
   speedText.innerHTML = '';
   resultDiv.classList.add('on');
+  // 汇总重试入口
+  renderRetrySummary(resultDiv);
   btn.disabled = false; btn.textContent = '开始上传';
   selectedFiles = []; renderFileList();
   loadHistory();
+}
+
+/* ========== 失败重试 ========== */
+function renderRetrySummary(resultDiv) {
+  // 移除旧汇总
+  var old = document.getElementById('retry-summary');
+  if (old) old.remove();
+  if (failedChunkedFiles.length === 0) return;
+  var div = document.createElement('div');
+  div.id = 'retry-summary';
+  div.className = 'cp-result-summary';
+  div.innerHTML =
+    '<span>⚠ ' + failedChunkedFiles.length + ' 个文件上传失败，已上传的分片不会丢失</span>' +
+    '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="retryAllFailed()">全部重试（断点续传）</button>';
+  resultDiv.appendChild(div);
+}
+
+async function retryFailedFile(fid) {
+  var item = failedChunkedFiles.find(function(x) { return x.id === fid; });
+  if (!item) return;
+  var el = document.getElementById(fid);
+  if (!el) return;
+
+  el.innerHTML = escapeHtml(item.file.name) + ' - 重试中…';
+  el.className = 'cp-result-item cp-result-retrying';
+
+  try {
+    var uploadId = generateUploadId(item.file, item.file.name, item.file.size);
+    saveUploadIdForFile(item.file, uploadId);
+    var res = await initChunkSession(uploadId, item.file.name, item.file.size);
+    if (res.upload_id && res.upload_id !== uploadId) {
+      uploadId = res.upload_id;
+      saveUploadIdForFile(item.file, uploadId);
+    }
+
+    var uploadedChunks = res.uploaded_chunks || [];
+    var totalChunks = res.total_chunks;
+
+    // 只上传未完成的分片
+    var pending = [];
+    for (var ci = 0; ci < totalChunks; ci++) {
+      if (uploadedChunks.indexOf(ci) === -1) pending.push(ci);
+    }
+
+    if (pending.length === 0) {
+      // 全部分片已存在，直接合并
+      el.innerHTML = escapeHtml(item.file.name) + ' - 合并中…';
+      await mergeChunksAPI(uploadId);
+    } else {
+      for (var pi = 0; pi < pending.length; pi++) {
+        await uploadChunkWithRetry(uploadId, item.file, pending[pi], totalChunks);
+        el.innerHTML = escapeHtml(item.file.name) + ' - 续传 ' + (pi + 1) + '/' + pending.length;
+      }
+      el.innerHTML = escapeHtml(item.file.name) + ' - 合并中…';
+      await mergeChunksAPI(uploadId);
+    }
+
+    removeUploadIdForFile(item.file);
+    el.innerHTML = escapeHtml(item.file.name) + ' - 上传成功 ✓';
+    el.className = 'cp-result-item cp-result-ok';
+
+    // 从失败列表移除
+    failedChunkedFiles = failedChunkedFiles.filter(function(x) { return x.id !== fid; });
+    renderRetrySummary(document.getElementById('upload-result'));
+    loadHistory();
+
+  } catch(e) {
+    el.innerHTML = escapeHtml(item.file.name) + ' - ' + escapeHtml(e.message) +
+      ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button>';
+    el.className = 'cp-result-item cp-result-err';
+  }
+}
+
+async function retryAllFailed() {
+  var toRetry = failedChunkedFiles.slice(); // 副本，因为 retry 成功会移除
+  for (var i = 0; i < toRetry.length; i++) {
+    await retryFailedFile(toRetry[i].id);
+  }
 }
 
 async function loadHistory() {

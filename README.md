@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.14-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.0.18-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,22 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.0.18
+- **Bug 修复（3合1—分片上传断点续传竞态）**：修复 `chunk_upload` 并发读-改-写竞态条件导致分片记录丢失（`BEGIN IMMEDIATE` 事务 + 锁内重读）；修复 `chunk_merge` 不做磁盘容错导致 DB 缺失分片时直接报 400（补磁盘文件检查 + 自动补齐 DB）；修复 `chunk_init` 匹配旧 session 后响应不返回 `upload_id` 导致前端 UUID 断链报 404
+- **PDF 移动端预览修复**：`jit_preview.html` 新增 `.jv-pdf-page-wrapper` + `.jv-pdf-canvas` `max-width: 100%` 约束，解决移动端 PDF 显示不全只能缩放 80% 的问题
+
+### v2.0.17
+- **断点续传体验升级**：collect 页新增拖拽区显式提示（PC 展全文 / 移动端可折叠展开）
+- **上传失败一键重试**：失败文件旁显式「重试」按钮，底部汇总栏提供「全部重试（断点续传）」
+- **重试实时反馈**：重试过程显示续传进度（x/N 分片），成功自动从失败列表移除
+- **desc 更新**：应用描述新增断点续传核心亮点说明
+
+### v2.0.16
+- **Bug 修复**：修复 `cmd/main` 生命周期脚本 4 个问题：`$SOCK_PATH` 未定义变量引用、步骤编号不一致（start 1/5→1/7、uninstall 1/7→1/8）、`pkill -f` 模式过于激进可能误杀无关进程、补全缺失的 `[6/7]` 步骤标签
+
+### v2.0.15
+- **Bug 修复**：修复 `chunk_init` 接口在续传/新建会话成功时响应缺少 `success: True` 字段，导致前端 `collect.html` 始终判定为失败并抛出 "初始化上传会话错误" 的致命问题
 
 ### v2.0.14
 - **移动端重构**：上传/下载日志页响应式彻底重写，废弃 JS 切换改用纯 CSS `@media` 查询（`!important` 确保生效）

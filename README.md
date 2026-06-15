@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.12-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.0.14-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,14 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.0.14
+- **移动端重构**：上传/下载日志页响应式彻底重写，废弃 JS 切换改用纯 CSS `@media` 查询（`!important` 确保生效）
+- **Bug 修复**：修复 class 名不匹配（模板用 `records-list-mobile` vs CSS 定义 `records-cards-mobile`）导致移动端 PC 表格永远不被隐藏的致命问题
+
+### v2.0.13
+- **移动端优化**：上传/下载日志页移动端完全重做，新增 `.record-card-row` / `.record-card-label` 卡片行样式
+- **移动端优化**：摘要栏 `flex-wrap` 适配小屏，侧栏导航支持横向滚动（隐藏滚动条）
 
 ### v2.0.12
 - **Bug 修复**：仪表盘浮窗 `csrfToken` 从 DOM 查询改为 Jinja2 模板注入，解决页面无隐藏域导致 `null.value` 报错

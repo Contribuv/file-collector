@@ -1,6 +1,106 @@
 {% extends "base.html" %}
 {% block title %}上传日志 - {{ link_title|default(record['original_name']) }}{% endblock %}
 
+{% block styles %}
+<style>
+/* ===== 日志页响应式（纯CSS，不依赖JS） ===== */
+.logs-pc { display: block; }
+.logs-mob { display: none; }
+@media (max-width: 640px) {
+  .logs-pc { display: none !important; }
+  .logs-mob { display: block !important; }
+}
+
+/* 移动端卡片行 */
+.log-card {
+  margin: 0 12px;
+  padding: 10px 0;
+  border-bottom: .5px solid #e5e5ea;
+}
+.log-card:first-child { padding-top: 4px; }
+.log-card:last-child { border-bottom: none; padding-bottom: 4px; }
+.log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: .875rem;
+  line-height: 1.5;
+}
+.log-label {
+  flex-shrink: 0;
+  width: 38px;
+  color: #8e8e93;
+  font-size: .72rem;
+  font-weight: 500;
+}
+.log-val {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  color: #1c1c1e;
+}
+
+/* 摘要栏 */
+.logs-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px 16px;
+  color: #666;
+  font-size: .8125rem;
+  border-bottom: 1px solid #eee;
+  line-height: 1.7;
+}
+
+/* 侧栏导航横向滚动 */
+.sidebar-nav {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+.sidebar-nav a { white-space: nowrap; flex-shrink: 0; }
+
+/* 小屏适配 */
+@media (max-width: 640px) {
+  .logs-summary { gap: 4px 10px; font-size: .75rem; padding: 8px 12px; }
+  .card-header h3 { font-size: .95rem; }
+  .card-header .btn { font-size: .72rem; padding: 3px 9px; }
+  .sidebar-nav a { font-size: .68rem; padding: 10px 8px; }
+  .log-row { font-size: .82rem; }
+  .log-label { width: 34px; font-size: .68rem; }
+}
+@media (max-width: 400px) {
+  .logs-summary { font-size: .7rem; gap: 2px 8px; padding: 6px 10px; }
+  .log-row { font-size: .78rem; }
+  .log-label { width: 30px; font-size: .65rem; }
+}
+
+/* 表格基础样式 */
+.admin-table--logs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.admin-table--logs th,
+.admin-table--logs td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #f2f3f5;
+  white-space: nowrap;
+}
+.admin-table--logs th {
+  background: #fafafa;
+  color: #666;
+  font-weight: 600;
+  font-size: .78rem;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
@@ -14,28 +114,19 @@
         <a href="{{ back_url or url_for('admin_records') }}" class="btn btn-sm btn-outline">← {{ '返回链接管理' if back_url else '返回文件记录' }}</a>
       </div>
 
-      <div style="padding:8px 16px;color:#666;font-size:13px;border-bottom:1px solid #eee;">
-        {% if link_title %}
-        收集链接：<strong>{{ link_title }}</strong>
-        {% else %}
-        文件：<strong>{{ record['original_name'] }}</strong>
-        {% endif %}
-        <span style="margin-left:16px;">共 {{ logs|length }} 条记录</span>
-        <span style="margin-left:16px;">数据截止：{{ now }}</span>
+      <div class="logs-summary">
+        <span>{% if link_title %}收集链接：<strong>{{ link_title }}</strong>{% else %}文件：<strong>{{ record['original_name'] }}</strong>{% endif %}</span>
+        <span>共 {{ logs|length }} 条记录</span>
+        <span>截止：{{ now }}</span>
       </div>
 
       {% if logs %}
       <!-- PC 端表格 -->
-      <div class="records-table-pc" style="display:none;" id="log-table-pc">
-        <table class="admin-table admin-table--records">
+      <div class="logs-pc" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table class="admin-table admin-table--logs">
           <thead>
             <tr>
-              <th>#</th>
-              <th>事件时间</th>
-              <th>事件类型</th>
-              <th>详情</th>
-              <th>上传者 IP</th>
-              <th>结果</th>
+              <th>#</th><th>事件时间</th><th>事件类型</th><th>详情</th><th>上传者 IP</th><th>结果</th>
             </tr>
           </thead>
           <tbody>
@@ -45,17 +136,17 @@
               <td>{{ log['id'] }}</td>
               <td>{{ log['event_time'] or '-' }}</td>
               <td>
-                {% if log['event'] == 'chunk_init' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 分片初始化
-                {% elif log['event'] == 'chunk_merge' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="5"/></svg> 分片合并
-                {% elif log['event'] == 'upload_complete' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传完成
+                {% if log['event'] == 'chunk_init' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2.83 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 分片初始化
+                {% elif log['event'] == 'chunk_merge' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="5"/></svg> 分片合并
+                {% elif log['event'] == 'upload_complete' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传完成
                 {% else %}{{ log['event'] }}
                 {% endif %}
               </td>
-              <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ log['details'] }}">
+              <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;" title="{{ log['details'] }}">
                 {% if detail is mapping %}
                   {{ detail.get('name', '') }}
-                  {% if detail.get('size') %}({{ detail.size }} bytes){% endif %}
-                  {% if detail.get('chunks') %} / {{ detail.chunks }} 分片{% endif %}
+                  {% if detail.get('size') %} ({{ detail.size }}B){% endif %}
+                  {% if detail.get('chunks') %} /{{ detail.chunks }}片{% endif %}
                   {% if detail.get('status') %} [{{ detail.status }}]{% endif %}
                 {% else %}
                   {{ log['details'] }}
@@ -63,10 +154,8 @@
               </td>
               <td>{{ log['uploader_ip'] or '-' }}</td>
               <td>
-                {% if log['success'] %}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功
-                {% else %}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> 失败
+                {% if log['success'] %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功
+                {% else %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> 失败
                 {% endif %}
               </td>
             </tr>
@@ -74,43 +163,43 @@
           </tbody>
         </table>
       </div>
+
       <!-- 移动端卡片 -->
-      <div class="records-list-mobile" id="log-list-mobile">
+      <div class="logs-mob">
         {% for log in logs %}
         {% set detail = log['details']|parse_json %}
-        <div class="record-card" style="padding:12px;border-bottom:1px solid #eee;">
-          <div class="record-card-row"><span class="record-card-label">时间</span><span>{{ log['event_time'] or '-' }}</span></div>
-          <div class="record-card-row"><span class="record-card-label">类型</span><span>
-            {% if log['event'] == 'chunk_init' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 分片初始化
-            {% elif log['event'] == 'chunk_merge' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="5"/></svg> 分片合并
-            {% elif log['event'] == 'upload_complete' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传完成
+        <div class="log-card">
+          <div class="log-row"><span class="log-label">时间</span><span class="log-val">{{ log['event_time'] or '-' }}</span></div>
+          <div class="log-row"><span class="log-label">事件</span><span class="log-val">
+            {% if log['event'] == 'chunk_init' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2.83 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 分片初始化
+            {% elif log['event'] == 'chunk_merge' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="5"/></svg> 分片合并
+            {% elif log['event'] == 'upload_complete' %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 上传完成
             {% else %}{{ log['event'] }}
             {% endif %}
           </span></div>
-          <div class="record-card-row"><span class="record-card-label">详情</span><span style="font-size:12px;word-break:break-all;">
+          <div class="log-row"><span class="log-label">详情</span><span class="log-val" style="font-size:.78rem;color:#555;">
             {% if detail is mapping %}
-              {{ detail.get('name', '') }}
-              {% if detail.get('size') %} / 大小 {{ detail.size }}{% endif %}
-              {% if detail.get('chunks') %} / {{ detail.chunks }} 分片{% endif %}
-              {% if detail.get('status') %} / 状态: {{ detail.status }}{% endif %}
+              {{ detail.get('name', '-') }}
+              {% if detail.get('size') %} · {{ detail.size }}B{% endif %}
+              {% if detail.get('chunks') %} · {{ detail.chunks }}片{% endif %}
+              {% if detail.get('status') %} · {{ detail.status }}{% endif %}
             {% else %}
               {{ log['details'] }}
             {% endif %}
           </span></div>
-          <div class="record-card-row"><span class="record-card-label">IP</span><span>{{ log['uploader_ip'] or '-' }}</span></div>
-          <div class="record-card-row"><span class="record-card-label">结果</span><span>
-            {% if log['success'] %}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功
-            {% else %}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> 失败
+          <div class="log-row"><span class="log-label">IP</span><span class="log-val">{{ log['uploader_ip'] or '-' }}</span></div>
+          <div class="log-row"><span class="log-label">结果</span><span class="log-val">
+            {% if log['success'] %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功
+            {% else %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> 失败
             {% endif %}
           </span></div>
         </div>
         {% endfor %}
       </div>
+
       {% else %}
       <div style="text-align:center;padding:60px 20px;color:#999;">
-        <p style="font-size:48px;margin:0;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/></svg></p>
+        <p style="margin:0;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/></svg></p>
         <p>暂无上传日志</p>
         <p style="font-size:12px;color:#bbb;">上传记录将在此处显示（自 v2.0.7 起开始记录）</p>
       </div>
@@ -118,25 +207,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-// 响应式切换：大于 640px 显示表格，否则显示卡片
-(function() {
-  var pc = document.getElementById('log-table-pc');
-  var mob = document.getElementById('log-list-mobile');
-  function adapt() {
-    if (window.innerWidth >= 640) {
-      if (pc) pc.style.display = '';
-      if (mob) mob.style.display = 'none';
-    } else {
-      if (pc) pc.style.display = 'none';
-      if (mob) mob.style.display = '';
-    }
-  }
-  adapt();
-  window.addEventListener('resize', adapt);
-})();
-</script>
 {% endblock %}

@@ -1,34 +1,38 @@
+/* ============================================================
+   File Collector — 分享页 (Share)
+   NAS/ERP/CRM 专业风格 · 移动端卡片布局防溢出
+   极致紧凑 · 倒计时紧迫感 · 文本删除按钮
+   ============================================================ */
+
 :root {
   --cp-max: 960px;
-  --cp-pad: 20px;
+  --cp-pad: 16px;
 }
+
+/* ---------- 基础重置 ---------- */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--c-bg);
-  min-height: 100vh;
-  min-height: 100dvh;
-  color: var(--c-text);
-  font-family: var(--font);
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  overflow-y: scroll;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  color: #1a1d28;
+  background: #f0f2f5;
+  line-height: 1.4;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-.cp-meta-item {
-  font-size: .78rem; color: var(--c-text-soft);
-  background: var(--c-white); padding: 4px 10px; border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-}
-.cp-meta-item strong { color: var(--c-text); font-weight: 600; }
-
+/* ---------- Topbar ---------- */
 .cp-topbar {
-  height: 44px;
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: .5px solid var(--c-border);
+  height: 40px;
+  background: #fff;
+  border-bottom: 1px solid #e4e6eb;
   display: flex;
   align-items: center;
   position: sticky;
@@ -42,233 +46,376 @@ body {
   padding: 0 var(--cp-pad);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
-.cp-topbar-logo { width: 26px; height: 26px; border-radius: 0px; flex-shrink: 0; object-fit: contain;}
-.cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: var(--c-text); letter-spacing: -.3px; }
+.cp-topbar-logo { width: 22px; height: 22px; flex-shrink: 0; object-fit: contain; }
+.cp-topbar-inner span { font-size: .9rem; font-weight: 600; color: #1a1d28; }
 
+/* ---------- Main Wrap ---------- */
 .cp-wrap {
   width: 100%;
   max-width: var(--cp-max);
   margin: 0 auto;
-  padding: 20px var(--cp-pad) 100px;
+  padding: 10px var(--cp-pad) 70px;
 }
 
-.cp-header { margin-bottom: 20px; }
-.cp-header h1 { font-size: 1.4rem; font-weight: 800; color: var(--c-text); margin-bottom: 4px; letter-spacing: -.4px; }
-.cp-header .cp-desc { font-size: .9rem; color: var(--c-text-soft); line-height: 1.6; margin-top: 6px; padding-bottom: 13px; word-break: break-word; }
-.cp-header .cp-desc p { margin: 0 0 6px; }
-.cp-header .cp-desc p:last-child { margin-bottom: 0; }
-.cp-header .cp-desc ul, .cp-header .cp-desc ol { margin: 4px 0; padding-left: 20px; }
-.cp-header .cp-desc blockquote { margin: 6px 0; padding: 4px 12px; border-left: 3px solid #d0d5dd; color: #888; }
-.cp-header .cp-desc pre { background: #f5f7fa; border-radius: 6px; padding: 8px 12px; font-size: .82rem; overflow-x: auto; margin: 6px 0; }
-.cp-header .cp-desc code { background: #f5f7fa; border-radius: 3px; padding: 1px 4px; font-size: .82rem; }
-.cp-header .cp-desc pre code { background: none; padding: 0; }
-.cp-header .cp-desc a { color: var(--c-primary); }
+/* ---------- WeChat ---------- */
+.wechat-warn {
+  background: #fff7e6;
+  border-bottom: 1px solid #ffd591;
+  text-align: center;
+  padding: 6px 12px;
+  font-size: .75rem;
+  color: #ad6800;
+  font-weight: 500;
+}
 
+/* ---------- Page Header ---------- */
+.cp-header {
+  margin-bottom: 16px;
+  padding-top: 4px;
+}
+.cp-header h1 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1d28;
+  letter-spacing: -.2px;
+  line-height: 1.35;
+}
+.cp-header .cp-desc {
+  font-size: .85rem;
+  color: #4b5563;
+  line-height: 1.5;
+  margin-top: 6px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.cp-header .cp-desc p { margin: 0 0 4px; }
+.cp-header .cp-desc p:last-child { margin-bottom: 0; }
+
+/* Meta chips */
+.cp-meta {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cp-meta-item {
+  font-size: .78rem;
+  color: #4b5563;
+  background: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #e4e6eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.45;
+}
+.cp-meta-icon {
+  width: 15px; height: 15px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.cp-meta-item strong { color: #dc2626; font-weight: 600; }
+
+/* 倒计时紧迫感 */
+.cp-meta-item.cp-meta-expire { font-weight: 600; }
+.cp-meta-item.cp-meta-expire.danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.cp-meta-item.cp-meta-expire.warn  { background: #fff7e6; border-color: #ffd591; color: #d97706; }
+.cp-meta-item.cp-meta-expire.normal { /* background: #ecfdf5; border-color: #a7f3d0; color: #059669;*/ }
+.cp-meta-item.cp-meta-expire.forever { background: #eff6ff; border-color: #bfdbfe; color: #3b82f6; }
+
+/* ---------- Card ---------- */
 .cp-card {
-  background: var(--c-white);
-  border-radius: var(--radius);
-  margin-bottom: 12px;
+  background: #fff;
+  border-radius: 5px;
+  margin-bottom: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  border: 1px solid #e4e6eb;
 }
 .cp-card-head {
-  padding: 12px 16px;
-  border-bottom: .5px solid var(--c-border);
+  padding: 7px 12px;
+  border-bottom: 1px solid #f0f2f5;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
+  background: #fafbfc;
 }
-.cp-card-head h2 { font-size: .95rem; font-weight: 600; }
-.cp-card-body { padding: 16px; }
+.cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
+.cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
+.cp-card-body { padding: 10px 12px; }
+.cp-card-body--flush { padding: 0; }
 
+/* ---------- Passcode ---------- */
+.cp-passcode-body {
+  text-align: center;
+  padding: 22px 16px 18px !important;
+}
+.cp-passcode-icon {
+  width: 40px; height: 40px;
+  margin: 0 auto 10px;
+  background: #eff6ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cp-passcode-icon svg { width: 20px; height: 20px; color: #3b82f6; }
+.cp-passcode-title { font-size: .95rem; font-weight: 600; color: #1a1d28; margin-bottom: 2px; }
+.cp-passcode-sub { font-size: .76rem; color: #6b7280; margin-bottom: 14px; }
+.cp-passcode-row {
+  display: flex;
+  align-items: center;
+  max-width: 300px;
+  margin: 0 auto;
+  background: #f5f6f8;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.cp-passcode-row:focus-within { border-color: #3b82f6; background: #fff; }
+.cp-passcode-row input {
+  flex: 1; min-width: 0;
+  padding: 8px 8px 8px 12px;
+  font-size: .85rem;
+  border: none; outline: none;
+  background: transparent;
+  font-family: inherit;
+  color: #1a1d28;
+}
+.cp-passcode-row input::placeholder { color: #9ca3af; }
+.cp-passcode-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  margin: 2px 2px 2px 0;
+  border: none; border-radius: 3px;
+  background: #3b82f6;
+  color: #fff;
+  cursor: pointer;
+  font-size: .78rem; font-weight: 500;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: background .12s;
+}
+.cp-passcode-btn:active { background: #2563eb; }
+.cp-passcode-btn:disabled { opacity: .5; pointer-events: none; }
+.cp-passcode-msg { margin-top: 10px; font-size: .75rem; min-height: 16px; }
+.cp-passcode-msg.error { color: #ef4444; }
+.cp-passcode-msg.success { color: #10b981; }
+
+@keyframes cp-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+.cp-shake { animation: cp-shake .35s ease; }
+
+/* ---------- Badge ---------- */
 .cp-badge {
-  font-size: .72rem;
-  font-weight: 500;
-  color: var(--c-success);
+  font-size: .68rem; font-weight: 500;
+  color: #059669;
   background: #ecfdf5;
-  border-radius: 10px;
-  padding: 3px 10px;
+  border-radius: 3px;
+  padding: 1px 7px;
   cursor: pointer;
 }
 .cp-badge:active { background: #d1fae5; }
 
-/* Passcode — 验证卡片（与项目6px圆角风格统一） */
-.cp-passcode-body {
-  text-align: center;
-  padding: 36px 28px 32px !important;
-}
-.cp-passcode-icon {
-  width: 56px; height: 56px;
-  margin: 0 auto 16px;
-  background: linear-gradient(135deg, #eff6ff, #dbeafe);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-passcode-icon svg { width: 28px; height: 28px; color: var(--c-primary); }
-.cp-passcode-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--c-text);
-  margin-bottom: 6px;
-  letter-spacing: -.2px;
-}
-.cp-passcode-sub {
-  font-size: .85rem;
-  color: var(--c-text-soft);
-  margin-bottom: 22px;
-  line-height: 1.5;
-}
-.cp-passcode-row {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  max-width: 340px;
-  margin: 0 auto;
-  background: #f5f6f8;
-  border: 1.5px solid var(--c-border);
-  border-radius: 6px;
-  overflow: hidden;
-  transition: border-color .2s, box-shadow .2s;
-}
-.cp-passcode-row:focus-within {
-  border-color: var(--c-primary);
-  box-shadow: 0 0 0 4px rgba(59,130,246,.12);
-  background: var(--c-white);
-}
-.cp-passcode-row input {
-  flex: 1; min-width: 0;
-  padding: 11px 12px 11px 16px;
-  font-size: 0.95rem; letter-spacing: .5px;
-  border: none; outline: none;
-  background: transparent;
-  font-family: var(--font);
-  color: var(--c-text);
-}
-.cp-passcode-row input::placeholder { color: #b0b5c0; }
-.cp-passcode-btn {
-  flex-shrink: 0;
-  padding: 8px 18px;
-  margin: 3px 4px 3px 0;
-  border: none; border-radius: 6px;
-  background: var(--c-primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: .85rem; font-weight: 500;
-  font-family: var(--font);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  transition: background .15s, transform .1s;
-}
-.cp-passcode-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-.cp-passcode-btn:active { background: var(--c-primary-hover); transform: scale(.96); }
-.cp-passcode-btn:disabled { opacity: .5; pointer-events: none; }
-.cp-passcode-msg {
-  margin-top: 14px;
-  font-size: .82rem;
-  min-height: 20px;
-  transition: all .25s;
-}
-.cp-passcode-msg.error { color: var(--c-danger); }
-.cp-passcode-msg.success { color: var(--c-success); }
-
-@keyframes cp-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
-}
-.cp-shake { animation: cp-shake .4s ease; }
-
-/* History grid */
-.cp-history-grid { display: flex; flex-direction: column; }
-.cp-history-card {
-  padding: 11px 14px;
-  border-bottom: .5px solid #f2f3f5;
-  display: flex; flex-direction: column; gap: 3px;
-}
-.cp-history-card:last-child { border-bottom: none; }
-.cp-history-card:active { background: #f7f8fa; }
-.cp-history-card-name { font-size: .9rem; font-weight: 600; word-break: break-all; }
-.cp-history-card-name a { color: var(--c-primary); text-decoration: none; }
-.cp-history-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .78rem; color: var(--c-text-soft); flex-wrap: wrap; }
-.cp-history-card-meta-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cp-history-card-time { font-size: .75rem; color: var(--c-text-muted); }
-
-.cp-empty { text-align: center; padding: 36px 16px; color: var(--c-text-soft); font-size: .88rem; }
-.cp-empty p:first-child { font-weight: 500; color: var(--c-text); margin-bottom: 2px; }
-
+/* ---------- Buttons ---------- */
 .cp-btn {
-  padding: 8px 18px; font-size: .85rem; font-weight: 500;
-  cursor: pointer; font-family: var(--font);
-  border: none; border-radius: 6px;
-  background: #f0f0f5; color: var(--c-text);
-  transition: all .15s;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 3px;
+  padding: 6px 12px; font-size: .76rem; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #fff; color: #1a1d28;
+  transition: all .12s;
+  text-decoration: none;
 }
-.cp-btn:active { transform: scale(.96); opacity: .8; }
-.cp-btn-primary { background: #4b89ff; color: #ffffff; border: 1.5px solid transparent; }
-.cp-btn-danger { background: #fef2f2; color: var(--c-danger); border: 1.5px solid #fecaca; }
-.cp-btn-sm { padding: 4px 12px; font-size: .75rem; border-radius: 4px; }
+.cp-btn:active { background: #f3f4f6; }
+.cp-btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.cp-btn-primary:active { background: #2563eb; }
+.cp-btn-sm { padding: 3px 8px; font-size: .7rem; }
+.cp-btn-outline { background: #fff; border: 1px solid #d1d5db; color: #1a1d28; }
 
+/* ---------- Text Delete Button ---------- */
+.cp-act-del-txt {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 10px;
+  border: 1px solid #e4e6eb; border-radius: 3px;
+  background: #fff;
+  color: #dc2626;
+  font-size: .76rem; font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .12s;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.cp-act-del-txt:hover { background: #fef2f2; border-color: #fecaca; }
+.cp-act-del-txt:active { background: #fee2e2; }
+
+/* ============================================================
+   FILE TABLE — Desktop 文件管理器列表
+   ============================================================ */
+.cp-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.cp-table thead th {
+  background: #fafbfc;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: .7rem;
+  color: #808792;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  border-bottom: 1px solid #e4e6eb;
+  user-select: none;
+}
+.cp-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f2f4f7;
+  vertical-align: middle;
+  font-size: .8rem;
+}
+.cp-table tbody tr:last-child td { border-bottom: none; }
+.cp-table tbody tr:hover { background: #fafbfc; }
+
+.cp-th-icon { width: 36px; text-align: center; }
+.cp-th-name { /* flex */ }
+.cp-th-size { width: 80px; }
+.cp-th-time { width: 150px; }
+.cp-th-act { width: 190px; text-align: right; }
+
+.cp-file-icon { width: 36px; text-align: center; }
+.cp-file-icon svg { width: 18px; height: 18px; vertical-align: middle; flex-shrink: 0; }
+.cp-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.cp-file-size { font-size: .76rem; color: #6b7280; white-space: nowrap; }
+.cp-file-time { font-size: .74rem; color: #6b7280; white-space: nowrap; }
+.cp-file-act {
+  text-align: right;
+  white-space: nowrap;
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+/* ============================================================
+   MOBILE CARD LIST — 完全无横向溢出
+   ============================================================ */
+.cp-card-list { display: none; }
+.cp-card-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f2f4f7;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  transition: background .1s;
+}
+.cp-card-item:last-child { border-bottom: none; }
+.cp-card-item:hover { background: #fafbfc; }
+
+.cp-card-icon {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f5f6f8;
+  border-radius: 5px;
+}
+.cp-card-icon svg { width: 18px; height: 18px; }
+
+.cp-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.cp-card-name {
+  font-size: .8rem;
+  font-weight: 500;
+  color: #1a1d28;
+  word-break: break-all;
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+.cp-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  font-size: .7rem;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+.cp-card-meta span { white-space: nowrap; }
+
+.cp-card-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Empty ---------- */
+.cp-empty {
+  text-align: center;
+  padding: 24px 14px;
+  color: #9ca3af;
+  font-size: .78rem;
+}
+.cp-empty svg { width: 32px; height: 32px; color: #d0d5dd; margin-bottom: 6px; }
+.cp-empty p:first-child { font-weight: 500; color: #6b7280; margin-bottom: 1px; }
+
+/* ---------- Toast ---------- */
 .cp-toast {
-  position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%;
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
   transform: translateX(-50%) translateY(60px);
-  background: rgba(30,30,40,.92); backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #fff; padding: 10px 22px; border-radius: 20px;
-  font-size: .82rem; font-weight: 500; z-index: 999;
-  opacity: 0; transition: all .25s cubic-bezier(.4,0,.2,1);
-  pointer-events: none; white-space: nowrap;
+  background: rgba(30,30,40,.9);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 5px;
+  font-size: .74rem; font-weight: 500;
+  z-index: 9999;
+  opacity: 0;
+  transition: all .2s;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .cp-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-.wechat-warn {
-  background: #fffbeb; border-bottom: 1px solid #fcd34d;
-  text-align: center; padding: 8px 16px; font-size: .8rem;
-  color: #92400e; font-weight: 500;
-}
-
+/* ---------- Footer ---------- */
 .collect-page-footer {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  text-align: center; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-  font-size: .75rem; color: var(--c-text-muted);
-  background: rgba(255,255,255,.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-top: .5px solid var(--c-border);
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+  font-size: .68rem;
+  color: #9ca3af;
+  background: rgba(255,255,255,.85);
+  border-top: 1px solid #e4e6eb;
   z-index: 50;
 }
 
-.cp-btn-outline {
-  background: #fff; color: var(--c-text);
-  border: 1.5px solid #d1d5db;
-}
-.cp-btn-outline:active { background: #f3f4f6; }
-
-.cp-history-card-actions {
-  display: flex;
-  gap: 6px;
-}
-.cp-history-card-actions .cp-btn {
-  /* 使用cp-btn-sm的样式 */
-  font-size: .75rem;
-  padding: 4px 12px;
-  min-width: auto;
-}
-
-/* Modal */
+/* ============================================================
+   PREVIEW MODAL
+   ============================================================ */
 .cp-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -276,115 +423,104 @@ body {
 }
 .cp-modal-mask {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,.7);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.65);
 }
 .cp-modal-content {
   position: relative;
-  background: var(--c-white);
-  border-radius: var(--radius);
-  width: 90%;
+  background: #fff;
+  border-radius: 5px;
+  width: 92%;
   max-width: 800px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  box-shadow: 0 10px 36px rgba(0,0,0,.2);
 }
 .cp-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: .5px solid var(--c-border);
+  padding: 8px 12px;
+  border-bottom: 1px solid #e4e6eb;
   flex-shrink: 0;
+  background: #fafbfc;
 }
 .cp-modal-title {
-  font-size: .95rem;
+  font-size: .84rem;
   font-weight: 600;
-  color: var(--c-text);
+  color: #1a1d28;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  margin-right: 12px;
+  margin-right: 8px;
 }
 .cp-modal-close {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: var(--c-bg);
+  width: 24px; height: 24px;
+  border: none; background: #f0f2f5;
   border-radius: 50%;
-  font-size: 1.2rem;
-  color: var(--c-text-soft);
+  font-size: 1rem; color: #6b7280;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
 }
-.cp-modal-close:hover {
-  background: var(--c-border);
-  color: var(--c-text);
-}
+.cp-modal-close:hover { background: #e4e6eb; color: #1a1d28; }
 .cp-modal-body {
   flex: 1;
-  padding: 16px;
+  padding: 10px;
   overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 140px;
 }
-.cp-preview-loading {
-  color: var(--c-text-soft);
-  font-size: .9rem;
-}
+.cp-preview-loading { color: #6b7280; font-size: .82rem; }
 .cp-preview-image {
   max-width: 100%;
-  max-height: calc(90vh - 120px);
+  max-height: calc(90vh - 100px);
   object-fit: contain;
-  border-radius: 4px;
-}
-.cp-preview-pdf {
-  width: 100%;
-  min-height: 500px;
-  border: none;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 .cp-preview-video {
   max-width: 100%;
-  max-height: calc(90vh - 120px);
-  border-radius: 4px;
+  max-height: calc(90vh - 100px);
+  border-radius: 3px;
   background: #000;
 }
 .cp-modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: .5px solid var(--c-border);
+  gap: 5px;
+  padding: 8px 12px;
+  border-top: 1px solid #e4e6eb;
   flex-shrink: 0;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  :root { --cp-pad: 14px; }
+
+  .cp-table-wrap { display: none; }
+  .cp-card-list { display: block; }
+
+  .cp-header h1 { font-size: 1.08rem; }
+  .cp-header .cp-desc { font-size: .82rem; }
+  .cp-meta-item { font-size: .75rem; padding: 3px 9px; }
 }
 
 @media (max-width: 480px) {
   :root { --cp-pad: 12px; }
-  .cp-wrap { padding: 16px var(--cp-pad) 90px; }
-  .cp-header h1 { font-size: 1.2rem; }
-  .cp-meta { gap: 6px; font-size: .73rem; }
-  .cp-meta-item { font-size: .72rem; padding: 3px 8px; }
-  .cp-card-head { padding: 10px 14px; }
-  .cp-card-body { padding: 12px; }
-  .cp-passcode-body { padding: 28px 18px 24px !important; }
-  .cp-history-card { padding: 10px 12px; }
-  .cp-history-card-name { font-size: .85rem; }
-  .cp-history-card-meta { font-size: .73rem; }
-  /* 隐藏JIT Viewer工具栏中的文件名 */
-  .jv-toolbar__filename {
-    display: none !important;
-  }
+  .cp-wrap { padding: 12px var(--cp-pad) 65px; }
+  .cp-header { margin-bottom: 14px; }
+  .cp-header h1 { font-size: 1rem; }
+  .cp-header .cp-desc { font-size: .8rem; }
+  .cp-meta { gap: 5px; margin-top: 8px; }
+  .cp-meta-item { font-size: .73rem; padding: 3px 8px; }
+  .cp-card-head { padding: 8px 12px; }
+  .cp-card-head h2 { font-size: .8rem; }
+  .cp-card-body { padding: 10px 12px; }
+  .cp-passcode-body { padding: 18px 12px 16px !important; }
 }

@@ -26,7 +26,6 @@
       {% if session.user_id %}
       <nav class="header-nav">
         <span class="header-user">欢迎，{{ session.username }}</span>
-        <a href="{{ url_for('admin_profile') }}" class="header-nav-link{% if request.endpoint == 'admin_profile' %} active{% endif %}">个人资料</a>
         <a href="{{ url_for('logout') }}" class="header-nav-link header-nav-logout">退出</a>
       </nav>
       {% endif %}

@@ -1,98 +1,18 @@
 {% extends "base.html" %}
 {% block title %}链接管理{% endblock %}
 
-{% block styles %}
-<!-- WangEditor v5 富文本编辑器 CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wangeditor.css') }}">
-{% endblock %}
-
 {% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
-    <div class="toggle-section{% if edit_link %} open{% endif %}" id="create-section">
-      <div class="toggle-header" onclick="toggleSection('create-section')">
-        <span>{{ '编辑链接' if edit_link else '创建新链接' }}</span>
-        <span style="font-size:.78rem;color:var(--c-text-muted);">{{ '▲' if edit_link else '▼' }}</span>
-      </div>
-      <div class="toggle-body">
-        <form method="POST" action="{{ url_for('create_link') if not edit_link else url_for('edit_link', link_id=edit_link['id']) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="title">收集名称 *</label>
-              <input type="text" id="title" name="title" class="form-input"
-                     value="{{ edit_link['title'] if edit_link else '' }}" placeholder="例：项目A文件收集" maxlength="20" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="passcode">通行证</label>
-              <input type="password" id="passcode" name="passcode" class="form-input"
-                     autocomplete="off" placeholder="请输入通行证">
-            </div>
-            <div class="form-group" style="align-self: flex-end;">
-              <label class="form-checkbox">
-                <input type="checkbox" id="empty_passcode" name="empty_passcode" 
-                       onchange="togglePasscodeInput()">
-                <i class="form-icon"></i> 空通行证（无需验证）
-              </label>
-            </div>
-          </div>
-          <div class="form-hint" id="passcode-hint" style="margin:2px 0 8px;">设置后访问者需输入通行证才能进入；留空则无需验证</div>
-          <div class="form-group">
-            <label class="form-label">描述</label>
-            <div id="description-toolbar" style="border:1px solid #d0d5dd;border-radius:6px 6px 0 0;background:#fafbfc;"></div>
-            <div id="description-editor" style="border:1px solid #d0d5dd;border-top:none;border-radius:0 0 6px 6px;height:180px;min-height:140px;max-height:500px;overflow:hidden;resize:vertical;">
-            </div>
-            <textarea id="description" name="description" style="display:none;"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="max_files">最大文件数量</label>
-              <input type="number" id="max_files" name="max_files" class="form-input"
-                     value="{{ edit_link['max_files'] if edit_link else defaults['max_files'] }}" min="0" step="1" required>
-              <div class="form-hint">0 表示不限制</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="max_file_size_gb">单文件上限 (GB)</label>
-              <input type="number" id="max_file_size_gb" name="max_file_size_gb" class="form-input"
-                     value="{{ edit_link['max_file_size_gb'] if edit_link else defaults['max_file_size_gb'] }}" min="0.01" max="64" step="0.01" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
-              <input type="number" id="expire_days" name="expire_days" class="form-input"
-                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else defaults.expire_days }}" placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="expires_at">截止日期和时间</label>
-              <input type="datetime-local" id="expires_at" name="expires_at" class="form-input"
-                     onkeydown="return false;">
-              <span style="font-size:.72rem;color:var(--c-text-muted);">优先级高于上述天数，最长 {{ defaults.expire_days }} 天</span>
-            </div>
-          </div>
-          <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
-          <div class="form-group" style="margin-top:4px;">
-            <label class="form-check">
-              <input type="checkbox" id="allow_delete" name="allow_delete" value="1">
-              <span>允许上传者删除已上传文件</span>
-            </label>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建链接' }}</button>
-            {% if edit_link %}<a href="{{ url_for('admin_links') }}" class="btn">取消</a>{% endif %}
-            <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearExpiry()" style="display:none;" id="clear-expiry-btn">清除过期设置</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <h3>收集链接</h3>
-        <span class="links-page-info">共 {{ total }} 个，第 {{ page }}/{{ total_pages }} 页</span>
+    <div class="card links-card">
+      <div class="links-header">
+        <div class="links-header-left">
+          <h3 class="links-header-title">收集链接</h3>
+          <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
+        </div>
+        <a href="{{ url_for('admin_link_new') }}" class="btn btn-primary btn-create-link">＋ 创建新链接</a>
       </div>
       <div class="table-wrap">
         {% if links %}
@@ -100,6 +20,7 @@
           <thead>
             <tr>
               <th class="col-title">收集名称</th>
+              <th class="col-share">分享</th>
               <th class="col-hide-mobile col-limit">限制</th>
               <th class="col-status">状态</th>
               <th class="col-hide-mobile col-time">创建</th>
@@ -110,6 +31,19 @@
             {% for link in links %}
             <tr>
               <td class="col-title">{{ link['title'] }}</td>
+              <td class="col-share">
+                {% if link['share_enabled'] %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  已开启
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  未开启
+                </span>
+                {% endif %}
+              </td>
               <td class="col-hide-mobile col-limit" style="color:var(--c-text-soft);font-size:.82rem;">
                 {% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}
               </td>
@@ -139,8 +73,10 @@
               <td class="col-act">
                 {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
                 {% set need_reset = '1' if link['_is_legacy'] else '0' %}
-                {% set max_size_mb = (link['max_file_size_gb'] * 1024)|round(0)|int if link['max_file_size_gb'] < 1 else none %}
+                {% set share_pass_text = link['share_passcode_plain'] if link['_has_share_passcode'] else '' %}
+                {% set share_need_reset = '1' if link['_is_share_legacy'] else '0' %}
                 <button class="btn btn-sm btn-outline btn-more-link" title="更多操作"
+                  onclick="showLinkPopover(this)"
                   data-link-id="{{ link['id'] }}"
                   data-title="{{ link['title']|e }}"
                   data-description="{{ link['description']|e if link['description'] else '' }}"
@@ -153,6 +89,9 @@
                   data-passcode="{{ pass_text }}"
                   data-has-passcode="{{ link['_has_passcode']|lower }}"
                   data-is-legacy="{{ need_reset }}"
+                  data-share-passcode="{{ share_pass_text }}"
+                  data-has-share-passcode="{{ link['_has_share_passcode']|lower }}"
+                  data-is-share-legacy="{{ share_need_reset }}"
                   data-allow-delete="{{ link['allow_delete'] }}">操作</button>
               </td>
             </tr>
@@ -195,6 +134,47 @@
 
 {% block scripts %}
 <style>
+/* 链接管理页卡片头部 */
+.links-card { overflow: hidden; }
+
+.links-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--c-border, #e8ecf1);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.links-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.links-header-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--c-text, #1a1d28);
+  letter-spacing: -0.01em;
+}
+
+.links-header-stats {
+  font-size: 0.78rem;
+  color: #8896a4;
+  white-space: nowrap;
+}
+
+.btn-create-link {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
 /* 更多按钮 */
 .btn-more-link {
   background: transparent;
@@ -210,21 +190,32 @@
 .btn-more-link:hover { background: var(--c-primary-light); }
 .btn-more-link.active { background: var(--c-primary); color: #fff; }
 
-/* PC端 /admin/links 表格：名称列自适应，状态/操作右对齐 */
+/* PC端 /admin/links 表格 */
 .admin-links-table { table-layout: auto; }
 .admin-links-table .col-title { width: auto; min-width: 0; }
-.admin-links-table .col-status { white-space: nowrap; text-align: right; width: 1px; }
+.admin-links-table .col-share { white-space: nowrap; width: 1px; }
+.admin-links-table .col-status { white-space: nowrap; text-align: left; width: 1px; }
 .admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
-/* 操作列 th 文字与按钮文字右对齐（补回按钮 padding-right 偏移：14px th pad + 12px btn pad = 26px） */
 .admin-links-table th.col-act { padding-right: 26px; }
 
-/* 移动端隐藏列 + 右对齐状态/操作 */
+/* 移动端 */
 @media (max-width: 640px) {
+  .links-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+  .links-header-left { width: 100%; }
+  .links-header-title { font-size: 1.05rem; }
+  .btn-create-link { width: 100%; text-align: center; }
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
-  .links-page-info { font-size: .72rem !important; flex-shrink: 0; }
   .col-title { width: auto; min-width: 0; }
+  .col-share { white-space: nowrap; width: 1px; font-size: .72rem !important; }
+  .col-share span { font-size: .7rem !important; }
+  .col-share span svg { width: 11px; height: 11px; }
   .col-status { white-space: nowrap; text-align: right; width: 1px; }
   .col-act { white-space: nowrap; text-align: right; width: 1px; }
   .admin-links-table th.col-act { padding-right: 22px; }
@@ -260,7 +251,6 @@
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 浮窗头部 */
 .link-popover-header {
   display: flex;
   align-items: center;
@@ -283,7 +273,6 @@
 }
 .link-popover-close:hover { background: #f0f0f0; color: #666; }
 
-/* 信息区 */
 .link-popover-info {
   padding: 12px 18px;
   border-bottom: 1px solid #f0f0f0;
@@ -310,10 +299,7 @@
   overflow-y: auto;
 }
 
-/* 操作区 */
-.link-popover-actions {
-  padding: 6px 0;
-}
+.link-popover-actions { padding: 6px 0; }
 .link-popover-actions .lp-action-btn {
   display: flex;
   align-items: center;
@@ -342,7 +328,6 @@
   margin: 4px 16px;
 }
 
-/* 双排按钮行 */
 .lp-action-row {
   display: flex;
   gap: 6px;
@@ -368,30 +353,7 @@
   display: flex;
   min-width: 0;
 }
-.lp-action-row form .lp-action-btn {
-  width: 100%;
-}
-
-/* 隐藏 wangeditor 选中文本时的悬浮工具栏（顶部已有固定工具栏，无需重复） */
-.w-e-hover-bar { display: none !important; }
-
-/* 编辑器可拖拽调整高度 + 避免双重滚动条 */
-#description-editor {
-  resize: vertical;
-  overflow: hidden;
-  transition: box-shadow 0.2s;
-}
-#description-editor:hover {
-  box-shadow: inset 0 0 0 1px #c0c7cf;
-}
-/* 右下角拖拽手柄区域留出空间，防止遮挡文字 */
-#description-editor::-webkit-resizer {
-  background: linear-gradient(135deg, transparent 40%, #c0c7cf 40%, #c0c7cf 45%, transparent 45%, transparent 55%, #c0c7cf 55%, #c0c7cf 60%, transparent 60%);
-}
-/* 消除 wangEditor 内部可能产生的第二层滚动条 */
-#description-editor .w-e-scroll {
-  overflow-y: hidden !important;
-}
+.lp-action-row form .lp-action-btn { width: 100%; }
 
 @media (max-width: 640px) {
   .link-popover {
@@ -403,7 +365,6 @@
   .link-popover-info { padding: 10px 16px; }
   .link-popover-info .lp-row { font-size: .78rem; }
   .link-popover-actions .lp-action-btn:not(.lp-action-row .lp-action-btn) { padding: 12px 18px; font-size: .84rem; }
-  /* 移动端双排按钮缩小字号和间距 */
   .lp-action-row { gap: 4px; padding: 5px 8px; }
   .lp-action-row .lp-action-btn { font-size: 0.76rem; padding: 10px 4px; }
   .lp-action-row .lp-action-btn svg { width: 14px; height: 14px; margin-right: 2px !important; }
@@ -411,32 +372,7 @@
 </style>
 
 <script>
-// WangEditor v5（异步加载，懒初始化）
-var _wangEditorInited = false;
-var _wangScript = document.createElement('script');
-_wangScript.src = '{{ url_for("static", filename="js/wangeditor.min.js") }}';
-_wangScript.onload = function() {
-  // 如果折叠区已展开（编辑模式），立即初始化（DOM 可能尚未就绪，需做空值检查）
-  var secEl = document.getElementById('create-section');
-  if (secEl && secEl.classList.contains('open')) {
-    initWangEditor();
-    _wangEditorInited = true;
-  }
-};
-document.head.appendChild(_wangScript);
-
 var _lpBtn = null;
-var _editDesc = '';
-
-function toggleSection(id) {
-  var el = document.getElementById(id);
-  el.classList.toggle('open');
-  // 首次展开时初始化 wangEditor（容器可见才能正确计算高度）
-  if (!_wangEditorInited && el.classList.contains('open') && window.wangEditor) {
-    initWangEditor();
-    _wangEditorInited = true;
-  }
-}
 
 function getBaseUrl() {
   var pu = {{ public_url|tojson }};
@@ -485,7 +421,6 @@ function showLinkPopover(btn) {
   _lpBtn = btn;
   btn.classList.add('active');
 
-  // 读取数据
   var d = {
     linkId:   btn.getAttribute('data-link-id'),
     title:    btn.getAttribute('data-title'),
@@ -499,17 +434,16 @@ function showLinkPopover(btn) {
     passcode: btn.getAttribute('data-passcode'),
     hasPasscode: btn.getAttribute('data-has-passcode') === 'true',
     isLegacy: btn.getAttribute('data-is-legacy') === '1',
+    sharePasscode: btn.getAttribute('data-share-passcode'),
+    hasSharePasscode: btn.getAttribute('data-has-share-passcode') === 'true',
+    isShareLegacy: btn.getAttribute('data-is-share-legacy') === '1',
     allowDelete: btn.getAttribute('data-allow-delete') === '1',
     csrfToken: document.querySelector('input[name="csrf_token"]').value
   };
 
-  // 描述内容存入全局变量，避免通过 onclick 属性传递 HTML 造成转义异常
-  _editDesc = d.desc;
-
   var isActive = d.status === 'active';
   var statusText = isActive ? '<span style="color:#059669;font-weight:500;">● 启用</span>' : '<span style="color:#dc2626;font-weight:500;">● 已停用</span>';
 
-  // 限制
   var limitText;
   if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }
   else { limitText = d.maxFiles + ' 个'; }
@@ -520,7 +454,6 @@ function showLinkPopover(btn) {
     limitText += d.maxSizeGb + ' GB';
   }
 
-  // 有效期
   var expireText;
   if (d.expiresAt) {
     expireText = '<span style="color:#f59e0b;">' + escapeHtml(d.expiresAt.replace('T',' ')) + '</span>';
@@ -528,12 +461,10 @@ function showLinkPopover(btn) {
     expireText = '<span style="color:#999;">永不过期</span>';
   }
 
-  // 描述（浮窗内显示纯文本摘要，最长80字）
   var descPlain = d.desc ? stripHtml(d.desc).replace(/\s+/g, ' ').trim() : '';
   if (descPlain.length > 80) descPlain = descPlain.substring(0, 80) + '...';
   var descHtml = descPlain ? '<div class="lp-row"><span class="lp-label">描述</span><span class="lp-val lp-desc">' + escapeHtml(descPlain) + '</span></div>' : '';
 
-  // 填充信息区
   document.getElementById('lp-title').textContent = d.title;
   document.getElementById('lp-info').innerHTML =
     '<div class="lp-row"><span class="lp-label">状态</span><span class="lp-val">' + statusText + '</span></div>' +
@@ -544,27 +475,25 @@ function showLinkPopover(btn) {
     '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>' +
     '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="/admin/links/' + d.linkId + '/upload-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
 
-  // 操作按钮
   var toggleLabel = isActive ? '停用链接' : '启用链接';
   var toggleClass = isActive ? 'warning' : 'primary';
   var html = '';
 
-  // SVG 图标定义
   var svgCopy = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
   var svgDownload = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   var svgEdit = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-  // 启停使用不同图标：启用时显示停止图标，停用时显示播放图标
   var svgToggleStop = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
   var svgTogglePlay = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
   var svgToggle = isActive ? svgToggleStop : svgTogglePlay;
   var svgDelete = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-  // 预构建启停表单URL
+
   var toggleUrl = '{{ url_for("toggle_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
   var deleteUrl = '{{ url_for("delete_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+  var editUrl = '{{ url_for("admin_link_form", link_id="_ID_") }}'.replace('_ID_', d.linkId);
 
   // 第一排：分享 & 收集
   html += '<div class="lp-action-row">';
-  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + d.linkId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgCopy + '复制分享链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + d.linkId + '\',\'' + escapeJs(d.sharePasscode) + '\',' + d.isShareLegacy + ')">' + svgCopy + '复制分享链接</button>';
   html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + d.linkId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
   html += '</div>';
 
@@ -572,14 +501,11 @@ function showLinkPopover(btn) {
 
   // 第二排：编辑 / 启停 / 删除
   html += '<div class="lp-action-row">';
-  // 编辑
-  html += '<button class="lp-action-btn" onclick="closeLinkPopover();popoverEditLink(\'' + d.linkId + '\',\'' + escapeJs(d.title) + '\',' + d.maxFiles + ',' + d.maxSizeGb + ',\'' + escapeJs(d.expiresAt) + '\',' + d.allowDelete + ',' + d.hasPasscode + ')">' + svgEdit + '编辑链接</button>';
-  // 启停
+  html += '<a href="' + editUrl + '" class="lp-action-btn">' + svgEdit + '编辑链接</a>';
   html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
     '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
     '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +
     '</form>';
-  // 删除
   html += '<form method="POST" action="' + deleteUrl + '" onsubmit="return confirm(\'确定删除链接「' + escapeJs(d.title) + '」？上传文件不会被删除。\');">' +
     '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
     '<button type="submit" class="lp-action-btn danger">' + svgDelete + '删除链接</button>' +
@@ -588,7 +514,6 @@ function showLinkPopover(btn) {
 
   document.getElementById('lp-actions').innerHTML = html;
 
-  // 显示
   document.getElementById('link-popover-overlay').style.display = '';
   document.getElementById('link-popover').style.display = '';
 }
@@ -608,268 +533,12 @@ function popoverCopyLink(type, linkId, passcode, isLegacy) {
   var actionHint = type === 'collect' ? '请通过此链接上传文件' : '请通过此链接提取文件';
   var text;
   if (passcode) {
-    var passLabel = type === 'collect' ? '上传通行证' : '文件通行证';
+    var passLabel = type === 'collect' ? '上传通行证' : '分享通行证';
     text = url + '\n' + passLabel + '：' + passcode + '\n' + actionHint;
   } else {
     text = url + '\n\n' + actionHint;
   }
   copyToClipboard(text);
 }
-
-function popoverEditLink(linkId, title, maxFiles, maxSizeGb, expiresAt, allowDelete, hasPasscode) {
-  document.getElementById('title').value = title;
-  document.getElementById('passcode').value = '';
-  document.getElementById('passcode').placeholder = '留空则保持原有通行证';
-  document.getElementById('passcode').removeAttribute('required');
-  document.getElementById('empty_passcode').checked = !hasPasscode;
-  togglePasscodeInput();
-  var passcodeHint = document.getElementById('passcode-hint');
-  if (passcodeHint) {
-    passcodeHint.innerHTML = '留空则保持原有通行证不变';
-  }
-  // 如果编辑器尚未初始化（懒加载），则先初始化
-  if (!_wangEditorInited && window.wangEditor) {
-    initWangEditor();
-    _wangEditorInited = true;
-  }
-  if (window._descEditor) {
-    window._descEditor.setHtml(_editDesc || '');
-    // setHtml 后同步 textarea（change 事件可能不触发或延迟）
-    var descEl = document.getElementById('description');
-    if (descEl) {
-      try { descEl.value = window._descEditor.getHtml(); } catch(e) {}
-    }
-  }
-  document.getElementById('max_files').value = maxFiles;
-  document.getElementById('max_file_size_gb').value = maxSizeGb;
-  document.getElementById('expire_days').value = '';
-  document.getElementById('expires_at').value = expiresAt;
-  document.getElementById('clear_expiry').value = '0';
-  document.getElementById('allow_delete').checked = allowDelete;
-  document.getElementById('create-section').classList.add('open');
-  document.querySelector('#create-section form').action = {{ url_for('edit_link', link_id='_PLACEHOLDER_')|tojson }}.replace('_PLACEHOLDER_', linkId);
-  document.querySelector('#create-section .btn-primary').textContent = '保存修改';
-  document.querySelector('#create-section .toggle-header span:first-child').textContent = '编辑链接';
-  var clearBtn = document.getElementById('clear-expiry-btn');
-  if (clearBtn) clearBtn.style.display = expiresAt ? '' : 'none';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/* ==================== 原有功能（保留） ==================== */
-
-function togglePasscodeInput() {
-  var emptyPasscode = document.getElementById('empty_passcode').checked;
-  var passcodeInput = document.getElementById('passcode');
-  if (emptyPasscode) {
-    passcodeInput.disabled = true;
-    passcodeInput.value = '';
-    passcodeInput.placeholder = '空通行证（无需验证）';
-    passcodeInput.style.opacity = '0.5';
-    passcodeInput.style.cursor = 'not-allowed';
-  } else {
-    passcodeInput.disabled = false;
-    passcodeInput.placeholder = '请输入通行证';
-    passcodeInput.style.opacity = '1';
-    passcodeInput.style.cursor = 'text';
-  }
-}
-
-function clearExpiry() {
-  document.getElementById('expires_at').value = '';
-  document.getElementById('expire_days').value = '';
-  document.getElementById('clear_expiry').value = '1';
-}
-
-/* ==================== WangEditor 初始化 ==================== */
-
-function initWangEditor() {
-  var editorElem = document.getElementById('description-editor');
-  if (!editorElem || !window.wangEditor) return;
-
-  var descInitial = {{ (edit_link.get('description', '') if edit_link else '')|tojson }};
-
-  var editorConfig = {
-    placeholder: '向文件提交者展示的说明（支持富文本）',
-    autoFocus: false,
-  };
-
-  // 抑制 wangEditor 编辑器高度<300px 的 console 警告（resize + auto-grow 已就绪，功能不受影响）
-  var _origWarn = console.warn;
-  var _origError = console.error;
-  var _isWangEditorHeightMsg = function(msg) {
-    return typeof msg === 'string' && msg.indexOf('300px') !== -1 && (msg.indexOf('高度') !== -1 || msg.indexOf('height') !== -1);
-  };
-  console.warn = function() {
-    if (_isWangEditorHeightMsg(arguments[0])) return;
-    return _origWarn.apply(console, arguments);
-  };
-  console.error = function() {
-    if (_isWangEditorHeightMsg(arguments[0])) return;
-    return _origError.apply(console, arguments);
-  };
-
-  try {
-    var editor = window.wangEditor.createEditor({
-      selector: '#description-editor',
-      html: descInitial,
-      config: editorConfig,
-      mode: 'default',
-    });
-
-    var toolbarConfig = {
-      toolbarKeys: [
-        'headerSelect',
-        'bold', 'italic', 'underline', 'through',
-        'color', 'bgColor',
-        'fontSize',
-        '|',
-        'bulletedList', 'numberedList',
-        'blockquote', 'codeBlock',
-        'insertLink',
-        '|',
-        'undo', 'redo',
-        'clearStyle',
-      ]
-    };
-
-    window.wangEditor.createToolbar({
-      editor: editor,
-      selector: '#description-toolbar',
-      config: toolbarConfig,
-      mode: 'default',
-    });
-  } catch(e) {
-    console.error('wangEditor 初始化失败:', e);
-    console.warn = _origWarn;  console.error = _origError; // 恢复
-    // 编辑器初始化失败时，显示原始 textarea 作为降级
-    var fallback = document.getElementById('description');
-    if (fallback) fallback.style.display = '';
-    return;
-  }
-
-  // 保持 console 拦截不恢复：wangEditor 可能在后续高度变化时再次触发该警告
-
-  // 保存全局引用
-  window._descEditor = editor;
-
-  // ★ 同步函数：将编辑器 HTML 写入隐藏 textarea
-  var syncDesc = function() {
-    var descEl = document.getElementById('description');
-    if (!descEl) return;
-    try {
-      var html = editor.getHtml();
-      if (html) descEl.value = html;
-    } catch(e) { console.error('wangEditor sync error:', e); }
-  };
-
-  // ★ 自动增高：当内容高度超出容器时，自动扩展编辑器高度
-  var autoGrow = function() {
-    var scrollDiv = editorElem.querySelector('.w-e-scroll');
-    if (!scrollDiv) return;
-    var contentH = scrollDiv.scrollHeight;
-    var containerH = editorElem.clientHeight;
-    var maxH = 500;
-    if (contentH > containerH && containerH < maxH) {
-      var newH = Math.min(contentH + 18, maxH);
-      editorElem.style.height = newH + 'px';
-    }
-  };
-
-  // ★ 实时同步 + 自动增高：每次内容变化立即写入并检查高度
-  editor.on('change', function() {
-    syncDesc();
-    autoGrow();
-  });
-
-  // ★ 失焦同步：编辑器失焦时再同步一次（兜底）
-  editor.on('blur', syncDesc);
-
-  // ★ 表单提交时同步（双保险）
-  var form = document.querySelector('#create-section form');
-  if (form) {
-    form.addEventListener('submit', function() {
-      // 优先使用全局引用，确保同步时机正确
-      var ed = window._descEditor || editor;
-      syncDesc();
-    });
-  }
-}
-
-// 绑定"操作"按钮
-(function() {
-  var btns = document.querySelectorAll('.btn-more-link');
-  btns.forEach(function(btn) {
-    btn.addEventListener('click', function() { showLinkPopover(this); });
-  });
-
-  var form = document.querySelector('#create-section form');
-  if (!form) return;
-
-  var maxExpireDays = {{ defaults.expire_days }};
-
-  var expiresAtInput = document.getElementById('expires_at');
-  if (expiresAtInput) {
-    var now = new Date();
-    var maxDate = new Date(now.getTime() + maxExpireDays * 24 * 60 * 60 * 1000);
-    function pad(n) { return n < 10 ? '0' + n : n; }
-    function toLocalISOString(d) {
-      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
-        + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    }
-    expiresAtInput.setAttribute('min', toLocalISOString(now));
-    expiresAtInput.setAttribute('max', toLocalISOString(maxDate));
-  }
-
-  ['max_files', 'expire_days'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('input', function() {
-        if (this.value.includes('.')) this.value = this.value.split('.')[0];
-      });
-    }
-  });
-
-  form.addEventListener('submit', function(e) {
-    var emptyPasscode = document.getElementById('empty_passcode').checked;
-    if (emptyPasscode) {
-      if (!confirm('通行证为空意味着任何人都可以直接访问链接，确定要继续吗？')) {
-        e.preventDefault(); return false;
-      }
-    }
-    var expAt = document.getElementById('expires_at').value;
-    if (expAt) {
-      var selected = new Date(expAt);
-      var nowD = new Date();
-      var maxD = new Date(nowD.getTime() + maxExpireDays * 24 * 60 * 60 * 1000);
-      if (selected <= nowD) {
-        e.preventDefault(); alert('截止日期必须晚于当前时间'); return false;
-      }
-      if (selected > maxD) {
-        e.preventDefault(); alert('截止日期不能超过' + maxExpireDays + '天'); return false;
-      }
-    }
-    var maxFiles = document.getElementById('max_files').value;
-    if (maxFiles !== '') {
-      var mf = parseInt(maxFiles, 10);
-      if (isNaN(mf) || String(mf) !== maxFiles.trim() || mf < 0) {
-        e.preventDefault(); alert('最大文件数量必须是大于等于0的整数（0表示不限制）'); return false;
-      }
-    }
-    var maxSize = document.getElementById('max_file_size_gb').value;
-    if (maxSize !== '') {
-      var ms = parseFloat(maxSize);
-      if (isNaN(ms) || ms < 0.01 || ms > 64) {
-        e.preventDefault(); alert('单文件上限必须在 0.01-64 GB 之间'); return false;
-      }
-    }
-    var expDays = document.getElementById('expire_days').value;
-    if (expDays !== '') {
-      var d = parseInt(expDays, 10);
-      if (isNaN(d) || d < 0 || d > maxExpireDays || String(d) !== expDays.trim()) {
-        e.preventDefault(); alert('有效期天数必须是 0-' + maxExpireDays + ' 的整数（0表示永不过期）'); return false;
-      }
-    }
-  });
-})();
 </script>
 {% endblock %}

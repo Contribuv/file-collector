@@ -13,10 +13,22 @@
         <div class="card-body">
           <form method="POST" action="{{ url_for('admin_settings') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_username">管理员用户名</label>
+                <input type="text" id="new_username" name="new_username" class="form-input form-input-sm"
+                       value="{{ admin_username }}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="new_nickname">昵称</label>
+                <input type="text" id="new_nickname" name="new_nickname" class="form-input form-input-sm"
+                       value="{{ admin_nickname }}" placeholder="显示名称">
+              </div>
+            </div>
             <div class="form-group">
-              <label class="form-label" for="new_username">管理员用户名</label>
-              <input type="text" id="new_username" name="new_username" class="form-input form-input-sm"
-                     value="{{ admin_username }}" required>
+              <label class="form-label" for="new_email">邮箱</label>
+              <input type="email" id="new_email" name="new_email" class="form-input form-input-sm"
+                     value="{{ admin_email }}" placeholder="用于密码找回">
             </div>
             <div class="form-group">
               <label class="form-label" for="old_password">当前密码 *</label>
@@ -106,6 +118,47 @@
         </div>
       </div>
 
+      <!-- 站点标题 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>站点标题</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="site_title">站点标题</label>
+              <input type="text" id="site_title" name="site_title" class="form-input form-input-sm"
+                     value="{{ defaults.site_title or '文件收集器' }}" maxlength="60" required>
+              <div class="form-hint">显示在页面标题栏、分享页和收集页顶部</div>
+            </div>
+            <button type="submit" name="action" value="site_title" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 分享页设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>分享页设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="share_page_title">分享页标题</label>
+              <input type="text" id="share_page_title" name="share_page_title" class="form-input form-input-sm"
+                     value="{{ defaults.share_page_title or '' }}" maxlength="60"
+                     placeholder="留空则使用站点标题">
+              <div class="form-hint">分享页顶部栏和浏览器标题栏显示的名称，留空使用站点标题</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="share_footer_text">分享页页尾信息</label>
+              <textarea id="share_footer_text" name="share_footer_text" class="form-textarea form-textarea-sm" rows="2"
+                        placeholder="留空则显示默认 Powered by File Collector">{{ defaults.share_footer_text or '' }}</textarea>
+              <div class="form-hint">显示在分享页底部</div>
+            </div>
+            <button type="submit" name="action" value="share_page" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
       <!-- 登录页提示 -->
       <div class="card card-compact">
         <div class="card-header"><h3>登录页提示</h3></div>
@@ -154,7 +207,7 @@
               <label class="form-label" for="custom_upload_path">自定义上传目录</label>
               <input type="text" id="custom_upload_path" name="custom_upload_path" class="form-input form-input-sm"
                      value="{{ custom_upload_path }}" placeholder="例：/vol2/1000/文件收集">
-              <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径{% endif %}</div>
+              <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径，自定义路径需要在应用中心添加权限。{% endif %}</div>
             </div>
             <button type="submit" name="action" value="upload_path" class="btn btn-primary btn-sm">保存</button>
           </form>
@@ -300,8 +353,8 @@
         </div>
       </div>
 
-    <!-- 系统信息 - 双栏卡片 -->
-    <div class="card card-compact">
+    <!-- 系统信息 -->
+    <div class="card card-compact card-full-width">
       <div class="card-header"><h3>系统信息</h3></div>
       <div class="card-body">
         <div class="info-grid">
@@ -358,13 +411,25 @@
 .form-input-sm { padding: 7px 11px; font-size: 0.82rem; }
 .form-textarea-sm { min-height: 52px; font-size: 0.82rem; }
 
-/* 流式单栏布局 */
+/* 双栏瀑布流 */
 .settings-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px 0;
-  align-items: start;
+  display: block;
+  column-count: 2;
+  column-gap: 16px;
 }
+
+.settings-grid .card {
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.settings-grid .card.card-full-width {
+  display: block;
+  column-span: all;
+}
+
 /* 系统信息双栏 */
 .info-grid {
   display: grid;
@@ -372,9 +437,8 @@
   gap: 0 24px;
 }
 @media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
+  .settings-grid { column-count: 1; }
+  .info-grid { grid-template-columns: 1fr; }
 }
 
 .modal-overlay {

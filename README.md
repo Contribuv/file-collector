@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.18-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.20-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -22,7 +22,7 @@
 
 文件收集器是一个功能完备的轻量级 Web 应用，支持**多用户体系**、**Office 在线预览**和**双模式分享**。管理员可在后台创建多个独立的收集链接，每个链接拥有独立通行证、上传限制和有效期。每个链接自动生成**收集页**（上传）和**分享页**（浏览下载）两种模式。内置邀请码注册系统，支持管理员和普通用户两种角色。Office 文件（Word/Excel/PPT）可直接在线预览，无需下载。非常适合团队协作、作业收集、资料汇总、文件分发等场景。
 
-**适用平台：** [飞牛 fnOS](https://www.fnnas.com/) Native 应用（.fpk 格式），飞牛nas独占应用。支持 **x86 / ARM / LoongArch / RISC-V** 全平台。
+**适用平台：** [飞牛 fnOS](https://www.fnnas.com/) Native 应用（.fpk 格式），也可 Docker 部署。支持 **x86 / ARM / LoongArch / RISC-V** 全平台。
 
 ---
 
@@ -189,70 +189,112 @@ GET /api/status
 
 ## 更新日志
 
-### v2.0.18
-- **Bug 修复（3合1—分片上传断点续传竞态）**：修复 `chunk_upload` 并发读-改-写竞态条件导致分片记录丢失（`BEGIN IMMEDIATE` 事务 + 锁内重读）；修复 `chunk_merge` 不做磁盘容错导致 DB 缺失分片时直接报 400（补磁盘文件检查 + 自动补齐 DB）；修复 `chunk_init` 匹配旧 session 后响应不返回 `upload_id` 导致前端 UUID 断链报 404
-- **PDF 移动端预览修复**：`jit_preview.html` 新增 `.jv-pdf-page-wrapper` + `.jv-pdf-canvas` `max-width: 100%` 约束，解决移动端 PDF 显示不全只能缩放 80% 的问题
+### v2.1.20
 
-### v2.0.17
-- **断点续传体验升级**：collect 页新增拖拽区显式提示（PC 展全文 / 移动端可折叠展开）
-- **上传失败一键重试**：失败文件旁显式「重试」按钮，底部汇总栏提供「全部重试（断点续传）」
-- **重试实时反馈**：重试过程显示续传进度（x/N 分片），成功自动从失败列表移除
-- **desc 更新**：应用描述新增断点续传核心亮点说明
+- **# 严重修复**：`cmd/main` 缺少 `upgrade` 处理器！fnOS 调用 `cmd/main upgrade` 时因无匹配 case 分支直接 `exit 1`，导致系统报"应用异常退出"
+- **# 修复**：重新应用 v2.1.17~v2.1.18 全部修复（此前打包时 cmd/main 修改未保存成功）：sqlite3 真实验证表存在、`/var/backups` 三重备份位置、恢复优先级 `/var/backups` → PKGVAR → `/tmp`
+- **# 修复**：`upgrade_callback` 恢复源和清理范围补上 `/var/backups`
+- **# 修复**：`uninstall_callback` 卸载前数据库备份到 `/var/backups`
 
-### v2.0.16
-- **Bug 修复**：修复 `cmd/main` 生命周期脚本 4 个问题：`$SOCK_PATH` 未定义变量引用、步骤编号不一致（start 1/5→1/7、uninstall 1/7→1/8）、`pkill -f` 模式过于激进可能误杀无关进程、补全缺失的 `[6/7]` 步骤标签
+### v2.1.19
 
-### v2.0.15
-- **Bug 修复**：修复 `chunk_init` 接口在续传/新建会话成功时响应缺少 `success: True` 字段，导致前端 `collect.html` 始终判定为失败并抛出 "初始化上传会话错误" 的致命问题
+- **# 修正**：manifest 版本号同步（此前 v2.1.18 更新时 manifest 未同步至 2.1.18，仍显示 2.1.17）
 
-### v2.0.14
-- **移动端重构**：上传/下载日志页响应式彻底重写，废弃 JS 切换改用纯 CSS `@media` 查询（`!important` 确保生效）
-- **Bug 修复**：修复 class 名不匹配（模板用 `records-list-mobile` vs CSS 定义 `records-cards-mobile`）导致移动端 PC 表格永远不被隐藏的致命问题
+### v2.1.18
 
-### v2.0.13
-- **移动端优化**：上传/下载日志页移动端完全重做，新增 `.record-card-row` / `.record-card-label` 卡片行样式
-- **移动端优化**：摘要栏 `flex-wrap` 适配小屏，侧栏导航支持横向滚动（隐藏滚动条）
+- **# 修复**：数据库恢复后登录提示"安全验证失败"。根因：`app.secret_key` 运行时修改只影响当前 gunicorn worker，其他 worker 仍是旧 key，导致 cookie 跨 worker 解密失败。改为仅保存 key 到数据库，重启后生效
+- **# 简化**：移除恢复后的 session 重建逻辑（不再需要，因为 secret_key 未运行时更改）
 
-### v2.0.12
-- **Bug 修复**：仪表盘浮窗 `csrfToken` 从 DOM 查询改为 Jinja2 模板注入，解决页面无隐藏域导致 `null.value` 报错
+### v2.1.17
 
-### v2.0.11
-- **Bug 修复**：修复上传日志页 Jinja2 条件 block 语法错误（`/admin/links/<id>/upload-logs` 500）
-- **Bug 修复**：修复仪表盘文件浮窗 `csrfToken` 未定义导致弹窗无法弹出
-- **UI 修复**：records 页筛选下拉框 `border-radius` 从 16px 改为 4px，与按钮形状统一
+- **# 修复**：数据库检查从"仅验证文件大小 >0"改为用 sqlite3 CLI 查询 `SELECT COUNT(*) FROM users`，真正验证数据库是否完整。不再出现"数据库存在（4096 字节空壳）→ 全量建表"的误导
+- **# 新增**：启动/卸载/升级均在 `/var/backups/file-collector/` 额外保存数据库副本（防 fnOS 清理 PKGVAR 导致数据丢失）
+- **# 新增**：启动恢复流程优先检查 `/var/backups/file-collector/` 安全备份
 
-### v2.0.10
-- **上传日志重构**：上传记录从文件浮窗迁移至收集链接浮窗，按 link_id 统计上传事件
-- **新路由**：`/admin/links/<link_id>/upload-logs` 查看链接下所有上传日志
-- **Dashboard 补齐删除按钮**：仪表盘文件浮窗与 records 页保持一致，支持直接删除
+### v2.1.16
 
-### v2.0.9
-- **浮窗 UI 重构**：底部移除独立「上传日志」按钮，下载记录整合为内联链接行「下载记录 → 查看」，admin_records 与 admin_dashboard 复用统一样式
+- **# 修复**：已登录 session 被 flash 消息等触发修改后，cookie 降级为浏览器会话级（无过期时间），导致"等一会儿又要登陆"。`before_request` 中为已登录用户每请求标记 `session.permanent=True`
+- **# 变更**：卸载时保留数据库和备份目录，重装后自动恢复数据
 
-### v2.0.8
-- **SVG 图标替换**：上传/下载日志页所有 emoji 图标全面替换为内联 SVG 图标（齿轮/链接/上传/下载/合并/成功/失败/空状态），消除跨平台渲染差异
+### v2.1.15
 
-### v2.0.7
-- **日志审计系统**：新增 `download_logs` 和 `upload_logs` 两张日志表，记录每次下载和上传事件的完整信息
-- **下载查询**：后台详情浮窗下载次数旁新增 `[查询]` 超链接，跳转独立日志页查看所有下载记录
-- **上传查询**：浮窗底部新增「上传日志」按钮，可查看 chunk_init → chunk_merge → upload_complete 完整链路
-- **日志页设计**：独立日志页继承后台页头/页尾/侧栏布局，PC 表格 + 移动端卡片自适应
+- **# 修复**：后台恢复数据库后管理员被强制踢下线的问题。更换 secret_key 后自动重建当前管理员 session，无需重新登录
 
-### v2.0.6
-- **JIT Viewer 底部工具栏隐藏**：预览页 CSS 隐藏工具栏，界面更纯净
+### v2.1.14
 
-### v2.0.5
-- **增强错误诊断**：分片上传失败时显示具体分片号和错误原因（含 HTTP 状态码）
-- **进度信息优化**：上传中显示剩余分片数
-- **服务端调试日志**：chunk_upload 入口记录关键参数
+- **# 严重修复**：`upgrade()` 中 `$DB_PATH` 未定义，导致升级前备份永远失败 — 这是升级后数据库丢失的根因
+- **# 优化**：统一所有备份路径使用 `${TRIM_PKGVAR}/backups`，避免 VAR_DIR 回退到 `/tmp` 时备份错位
 
-### v2.0.4
-- **分片上传/断点续传**：超过5MB的文件自动分片上传（每片5MB），3路并发传输大幅加速
-- **断点续传**：页面刷新后自动续传，localStorage 持久化 + 服务端智能匹配
-- **智能重试**：每个分片最多3次指数退避重试
-- **安全校验**：合并前校验文件大小一致性
-- **自动清理**：24小时超时的废弃分片自动清理
-- **独立频率限制**：分片上传端点独立限流（300次/分钟）
+### v2.1.13
+
+- **# 优化**：`start()` 数据库恢复优先级调整为 PKGVAR 备份 → /tmp 兜底，与 `upgrade_callback` 保持一致
+
+### v2.1.12
+
+- **# 修复**：最大上传数设为 1 时，上传按钮无法点击（`updateRemainingDisplay` 最大值分支缺少按钮启用逻辑）
+
+### v2.1.11
+
+- **# 优化**：数据库备份移至应用自身数据目录（TRIM_PKGVAR），避免 /tmp 重启清空导致备份丢失
+
+### v2.1.10
+
+- **# 修复**：升级应用后数据库丢失问题。每次启动自动备份数据库到 /tmp，升级时从备份恢复
+
+### v2.1.9
+
+- **# 优化**：版本整理
+
+### v2.1.8
+
+- **# 修复**：卸载时不再删除上传文件，保护用户数据安全（此前卸载会导致所有已收集文件丢失）
+
+### v2.1.7
+
+- **# 修复**：导入老版本数据库时因缺少 `admin_password_hash` 字段导致崩溃，现自动兼容生成默认密码
+- **# 修复**：导入数据库时 init_db 迁移失败后自动回滚到旧数据库，避免 app 处于损坏状态
+
+### v2.1.6
+
+- **# 优化**：自定义路径无写入权限时，上传接口返回明确的权限提示，而非通用错误
+
+### v2.1.5
+
+- **# 修复**：分享页空通行证复选框缺少 `value` 属性，导致空通行证设置从未真正保存（DB 始终为 0）
+- **# 修复**：未设置分享通行证的新链接在复制分享链接时被误判为旧版加密
+
+### v2.1.4
+
+- **# 修复**：未设置分享页通行证的新链接被误判为旧版加密，导致"复制分享链接"弹出旧版加密提示
+
+### v2.1.3
+
+- **# 修复**：创建链接时不会创建链接专属文件夹，导致管理员无法提前放文件
+- **# 优化**：新增 `folder_name` 字段，文件夹命名基于收集名称而非 link_id，文件系统上可直接识别
+- **# 修复**：修复空通行证复选框回显条件错误、create_link 未读取 empty_passcode 的问题
+
+### v2.1.2
+
+- **Bug 修复与优化汇总**（合并 v2.0.18~v2.3.5 所有改动）：
+- **链接ID格式**：恢复为 8 位纯 hex 格式（移除拼音方案C），确保 collect/share 路由一致性
+- **昵称优先**：collect/share/dashboard/links/records 全局统一使用昵称优先（nickname or username）
+- **creator_name 一致性**：修复 admin_links、admin_dashboard、admin_records 未使用昵称优先的 bug
+- **死代码清理**：删除 `_title_to_prefix`（~80行拼音映射字典），已不再使用
+- **链接删除完整性**：`delete_link` 新增清理 `upload_logs` 和 `download_logs` 关联记录
+- **/admin/links 卡片头部重设计**：统一卡片头部（标题+统计+按钮），渐变背景 + 移动端自适应
+- **瀑布流排版**：`/admin/user-settings` 改为 CSS columns 瀑布流，`/admin/settings` 双栏 columns
+- **账号设置**：`/admin/user-settings` 新增昵称/邮箱/密码修改卡片
+- **普通用户设置**：用户名/昵称/邮箱/密码修改 + 双栏紧凑排版
+- **Bug 修复**：users 表 nickname/email 列迁移、分享/收集链接通行证区分、分享页 FPK 图标
+- **界面优化**：NAS/ERP/CRM 风格重构、卡片无溢出、独立 CSS、倒计时紧迫感、标题人性化
+- **分享页开关 + 独立通行证**：分享页可独立控制启用/关闭，单独设置通行证
+- **分片上传**：chunk_upload/merge/init 竞态修复、断点续传体验、移动端响应式
+- **日志审计**：upload_logs/download_logs 表、上传/下载日志查询页
+- **生命周期脚本**：修复 cmd/main 4 个问题（变量引用、步骤编号、进程清理）
+
+
+
+### v2.0.3
 
 ### v2.0.3
 - 多项 Bug 修复（JS 语法错误、PDF 预览 CSP、频率限制内存泄漏、路径安全、侧边栏匹配、孤儿数据清理等）
@@ -418,7 +460,7 @@ GET /api/status
 - 全面安全加固：XSS 防护、路径遍历防护、通行证哈希存储、CSRF 保护、文件名防覆盖、上传频率限制
 
 ### v1.1.11
-- 完善升级/卸载数据保护机制：升级前自动备份、升级后验证完整性、卸载时保留数据、首次安装与升级自动区分
+- 完善升级/卸载数据保护机制：升级前自动备份、升级后验证完整性、卸载时清除数据库保留上传文件、首次安装与升级自动区分
 
 ### v1.1.10
 - 系统设置新增自定义上传路径

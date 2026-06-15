@@ -21,6 +21,15 @@ clean_dir() {
 # ============================================================
 echo "  保留用户数据（数据库和上传文件）" >> "$LOG"
 
+# 卸载前将数据库额外备份到 /var/backups（PKGVAR 可能被 fnOS 清理）
+if [ -n "$TRIM_PKGVAR" ] && [ -f "${TRIM_PKGVAR}/data/file_collector.db" ]; then
+    SAFE_BACKUP_DIR="/var/backups/file-collector"
+    mkdir -p "$SAFE_BACKUP_DIR"
+    cp "${TRIM_PKGVAR}/data/file_collector.db" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+    echo "  已安全备份数据库到: ${SAFE_BACKUP_DIR}" >> "$LOG"
+    ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+fi
+
 # 只清理 venv 和运行时文件，保留 data/ 目录中的数据库
 if [ -n "$TRIM_PKGVAR" ] && [ -d "$TRIM_PKGVAR" ]; then
     # 仅清理 venv 和运行时文件

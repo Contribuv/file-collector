@@ -166,37 +166,73 @@ start() {
     # ---- 第5步：数据库恢复检查 ----
     log "[5/7] 检查数据库..."
     DB_PATH="${DATA_DIR}/file_collector.db"
+    DB_VALID=0
+
     if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
         DB_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
-        log "  数据库存在: ${DB_PATH} (${DB_SIZE} bytes)"
+        # 用 sqlite3 CLI 验证数据库是否包含核心表（users），而非仅检查文件大小
+        if command -v sqlite3 &>/dev/null; then
+            USER_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "")
+            if [ -n "$USER_COUNT" ]; then
+                LINK_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM links;" 2>/dev/null || echo "?")
+                log "  数据库完整: ${DB_PATH} (${DB_SIZE} bytes, ${USER_COUNT} 用户, ${LINK_COUNT} 链接)"
+                DB_VALID=1
+            else
+                log "  WARN: SQLite 文件存在但无有效表结构 (${DB_SIZE} bytes)，视为无效"
+            fi
+        else
+            # 无 sqlite3 CLI，回退到文件大小粗略判断（>4096 才可能包含数据）
+            if [ "$DB_SIZE" -gt 4096 ]; then
+                log "  数据库存在（无法验证）: ${DB_PATH} (${DB_SIZE} bytes)"
+                DB_VALID=1
+            else
+                log "  WARN: 数据库仅 ${DB_SIZE} bytes（疑似空壳）"
+            fi
+        fi
     else
-        log "  WARN: 数据库不存在或为空，尝试从备份恢复..."
-        # 尝试多个备份来源恢复
+        log "  INFO: 数据库文件不存在或为空"
+    fi
+
+    # 如果数据库无效，尝试从多个来源恢复
+    if [ $DB_VALID -eq 0 ]; then
+        log "  尝试从备份恢复数据库..."
         RESTORED=0
-        # 来源1: /tmp 升级前备份
-        BACKUP_DIR="/tmp/file-collector-backup"
-        if [ -d "$BACKUP_DIR" ]; then
-            LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
-            if [ -n "$LATEST_BACKUP" ] && [ -s "$LATEST_BACKUP" ]; then
-                cp "$LATEST_BACKUP" "$DB_PATH"
-                log "  已从 /tmp 备份恢复数据库: ${LATEST_BACKUP}"
+        # 来源1: /var/backups 安全备份（PKGVAR 清理也能存活）
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        if [ -d "$SAFE_BACKUP_DIR" ]; then
+            LATEST_SAFE=$(ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+            if [ -n "$LATEST_SAFE" ] && [ -s "$LATEST_SAFE" ]; then
+                cp "$LATEST_SAFE" "$DB_PATH"
+                log "  已从安全备份恢复: ${LATEST_SAFE}"
                 RESTORED=1
             fi
         fi
-        # 来源2: TRIM_PKGVAR 内备份（如果有的话）
+        # 来源2: TRIM_PKGVAR 内备份
         if [ $RESTORED -eq 0 ] && [ -n "$TRIM_PKGVAR" ]; then
             PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
             if [ -d "$PKG_BACKUP_DIR" ]; then
                 LATEST_PKG_BACKUP=$(ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
                 if [ -n "$LATEST_PKG_BACKUP" ] && [ -s "$LATEST_PKG_BACKUP" ]; then
                     cp "$LATEST_PKG_BACKUP" "$DB_PATH"
-                    log "  已从 PKGVAR 备份恢复数据库: ${LATEST_PKG_BACKUP}"
+                    log "  已从 PKGVAR 备份恢复: ${LATEST_PKG_BACKUP}"
+                    RESTORED=1
+                fi
+            fi
+        fi
+        # 来源3: /tmp 兜底（旧版本兼容）
+        if [ $RESTORED -eq 0 ]; then
+            TMP_BACKUP_DIR="/tmp/file-collector-backup"
+            if [ -d "$TMP_BACKUP_DIR" ]; then
+                LATEST_BACKUP=$(ls -t "${TMP_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+                if [ -n "$LATEST_BACKUP" ] && [ -s "$LATEST_BACKUP" ]; then
+                    cp "$LATEST_BACKUP" "$DB_PATH"
+                    log "  已从 /tmp 备份恢复: ${LATEST_BACKUP}"
                     RESTORED=1
                 fi
             fi
         fi
         if [ $RESTORED -eq 0 ]; then
-            log "  INFO: 未找到备份，将创建新数据库（首次安装）"
+            log "  INFO: 未找到备份，将创建新数据库"
         fi
     fi
 
@@ -227,6 +263,18 @@ start() {
     done
 
     log "[7/7] 启动成功! 端口 ${APP_PORT}"
+
+    # 启动成功后双重备份数据库（PKGVAR + /var/backups 安全位置）
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        BACKUP_DIR="${TRIM_PKGVAR}/backups"
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        log "  已备份数据库到 ${BACKUP_DIR} 和 ${SAFE_BACKUP_DIR}"
+    fi
     exit 0
 }
 
@@ -280,8 +328,16 @@ uninstall() {
         log "  已删除: ${VENV_DIR}"
     fi
 
-    # 3. 保留用户数据 - 数据库和上传文件不删除（升级/重装时保护数据）
+    # 3. 保留用户数据 - 数据库额外备份到 /var/backups（PKGVAR 可能被清理）
     log "[3/8] 保留用户数据..."
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        log "  已安全备份到: ${SAFE_BACKUP_DIR}"
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    fi
     if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
         log "  保留数据库目录: ${DATA_DIR}"
     fi
@@ -329,10 +385,32 @@ uninstall() {
     exit 0
 }
 
+# ============================================================
+upgrade() {
+    log "=== UPGRADE 升级前备份 ==="
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$PKG_BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        UPGRADE_BACKUP_NAME="file_collector_pre_upgrade_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${PKG_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
+        log "  升级前已备份数据库到 PKGVAR 和 /var/backups"
+        # 各保留最近5个备份
+        ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    else
+        log "  WARN: 升级前数据库不存在或为空: ${DB_PATH}"
+    fi
+    exit 0
+}
+
 case "$1" in
     start)    start ;;
     stop)     stop ;;
     status)   status ;;
     uninstall) uninstall ;;
+    upgrade)  upgrade ;;
     *)        exit 1 ;;
 esac

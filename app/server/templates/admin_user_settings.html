@@ -6,6 +6,52 @@
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
     <div class="settings-grid">
+      <!-- 账号设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>账号设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_username">用户名</label>
+                <input type="text" id="new_username" name="new_username" class="form-input form-input-sm"
+                       value="{{ user.username }}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="new_nickname">昵称</label>
+                <input type="text" id="new_nickname" name="new_nickname" class="form-input form-input-sm"
+                       value="{{ user.nickname or '' }}" placeholder="显示名称">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_email">邮箱</label>
+                <input type="email" id="new_email" name="new_email" class="form-input form-input-sm"
+                       value="{{ user.email or '' }}" placeholder="用于密码找回">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="old_password">当前密码 *</label>
+                <input type="password" id="old_password" name="old_password" class="form-input form-input-sm"
+                       placeholder="修改信息需验证" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_password">新密码</label>
+                <input type="password" id="new_password" name="new_password" class="form-input form-input-sm" placeholder="留空则不修改">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="confirm_password">确认新密码</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input form-input-sm" placeholder="再次输入新密码">
+              </div>
+            </div>
+            <button type="submit" name="action" value="account" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="settings-grid-sub">
       <!-- 通行证有效期 -->
       <div class="card card-compact">
         <div class="card-header"><h3>通行证有效期</h3></div>
@@ -97,6 +143,7 @@
           </form>
         </div>
       </div>
+      </div>
 
     </div>
   </div>
@@ -114,7 +161,7 @@
 .form-input-sm { padding: 7px 11px; font-size: 0.82rem; }
 .form-textarea-sm { min-height: 52px; font-size: 0.82rem; }
 
-.settings-grid {
+.settings-grid-sub {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 16px;
@@ -122,7 +169,7 @@
 }
 
 @media (max-width: 768px) {
-  .settings-grid { grid-template-columns: 1fr; }
+  .settings-grid-sub { grid-template-columns: 1fr; }
 }
 </style>
 {% endblock %}

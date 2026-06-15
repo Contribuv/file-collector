@@ -116,7 +116,7 @@ if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
 fi
 
 # 5. 清理旧备份（保留最近5个）
-for BACKUP_DIR in "/tmp/file-collector-backup" "${TRIM_PKGVAR}/backups"; do
+for BACKUP_DIR in "/var/backups/file-collector" "${TRIM_PKGVAR}/backups" "/tmp/file-collector-backup"; do
     if [ -d "$BACKUP_DIR" ]; then
         ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
     fi

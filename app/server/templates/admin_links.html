@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}链接管理{% endblock %}
 
+{% block styles %}
+<!-- WangEditor v5 富文本编辑器 CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wangeditor.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
@@ -189,8 +194,6 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- WangEditor v5 富文本编辑器 -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wangeditor.css') }}">
 <style>
 /* 更多按钮 */
 .btn-more-link {
@@ -538,7 +541,8 @@ function showLinkPopover(btn) {
     '<div class="lp-row"><span class="lp-label">有效期</span><span class="lp-val">' + expireText + '</span></div>' +
     descHtml +
     '<div class="lp-row"><span class="lp-label">创建</span><span class="lp-val" style="font-size:.76rem;color:#999;">' + escapeHtml(d.createdAt) + '</span></div>' +
-    '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>';
+    '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="/admin/links/' + d.linkId + '/upload-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
 
   // 操作按钮
   var toggleLabel = isActive ? '停用链接' : '启用链接';

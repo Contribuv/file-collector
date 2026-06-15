@@ -109,28 +109,6 @@
 <script>
 const linkId = {{ link_id|tojson }};
 
-/* 按需加载 JIT Viewer SDK（~10MB），仅 Office 预览时动态注入 */
-var _jitLoadState = 0, _jitLoadPromise = null;
-function loadJitViewer() {
-  if (_jitLoadState === 2) return Promise.resolve();
-  if (_jitLoadState === 1) return _jitLoadPromise;
-  if (_jitLoadState === -1) return Promise.reject(new Error('JIT Viewer 加载失败'));
-  _jitLoadState = 1;
-  _jitLoadPromise = new Promise(function(resolve, reject) {
-    try {
-      var css = document.createElement('link'); css.rel = 'stylesheet';
-      css.href = '{{ url_for("static", filename="css/jit-viewer.min.css") }}';
-      document.head.appendChild(css);
-      var s = document.createElement('script');
-      s.src = '{{ url_for("static", filename="js/jit-viewer.min.js") }}';
-      s.onload = function() { _jitLoadState = 2; resolve(); };
-      s.onerror = function() { _jitLoadState = -1; reject(new Error('JIT Viewer 脚本加载失败')); };
-      document.head.appendChild(s);
-    } catch(e) { _jitLoadState = -1; reject(e); }
-  });
-  return _jitLoadPromise;
-}
-
 function showToast(msg, d) {
   var t = document.getElementById('toast');
   if (!t) return;
@@ -215,7 +193,7 @@ async function loadHistory() {
       var escapedTime = escapeHtml(fmtTime(r.uploaded_at));
       var escapedSize = escapeHtml(r.file_size_display);
       var ext = r.original_name.split('.').pop().toLowerCase();
-      var canPreview = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.pdf', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes('.' + ext);
+      var canPreview = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.pdf', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.md', '.markdown', '.txt', '.csv', '.ofd', '.dxf', '.html', '.htm', '.js', '.css', '.json', '.xml', '.log', '.mp3', '.wav'].includes('.' + ext);
       html += '<div class="cp-history-card">';
       html += '<div class="cp-history-card-name">' + escapedName + '</div>';
       html += '<div class="cp-history-card-meta">';
@@ -243,6 +221,15 @@ async function loadHistory() {
 }
 
 function previewFile(linkId, recordId, fileName) {
+  var ext = fileName.split('.').pop().toLowerCase();
+  
+  // JIT Viewer 新窗口纯净预览（Office/PDF/MD/TXT/CSV/OFD/DXF/HTML/代码/音频）
+  var jitExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'md', 'markdown', 'txt', 'csv', 'ofd', 'dxf', 'html', 'htm', 'js', 'css', 'json', 'xml', 'log', 'mp3', 'wav'];
+  if (jitExts.includes(ext)) {
+    window.open('/share/' + linkId + '/view/' + recordId, '_blank');
+    return;
+  }
+  
   var modal = document.getElementById('preview-modal');
   var title = document.getElementById('preview-title');
   var body = document.getElementById('preview-body');
@@ -252,7 +239,6 @@ function previewFile(linkId, recordId, fileName) {
   body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
   modal.style.display = 'flex';
   
-  var ext = fileName.split('.').pop().toLowerCase();
   var previewUrl = '/share/' + linkId + '/preview/' + recordId;
   
   downloadBtn.onclick = function() {
@@ -263,44 +249,6 @@ function previewFile(linkId, recordId, fileName) {
     body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p>图片加载失败</p>\'">';
   } else if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext)) {
     body.innerHTML = '<video src="' + previewUrl + '" controls class="cp-preview-video" poster="" oncanplay="this.poster=\'\'" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
-  } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
-    // 文档预览（使用JIT Viewer SDK - 按需加载，支持 Office/PDF 等）
-    body.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
-    var fileUrl = window.location.origin + '/share/' + linkId + '/preview_file/' + recordId;
-    
-    loadJitViewer().then(function() {
-      // 创建预览器实例
-      var viewer = window.JitViewer.createViewer({
-        target: document.getElementById('office-preview-container'),
-        file: fileUrl,
-        filename: fileName,
-        toolbar: true,
-        theme: 'light'
-      });
-      
-      // 添加事件监听
-      viewer.on('ready', function() {
-        console.log('JIT Viewer ready');
-      });
-      
-      viewer.on('load', function() {
-        console.log('Office file loaded successfully');
-      });
-      
-      viewer.on('error', function(err) {
-        console.error('JIT Viewer error:', err);
-        var errorMsg = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
-        body.innerHTML = '<p class="cp-preview-error">预览失败：' + errorMsg + '</p><p>请尝试下载文件查看</p>';
-      });
-      
-      // 挂载预览器
-      viewer.mount();
-      window.currentViewer = viewer;
-      
-    }).catch(function(err) {
-      var errorMsg = err && err.message ? err.message : 'Office预览组件加载失败';
-      body.innerHTML = '<p class="cp-preview-error">' + errorMsg + '</p><p>请尝试下载文件查看</p>';
-    });
   } else {
     body.innerHTML = '<p>不支持预览该文件类型</p>';
   }
@@ -311,15 +259,6 @@ function closePreview() {
   var video = document.querySelector('#preview-modal video');
   if (video) {
     video.pause();
-  }
-  // 销毁 JIT Viewer 实例
-  if (window.currentViewer) {
-    try {
-      window.currentViewer.destroy();
-      window.currentViewer = null;
-    } catch (err) {
-      console.warn('销毁 JIT Viewer 实例失败:', err);
-    }
   }
   document.getElementById('preview-modal').style.display = 'none';
 }

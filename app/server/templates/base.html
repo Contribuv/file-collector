@@ -19,7 +19,7 @@
   {% block header %}
   <header class="header">
     <div class="header-inner">
-      <a href="/admin" class="header-brand">
+      <a href="{{ url_for('admin_dashboard') }}" class="header-brand">
         <img src="{{ url_for('static', filename='img/up.png') }}" alt="">
         {{ config_title|default('文件收集器') }}
       </a>
@@ -71,31 +71,6 @@
     t.textContent = msg; t.classList.add('show');
     clearTimeout(t._timeout);
     t._timeout = setTimeout(() => t.classList.remove('show'), d || 2000);
-  }
-  </script>
-  <script>
-  /* 按需加载 JIT Viewer SDK（~10MB），仅 Office 预览时动态注入 */
-  var _jitLoadState = 0; // 0=未加载, 1=加载中, 2=已就绪, -1=失败
-  var _jitLoadPromise = null;
-  function loadJitViewer() {
-    if (_jitLoadState === 2) return Promise.resolve();
-    if (_jitLoadState === 1) return _jitLoadPromise;
-    if (_jitLoadState === -1) return Promise.reject(new Error('JIT Viewer 加载失败'));
-    _jitLoadState = 1;
-    _jitLoadPromise = new Promise(function(resolve, reject) {
-      try {
-        var css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.href = '{{ url_for("static", filename="css/jit-viewer.min.css") }}';
-        document.head.appendChild(css);
-        var s = document.createElement('script');
-        s.src = '{{ url_for("static", filename="js/jit-viewer.min.js") }}';
-        s.onload = function() { _jitLoadState = 2; resolve(); };
-        s.onerror = function() { _jitLoadState = -1; reject(new Error('JIT Viewer 脚本加载失败')); };
-        document.head.appendChild(s);
-      } catch(e) { _jitLoadState = -1; reject(e); }
-    });
-    return _jitLoadPromise;
   }
   </script>
   {% block scripts %}{% endblock %}

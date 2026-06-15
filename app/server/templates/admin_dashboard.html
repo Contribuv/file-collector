@@ -51,7 +51,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] or '-' }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -79,7 +79,7 @@
                 data-downloads="{{ r['download_count'] }}"
                 data-ip="{{ r['uploader_ip'] or '-' }}"
                 data-time="{{ r['uploaded_at'] }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
             </div>
           </div>
         </div>
@@ -342,6 +342,7 @@ function toggleDetailPopover(btn) {
   var ip = btn.getAttribute('data-ip');
   var time = btn.getAttribute('data-time');
   var previewable = btn.getAttribute('data-previewable') === '1';
+  var csrfToken = '{{ csrf_token }}';
   
   // 添加遮罩层
   var overlay = document.createElement('div');
@@ -357,6 +358,7 @@ function toggleDetailPopover(btn) {
     footerHtml += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\');closeAllPopovers();">预览</button>';
   }
   footerHtml += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
+  footerHtml += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
   
   var popover = document.createElement('div');
   popover.className = 'detail-popover';
@@ -369,11 +371,11 @@ function toggleDetailPopover(btn) {
       '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">下载</span><span class="detail-popover-value">' + escapeHtml(downloads) + '</span></div>' +
+      '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>' +
     '</div>' +
-    (footerHtml ? '<div class="detail-popover-footer">' + footerHtml + '</div>' : '');
+    '<div class="detail-popover-footer">' + footerHtml + '</div>';
   
   document.body.appendChild(popover);
   currentPopover = popover;
@@ -419,6 +421,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 预览功能
 function previewFile(recordId, fileName) {
+  var ext = fileName.split('.').pop().toLowerCase();
+  
+  // JIT Viewer 新窗口纯净预览（Office/PDF/MD/TXT/CSV/OFD/DXF/HTML/代码/音频）
+  var jitExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'md', 'markdown', 'txt', 'csv', 'ofd', 'dxf', 'html', 'htm', 'js', 'css', 'json', 'xml', 'log', 'mp3', 'wav'];
+  if (jitExts.includes(ext)) {
+    window.open('/admin/records/' + recordId + '/view', '_blank');
+    return;
+  }
+  
   var modal = document.getElementById('preview-modal');
   var content = document.getElementById('preview-content');
   var title = document.getElementById('preview-title');
@@ -430,49 +441,13 @@ function previewFile(recordId, fileName) {
   
   content.innerHTML = '<div class="loading">加载中...</div>';
   
-  var ext = fileName.split('.').pop().toLowerCase();
-  
+  // 图片预览（batch 3 - 保持原生）
   if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
     content.innerHTML = '<img src="/admin/records/' + recordId + '/download" style="max-width:100%;max-height:70vh;" alt="">';
   }
+  // 视频预览（batch 3 - 保持原生）
   else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
     content.innerHTML = '<video src="/admin/records/' + recordId + '/download" controls style="max-width:100%;max-height:70vh;"></video>';
-  }
-  else if (['txt', 'md', 'log', 'json', 'xml', 'csv'].includes(ext)) {
-    fetch('/admin/records/' + recordId + '/download')
-      .then(function(r) { return r.text(); })
-      .then(function(text) {
-        var pre = document.createElement('pre');
-        pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;';
-        pre.textContent = text;
-        content.innerHTML = '';
-        content.appendChild(pre);
-      })
-      .catch(function() { content.innerHTML = '<p class="error">无法预览该文件</p>'; });
-  }
-  else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
-    content.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
-    var fileUrl = window.location.origin + '/admin/records/' + recordId + '/preview_file';
-    loadJitViewer().then(function() {
-      var viewer = window.JitViewer.createViewer({
-        target: document.getElementById('office-preview-container'),
-        file: fileUrl,
-        filename: fileName,
-        toolbar: true,
-        theme: 'light'
-      });
-      viewer.on('ready', function() { console.log('JIT Viewer ready'); });
-      viewer.on('load', function() { console.log('Office file loaded'); });
-      viewer.on('error', function(err) {
-        var em = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
-        content.innerHTML = '<p class="error">预览失败：' + em + '</p><p>请尝试下载文件查看</p>';
-      });
-      viewer.mount();
-      window._jitViewer = viewer;
-    }).catch(function(err) {
-      var em = err && err.message ? err.message : 'Office预览组件加载失败';
-      content.innerHTML = '<p class="error">' + em + '</p><p>请尝试下载文件查看</p>';
-    });
   }
   else {
     content.innerHTML = '<p class="info">该文件类型不支持预览</p>';
@@ -487,10 +462,6 @@ function closePreview() {
   document.body.style.overflow = '';
   var video = document.querySelector('#preview-content video');
   if (video) video.pause();
-  if (window._jitViewer) {
-    try { window._jitViewer.destroy(); window._jitViewer = null; }
-    catch(e) { console.warn('destroy JIT viewer:', e); }
-  }
 }
 
 document.addEventListener('keydown', function(e) {

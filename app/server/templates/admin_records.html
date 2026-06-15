@@ -50,7 +50,7 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] }}"
                   data-time="{{ r['uploaded_at'] }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -81,7 +81,7 @@
               data-downloads="{{ r['download_count'] }}"
               data-ip="{{ r['uploader_ip'] }}"
               data-time="{{ r['uploaded_at'] }}"
-              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf'] else '0' }}">操作</button>
+              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
           </div>
         </div>
         {% endfor %}
@@ -148,7 +148,7 @@
   width: auto;
   padding: 6px 28px 6px 10px;
   font-size: .82rem;
-  border-radius: 16px;
+  border-radius: 4px;
 }
 @media (max-width: 640px) {
   .records-card-header { gap: 6px; }
@@ -492,11 +492,12 @@ function toggleDetailPopover(btn) {
       '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">下载</span><span class="detail-popover-value">' + escapeHtml(downloads) + '</span></div>' +
+      '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>' +
       '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>' +
     '</div>' +
-    '<div class="detail-popover-footer" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' + actionBtns + '</div>';
+    '<div class="detail-popover-footer" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' + actionBtns +
+    '</div>';
   
   document.body.appendChild(popover);
   currentPopover = popover;
@@ -551,6 +552,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 预览功能
 function previewFile(recordId, fileName) {
+  const ext = fileName.split('.').pop().toLowerCase();
+  
+  // JIT Viewer 新窗口纯净预览（Office/PDF/MD/TXT/CSV/OFD/DXF/HTML/代码/音频）
+  const jitExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'md', 'markdown', 'txt', 'csv', 'ofd', 'dxf', 'html', 'htm', 'js', 'css', 'json', 'xml', 'log', 'mp3', 'wav'];
+  if (jitExts.includes(ext)) {
+    window.open('/admin/records/' + recordId + '/view', '_blank');
+    return;
+  }
+  
   const modal = document.getElementById('preview-modal');
   const content = document.getElementById('preview-content');
   const title = document.getElementById('preview-title');
@@ -562,101 +572,13 @@ function previewFile(recordId, fileName) {
   
   content.innerHTML = '<div class="loading">加载中...</div>';
   
-  const ext = fileName.split('.').pop().toLowerCase();
-  
-  // 图片预览
+  // 图片预览（batch 3 - 保持原生）
   if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
     content.innerHTML = '<img src="/admin/records/' + recordId + '/download" style="max-width:100%;max-height:70vh;">';
   }
-  // 视频预览
+  // 视频预览（batch 3 - 保持原生）
   else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
     content.innerHTML = '<video src="/admin/records/' + recordId + '/download" controls style="max-width:100%;max-height:70vh;"></video>';
-  }
-  // 文本预览
-  else if (['txt', 'md', 'log', 'json', 'xml', 'csv'].includes(ext)) {
-    fetch('/admin/records/' + recordId + '/download')
-      .then(response => response.text())
-      .then(text => {
-        if (ext === 'md') {
-          // Markdown渲染（需要引入marked.js）
-          if (typeof marked !== 'undefined') {
-            content.innerHTML = '<div class="markdown-body">' + marked.parse(text) + '</div>';
-          } else {
-            var pre = document.createElement('pre');
-            pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;';
-            pre.textContent = text;
-            content.innerHTML = '';
-            content.appendChild(pre);
-          }
-        } else {
-          var pre = document.createElement('pre');
-          pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;';
-          pre.textContent = text;
-          content.innerHTML = '';
-          content.appendChild(pre);
-        }
-      })
-      .catch(error => {
-        content.innerHTML = '<p class="error">无法预览该文件</p>';
-      });
-  }
-  // 文档预览（使用JIT Viewer SDK - 按需加载，支持 Office/PDF 等）
-  else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
-    // 创建预览容器
-    content.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
-    
-    // 获取文件URL
-    const fileUrl = window.location.origin + '/admin/records/' + recordId + '/preview_file';
-    
-    loadJitViewer().then(function() {
-      // 创建预览器实例
-      const viewer = window.JitViewer.createViewer({
-        target: document.getElementById('office-preview-container'),
-        file: fileUrl,
-        filename: fileName,
-        toolbar: true,
-        theme: 'light'
-      });
-      
-      // 添加事件监听
-      viewer.on('ready', function() {
-        console.log('JIT Viewer ready');
-      });
-      
-      viewer.on('load', function() {
-        console.log('Office file loaded successfully');
-      });
-      
-      viewer.on('error', function(err) {
-        console.error('JIT Viewer error:', err);
-        const errorMsg = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
-        content.innerHTML = '';
-        var p = document.createElement('p');
-        p.className = 'error';
-        p.textContent = '预览失败：' + errorMsg;
-        content.appendChild(p);
-        var p2 = document.createElement('p');
-        p2.textContent = '请尝试下载文件查看';
-        content.appendChild(p2);
-      });
-      
-      // 挂载预览器
-      viewer.mount();
-      
-      // 保存实例以便关闭时销毁
-      window.currentViewer = viewer;
-      
-    }).catch(function(err) {
-      const errorMsg = err && err.message ? err.message : 'Office预览组件加载失败';
-      content.innerHTML = '';
-      var p = document.createElement('p');
-      p.className = 'error';
-      p.textContent = errorMsg;
-      content.appendChild(p);
-      var p2 = document.createElement('p');
-      p2.textContent = '请尝试下载文件查看';
-      content.appendChild(p2);
-    });
   }
   else {
     content.innerHTML = '<p class="info">该文件类型不支持预览</p>';
@@ -672,15 +594,6 @@ function closePreview() {
   // 停止视频播放
   const video = document.querySelector('#preview-content video');
   if (video) video.pause();
-  // 销毁 JIT Viewer 实例
-  if (window.currentViewer) {
-    try {
-      window.currentViewer.destroy();
-      window.currentViewer = null;
-    } catch (err) {
-      console.warn('销毁 JIT Viewer 实例失败:', err);
-    }
-  }
 }
 
 // ESC键关闭预览

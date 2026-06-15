@@ -230,7 +230,7 @@
   transition: all .15s;
 }
 .cp-btn:active { transform: scale(.96); opacity: .8; }
-.cp-btn-primary { background: var(--c-primary); color: #fff; }
+.cp-btn-primary { background: var(--c-primary); color: #fff; border: 1.5px solid transparent; }
 .cp-btn-primary:disabled { opacity: .4; pointer-events: none; }
 .cp-btn-danger { background: #fef2f2; color: var(--c-danger); border: 1.5px solid #fecaca; }
 .cp-btn-sm { padding: 4px 12px; font-size: .75rem; border-radius: 4px; }
@@ -311,8 +311,9 @@
   gap: 6px;
 }
 .cp-history-card-actions .cp-btn {
+  /* 使用cp-btn-sm的样式 */
   font-size: .75rem;
-  padding: 2px 8px;
+  padding: 4px 12px;
   min-width: auto;
 }
 

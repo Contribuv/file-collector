@@ -254,12 +254,12 @@ a:active { opacity: .6; }
 .btn:active { transform: scale(.96); opacity: .8; }
 .btn:disabled { opacity: .4; pointer-events: none; }
 
-.btn-primary { background: var(--c-primary); color: #fff; }
-.btn-danger { background: var(--c-danger); color: #fff; }
-.btn-success { background: var(--c-success); color: #fff; }
-.btn-warning { background: var(--c-warning); color: #fff; }
-.btn-info { background: var(--c-info); color: #fff; }
-.btn-purple { background: var(--c-purple); color: #fff; }
+.btn-primary { background: var(--c-primary); color: #fff; border: 1.5px solid transparent; }
+.btn-danger { background: var(--c-danger); color: #fff; border: 1.5px solid transparent; }
+.btn-success { background: var(--c-success); color: #fff; border: 1.5px solid transparent; }
+.btn-warning { background: var(--c-warning); color: #fff; border: 1.5px solid transparent; }
+.btn-info { background: var(--c-info); color: #fff; border: 1.5px solid transparent; }
+.btn-purple { background: var(--c-purple); color: #fff; border: 1.5px solid transparent; }
 
 .btn-outline { background: transparent; border: 1.5px solid var(--c-border); color: var(--c-text); }
 .btn-outline-primary { background: transparent; border: 1.5px solid var(--c-primary); color: var(--c-primary); }

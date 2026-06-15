@@ -141,28 +141,6 @@
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
 
-/* 按需加载 JIT Viewer SDK（~10MB），仅 Office 预览时动态注入 */
-var _jitLoadState = 0, _jitLoadPromise = null;
-function loadJitViewer() {
-  if (_jitLoadState === 2) return Promise.resolve();
-  if (_jitLoadState === 1) return _jitLoadPromise;
-  if (_jitLoadState === -1) return Promise.reject(new Error('JIT Viewer 加载失败'));
-  _jitLoadState = 1;
-  _jitLoadPromise = new Promise(function(resolve, reject) {
-    try {
-      var css = document.createElement('link'); css.rel = 'stylesheet';
-      css.href = '{{ url_for("static", filename="css/jit-viewer.min.css") }}';
-      document.head.appendChild(css);
-      var s = document.createElement('script');
-      s.src = '{{ url_for("static", filename="js/jit-viewer.min.js") }}';
-      s.onload = function() { _jitLoadState = 2; resolve(); };
-      s.onerror = function() { _jitLoadState = -1; reject(new Error('JIT Viewer 脚本加载失败')); };
-      document.head.appendChild(s);
-    } catch(e) { _jitLoadState = -1; reject(e); }
-  });
-  return _jitLoadPromise;
-}
-
 function showToast(msg, d) {
   var t = document.getElementById('toast');
   if (!t) return;
@@ -194,6 +172,12 @@ const MAX_FILES = {{ max_files }};
 const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
 let totalUploaded = 0;
 let remainingSlots = MAX_FILES;
+
+/* ========== 分片上传 / 断点续传配置 ========== */
+const CHUNK_SIZE = 5 * 1024 * 1024;        // 5MB per chunk
+const CHUNK_MAX_CONCURRENT = 3;             // 最大并发分片数
+const CHUNK_MAX_RETRIES = 3;                // 每个分片最大重试次数
+let isUploadPaused = false;                 // 暂停标志
 
 function updateRemainingDisplay() {
   if (MAX_FILES > 0) {
@@ -342,6 +326,240 @@ if (dropzone) {
   dropzone.addEventListener('drop', function(e){ handleFiles(e.dataTransfer.files); });
 }
 
+/* ========== 分片上传工具函数 ========== */
+function _storageKey(filename, fileSize) {
+  return 'fc_chunk_' + linkId + '_' + fileSize + '_' + encodeURIComponent(filename);
+}
+
+function generateUploadId(file, filename, fileSize) {
+  // 检查 localStorage 是否有已存在的 upload_id（支持跨页面刷新的断点续传）
+  try {
+    var key = _storageKey(filename || file.name, fileSize || file.size);
+    var cached = localStorage.getItem(key);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      if (parsed.upload_id && parsed.expires > Date.now()) {
+        return parsed.upload_id;
+      }
+    }
+  } catch(e) { /* localStorage 不可用 */ }
+  // 新建 UUID
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function saveUploadIdForFile(file, uploadId) {
+  try {
+    var key = _storageKey(file.name, file.size);
+    localStorage.setItem(key, JSON.stringify({
+      upload_id: uploadId,
+      expires: Date.now() + 24 * 3600 * 1000  // 24h 过期
+    }));
+  } catch(e) { /* ignore */ }
+}
+
+function removeUploadIdForFile(file) {
+  try {
+    var key = _storageKey(file.name, file.size);
+    localStorage.removeItem(key);
+  } catch(e) { /* ignore */ }
+}
+
+async function initChunkSession(uploadId, filename, fileSize) {
+  var formData = new FormData();
+  formData.append('upload_id', uploadId);
+  formData.append('filename', filename);
+  formData.append('file_size', fileSize.toString());
+  formData.append('chunk_size', CHUNK_SIZE.toString());
+  var res = await fetch('/collect/' + linkId + '/chunk/init', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    body: formData
+  });
+  var data = await res.json();
+  if (!data.success) { throw new Error(data.message || '初始化上传会话失败'); }
+  return data;
+}
+
+function uploadChunkXHR(uploadId, file, chunkIndex, totalChunks) {
+  var start = chunkIndex * CHUNK_SIZE;
+  var end = Math.min(start + CHUNK_SIZE, file.size);
+  var blob = file.slice(start, end);
+  var formData = new FormData();
+  formData.append('upload_id', uploadId);
+  formData.append('chunk_index', chunkIndex.toString());
+  /* 使用纯ASCII文件名避免中文filename导致multipart解析400错误 */
+  formData.append('file', blob, 'chunk_' + String(chunkIndex).padStart(5, '0') + '.bin');
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/collect/' + linkId + '/chunk/upload');
+    xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+    xhr.timeout = 0;
+    xhr.onload = function() {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status === 200 && data.success) { resolve(data); }
+        else { reject(new Error(data.message || ('分片上传失败 HTTP ' + xhr.status))); }
+      } catch(parseErr) {
+        reject(new Error('服务器响应异常 (HTTP ' + xhr.status + '): ' + xhr.responseText.slice(0, 200)));
+      }
+    };
+    xhr.onerror = function() { reject(new Error('网络错误')); };
+    xhr.ontimeout = function() { reject(new Error('分片上传超时')); };
+    xhr.send(formData);
+  });
+}
+
+async function uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks) {
+  for (var attempt = 0; attempt <= CHUNK_MAX_RETRIES; attempt++) {
+    try { return await uploadChunkXHR(uploadId, file, chunkIdx, totalChunks); }
+    catch(e) {
+      if (attempt >= CHUNK_MAX_RETRIES) throw e;
+      await new Promise(function(r) { setTimeout(r, 1000 * Math.pow(2, attempt)); });
+    }
+  }
+}
+
+async function mergeChunksAPI(uploadId) {
+  var formData = new FormData();
+  formData.append('upload_id', uploadId);
+  var res = await fetch('/collect/' + linkId + '/chunk/merge', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    body: formData
+  });
+  var data = await res.json();
+  if (!data.success) { throw new Error(data.message || '文件合并失败'); }
+  return data;
+}
+
+async function cancelChunkUpload(uploadId) {
+  try {
+    var fd = new FormData();
+    fd.append('upload_id', uploadId);
+    await fetch('/collect/' + linkId + '/chunk/cancel', {
+      method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' }, body: fd
+    });
+  } catch(e) { /* ignore */ }
+}
+
+/* 进度上下文：跨分片追踪单文件 + 全局进度 */
+function createProgressCtx(globalCtx, fileIdx, fileSize, chunkedBaseBytes) {
+  return {
+    updateChunkProgress: function(fIdx, completedChunks, totalChunks, merging) {
+      var fileDone = chunkedBaseBytes[fIdx] || 0;
+      var fileTotal = selectedFiles[fIdx].size;
+      var pctInFile = totalChunks > 0 ? completedChunks / totalChunks : 0;
+      var nowDone = fileTotal * pctInFile;
+      chunkedBaseBytes[fIdx] = nowDone;
+      // 重算全局
+      var globalDone = 0, globalTotal = 0;
+      for (var k = 0; k < selectedFiles.length; k++) {
+        globalTotal += selectedFiles[k].size;
+        if (selectedFiles[k].size > CHUNK_SIZE) {
+          globalDone += (chunkedBaseBytes[k] || 0);
+        } else {
+          // 小文件在常规上传中已计入 globalCtx
+        }
+      }
+      // 加上常规上传已完成的小文件
+      globalDone += (globalCtx.regularDone || 0);
+      var pct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 100) : 0;
+      var bar = document.getElementById('progress-bar');
+      var txt = document.getElementById('progress-text');
+      var spd = document.getElementById('speed-text');
+      bar.style.width = pct + '%';
+      var remain = totalChunks - completedChunks;
+      var label = merging ? '合并中 ' + (fIdx+1) + '/' + selectedFiles.length :
+                            '上传中 ' + (fIdx+1) + '/' + selectedFiles.length +
+                            (remain > 0 ? ' (剩余' + remain + '分片)' : '');
+      txt.innerHTML = '<span>' + label + '</span><span>' + pct + '%</span>';
+      var elapsed = (Date.now() - globalCtx.startTime) / 1000;
+      var speed = elapsed > 0 ? (globalDone + (globalCtx.regularDone || 0)) / elapsed : 0;
+      spd.innerHTML = formatSize(speed) + '/s';
+    }
+  };
+}
+
+/* 单个大文件的分片上传流程 */
+async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx, chunkedBaseBytes) {
+  var uploadId = generateUploadId(file, file.name, file.size);
+  saveUploadIdForFile(file, uploadId);
+  var initResult = await initChunkSession(uploadId, file.name, file.size);
+  /* 续传时服务端可能返回不同的upload_id（按文件名+大小匹配），必须同步更新 */
+  if (initResult.upload_id && initResult.upload_id !== uploadId) {
+    uploadId = initResult.upload_id;
+    saveUploadIdForFile(file, uploadId);
+  }
+  var uploadedChunks = initResult.uploaded_chunks || [];
+  var totalChunks = initResult.total_chunks;
+
+  var progressCtx = createProgressCtx(globalCtx, fileIdx, file.size, chunkedBaseBytes);
+  progressCtx.updateChunkProgress(fileIdx, uploadedChunks.length, totalChunks);
+
+  // 构建待上传列表
+  var pendingChunks = [];
+  for (var i = 0; i < totalChunks; i++) {
+    if (uploadedChunks.indexOf(i) === -1) pendingChunks.push(i);
+  }
+
+  if (pendingChunks.length === 0 && uploadedChunks.length === totalChunks) {
+    // 全部已上传，直接合并
+    progressCtx.updateChunkProgress(fileIdx, totalChunks, totalChunks, true);
+    var mergeRes = await mergeChunksAPI(uploadId);
+    removeUploadIdForFile(file);
+    return mergeRes;
+  }
+
+  var completed = uploadedChunks.length;
+  var queue = pendingChunks.slice();
+  var errors = [];
+  var activeWorkers = 0;
+
+  await new Promise(function(resolveQueue, rejectQueue) {
+    function processNext() {
+      if (isUploadPaused) { activeWorkers = 0; return; }
+      if (queue.length === 0) {
+        if (activeWorkers === 0) resolveQueue();
+        return;
+      }
+      var chunkIdx = queue.shift();
+      activeWorkers++;
+      uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks)
+        .then(function(r) {
+          if (r && !r.skipped) completed++;
+          progressCtx.updateChunkProgress(fileIdx, completed, totalChunks);
+          activeWorkers--;
+          processNext();
+        })
+        .catch(function(err) {
+          errors.push({chunk: chunkIdx, error: err.message});
+          activeWorkers--;
+          if (errors.length > 10) { rejectQueue(new Error('多个分片失败，请检查网络: ' + errors.map(function(e){return e.error;}).join('; '))); return; }
+          processNext();
+        });
+    }
+    var workers = Math.min(CHUNK_MAX_CONCURRENT, queue.length);
+    for (var w = 0; w < workers; w++) processNext();
+  });
+
+  if (errors.length > 0) {
+    var detail = errors.slice(0, 5).map(function(e){ return '#' + e.chunk + ':' + e.error; }).join(' | ');
+    throw new Error(errors.length + ' 个分片上传失败: ' + detail);
+  }
+
+  progressCtx.updateChunkProgress(fileIdx, totalChunks, totalChunks, true);
+  var result = await mergeChunksAPI(uploadId);
+  removeUploadIdForFile(file);
+  return result;
+}
+
+/* ========== 主上传入口（分片 + 常规双模式） ========== */
 async function startUpload() {
   if (selectedFiles.length === 0) return;
   var totalUsed = totalUploaded + selectedFiles.length;
@@ -349,6 +567,7 @@ async function startUpload() {
     showToast('已超过最大上传数（' + MAX_FILES + '个），请联系管理员', 4000);
     return;
   }
+  isUploadPaused = false;
   var btn = document.getElementById('upload-btn');
   btn.disabled = true; btn.textContent = '上传中...';
 
@@ -361,13 +580,36 @@ async function startUpload() {
   resultDiv.classList.remove('on');
   resultDiv.innerHTML = '';
 
-  var totalSize = selectedFiles.reduce(function(s,f){ return s+f.size; },0);
-  var uploaded = 0, successCount = 0, failCount = 0;
   var startTime = Date.now();
-  var lastUpdate = startTime;
+  var successCount = 0, failCount = 0;
+  var regularDone = 0;
+  var chunkedBaseBytes = {}; // 追踪每个大文件的已完成字节
+
+  var globalCtx = { startTime: startTime, regularDone: 0 };
 
   for (var i = 0; i < selectedFiles.length; i++) {
+    if (isUploadPaused) {
+      resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>';
+      break;
+    }
+
     var f = selectedFiles[i];
+
+    /* ---- 大文件：分片上传 ---- */
+    if (f.size > CHUNK_SIZE) {
+      try {
+        var mergeResult = await uploadSingleFileChunked(f, i, selectedFiles.length, globalCtx, chunkedBaseBytes);
+        chunkedBaseBytes[i] = f.size;
+        successCount++;
+        resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功（分片续传）</div>';
+      } catch(e) {
+        failCount++;
+        resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message) + '</div>';
+      }
+      continue;
+    }
+
+    /* ---- 小文件：常规上传 ---- */
     var formData = new FormData();
     formData.append('file', f);
 
@@ -376,19 +618,27 @@ async function startUpload() {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/collect/' + linkId + '/upload');
         xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
-        xhr.timeout = 0; // 不限制超时，由服务器端 MAX_CONTENT_LENGTH 兜底
+        xhr.timeout = 0;
+        var lastUpdate = Date.now();
 
         xhr.upload.onprogress = function(e){
           if (!e.lengthComputable) return;
           var now = Date.now();
           if (now - lastUpdate < 300) return;
           lastUpdate = now;
-          var currentUploaded = uploaded + e.loaded;
-          var pct = Math.round((currentUploaded / totalSize) * 100);
+          var done = e.loaded + regularDone;
+          // 加上大文件的已完成字节
+          for (var key in chunkedBaseBytes) {
+            if (chunkedBaseBytes.hasOwnProperty(key)) {
+              done += chunkedBaseBytes[key];
+            }
+          }
+          var totalSize = selectedFiles.reduce(function(s,ff){ return s+ff.size; }, 0);
+          var pct = Math.round((done / totalSize) * 100);
           progressBar.style.width = pct + '%';
           progressText.innerHTML = '<span>上传中 ' + (i+1) + '/' + selectedFiles.length + '</span><span>' + pct + '%</span>';
           var elapsed = (now - startTime) / 1000;
-          var speed = elapsed > 0 ? currentUploaded / elapsed : 0;
+          var speed = elapsed > 0 ? done / elapsed : 0;
           speedText.innerHTML = formatSize(speed) + '/s';
         };
 
@@ -400,7 +650,9 @@ async function startUpload() {
               var errMsg = data.message || ('服务器错误 (HTTP ' + xhr.status + ')');
               resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(errMsg) + '</div>';
             } else if (data.results && data.results.length > 0 && data.results[0].success) {
-              uploaded += f.size; successCount++;
+              regularDone += f.size;
+              globalCtx.regularDone = regularDone;
+              successCount++;
               resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
             } else {
               failCount++;
@@ -411,7 +663,7 @@ async function startUpload() {
           resolve();
         };
         xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 网络错误</div>'; resolve(); };
-        xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 上传超时，文件过大或网络过慢</div>'; resolve(); };
+        xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 上传超时</div>'; resolve(); };
         xhr.send(formData);
       });
     } catch(e){ failCount++; }
@@ -445,7 +697,7 @@ async function loadHistory() {
       var escapedTime = escapeHtml(fmtTime(r.uploaded_at));
       var escapedSize = escapeHtml(r.file_size_display);
       var ext = r.original_name.split('.').pop().toLowerCase();
-      var canPreview = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.pdf', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'].includes('.' + ext);
+      var canPreview = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.pdf', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.md', '.markdown', '.txt', '.csv', '.ofd', '.dxf', '.html', '.htm', '.js', '.css', '.json', '.xml', '.log', '.mp3', '.wav'].includes('.' + ext);
       html += '<div class="cp-history-card">';
       html += '<div class="cp-history-card-name">' + escapedName + '</div>';
       html += '<div class="cp-history-card-meta">';
@@ -476,6 +728,15 @@ async function loadHistory() {
 }
 
 function previewFile(linkId, recordId, fileName) {
+  var ext = fileName.split('.').pop().toLowerCase();
+  
+  // JIT Viewer 新窗口纯净预览（Office/PDF/MD/TXT/CSV/OFD/DXF/HTML/代码/音频）
+  var jitExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'md', 'markdown', 'txt', 'csv', 'ofd', 'dxf', 'html', 'htm', 'js', 'css', 'json', 'xml', 'log', 'mp3', 'wav'];
+  if (jitExts.includes(ext)) {
+    window.open('/collect/' + linkId + '/view/' + recordId, '_blank');
+    return;
+  }
+  
   var modal = document.getElementById('preview-modal');
   var title = document.getElementById('preview-title');
   var body = document.getElementById('preview-body');
@@ -485,7 +746,6 @@ function previewFile(linkId, recordId, fileName) {
   body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
   modal.style.display = 'flex';
   
-  var ext = fileName.split('.').pop().toLowerCase();
   var previewUrl = '/collect/' + linkId + '/preview/' + recordId;
   
   downloadBtn.onclick = function() {
@@ -496,44 +756,6 @@ function previewFile(linkId, recordId, fileName) {
     body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p>图片加载失败</p>\'">';
   } else if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext)) {
     body.innerHTML = '<video src="' + previewUrl + '" controls class="cp-preview-video" poster="" oncanplay="this.poster=\'\'" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
-  } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) {
-    // 文档预览（使用JIT Viewer SDK - 按需加载，支持 Office/PDF 等）
-    body.innerHTML = '<div id="office-preview-container" style="width:100%;height:500px;"></div>';
-    var fileUrl = window.location.origin + '/collect/' + linkId + '/preview_file/' + recordId;
-    
-    loadJitViewer().then(function() {
-      // 创建预览器实例
-      var viewer = window.JitViewer.createViewer({
-        target: document.getElementById('office-preview-container'),
-        file: fileUrl,
-        filename: fileName,
-        toolbar: true,
-        theme: 'light'
-      });
-      
-      // 添加事件监听
-      viewer.on('ready', function() {
-        console.log('JIT Viewer ready');
-      });
-      
-      viewer.on('load', function() {
-        console.log('Office file loaded successfully');
-      });
-      
-      viewer.on('error', function(err) {
-        console.error('JIT Viewer error:', err);
-        var errorMsg = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
-        body.innerHTML = '<p class="cp-preview-error">预览失败：' + errorMsg + '</p><p>请尝试下载文件查看</p>';
-      });
-      
-      // 挂载预览器
-      viewer.mount();
-      window.currentViewer = viewer;
-      
-    }).catch(function(err) {
-      var errorMsg = err && err.message ? err.message : 'Office预览组件加载失败';
-      body.innerHTML = '<p class="cp-preview-error">' + errorMsg + '</p><p>请尝试下载文件查看</p>';
-    });
   } else {
     body.innerHTML = '<p>不支持预览该文件类型</p>';
   }
@@ -544,15 +766,6 @@ function closePreview() {
   var video = document.querySelector('#preview-modal video');
   if (video) {
     video.pause();
-  }
-  // 销毁 JIT Viewer 实例
-  if (window.currentViewer) {
-    try {
-      window.currentViewer.destroy();
-      window.currentViewer = null;
-    } catch (err) {
-      console.warn('销毁 JIT Viewer 实例失败:', err);
-    }
   }
   document.getElementById('preview-modal').style.display = 'none';
 }

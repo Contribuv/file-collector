@@ -126,7 +126,7 @@
         <table class="admin-table admin-table--logs">
           <thead>
             <tr>
-              <th>#</th><th>事件时间</th><th>事件类型</th><th>详情</th><th>上传者 IP</th><th>结果</th>
+              <th>#</th><th>事件时间</th><th>事件类型</th><th>详情</th>{% if require_uploader %}<th>上传者</th>{% endif %}<th>上传者 IP</th><th>结果</th>
             </tr>
           </thead>
           <tbody>
@@ -152,6 +152,7 @@
                   {{ log['details'] }}
                 {% endif %}
               </td>
+              {% if require_uploader %}<td>{{ log['uploader_name'] or '-' }}</td>{% endif %}
               <td>{{ log['uploader_ip'] or '-' }}</td>
               <td>
                 {% if log['success'] %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功
@@ -187,6 +188,7 @@
               {{ log['details'] }}
             {% endif %}
           </span></div>
+          {% if require_uploader %}<div class="log-row"><span class="log-label">上传者</span><span class="log-val">{{ log['uploader_name'] or '-' }}</span></div>{% endif %}
           <div class="log-row"><span class="log-label">IP</span><span class="log-val">{{ log['uploader_ip'] or '-' }}</span></div>
           <div class="log-row"><span class="log-label">结果</span><span class="log-val">
             {% if log['success'] %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 成功

@@ -30,10 +30,16 @@
     {% if description %}
     <div class="cp-desc">{{ description|safe }}</div>
     {% endif %}
-    <div class="cp-meta">
-      <span class="cp-meta-item{% if expire_days_left >= 0 %} cp-meta-expire{% if expire_days_left == 0 %} danger{% elif expire_days_left <= 1 %} warn{% else %} normal{% endif %}{% else %} cp-meta-expire forever{% endif %}">
-        {% if expire_days_left > 0 %}<svg class="cp-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 还剩 <strong>{{ expire_days_left }}</strong> 天{% elif expire_days_left == 0 %}<svg class="cp-meta-icon cp-meta-icon--warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>今天到期</strong>{% else %}有效期 <strong>不限</strong>{% endif %}
-      </span>
+    <div class="cp-meta-grid single">
+      <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}">
+        <div class="cp-meta-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">到期时间</span>
+          <span class="cp-meta-tile-value">{{ expire_text }}</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -106,6 +112,7 @@
 
 <script>
 const linkId = {{ link_id|tojson }};
+var requireUploader = {{ require_uploader|tojson }};
 
 function showToast(msg, d) {
   var t = document.getElementById('toast'); if (!t) return;
@@ -205,6 +212,7 @@ async function loadHistory() {
     var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
       '<th class="cp-th-act">操作</th>' +
       '</tr></thead><tbody>';
 
@@ -225,8 +233,11 @@ async function loadHistory() {
         iconHtml +
         '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
         '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
-        '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>' +
-        '<td class="cp-file-act">' +
+        '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>';
+      if (requireUploader) {
+        tableHtml += '<td class="cp-file-uploader">' + escapeHtml(r.uploader_name || '——') + '</td>';
+      }
+      tableHtml += '<td class="cp-file-act">' +
           (canPreview ? '<button class="cp-btn cp-btn-outline cp-btn-sm" onclick="previewFile(\'' + linkId + '\',' + r.id + ',\'' + escapeHtml(r.original_name) + '\')">预览</button>' : '') +
           '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="downloadFile(\'' + linkId + '\',' + r.id + ')">下载</button>' +
         '</td>' +
@@ -239,12 +250,14 @@ async function loadHistory() {
       cardHtml += '<div class="cp-card-item">' +
         cardIconHtml +
         '<div class="cp-card-info">' +
-          '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
-          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
-          '<div class="cp-card-actions">' +
-            (canPreview ? '<button class="cp-btn cp-btn-outline cp-btn-sm" onclick="previewFile(\'' + linkId + '\',' + r.id + ',\'' + escapeHtml(r.original_name) + '\')">预览</button>' : '') +
-            '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="downloadFile(\'' + linkId + '\',' + r.id + ')">下载</button>' +
+          '<div class="cp-card-row-top">' +
+            '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
+            '<div class="cp-card-actions">' +
+              (canPreview ? '<button class="cp-btn cp-btn-outline cp-btn-sm" onclick="previewFile(\'' + linkId + '\',' + r.id + ',\'' + escapeHtml(r.original_name) + '\')">预览</button>' : '') +
+              '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="downloadFile(\'' + linkId + '\',' + r.id + ')">下载</button>' +
+            '</div>' +
           '</div>' +
+          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
         '</div>' +
         '</div>';
     }

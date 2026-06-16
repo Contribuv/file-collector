@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.20-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.21-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,13 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.1.21
+
+- **# 新增**：上传者身份功能：当链接设为"空通行证"时，可开启"上传者"开关，要求上传者填写昵称身份
+- **# 新增**：上传者昵称验证：中文字符最多8个，英文/数字/符号最多20个，防止滥用
+- **# 新增**：按上传者分文件夹存放：同一链接下不同上传者的文件分别存入独立子文件夹
+- **# 新增**：上传者身份可退出重填，记录持久化在 session 中
 
 ### v2.1.20
 

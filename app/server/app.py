@@ -115,7 +115,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.1.20"
+VERSION = "2.1.21"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -592,6 +592,35 @@ def init_db():
     except Exception as e:
         print(f"数据库迁移错误(share_passcode_plain): {e}")
 
+    # 分享页独立描述、独立有效期、收集开关
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'share_description' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN share_description TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 links 表添加 share_description 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(share_description): {e}")
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'share_expires_at' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN share_expires_at TIMESTAMP")
+            conn.commit()
+            logger.info("已为 links 表添加 share_expires_at 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(share_expires_at): {e}")
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'collect_enabled' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN collect_enabled INTEGER DEFAULT 1")
+            conn.commit()
+            logger.info("已为 links 表添加 collect_enabled 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(collect_enabled): {e}")
+
     # 为 links 表添加 folder_name 列（用于文件系统文件夹，基于收集名称生成）
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -606,6 +635,47 @@ def init_db():
             logger.info("已迁移旧链接的 folder_name 为 link_id")
     except Exception as e:
         print(f"数据库迁移错误(folder_name): {e}")
+
+    # 为 links 表添加 require_uploader 列（空通行证时是否要求上传者填写身份）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'require_uploader' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN require_uploader INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已为 links 表添加 require_uploader 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(require_uploader): {e}")
+
+    # 为 upload_records 表添加 uploader_name 列（记录上传者身份）
+    try:
+        cursor = conn.execute("PRAGMA table_info(upload_records)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'uploader_name' not in columns:
+            conn.execute("ALTER TABLE upload_records ADD COLUMN uploader_name TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 upload_records 表添加 uploader_name 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(upload_records.uploader_name): {e}")
+
+    # 为 upload_logs 表添加 uploader_name 列（从 upload_records 回填）
+    try:
+        cursor = conn.execute("PRAGMA table_info(upload_logs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'uploader_name' not in columns:
+            conn.execute("ALTER TABLE upload_logs ADD COLUMN uploader_name TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 upload_logs 表添加 uploader_name 字段")
+            # 回填已有日志的 uploader_name
+            conn.execute("""
+                UPDATE upload_logs SET uploader_name = (
+                    SELECT ur.uploader_name FROM upload_records ur WHERE ur.id = upload_logs.record_id
+                ) WHERE record_id IS NOT NULL AND uploader_name = ''
+            """)
+            conn.commit()
+            logger.info("已回填 upload_logs 的 uploader_name 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
     # 为 users 表添加 email 列（旧数据库可能缺失）
     try:
@@ -706,12 +776,11 @@ def init_db():
                 )
                 logger.info("老版本数据库：自动生成 admin_password_hash（默认密码）")
             
+            admin_id = str(uuid.uuid4())
             conn.execute('''
                 INSERT INTO users (id, username, password_hash, is_admin, status)
                 VALUES (?, ?, ?, 1, 'active')
-            ''', (str(uuid.uuid4()), admin_user, admin_pass_hash))
-            
-            admin_id = conn.execute("SELECT id FROM users WHERE username = ?", (admin_user,)).fetchone()['id']
+            ''', (admin_id, admin_user, admin_pass_hash))
             
             # 更新旧数据的 user_id
             conn.execute("UPDATE links SET user_id = ? WHERE user_id = ''", (admin_id,))
@@ -979,15 +1048,15 @@ def _log_download(record_id, source='admin'):
     except Exception as e:
         logger.error(f"下载日志记录失败: {e}")
 
-def _log_upload(link_id, event, record_id=None, details=None, success=1):
+def _log_upload(link_id, event, record_id=None, details=None, success=1, uploader_name=''):
     """记录上传日志"""
     try:
         conn = get_db()
         detail_str = json.dumps(details, ensure_ascii=False) if isinstance(details, dict) else (details or '')
         conn.execute(
-            """INSERT INTO upload_logs (record_id, link_id, uploader_ip, event, details, success)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (record_id, link_id, _get_client_ip(), event, detail_str, success)
+            """INSERT INTO upload_logs (record_id, link_id, uploader_ip, event, details, success, uploader_name)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (record_id, link_id, _get_client_ip(), event, detail_str, success, uploader_name)
         )
         conn.commit()
         conn.close()
@@ -1504,12 +1573,17 @@ def admin_required(f):
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
         admin_hash = get_setting('admin_password_hash', '')
-        # 默认密码强制修改：非设置页且非退出页，跳转到设置页
+        # 默认密码提醒（仅 flash 提醒，不强制跳转）
         if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
-            allowed = ('admin_settings', 'admin_logout')
-            if request.endpoint not in allowed:
-                flash('安全提醒：您仍在使用默认密码，请立即修改！')
-                return redirect(url_for('admin_settings'))
+            if request.endpoint not in ('admin_settings', 'admin_logout'):
+                flash('安全提醒：您仍在使用默认密码，建议尽快修改！')
+        # 昵称未设置提醒
+        if session.get('is_admin'):
+            conn = get_db()
+            user = conn.execute("SELECT nickname FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+            conn.close()
+            if user and not user['nickname'] and request.endpoint not in ('admin_settings', 'admin_logout'):
+                flash('请设置您的昵称，将显示在收集页和分享页中')
         return f(*args, **kwargs)
     return decorated
 
@@ -1524,14 +1598,18 @@ def login_required(f):
         if request.method == 'POST':
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
-        # 管理员默认密码提醒（仅对管理员生效）
+        # 管理员默认密码提醒（仅 flash 提醒，不强制跳转）
         if session.get('is_admin'):
             admin_hash = get_setting('admin_password_hash', '')
             if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
-                allowed = ('admin_settings', 'admin_logout', 'user_settings')
-                if request.endpoint not in allowed:
-                    flash('安全提醒：您仍在使用默认密码，请立即修改！')
-                    return redirect(url_for('admin_settings'))
+                if request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
+                    flash('安全提醒：您仍在使用默认密码，建议尽快修改！')
+            # 昵称未设置提醒
+            conn = get_db()
+            user = conn.execute("SELECT nickname FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+            conn.close()
+            if user and not user['nickname'] and request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
+                flash('请设置您的昵称，将显示在收集页和分享页中')
         return f(*args, **kwargs)
     return decorated
 
@@ -1730,8 +1808,9 @@ def _safe_download(stored_path, original_name):
         as_attachment=True
     )
 
-def create_upload_dir(link_id):
-    """为链接创建上传目录（用户隔离：UPLOAD_BASE/<username>/<folder_name>/）"""
+def create_upload_dir(link_id, uploader_name=''):
+    """为链接创建上传目录（用户隔离：UPLOAD_BASE/<username>/<folder_name>/）
+    如果提供了 uploader_name，则在其下创建子文件夹：<...>/<folder_name>/<uploader_name>/"""
     conn = get_db()
     link = conn.execute("SELECT title, user_id, folder_name FROM links WHERE id = ?", (link_id,)).fetchone()
     conn.close()
@@ -1763,6 +1842,14 @@ def create_upload_dir(link_id):
     if not real_dir.startswith(real_base + os.sep) and real_dir != real_base:
         upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', link_id)
         real_dir = os.path.realpath(upload_dir)
+
+    # 上传者子文件夹
+    if uploader_name:
+        safe_uploader = _sanitize_uploader_name(uploader_name)
+        real_dir = os.path.join(real_dir, safe_uploader)
+        # 再次安全检查
+        if not os.path.realpath(real_dir).startswith(real_base + os.sep) and os.path.realpath(real_dir) != real_base:
+            real_dir = os.path.realpath(os.path.join(upload_dir, 'unknown'))
 
     os.makedirs(real_dir, mode=0o755, exist_ok=True)
 
@@ -1812,6 +1899,16 @@ def collect_page(link_id):
             error_title='链接失效',
             error_message='链接不存在或已被停用'), 404
 
+    # 检查收集页是否启用
+    if not link.get('collect_enabled', 1):
+        share_hint = ''
+        if link.get('share_enabled', 0):
+            share_hint = '收集已关闭，但您仍可通过分享链接查看文件。'
+        return render_template('error.html',
+            error_code=410,
+            error_title='收集已关闭',
+            error_message=share_hint or '该收集链接已被创建者关闭。'), 410
+
     if link['expires_at']:
         try:
             expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
@@ -1824,6 +1921,15 @@ def collect_page(link_id):
             pass
 
     has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    require_uploader = bool(link.get('require_uploader', 0))
+    passcode_empty = bool(link.get('passcode_empty', 0))
+    
+    # 上传者身份：从 session 获取（不依赖 passcode_empty）
+    uploader_name = ''
+    if require_uploader:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+    
+    # verified 仅取决于通行证验证，上传者不再作为门禁
     verified = is_verified(link_id) if has_passcode else True
     
     # 自动扫描文件夹中的新文件
@@ -1840,12 +1946,33 @@ def collect_page(link_id):
 
     expire_display = '永不过期'
     expire_days_left = -1  # -1 表示永不过期
+    expire_text = '有效期不限'
+    expire_level = 'forever'
     if link['expires_at']:
         try:
             expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
             expire_display = expire_time.strftime('%Y-%m-%d %H:%M')
             remain = expire_time - datetime.now()
             expire_days_left = max(0, remain.days)
+            total_seconds = remain.total_seconds()
+            if total_seconds <= 0:
+                expire_text = '已过期'
+                expire_level = 'danger'
+            elif total_seconds < 60:
+                expire_text = '即将过期'
+                expire_level = 'danger'
+            elif total_seconds < 3600:
+                expire_text = f'还剩 {int(total_seconds // 60)} 分钟'
+                expire_level = 'danger'
+            elif total_seconds < 86400:
+                hour_s = int(total_seconds // 3600)
+                min_s = int((total_seconds % 3600) // 60)
+                expire_text = f'还剩 {hour_s} 小时' if min_s == 0 else f'还剩 {hour_s} 小时 {min_s} 分钟'
+                expire_level = 'warn'
+            else:
+                days = remain.days
+                expire_text = f'还剩 {days} 天'
+                expire_level = 'normal' if days > 1 else 'warn'
         except (ValueError, TypeError):
             pass
 
@@ -1867,6 +1994,9 @@ def collect_page(link_id):
         description=link['description'],
         verified=verified,
         has_passcode=has_passcode,
+        passcode_empty=passcode_empty,
+        require_uploader=require_uploader,
+        uploader_name=uploader_name,
         in_wechat=is_wechat_browser(),
         max_file_size_gb=link['max_file_size_gb'],
         max_files=link['max_files'],
@@ -1878,6 +2008,8 @@ def collect_page(link_id):
         passcode_ttl_display=ttl_display,
         expire_display=expire_display,
         expire_days_left=expire_days_left,
+        expire_text=expire_text,
+        expire_level=expire_level,
         creator_name=creator_name,
         csrf_token=csrf_token)
 
@@ -1920,6 +2052,88 @@ def logout_passcode(link_id):
     session.pop(f'verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
+def _sanitize_uploader_name(name):
+    """安全化上传者名称，去除危险字符，用于文件夹名"""
+    # 去除路径遍历字符和危险特殊字符
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name.strip())
+    # 去除首尾的点和空格
+    name = name.strip('. ')
+    # 限制长度
+    if len(name) > 60:
+        name = name[:60]
+    if not name:
+        name = 'unknown'
+    return name
+
+@app.route('/collect/<link_id>/set_uploader', methods=['POST'])
+def set_uploader(link_id):
+    """设置上传者身份（require_uploader 开启时使用）"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+
+    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+
+    uploader_name = (request.form.get('uploader_name') or '').strip()
+    if not uploader_name:
+        return jsonify({'success': False, 'message': '请输入您的身份'}), 400
+
+    # 字数限制
+    chinese_count = 0
+    other_count = 0
+    for c in uploader_name:
+        if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf':
+            chinese_count += 1
+        else:
+            other_count += 1
+    if chinese_count > 0:
+        # 含中文：中文至少2字，最多8字；英文/数字/符号最多20字
+        if chinese_count < 2:
+            return jsonify({'success': False, 'message': '中文昵称至少填写2个字'}), 400
+        if chinese_count > 8:
+            return jsonify({'success': False, 'message': '中文字符最多8个'}), 400
+        if other_count > 20:
+            return jsonify({'success': False, 'message': '英文/数字/符号最多20个'}), 400
+    else:
+        # 纯英文/数字/符号：至少3字，最多20字
+        if other_count < 3:
+            return jsonify({'success': False, 'message': '昵称至少填写3个字符'}), 400
+        if other_count > 20:
+            return jsonify({'success': False, 'message': '英文/数字/符号最多20个'}), 400
+    if chinese_count + other_count > 60:
+        return jsonify({'success': False, 'message': '总字符数不能超过60个'}), 400
+
+    # 安全化处理
+    safe_name = _sanitize_uploader_name(uploader_name)
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT passcode_plain, require_uploader FROM links WHERE id = ? AND status = 'active'", (link_id,)
+    ).fetchone()
+    conn.close()
+
+    if not link:
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    if not bool(link['require_uploader']):
+        return jsonify({'success': False, 'message': '该链接不需要上传者身份'}), 400
+
+    # 有通行证时需先验证
+    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
+    if has_passcode and not is_verified(link_id, link):
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    session[f'uploader_{link_id}'] = safe_name
+    return jsonify({'success': True, 'uploader_name': safe_name})
+
+@app.route('/collect/<link_id>/logout_uploader', methods=['POST'])
+def logout_uploader(link_id):
+    """退出上传者身份"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+    session.pop(f'uploader_{link_id}', None)
+    return jsonify({'success': True, 'message': '已退出身份'})
+
 # ============================================================
 # 路由 - 分享页面（仅下载，无上传）
 # ============================================================
@@ -1946,9 +2160,11 @@ def share_page(link_id):
             error_title='分享未启用',
             error_message='该链接的分享功能未开启。'), 404
 
-    if link['expires_at']:
+    # 分享页有效期：优先使用独立设置，否则回退到收集页有效期
+    share_expires_at = link.get('share_expires_at') or link.get('expires_at')
+    if share_expires_at:
         try:
-            expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
+            expire_time = datetime.strptime(share_expires_at, '%Y-%m-%dT%H:%M')
             if datetime.now() > expire_time:
                 return render_template('error.html',
                     error_code=410,
@@ -1992,14 +2208,38 @@ def share_page(link_id):
 
     expire_display = '永不过期'
     expire_days_left = -1
-    if link['expires_at']:
+    expire_text = '有效期不限'
+    expire_level = 'forever'
+    if share_expires_at:
         try:
-            expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
+            expire_time = datetime.strptime(share_expires_at, '%Y-%m-%dT%H:%M')
             expire_display = expire_time.strftime('%Y-%m-%d %H:%M')
             remain = expire_time - datetime.now()
             expire_days_left = max(0, remain.days)
+            total_seconds = remain.total_seconds()
+            if total_seconds <= 0:
+                expire_text = '已过期'
+                expire_level = 'danger'
+            elif total_seconds < 60:
+                expire_text = '即将过期'
+                expire_level = 'danger'
+            elif total_seconds < 3600:
+                expire_text = f'还剩 {int(total_seconds // 60)} 分钟'
+                expire_level = 'danger'
+            elif total_seconds < 86400:
+                hour_s = int(total_seconds // 3600)
+                min_s = int((total_seconds % 3600) // 60)
+                expire_text = f'还剩 {hour_s} 小时' if min_s == 0 else f'还剩 {hour_s} 小时 {min_s} 分钟'
+                expire_level = 'warn'
+            else:
+                days = remain.days
+                expire_text = f'还剩 {days} 天'
+                expire_level = 'normal' if days > 1 else 'warn'
         except (ValueError, TypeError):
             pass
+
+    # 分享页描述：优先独立描述，否则回退到收集页描述
+    share_description_text = link.get('share_description') or link.get('description', '')
 
     # 查询创建者名称（优先昵称）
     creator_name = ''
@@ -2018,7 +2258,7 @@ def share_page(link_id):
     return render_template('share.html',
         link_id=link_id,
         task_title=link['title'],
-        description=link['description'],
+        description=share_description_text,
         verified=verified,
         has_passcode=has_passcode,
         in_wechat=is_wechat_browser(),
@@ -2031,7 +2271,10 @@ def share_page(link_id):
         passcode_ttl_display=ttl_display,
         expire_display=expire_display,
         expire_days_left=expire_days_left,
+        expire_text=expire_text,
+        expire_level=expire_level,
         creator_name=creator_name,
+        require_uploader=bool(link.get('require_uploader', 0)),
         csrf_token=csrf_token)
 
 @app.route('/share/<link_id>/verify', methods=['POST'])
@@ -2110,13 +2353,15 @@ def share_get_records(link_id):
     cleanup_orphan_records_for_link(conn, link_id)
 
     records = conn.execute(
-        "SELECT id, original_name, file_size_display, uploaded_at, download_count FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
+        "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
         (link_id,)
     ).fetchall()
+    require_uploader = bool(dict(link).get('require_uploader', 0))
     conn.close()
 
     return jsonify({
         'success': True,
+        'require_uploader': require_uploader,
         'records': [dict(r) for r in records]
     })
 
@@ -2318,14 +2563,30 @@ def get_upload_records(link_id):
     # 清理孤儿记录（文件已被删除的数据库记录）
     cleanup_orphan_records_for_link(conn, link_id)
 
-    total_uploaded = conn.execute(
-        "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-    ).fetchone()[0]
+    require_uploader = bool(dict(link).get('require_uploader', 0))
+    uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
 
-    records = conn.execute(
-        "SELECT id, original_name, file_size_display, uploaded_at, download_count FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
-        (link_id,)
-    ).fetchall()
+    if require_uploader and uploader_name:
+        # 上传者已设置身份 → 只看自己上传的文件
+        total_uploaded = conn.execute(
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?", (link_id, uploader_name)
+        ).fetchone()[0]
+        records = conn.execute(
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT 50",
+            (link_id, uploader_name)
+        ).fetchall()
+    elif require_uploader:
+        # 开启了上传者但未设置身份 → 什么也看不到
+        total_uploaded = 0
+        records = []
+    else:
+        total_uploaded = conn.execute(
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+        ).fetchone()[0]
+        records = conn.execute(
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
+            (link_id,)
+        ).fetchall()
     conn.close()
 
     return jsonify({
@@ -2333,6 +2594,7 @@ def get_upload_records(link_id):
         'allow_delete': bool(link['allow_delete']),
         'max_files': link['max_files'],
         'total_uploaded': total_uploaded,
+        'require_uploader': require_uploader,
         'records': [dict(r) for r in records]
     })
 
@@ -2604,7 +2866,8 @@ def upload_file(link_id):
                     'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
                 }), 400
 
-        upload_dir = create_upload_dir(link_id)
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        upload_dir = create_upload_dir(link_id, uploader_name)
         max_size_bytes = round(link['max_file_size_gb'] * 1024 * 1024 * 1024)
         results = []
 
@@ -2654,15 +2917,17 @@ def upload_file(link_id):
             conn.execute(
                 """INSERT INTO upload_records
                    (link_id, user_id, original_name, stored_name, stored_path, file_size,
-                    file_size_display, uploader_ip, uploaded_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    file_size_display, uploader_ip, uploader_name, uploaded_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (link_id, link['user_id'] or '', file.filename, stored_name, stored_path, size,
-                 format_file_size(size), _get_client_ip(), datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                 format_file_size(size), _get_client_ip(), uploader_name,
+                 datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             )
             record_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
             conn.commit()
             _log_upload(link_id, 'upload_complete', record_id=record_id,
-                        details={'name': file.filename, 'size': size, 'stored': stored_name})
+                        details={'name': file.filename, 'size': size, 'stored': stored_name},
+                        uploader_name=uploader_name)
 
             result['size'] = format_file_size(size)
             results.append(result)
@@ -2863,7 +3128,8 @@ def chunk_upload_init(link_id):
         if not safe_name:
             safe_name = 'unnamed_file'
 
-        upload_dir = create_upload_dir(link_id)
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        upload_dir = create_upload_dir(link_id, uploader_name)
         stored_path = os.path.join(upload_dir, safe_name)
 
         # 清理过期分片（每次初始化时触发一次）
@@ -2906,7 +3172,8 @@ def chunk_upload_init(link_id):
             )
             conn.commit()
             _log_upload(link_id, 'chunk_init',
-                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'resumed', 'uploaded': len(uploaded)})
+                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'resumed', 'uploaded': len(uploaded)},
+                        uploader_name=uploader_name)
             return jsonify({
                 'success': True,
                 'upload_id': upload_id,
@@ -2928,7 +3195,8 @@ def chunk_upload_init(link_id):
             )
             conn.commit()
             _log_upload(link_id, 'chunk_init',
-                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'initialized'})
+                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'initialized'},
+                        uploader_name=uploader_name)
             return jsonify({
                 'success': True,
                 'upload_id': upload_id,
@@ -3020,7 +3288,8 @@ def chunk_upload(link_id):
             })
 
         # 保存分片
-        upload_dir = create_upload_dir(link_id)
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        upload_dir = create_upload_dir(link_id, uploader_name)
         chunk_dir = _get_chunk_dir(upload_dir, upload_id)
         chunk_path = os.path.join(chunk_dir, f'chunk_{chunk_index:05d}')
         chunk_file.save(chunk_path)
@@ -3137,7 +3406,8 @@ def chunk_merge(link_id):
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        upload_dir = create_upload_dir(link_id)
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        upload_dir = create_upload_dir(link_id, uploader_name)
         chunk_dir = _get_chunk_dir(upload_dir, upload_id)
         total_chunks = session_row['total_chunks']
 
@@ -3234,11 +3504,11 @@ def chunk_merge(link_id):
         cursor = conn.execute(
             """INSERT INTO upload_records
                (link_id, user_id, original_name, stored_name, stored_path, file_size,
-                file_size_display, uploader_ip, uploaded_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                file_size_display, uploader_ip, uploader_name, uploaded_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_id, link['user_id'] or '', session_row['original_name'],
              stored_name, stored_path, total_written,
-             format_file_size(total_written), _get_client_ip(),
+             format_file_size(total_written), _get_client_ip(), uploader_name,
              datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         )
         record_id = cursor.lastrowid
@@ -3253,7 +3523,8 @@ def chunk_merge(link_id):
         # 记录分片合并成功日志
         _log_upload(link_id, 'chunk_merge', record_id=record_id,
                     details={'name': session_row['original_name'], 'size': total_written,
-                             'chunks': total_chunks, 'stored': stored_name})
+                             'chunks': total_chunks, 'stored': stored_name},
+                    uploader_name=uploader_name)
 
         # 清理分片临时文件
         _cleanup_chunk_dir(chunk_dir)
@@ -3297,7 +3568,8 @@ def chunk_cancel(link_id):
 
         # 清理分片文件
         try:
-            upload_dir = create_upload_dir(link_id)
+            uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+            upload_dir = create_upload_dir(link_id, uploader_name)
             chunk_dir = os.path.join(upload_dir, '.chunks', re.sub(r'[^\w\-]', '_', upload_id))
             if os.path.isdir(chunk_dir):
                 shutil.rmtree(chunk_dir)
@@ -4112,7 +4384,7 @@ def admin_dashboard():
             "SELECT COUNT(*) FROM upload_records WHERE date(uploaded_at) = ?", (today,)
         ).fetchone()[0]
         recent = conn.execute(
-            """SELECT r.*, l.title as link_title, u.username, u.nickname
+            """SELECT r.*, l.title as link_title, l.require_uploader, u.username, u.nickname
                FROM upload_records r
                LEFT JOIN links l ON r.link_id = l.id
                LEFT JOIN users u ON l.user_id = u.id
@@ -4138,7 +4410,7 @@ def admin_dashboard():
                WHERE l.user_id = ? AND date(r.uploaded_at) = ?""", (user_id, today)
         ).fetchone()[0]
         recent = conn.execute(
-            """SELECT r.*, l.title as link_title, u.username, u.nickname
+            """SELECT r.*, l.title as link_title, l.require_uploader, u.username, u.nickname
                FROM upload_records r
                INNER JOIN links l ON r.link_id = l.id
                LEFT JOIN users u ON l.user_id = u.id
@@ -4183,6 +4455,7 @@ def admin_links():
     _link_cols = ("l.id, l.user_id, l.title, l.description, l.passcode, l.passcode_plain, l.passcode_empty, "
                   "l.max_files, l.max_file_size_gb, l.expires_at, l.created_at, l.updated_at, "
                   "l.status, l.allow_delete, l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
+                  "l.require_uploader, "
                   "u.username, u.nickname")
     if is_admin:
         total = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
@@ -4260,9 +4533,18 @@ def admin_link_form(link_id):
         flash('链接不存在')
         return redirect(url_for('admin_links'))
 
+    link_dict = dict(link)
+    # 计算分享页有效期天数（用于编辑表单回显）
+    if link_dict.get('share_expires_at'):
+        try:
+            et = datetime.strptime(link_dict['share_expires_at'], '%Y-%m-%dT%H:%M')
+            link_dict['_share_expire_days'] = max(1, (et - datetime.now()).days + 1)
+        except (ValueError, TypeError):
+            link_dict['_share_expire_days'] = ''
+
     user_id = session.get('user_id')
     return render_template('admin_link_form.html',
-                           edit_link=dict(link),
+                           edit_link=link_dict,
                            defaults={'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
                                      'expire_days': get_user_setting(user_id, 'default_link_expire_days', '30')})
@@ -4379,6 +4661,34 @@ def create_link():
         share_passcode_hash = ''
         share_passcode_plain = ''
 
+    # 分享页独立描述
+    try:
+        share_description = sanitize_html(request.form.get('share_description', ''))
+    except Exception:
+        share_description = request.form.get('share_description', '')
+    # 分享页独立有效期（天数）
+    share_expire_days = request.form.get('share_expire_days', '').strip()
+    share_expires_at = None
+    if share_expire_days:
+        try:
+            sd = int(share_expire_days)
+            if sd > 0 and sd <= _max_expire_days:
+                share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
+        except ValueError:
+            pass
+    # 分享页独立截止日期（优先级高于天数）
+    share_expires_at_raw = request.form.get('share_expires_at', '').strip()
+    if share_expires_at_raw:
+        try:
+            parsed = datetime.strptime(share_expires_at_raw, '%Y-%m-%dT%H:%M')
+            if parsed > datetime.now() and parsed <= datetime.now() + timedelta(days=_max_expire_days):
+                share_expires_at = share_expires_at_raw
+        except ValueError:
+            pass
+    # 收集页开关
+    collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
+    require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
+
     try:
         conn = get_db()
         passcode_empty = 1 if (not passcode or not passcode.strip()) else 0
@@ -4386,10 +4696,11 @@ def create_link():
             """INSERT INTO links (id, user_id, title, description, passcode, passcode_plain,
                max_file_size_gb, max_files, expires_at, allow_delete, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
-               folder_name)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               share_description, share_expires_at, collect_enabled, require_uploader, folder_name)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, passcode_empty,
-             share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty, folder_name)
+             share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
+             share_description, share_expires_at, collect_enabled, require_uploader, folder_name)
         )
         conn.commit()
         conn.close()
@@ -4507,6 +4818,36 @@ def edit_link(link_id):
             share_passcode_hash = ''  # 不会被使用（share_changed=False）
             share_passcode_plain = ''
 
+        # 分享页独立描述
+        try:
+            share_description = sanitize_html(request.form.get('share_description', ''))
+        except Exception:
+            share_description = request.form.get('share_description', '')
+        # 分享页独立有效期
+        share_expires_at_raw = request.form.get('share_expires_at', '').strip()
+        share_expires_at = None
+        if share_expires_at_raw:
+            try:
+                parsed = datetime.strptime(share_expires_at_raw, '%Y-%m-%dT%H:%M')
+                if parsed > datetime.now() and parsed <= datetime.now() + timedelta(days=_max_expire_days):
+                    share_expires_at = share_expires_at_raw
+            except ValueError:
+                pass
+        else:
+            share_expire_days = request.form.get('share_expire_days', '').strip()
+            if share_expire_days:
+                try:
+                    sd = int(share_expire_days)
+                    if 0 < sd <= _max_expire_days:
+                        share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
+                    elif sd == 0:
+                        share_expires_at = None  # 清除
+                except ValueError:
+                    pass
+        # 收集页开关
+        collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
+        require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
+
         # 处理通行证更新逻辑（新的复选框方案）
         if empty_passcode:
             # 用户勾选了空通行证：清空通行证（允许任何人访问）
@@ -4516,19 +4857,21 @@ def edit_link(link_id):
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=1,
-                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty, link_id)
+                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
+                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=1,
-                       share_enabled=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
         elif passcode:
             # 用户输入了新通行证：设置新通行证
@@ -4538,19 +4881,21 @@ def edit_link(link_id):
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=0,
-                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty, link_id)
+                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
+                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=0,
-                       share_enabled=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
         else:
             # 保持原有通行证不变 - 只更新其他字段
@@ -4558,19 +4903,21 @@ def edit_link(link_id):
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?,
-                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty, link_id)
+                     share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
+                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?,
-                       share_enabled=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
                 )
 
         conn.commit()
@@ -4664,7 +5011,7 @@ def admin_records():
     # 管理员无过滤时无需 JOIN（upload_records 已有 link_id）
     # 使用特定字段而非 SELECT r.* 减少数据传输
     _rec_cols = ("r.id, r.original_name, r.file_size_display, r.download_count, "
-                 "r.uploader_ip, r.uploaded_at, r.link_id, r.stored_path, r.stored_name")
+                 "r.uploader_ip, r.uploaded_at, r.link_id, r.stored_path, r.stored_name, r.uploader_name")
 
     if is_admin:
         if link_filter:
@@ -4692,9 +5039,10 @@ def admin_records():
     total_pages = max(1, (count + per_page - 1) // per_page)
     page = min(page, total_pages)
 
-    # 数据查询：用子查询取 link_title 和 nickname（优先昵称）
+    # 数据查询：用子查询取 link_title、require_uploader 和 nickname（优先昵称）
     data_sql = f"""SELECT {_rec_cols},
                    (SELECT l.title FROM links l WHERE l.id = r.link_id) as link_title,
+                   (SELECT l.require_uploader FROM links l WHERE l.id = r.link_id) as require_uploader,
                    COALESCE((SELECT u.nickname FROM links l JOIN users u ON l.user_id = u.id WHERE l.id = r.link_id),
                             (SELECT u.username FROM links l JOIN users u ON l.user_id = u.id WHERE l.id = r.link_id)) as creator_name
                    FROM upload_records r {where}
@@ -4783,7 +5131,10 @@ def admin_upload_logs(record_id):
 
     conn = get_db()
     record = conn.execute(
-        "SELECT original_name FROM upload_records WHERE id = ?", (record_id,)
+        """SELECT r.original_name, l.require_uploader
+           FROM upload_records r
+           LEFT JOIN links l ON r.link_id = l.id
+           WHERE r.id = ?""", (record_id,)
     ).fetchone()
     if not record:
         conn.close()
@@ -4802,6 +5153,7 @@ def admin_upload_logs(record_id):
                            record=record,
                            record_id=record_id,
                            logs=logs,
+                           require_uploader=bool(record['require_uploader']) if record['require_uploader'] else False,
                            now=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 @app.route('/admin/links/<link_id>/upload-logs')
@@ -4812,7 +5164,7 @@ def admin_link_upload_logs(link_id):
         return '无权访问', 403
 
     conn = get_db()
-    link = conn.execute("SELECT title FROM links WHERE id = ?", (link_id,)).fetchone()
+    link = conn.execute("SELECT title, require_uploader FROM links WHERE id = ?", (link_id,)).fetchone()
     if not link:
         conn.close()
         return '链接不存在', 404
@@ -4829,6 +5181,7 @@ def admin_link_upload_logs(link_id):
     return render_template('admin_upload_logs.html',
                            record={'original_name': link['title']},
                            link_title=link['title'],
+                           require_uploader=bool(link['require_uploader']) if link['require_uploader'] else False,
                            back_url=url_for('admin_links'),
                            logs=logs,
                            now=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -5260,6 +5613,103 @@ def admin_settings():
                 return redirect(url_for('admin_settings'))
             set_user_setting(session.get('user_id'), 'records_per_page', str(val))
             flash('上传记录单页数量已保存（仅对自己生效）')
+
+        # ---- 合并卡片 actions ----
+
+        elif action == 'page_branding':
+            # 站点标题 + 收集页 + 分享页 + 登录页提示
+            title = request.form.get('site_title', '').strip()
+            if not title:
+                flash('站点标题不能为空')
+                return redirect(url_for('admin_settings'))
+            set_setting('site_title', title)
+            footer_text = request.form.get('collect_footer_text', '').strip()
+            public_url = request.form.get('public_url', '').strip()
+            set_setting('collect_footer_text', footer_text)
+            set_setting('public_url', public_url)
+            share_title = request.form.get('share_page_title', '').strip()
+            share_footer = request.form.get('share_footer_text', '').strip()
+            set_setting('share_page_title', share_title)
+            set_setting('share_footer_text', share_footer)
+            tip = request.form.get('login_tip_text', '').strip()
+            set_setting('login_tip', tip)
+            flash('页面与品牌设置已保存')
+
+        elif action == 'expiry_settings':
+            # 通行证有效期 + 默认链接有效期
+            minutes = request.form.get('passcode_ttl_minutes', '120')
+            try:
+                _m = float(minutes)
+                if _m != int(_m):
+                    raise ValueError('通行证有效期必须为整数')
+                val = int(_m)
+                if val < 1 or val > 43200:
+                    raise ValueError('通行证有效期必须在 1-43200 分钟之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '通行证有效期格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('passcode_ttl_minutes', str(val))
+            raw = request.form.get('default_link_expire_days', '30')
+            try:
+                _v = float(raw)
+                if _v != int(_v):
+                    raise ValueError('链接有效期天数必须为整数')
+                days = int(_v)
+                if days < 1 or days > 3650:
+                    raise ValueError('链接有效期天数必须在 1-3650 天之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '链接有效期格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('default_link_expire_days', str(days))
+            flash('有效期设置已保存')
+
+        elif action == 'feature_toggles':
+            # 用户注册 + 首页设置
+            allow_reg = request.form.get('allow_registration', '0')
+            expire_days = request.form.get('default_invite_expire_days', '7')
+            try:
+                _d = float(expire_days)
+                if _d != int(_d):
+                    raise ValueError('邀请码有效期必须为整数')
+                days = int(_d)
+                if days < 1 or days > 365:
+                    raise ValueError('邀请码有效期必须在 1-365 天之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '邀请码有效期格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('allow_registration', allow_reg)
+            set_setting('default_invite_expire_days', str(days))
+            enabled = request.form.get('landing_page_enabled', '0')
+            set_setting('landing_page_enabled', enabled)
+            flash('功能开关已保存')
+
+        elif action == 'pagination':
+            # 收集链接分页 + 上传记录分页
+            raw_links = request.form.get('links_per_page_val', '10')
+            try:
+                _v = float(raw_links)
+                if _v != int(_v):
+                    raise ValueError('收集链接每页数量必须为整数')
+                val_l = int(_v)
+                if val_l < 5 or val_l > 100:
+                    raise ValueError('收集链接每页数量必须在 5-100 之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('links_per_page', str(val_l))
+            raw_records = request.form.get('records_per_page_val', '10')
+            try:
+                _v2 = float(raw_records)
+                if _v2 != int(_v2):
+                    raise ValueError('上传记录每页数量必须为整数')
+                val_r = int(_v2)
+                if val_r < 5 or val_r > 200:
+                    raise ValueError('上传记录每页数量必须在 5-200 之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
+                return redirect(url_for('admin_settings'))
+            set_user_setting(session.get('user_id'), 'records_per_page', str(val_r))
+            flash('分页设置已保存')
 
         elif action == 'smtp_config':
             smtp_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',

@@ -130,6 +130,20 @@
   <div class="link-popover-info" id="lp-info"></div>
   <div class="link-popover-actions" id="lp-actions"></div>
 </div>
+
+{# --- 删除确认模态框 --- #}
+<div class="modal-overlay" id="delete-confirm-modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header"><h3>确认删除</h3></div>
+    <div class="modal-body">
+      <p id="delete-confirm-text" style="margin:0;line-height:1.6;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeDeleteConfirm()">取消</button>
+      <button class="btn btn-sm btn-danger" id="delete-confirm-btn" onclick="confirmDeleteLink()">确认删除</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -336,17 +350,27 @@
 .lp-action-row .lp-action-btn {
   flex: 1;
   justify-content: center;
-  padding: 10px 6px;
-  border-radius: 8px;
+  padding: 8px 6px;
+  border-radius: 6px;
   font-size: 0.82rem;
   border-bottom: none;
   white-space: nowrap;
   min-width: 0;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
 }
 .lp-action-row .lp-action-btn svg {
   margin-right: 4px !important;
   flex-shrink: 0;
 }
+.lp-action-row .lp-action-btn.primary { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.lp-action-row .lp-action-btn.primary:hover { background: #e0e7ff; }
+.lp-action-row .lp-action-btn.warning { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.lp-action-row .lp-action-btn.warning:hover { background: #ffedd5; }
+.lp-action-row .lp-action-btn.danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.lp-action-row .lp-action-btn.danger:hover { background: #fee2e2; }
+.lp-action-row .lp-action-btn.edit { background: #ecfdf5; border-color: #a7f3d0; color: #059669; }
+.lp-action-row .lp-action-btn.edit:hover { background: #d1fae5; }
 .lp-action-row form {
   margin: 0;
   flex: 1;
@@ -501,14 +525,14 @@ function showLinkPopover(btn) {
 
   // 第二排：编辑 / 启停 / 删除
   html += '<div class="lp-action-row">';
-  html += '<a href="' + editUrl + '" class="lp-action-btn">' + svgEdit + '编辑链接</a>';
+  html += '<a href="' + editUrl + '" class="lp-action-btn edit">' + svgEdit + '编辑链接</a>';
   html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
     '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
     '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +
     '</form>';
-  html += '<form method="POST" action="' + deleteUrl + '" onsubmit="return confirm(\'确定删除链接「' + escapeJs(d.title) + '」？上传文件不会被删除。\');">' +
+  html += '<form method="POST" action="' + deleteUrl + '" id="delete-form-' + d.linkId + '" onsubmit="return false;">' +
     '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
-    '<button type="submit" class="lp-action-btn danger">' + svgDelete + '删除链接</button>' +
+    '<button type="button" class="lp-action-btn danger" onclick="showDeleteConfirm(\'' + d.linkId + '\',\'' + escapeJs(d.title) + '\')">' + svgDelete + '删除链接</button>' +
     '</form>';
   html += '</div>';
 
@@ -539,6 +563,29 @@ function popoverCopyLink(type, linkId, passcode, isLegacy) {
     text = url + '\n\n' + actionHint;
   }
   copyToClipboard(text);
+}
+
+/* --- 删除确认弹窗 --- */
+var _deleteLinkId = null;
+
+function showDeleteConfirm(linkId, title) {
+  _deleteLinkId = linkId;
+  document.getElementById('delete-confirm-text').textContent = '确定删除链接「' + title + '」？上传文件不会被删除，此操作不可撤销。';
+  document.getElementById('delete-confirm-modal').style.display = '';
+  closeLinkPopover();
+}
+
+function closeDeleteConfirm() {
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
+}
+
+function confirmDeleteLink() {
+  if (!_deleteLinkId) return;
+  var form = document.getElementById('delete-form-' + _deleteLinkId);
+  if (form) form.submit();
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
 }
 </script>
 {% endblock %}

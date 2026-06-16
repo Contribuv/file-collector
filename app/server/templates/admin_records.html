@@ -50,6 +50,8 @@
                   data-downloads="{{ r['download_count'] }}"
                   data-ip="{{ r['uploader_ip'] }}"
                   data-time="{{ r['uploaded_at'] }}"
+                  data-uploader="{{ r['uploader_name'] or '' }}"
+                  data-require-uploader="{{ r['require_uploader']|string|lower }}"
                   data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
               </td>
             </tr>
@@ -81,6 +83,8 @@
               data-downloads="{{ r['download_count'] }}"
               data-ip="{{ r['uploader_ip'] }}"
               data-time="{{ r['uploaded_at'] }}"
+              data-uploader="{{ r['uploader_name'] or '' }}"
+              data-require-uploader="{{ r['require_uploader']|string|lower }}"
               data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
           </div>
         </div>
@@ -461,6 +465,8 @@ function toggleDetailPopover(btn) {
   var downloads = btn.getAttribute('data-downloads');
   var ip = btn.getAttribute('data-ip');
   var time = btn.getAttribute('data-time');
+  var uploader = btn.getAttribute('data-uploader') || '';
+  var requireUploader = btn.getAttribute('data-require-uploader') === 'true' || btn.getAttribute('data-require-uploader') === '1';
   var previewable = btn.getAttribute('data-previewable') === '1';
   var csrfToken = document.querySelector('input[name="csrf_token"]').value;
   
@@ -480,6 +486,18 @@ function toggleDetailPopover(btn) {
   actionBtns += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
   actionBtns += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
   
+  // 构建信息行，上传者信息动态显示
+  var infoRows = '';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>';
+  if (requireUploader && uploader) {
+    infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">上传者</span><span class="detail-popover-value">' + escapeHtml(uploader) + '</span></div>';
+  }
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>';
+  
   // 创建浮窗
   var popover = document.createElement('div');
   popover.className = 'detail-popover';
@@ -489,12 +507,7 @@ function toggleDetailPopover(btn) {
       '<button class="detail-popover-close" onclick="closeAllPopovers()">&times;</button>' +
     '</div>' +
     '<div class="detail-popover-body">' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>' +
-      '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>' +
+      infoRows +
     '</div>' +
     '<div class="detail-popover-footer" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' + actionBtns +
     '</div>';

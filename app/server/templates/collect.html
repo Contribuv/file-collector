@@ -30,14 +30,44 @@
     {% if description %}
     <div class="cp-desc">{{ description|safe }}</div>
     {% endif %}
-    <div class="cp-meta">
-      <span class="cp-meta-item">单文件上限 <strong>{% if max_file_size_gb < 1 %}{{ (max_file_size_gb * 1024)|round(2) }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</strong></span>
-      <span class="cp-meta-item">最多 <strong>{% if max_files == 0 %}不限{% else %}{{ max_files }}{% endif %}</strong> 个</span>
-      <span class="cp-meta-item{% if expire_days_left >= 0 %} cp-meta-expire{% if expire_days_left == 0 %} danger{% elif expire_days_left <= 1 %} warn{% else %} normal{% endif %}{% else %} cp-meta-expire forever{% endif %}">
-        {% if expire_days_left > 0 %}<svg class="cp-meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 还剩 <strong>{{ expire_days_left }}</strong> 天{% elif expire_days_left == 0 %}<svg class="cp-meta-icon cp-meta-icon--warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>今天到期</strong>{% else %}有效期 <strong>不限</strong>{% endif %}
-      </span>
+    <div class="cp-meta-grid">
+      <div class="cp-meta-tile">
+        <div class="cp-meta-tile-icon" style="background:#eff6ff;color:#3b82f6;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">单文件上限</span>
+          <span class="cp-meta-tile-value">{% if max_file_size_gb < 1 %}{{ (max_file_size_gb * 1024)|round(2) }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</span>
+        </div>
+      </div>
+      <div class="cp-meta-tile">
+        <div class="cp-meta-tile-icon" style="background:#f5f3ff;color:#7c3aed;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polygon points="12 2 22 8.5 12 15 2 8.5 12 2"/><polyline points="2 15.5 12 22 22 15.5"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">最多文件</span>
+          <span class="cp-meta-tile-value">{% if max_files == 0 %}不限{% else %}{{ max_files }} 个{% endif %}</span>
+        </div>
+      </div>
+      <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}">
+        <div class="cp-meta-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">到期时间</span>
+          <span class="cp-meta-tile-value">{{ expire_text }}</span>
+        </div>
+      </div>
       {% if verified and max_files > 0 %}
-      <span class="cp-meta-item" id="remaining-slot" style="color:#059669;background:#ecfdf5;border-color:#a7f3d0;">还可上传 <strong id="remaining-count">-</strong> 个</span>
+      <div class="cp-meta-tile cp-meta-tile--slots" id="remaining-tile">
+        <div class="cp-meta-tile-icon" style="background:#ecfdf5;color:#059669;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">还可上传</span>
+          <span class="cp-meta-tile-value"><strong id="remaining-count">-</strong> 个</span>
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>
@@ -73,11 +103,18 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         选择文件
       </h2>
+      {% if uploader_name %}<span id="uploader-badge" class="cp-badge cp-badge-uploader" onclick="logoutUploader()" title="点击退出身份">上传者：{{ uploader_name|e }}</span>{% endif %}
       {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <div class="cp-drop-icon" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
         <h3>点击选择文件或拖拽到此处</h3>
+        <span class="cp-drop-text" style="display:none;">点击或拖拽上传文件</span>
         <p class="cp-hint-resume">
           <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
@@ -132,9 +169,48 @@
 
 <div class="cp-toast" id="toast"></div>
 
+{% if require_uploader and not uploader_name %}
+{# ---------- Uploader Modal ---------- #}
+<div class="cp-modal-overlay" id="uploader-modal">
+  <div class="cp-modal-card">
+    <div class="cp-passcode-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <h2 class="cp-passcode-title">怎么称呼您？</h2>
+    <p class="cp-passcode-sub">中文昵称 2-8 字，纯英文/数字 3-20 字符</p>
+    <div class="cp-passcode-row" id="uploader-row">
+      <input type="text" id="uploader-input" placeholder="例如：张三 / Alex" autofocus maxlength="60">
+      <button class="cp-passcode-btn" onclick="setUploader()">确认</button>
+    </div>
+    <div class="cp-passcode-msg" id="uploader-msg"></div>
+  </div>
+</div>
+{% elif require_uploader and uploader_name %}
+{# Hidden modal shell for logout → re-show #}
+<div class="cp-modal-overlay" id="uploader-modal" style="display:none">
+  <div class="cp-modal-card">
+    <div class="cp-passcode-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <h2 class="cp-passcode-title">怎么称呼您？</h2>
+    <p class="cp-passcode-sub">中文昵称 2-8 字，纯英文/数字 3-20 字符</p>
+    <div class="cp-passcode-row" id="uploader-row">
+      <input type="text" id="uploader-input" placeholder="例如：张三 / Alex" maxlength="60">
+      <button class="cp-passcode-btn" onclick="setUploader()">确认</button>
+    </div>
+    <div class="cp-passcode-msg" id="uploader-msg"></div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+var requireUploader = {{ require_uploader|tojson }};
 
 function showToast(msg, d) {
   var t = document.getElementById('toast'); if (!t) return;
@@ -194,6 +270,95 @@ async function logoutPasscode() {
   } catch(e) { showToast('网络错误'); }
 }
 
+/* ========== Uploader Name ========== */
+async function setUploader() {
+  var nameInput = document.getElementById('uploader-input');
+  var name = nameInput.value.trim();
+  var msg = document.getElementById('uploader-msg');
+  var row = document.getElementById('uploader-row');
+  var btn = row.querySelector('button');
+  if (!name) { msg.textContent = '请填写您的称呼'; msg.className = 'cp-passcode-msg error'; return; }
+  // 前端字数校验
+  var cn = 0, ot = 0;
+  for (var i = 0; i < name.length; i++) {
+    var c = name.charCodeAt(i);
+    if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf)) { cn++; } else { ot++; }
+  }
+  if (cn > 0) {
+    if (cn < 2) { msg.textContent = '中文昵称至少需要 2 个字，当前仅 ' + cn + ' 个'; msg.className = 'cp-passcode-msg error'; return; }
+    if (cn > 8) { msg.textContent = '中文昵称最多 8 个字，当前 ' + cn + ' 个'; msg.className = 'cp-passcode-msg error'; return; }
+    if (ot > 20) { msg.textContent = '英文/数字最多 20 个，当前 ' + ot + ' 个'; msg.className = 'cp-passcode-msg error'; return; }
+  } else {
+    if (ot < 3) { msg.textContent = '昵称至少需要 3 个字符，当前仅 ' + ot + ' 个'; msg.className = 'cp-passcode-msg error'; return; }
+    if (ot > 20) { msg.textContent = '英文/数字最多 20 个，当前 ' + ot + ' 个'; msg.className = 'cp-passcode-msg error'; return; }
+  }
+  if (cn + ot > 60) { msg.textContent = '总字符数不能超过 60 个'; msg.className = 'cp-passcode-msg error'; return; }
+  msg.textContent = '验证中...'; msg.className = 'cp-passcode-msg';
+  btn.disabled = true;
+  try {
+    var res = await fetch('/collect/' + linkId + '/set_uploader', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: 'uploader_name=' + encodeURIComponent(name)
+    });
+    var data = await res.json();
+    if (data.success) {
+      var safeName = data.uploader_name || name;
+      // 关闭浮窗
+      var modal = document.getElementById('uploader-modal');
+      if (modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
+      // 在卡片头部显示 badge
+      var head = document.querySelector('.cp-card-head');
+      var existingBadge = document.getElementById('uploader-badge');
+      if (!existingBadge && head) {
+        var badge = document.createElement('span');
+        badge.id = 'uploader-badge';
+        badge.className = 'cp-badge cp-badge-uploader';
+        badge.title = '点击退出身份';
+        badge.onclick = logoutUploader;
+        badge.innerHTML = '上传者：' + escapeHtml(safeName);
+        var afterH2 = head.querySelector('h2');
+        head.insertBefore(badge, afterH2 ? afterH2.nextSibling : null);
+      }
+      // 刷新文件列表（上传者隔离）
+      loadHistory();
+    } else {
+      msg.textContent = data.message || '设置失败'; msg.className = 'cp-passcode-msg error';
+      row.classList.add('cp-shake'); setTimeout(function(){ row.classList.remove('cp-shake'); },400);
+      btn.disabled = false;
+    }
+  } catch(e) { msg.textContent = '网络错误'; msg.className = 'cp-passcode-msg error'; btn.disabled = false; }
+}
+var ui = document.getElementById('uploader-input');
+if (ui) ui.addEventListener('keydown', function(e){ if(e.key==='Enter') setUploader(); });
+
+async function logoutUploader() {
+  if (!confirm('确定退出当前身份？退出后需重新填写。')) return;
+  try {
+    var res = await fetch('/collect/' + linkId + '/logout_uploader', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var data = await res.json();
+    if (data.success) {
+      // 隐藏 badge
+      var badge = document.getElementById('uploader-badge');
+      if (badge) badge.remove();
+      // 刷新文件列表（退出后 session 已清除，后端会返回空列表）
+      loadHistory();
+      // 显示浮窗
+      var modal = document.getElementById('uploader-modal');
+      if (modal) {
+        var input = document.getElementById('uploader-input');
+        if (input) { input.value = ''; }
+        var umsg = document.getElementById('uploader-msg');
+        if (umsg) { umsg.textContent = ''; umsg.className = 'cp-passcode-msg'; }
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        if (input) setTimeout(function(){ input.focus(); }, 100);
+      } else {
+        location.reload();
+      }
+    } else { showToast(data.message || '退出失败'); }
+  } catch(e) { showToast('网络错误'); }
+}
+
 /* ========== File Selection ========== */
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
@@ -204,18 +369,26 @@ function updateRemainingDisplay() {
   if (MAX_FILES <= 0) return;
   var remaining = MAX_FILES - totalUploaded - selectedFiles.length;
   var el = document.getElementById('remaining-count');
-  var slotEl = document.getElementById('remaining-slot');
-  if (!el || !slotEl) return;
+  var tileEl = document.getElementById('remaining-tile');
+  if (!el || !tileEl) return;
   el.textContent = Math.max(0, remaining);
   var totalUsed = totalUploaded + selectedFiles.length;
+  var iconEl = tileEl.querySelector('.cp-meta-tile-icon');
+  var valEl = tileEl.querySelector('.cp-meta-tile-value');
   if (totalUsed > MAX_FILES) {
-    slotEl.style.color = '#991b1b'; slotEl.style.background = '#fef2f2'; slotEl.style.borderColor = '#fecaca';
+    tileEl.style.background = '#fef2f2'; tileEl.style.borderColor = '#fecaca';
+    if (iconEl) { iconEl.style.background = '#fef2f2'; iconEl.style.color = '#dc2626'; }
+    if (valEl) valEl.style.color = '#dc2626';
     document.getElementById('upload-btn').disabled = true;
   } else if (totalUsed === MAX_FILES) {
-    slotEl.style.color = '#92400e'; slotEl.style.background = '#fff7e6'; slotEl.style.borderColor = '#ffd591';
+    tileEl.style.background = '#fff7e6'; tileEl.style.borderColor = '#ffd591';
+    if (iconEl) { iconEl.style.background = '#fff7e6'; iconEl.style.color = '#d97706'; }
+    if (valEl) valEl.style.color = '#d97706';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
   } else {
-    slotEl.style.color = '#059669'; slotEl.style.background = '#ecfdf5'; slotEl.style.borderColor = '#a7f3d0';
+    tileEl.style.background = '#ecfdf5'; tileEl.style.borderColor = '#a7f3d0';
+    if (iconEl) { iconEl.style.background = '#ecfdf5'; iconEl.style.color = '#059669'; }
+    if (valEl) valEl.style.color = '#059669';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
   }
 }
@@ -392,6 +565,14 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
 
 async function startUpload() {
   if (selectedFiles.length === 0) return;
+  {% if require_uploader %}
+  // 检查是否已填写上传者身份（浮窗是否已关闭）
+  var modal = document.getElementById('uploader-modal');
+  if (modal && modal.style.display !== 'none') {
+    showToast('请先填写您的身份');
+    return;
+  }
+  {% endif %}
   isUploadPaused = false;
   var btn = document.getElementById('upload-btn'); btn.disabled = true; btn.textContent = '上传中...';
 
@@ -563,6 +744,7 @@ async function loadHistory() {
     var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
       (canDelete ? '<th class="cp-th-act">操作</th>' : '') +
       '</tr></thead><tbody>';
 
@@ -582,6 +764,9 @@ async function loadHistory() {
         '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
         '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
         '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>';
+      if (requireUploader) {
+        tableHtml += '<td class="cp-file-uploader">' + escapeHtml(r.uploader_name || '——') + '</td>';
+      }
       if (canDelete) {
         tableHtml += '<td class="cp-file-act"><button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button></td>';
       }
@@ -594,7 +779,7 @@ async function loadHistory() {
         cardIconHtml +
         '<div class="cp-card-info">' +
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
-          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
+          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
         '</div>';
       if (canDelete) {
         cardHtml += '<div class="cp-card-actions"><button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button></div>';

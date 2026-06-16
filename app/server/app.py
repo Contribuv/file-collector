@@ -115,7 +115,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.1.22"
+VERSION = "2.1.23"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1352,16 +1352,23 @@ def sanitize_html(html_text):
         'text-decoration',
     ]
     
-    # 清洗 HTML
-    from bleach.css_sanitizer import CSSSanitizer
-    css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_styles)
-    cleaned = bleach.clean(
-        html_text,
+    # 清洗 HTML（CSSSanitizer 需要 tinycss2，若未安装则降级处理）
+    css_sanitizer = None
+    try:
+        from bleach.css_sanitizer import CSSSanitizer
+        css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_styles)
+    except ModuleNotFoundError:
+        logger.warning("tinycss2 未安装，CSS 样式过滤已降级（建议: pip install tinycss2）")
+    
+    clean_kwargs = dict(
         tags=allowed_tags,
         attributes=allowed_attrs,
-        css_sanitizer=css_sanitizer,
         strip=True,
     )
+    if css_sanitizer:
+        clean_kwargs['css_sanitizer'] = css_sanitizer
+    
+    cleaned = bleach.clean(html_text, **clean_kwargs)
     
     # 对所有链接强制添加 rel="nofollow noopener noreferrer" 和 target="_blank"
     # bleach 的 linkify 可以做到这点
@@ -1731,6 +1738,15 @@ def parse_json_filter(s):
         return json.loads(s)
     except (json.JSONDecodeError, TypeError):
         return None
+
+@app.template_filter('file_size')
+def file_size_filter(size_bytes):
+    """Jinja2 过滤器：格式化文件大小，支持 int/float/str"""
+    try:
+        size_bytes = int(size_bytes)
+    except (ValueError, TypeError):
+        return str(size_bytes)
+    return format_file_size(size_bytes)
 
 def _safe_delete(stored_path):
     """安全删除文件：校验 stored_path 在 UPLOAD_BASE 范围内，防止路径遍历攻击"""
@@ -3164,6 +3180,19 @@ def chunk_upload_init(link_id):
                     uploaded = json.loads(existing['uploaded_chunks'])
                 except (json.JSONDecodeError, TypeError):
                     pass
+            # 验证磁盘文件是否真实存在（旧会话分片可能已被清理，避免前端误显示 100%）
+            chunk_dir = _get_chunk_dir(upload_dir, upload_id)
+            if uploaded and os.path.isdir(chunk_dir):
+                valid_uploaded = [ci for ci in uploaded if os.path.exists(os.path.join(chunk_dir, f'chunk_{ci:05d}'))]
+                removed = len(uploaded) - len(valid_uploaded)
+                if removed > 0:
+                    logger.info(f"续传校验: {filename} 清理 {removed} 个无效分片记录（磁盘文件不存在）")
+                    uploaded = valid_uploaded
+                    conn.execute(
+                        "UPDATE chunk_uploads SET uploaded_chunks = ? WHERE upload_id = ?",
+                        (json.dumps(uploaded), upload_id)
+                    )
+                    conn.commit()
             # 更新元数据（可能已变更）
             conn.execute(
                 """UPDATE chunk_uploads SET
@@ -3207,12 +3236,15 @@ def chunk_upload_init(link_id):
                 'total_size': file_size_int,
                 'uploaded_chunks': []
             })
+    except sqlite3.OperationalError as e:
+        logger.error(f"chunk_init DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... err={e}")
+        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
     except PermissionError as e:
         logger.error(f"chunk_init 目录无权限: {e}")
         return jsonify({'success': False, 'message': '请在飞牛应用设置中添加自定义文件夹的读写权限'}), 500
     except Exception as e:
-        logger.error(f"chunk_init error: {e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': '初始化失败'}), 500
+        logger.error(f"chunk_init error: link={link_id} type={type(e).__name__} err={e}\n{traceback.format_exc()}")
+        return jsonify({'success': False, 'message': f'初始化失败: {type(e).__name__}'}), 500
     finally:
         conn.close()
 
@@ -3224,10 +3256,7 @@ def chunk_upload(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
 
-    # 分片上传频率限制（比整文件上传宽松：300次/分钟）
-    client_ip = _get_client_ip()
-    if not rate_limit(f'chunk_{link_id}_{client_ip}', max_attempts=300, window_seconds=60):
-        return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
+    # 分片上传不限频（无"暴力破解"攻击面；安全由 CSRF + upload_id + 通行证保证）
 
     upload_id = request.form.get('upload_id', '').strip()
     chunk_index_str = request.form.get('chunk_index', '').strip()
@@ -3348,12 +3377,15 @@ def chunk_upload(link_id):
             'uploaded_chunks': uploaded,
             'total_chunks': session_row['total_chunks']
         })
+    except sqlite3.OperationalError as e:
+        logger.error(f"chunk_upload DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... chunk={chunk_index_str} err={e}")
+        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
     except PermissionError as e:
         logger.error(f"chunk_upload 目录无权限: {e}")
         return jsonify({'success': False, 'message': '请在飞牛应用设置中添加自定义文件夹的读写权限'}), 500
     except Exception as e:
-        logger.error(f"chunk_upload error: {e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': '分片上传失败'}), 500
+        logger.error(f"chunk_upload error: link={link_id} upload_id={upload_id[:20]}... chunk={chunk_index_str} type={type(e).__name__} err={e}\n{traceback.format_exc()}")
+        return jsonify({'success': False, 'message': f'分片上传失败: {type(e).__name__}'}), 500
     finally:
         conn.close()
 
@@ -3413,30 +3445,38 @@ def chunk_merge(link_id):
         chunk_dir = _get_chunk_dir(upload_dir, upload_id)
         total_chunks = session_row['total_chunks']
 
-        # 容错：DB 记录可能因并发写丢失了部分分片，检查磁盘实际文件
-        if len(uploaded) != total_chunks:
-            missing_in_db = [i for i in range(total_chunks) if i not in uploaded]
-            actual_missing = []
-            for ci in missing_in_db:
-                chunk_path = os.path.join(chunk_dir, f'chunk_{ci:05d}')
-                if os.path.exists(chunk_path):
-                    # 分片文件存在，补齐 DB 记录
-                    uploaded.append(ci)
-                else:
-                    actual_missing.append(ci)
-            if actual_missing:
-                return jsonify({
-                    'success': False,
-                    'message': f'还有 {len(actual_missing)} 个分片未上传',
-                    'missing_chunks': actual_missing
-                }), 400
-            # 补齐后更新 DB
+        # 始终校验磁盘实际文件（DB 可能因并发写入提前记录分片，但文件尚未落盘）
+        uploaded_set = set(uploaded)
+        db_missing_in_disk = []
+        disk_missing = []
+        for ci in range(total_chunks):
+            exists = os.path.exists(os.path.join(chunk_dir, f'chunk_{ci:05d}'))
+            if exists and ci not in uploaded_set:
+                db_missing_in_disk.append(ci)
+            elif not exists:
+                disk_missing.append(ci)
+
+        if db_missing_in_disk:
+            # 磁盘有但 DB 没记录的，补齐 DB
+            uploaded.extend(db_missing_in_disk)
             uploaded.sort()
             conn.execute(
                 "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
                 (json.dumps(uploaded), upload_id)
             )
             conn.commit()
+
+        if disk_missing:
+            logger.warning(
+                f"chunk_merge 缺失分片: link={link_id} upload_id={upload_id[:20]}... "
+                f"total={total_chunks} db_has={len(uploaded)} missing={disk_missing} chunk_dir={chunk_dir}"
+            )
+            # 返回 200（而非 400/500），避免反向代理将 JSON 替换为 HTML 错误页
+            return jsonify({
+                'success': False,
+                'message': f'还有 {len(disk_missing)} 个分片未上传',
+                'missing_chunks': disk_missing
+            })
 
         # 标记为合并中
         conn.execute(
@@ -3542,9 +3582,12 @@ def chunk_merge(link_id):
             'stored_path': stored_path
         })
 
+    except sqlite3.OperationalError as e:
+        logger.error(f"chunk_merge DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... err={e}")
+        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
     except Exception as e:
-        logger.error(f"chunk_merge error: {e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': '文件合并失败'}), 500
+        logger.error(f"chunk_merge error: link={link_id} upload_id={upload_id[:20]}... type={type(e).__name__} err={e}\n{traceback.format_exc()}")
+        return jsonify({'success': False, 'message': f'文件合并失败: {type(e).__name__}'}), 500
     finally:
         conn.close()
 
@@ -4967,17 +5010,37 @@ def delete_link(link_id):
     # 2. 删除磁盘上的文件（使用安全删除函数）
     deleted_count = 0
     for r in records:
+        stored_path = r['stored_path']
+        if not stored_path:
+            continue
         try:
-            if _safe_delete(r['stored_path']):
+            if _safe_delete(stored_path):
                 deleted_count += 1
-        except OSError:
+        except Exception:
             pass
 
-    # 3. 删除上传记录、日志和链接
+    # 3. 清理分片上传临时目录
+    try:
+        chunk_sessions = conn.execute(
+            "SELECT upload_id FROM chunk_uploads WHERE link_id = ?", (link_id,)
+        ).fetchall()
+        uploader_name = ''
+        upload_dir = create_upload_dir(link_id, uploader_name)
+        for cs in chunk_sessions:
+            chunk_dir = _get_chunk_dir(upload_dir, cs['upload_id'])
+            _cleanup_chunk_dir(chunk_dir)
+    except Exception:
+        pass
+
+    # 4. 删除数据库记录（download_logs 通过 record_id 关联，需先于 upload_records 删除）
+    record_ids = [r['id'] for r in records]
     conn.execute("PRAGMA foreign_keys = OFF")
+    if record_ids:
+        placeholders = ','.join(['?' for _ in record_ids])
+        conn.execute(f"DELETE FROM download_logs WHERE record_id IN ({placeholders})", record_ids)
     conn.execute("DELETE FROM upload_records WHERE link_id = ?", (link_id,))
     conn.execute("DELETE FROM upload_logs WHERE link_id = ?", (link_id,))
-    conn.execute("DELETE FROM download_logs WHERE link_id = ?", (link_id,))
+    conn.execute("DELETE FROM chunk_uploads WHERE link_id = ?", (link_id,))
     conn.execute("DELETE FROM links WHERE id = ?", (link_id,))
     conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()

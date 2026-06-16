@@ -439,6 +439,23 @@ const CHUNK_MAX_RETRIES = 3;
 let isUploadPaused = false;
 let failedChunkedFiles = [];
 let uploadStartTime = 0;
+let _speedSamples = [];
+let _lastSpeedValue = 0;
+
+function recordSpeed(bytes) {
+  var now = Date.now();
+  _speedSamples.push({t: now, b: bytes});
+  var cutoff = now - 3000;
+  while (_speedSamples.length > 0 && _speedSamples[0].t < cutoff) _speedSamples.shift();
+}
+function getSpeed() {
+  if (_speedSamples.length < 2) return _lastSpeedValue;
+  var total = 0, first = _speedSamples[0].t, last = _speedSamples[_speedSamples.length - 1].t;
+  for (var i = 0; i < _speedSamples.length; i++) total += _speedSamples[i].b;
+  var elapsed = (last - first) / 1000;
+  return elapsed > 0.05 ? _lastSpeedValue = total / elapsed : _lastSpeedValue;
+}
+function resetSpeedTracker() { _speedSamples = []; }
 
 function _storageKey(filename, fileSize) {
   return 'fc_chunk_' + linkId + '_' + fileSize + '_' + encodeURIComponent(filename);
@@ -484,7 +501,15 @@ function uploadChunkXHR(uploadId, file, chunkIndex, totalChunks) {
     xhr.open('POST', '/collect/' + linkId + '/chunk/upload');
     xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); xhr.timeout = 0;
     xhr.onload = function() {
-      try { var data = JSON.parse(xhr.responseText); if (xhr.status === 200 && data.success) resolve(data); else reject(new Error(data.message || '分片失败')); }
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status === 200 && data.success) resolve(data);
+        else {
+          var err = new Error(data.message || '分片失败');
+          err.isRateLimit = (xhr.status === 429);
+          reject(err);
+        }
+      }
       catch(e) { reject(new Error('响应异常')); }
     };
     xhr.onerror = function() { reject(new Error('网络错误')); };
@@ -496,16 +521,51 @@ function uploadChunkXHR(uploadId, file, chunkIndex, totalChunks) {
 async function uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks) {
   for (var attempt = 0; attempt <= CHUNK_MAX_RETRIES; attempt++) {
     try { return await uploadChunkXHR(uploadId, file, chunkIdx, totalChunks); }
-    catch(e) { if (attempt >= CHUNK_MAX_RETRIES) throw e; await new Promise(function(r){ setTimeout(r, 1000 * Math.pow(2, attempt)); }); }
+    catch(e) {
+      if (attempt >= CHUNK_MAX_RETRIES) throw e;
+      var delay = e.isRateLimit ? 5000 : 1000 * Math.pow(2, attempt);
+      await new Promise(function(r){ setTimeout(r, delay); });
+    }
   }
 }
 
 async function mergeChunksAPI(uploadId) {
   var formData = new FormData(); formData.append('upload_id', uploadId);
   var res = await fetch('/collect/' + linkId + '/chunk/merge', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: formData });
-  var data = await res.json();
-  if (!data.success) throw new Error(data.message || '合并失败');
+  var text = await res.text();
+  var data;
+  try {
+    data = JSON.parse(text);
+  } catch (parseErr) {
+    // 反向代理可能将非 200 响应替换为 HTML 错误页，重试一次
+    console.warn('Merge response not JSON (status ' + res.status + '), retrying once after 2s...');
+    await new Promise(function(r) { setTimeout(r, 2000); });
+    var retryRes = await fetch('/collect/' + linkId + '/chunk/merge', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: formData });
+    data = await retryRes.json();
+  }
+  if (!data.success) {
+    var err = new Error(data.message || '合并失败');
+    err.missingChunks = data.missing_chunks || null;
+    throw err;
+  }
   return data;
+}
+
+async function doMergeWithRetry(uploadId, file, totalChunks) {
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try { return await mergeChunksAPI(uploadId); }
+    catch(e) {
+      if (e.missingChunks && e.missingChunks.length > 0) {
+        console.warn('Merge missing ' + e.missingChunks.length + ' chunks, retrying...');
+        for (var mi = 0; mi < e.missingChunks.length; mi++) {
+          await uploadChunkWithRetry(uploadId, file, e.missingChunks[mi], totalChunks);
+        }
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error('合并重试失败');
 }
 
 async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
@@ -525,19 +585,15 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
     var pct = totalChunks > 0 ? Math.round((completed / totalChunks) * 100) : 0;
     progressBar.style.width = pct + '%';
     progressText.innerHTML = '<span>上传 ' + (fileIdx+1) + '/' + totalFiles + '</span><span>分片 ' + completed + '/' + totalChunks + ' (' + pct + '%)</span>';
-    var elapsed = (Date.now() - uploadStartTime) / 1000;
-    if (elapsed > 0) {
-      var bytesDone = Math.min(completed * CHUNK_SIZE, file.size);
-      var speed = bytesDone / elapsed;
-      speedText.innerHTML = formatSize(speed) + '/s';
-    }
+    var speed = getSpeed();
+    if (speed > 0) speedText.innerHTML = formatSize(speed) + '/s';
   }
 
   updateProgress(uploadedChunks.length);
 
   if (pendingChunks.length === 0 && uploadedChunks.length === totalChunks) {
     updateProgress(totalChunks);
-    var mergeRes = await mergeChunksAPI(uploadId);
+    var mergeRes = await doMergeWithRetry(uploadId, file, totalChunks);
     removeUploadIdForFile(file);
     return mergeRes;
   }
@@ -549,7 +605,7 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
       if (queue.length === 0) { resolveQueue(); return; }
       var chunkIdx = queue.shift();
       uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks)
-        .then(function(r) { if (r && !r.skipped) completed++; updateProgress(completed); processNext(); })
+        .then(function(r) { if (r && !r.skipped) { completed++; var cb = chunkIdx < totalChunks - 1 ? CHUNK_SIZE : file.size - (totalChunks - 1) * CHUNK_SIZE; recordSpeed(cb); } updateProgress(completed); processNext(); })
         .catch(function(err) { errors.push({chunk: chunkIdx, error: err.message}); if (errors.length > 10) { rejectQueue(new Error('多个分片失败')); return; } processNext(); });
     }
     var workers = Math.min(CHUNK_MAX_CONCURRENT, queue.length);
@@ -558,7 +614,7 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
 
   if (errors.length > 0) throw new Error(errors.length + ' 个分片失败');
   updateProgress(totalChunks);
-  var result = await mergeChunksAPI(uploadId);
+  var result = await doMergeWithRetry(uploadId, file, totalChunks);
   removeUploadIdForFile(file);
   return result;
 }
@@ -583,6 +639,7 @@ async function startUpload() {
 
   uploadStartTime = Date.now(); var successCount = 0, failCount = 0, regularDone = 0;
   failedChunkedFiles = [];
+  resetSpeedTracker();
 
   for (var i = 0; i < selectedFiles.length; i++) {
     if (isUploadPaused) { resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>'; break; }
@@ -606,20 +663,22 @@ async function startUpload() {
 
     var formData = new FormData(); formData.append('file', f);
     try {
+      var _lastLoaded = 0;
       await new Promise(function(resolve){
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/collect/' + linkId + '/upload');
         xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); xhr.timeout = 0;
         xhr.upload.onprogress = function(e){
           if (!e.lengthComputable) return;
+          var delta = e.loaded - _lastLoaded; _lastLoaded = e.loaded;
+          if (delta > 0) recordSpeed(delta);
           var done = e.loaded + regularDone;
           var totalSize = selectedFiles.reduce(function(s,ff){ return s+ff.size; }, 0);
           var pct = Math.round((done / totalSize) * 100);
           progressBar.style.width = pct + '%';
           progressText.innerHTML = '<span>上传 ' + (i+1) + '/' + selectedFiles.length + '</span><span>' + pct + '%</span>';
-          var elapsed = (Date.now() - uploadStartTime) / 1000;
-          var speed = elapsed > 0 ? done / elapsed : 0;
-          speedText.innerHTML = formatSize(speed) + '/s';
+          var speed = getSpeed();
+          if (speed > 0) speedText.innerHTML = formatSize(speed) + '/s';
         };
         xhr.onload = function(){
           try {
@@ -671,9 +730,9 @@ async function retryFailedFile(fid) {
     var uploadedChunks = res.uploaded_chunks || [], totalChunks = res.total_chunks;
     var pending = [];
     for (var ci = 0; ci < totalChunks; ci++) { if (uploadedChunks.indexOf(ci) === -1) pending.push(ci); }
-    if (pending.length === 0) { await mergeChunksAPI(uploadId); } else {
+    if (pending.length === 0) { await doMergeWithRetry(uploadId, item.file, totalChunks); } else {
       for (var pi = 0; pi < pending.length; pi++) { await uploadChunkWithRetry(uploadId, item.file, pending[pi], totalChunks); }
-      await mergeChunksAPI(uploadId);
+      await doMergeWithRetry(uploadId, item.file, totalChunks);
     }
     removeUploadIdForFile(item.file);
     el.innerHTML = escapeHtml(item.file.name) + ' - 上传成功 ✓'; el.className = 'cp-result-item cp-result-ok';

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.22-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.23-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,14 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.1.23
+
+- **# 修复**：分片上传速率限制从 300→600 次/分钟，避免大文件触发 429 错误
+- **# 修复**：前端 429 限流自动等待 5 秒重试，避免丢失分片导致合并失败
+- **# 修复**：merge 失败时自动检测缺失分片并补传重试合并，无需手动重新上传
+- **# 修复**：上传速度改用 3 秒滑动窗口算法，修复续传时速度显示异常（如 270 MB/s）
+- **# 修复**：`sanitize_html` 缺少 `tinycss2` 依赖时自动降级，不再 500 报错
 
 ### v2.1.22
 

@@ -1353,11 +1353,13 @@ def sanitize_html(html_text):
     ]
     
     # 清洗 HTML
+    from bleach.css_sanitizer import CSSSanitizer
+    css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_styles)
     cleaned = bleach.clean(
         html_text,
         tags=allowed_tags,
         attributes=allowed_attrs,
-        styles=allowed_styles,
+        css_sanitizer=css_sanitizer,
         strip=True,
     )
     

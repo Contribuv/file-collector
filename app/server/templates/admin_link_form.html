@@ -96,8 +96,8 @@
             {{ '留空则保持原有通行证不变' if edit_link else '设置后访问者需输入通行证才能进入；留空则无需验证' }}
           </div>
 
-          <!-- 上传者开关：仅空通行证时显示 -->
-          <div id="uploader-section" style="{{ 'display:none;' if edit_link else '' }}padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
+          <!-- 上传者开关 -->
+          <div id="uploader-section" style="padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
             <div class="form-group" style="margin:0;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                 <input type="checkbox" id="require_uploader" name="require_uploader" value="1"
@@ -245,7 +245,6 @@
 function togglePasscodeInput() {
   var emptyPasscode = document.getElementById('empty_passcode').checked;
   var passcodeInput = document.getElementById('passcode');
-  var uploaderSection = document.getElementById('uploader-section');
   if (emptyPasscode) {
     passcodeInput.disabled = true;
     passcodeInput.value = '';
@@ -254,7 +253,6 @@ function togglePasscodeInput() {
     passcodeInput.style.cursor = 'not-allowed';
     var hint = document.getElementById('passcode-hint');
     if (hint) hint.textContent = '开启后任何人无需通行证即可进入收集页';
-    if (uploaderSection) uploaderSection.style.display = 'block';
   } else {
     passcodeInput.disabled = false;
     passcodeInput.placeholder = '请输入通行证';
@@ -262,10 +260,6 @@ function togglePasscodeInput() {
     passcodeInput.style.cursor = 'text';
     var hint = document.getElementById('passcode-hint');
     if (hint) hint.textContent = '设置后访问者需输入通行证才能进入；留空则无需验证';
-    if (uploaderSection) uploaderSection.style.display = 'none';
-    // 取消勾选上传者
-    var cb = document.getElementById('require_uploader');
-    if (cb) cb.checked = false;
   }
 }
 
@@ -314,12 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var expiresAt = {{ (edit_link.get('expires_at') or '')|tojson }};
   if (expiresAt) {
     document.getElementById('clear-expiry-btn').style.display = '';
-  }
-  {% else %}
-  // 新建页：通行证 unchecked 时，上传者区域默认可见
-  var emptyPasscode = document.getElementById('empty_passcode');
-  if (!emptyPasscode.checked) {
-    document.getElementById('uploader-section').style.display = 'block';
   }
   {% endif %}
 });

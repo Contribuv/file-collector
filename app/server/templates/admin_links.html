@@ -49,14 +49,14 @@
               </td>
               <td class="col-status">
                 {% if link['status'] == 'active' %}
-                <span class="badge badge-success" style="display:inline-flex;align-items:center;gap:3px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                  启用
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  已启用
                 </span>
                 {% else %}
-                <span class="badge badge-danger" style="display:inline-flex;align-items:center;gap:3px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                  停用
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  已停用
                 </span>
                 {% endif %}
                 {% if link['expires_at'] %}
@@ -466,7 +466,7 @@ function showLinkPopover(btn) {
   };
 
   var isActive = d.status === 'active';
-  var statusText = isActive ? '<span style="color:#059669;font-weight:500;">● 启用</span>' : '<span style="color:#dc2626;font-weight:500;">● 已停用</span>';
+  var statusText = isActive ? '<span style="color:#059669;">● 已启用</span>' : '<span style="color:#999;">● 已停用</span>';
 
   var limitText;
   if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }

@@ -169,7 +169,7 @@
 
 <div class="cp-toast" id="toast"></div>
 
-{% if require_uploader and not uploader_name %}
+{% if verified and require_uploader and not uploader_name %}
 {# ---------- Uploader Modal ---------- #}
 <div class="cp-modal-overlay" id="uploader-modal">
   <div class="cp-modal-card">
@@ -187,7 +187,7 @@
     <div class="cp-passcode-msg" id="uploader-msg"></div>
   </div>
 </div>
-{% elif require_uploader and uploader_name %}
+{% elif verified and require_uploader and uploader_name %}
 {# Hidden modal shell for logout → re-show #}
 <div class="cp-modal-overlay" id="uploader-modal" style="display:none">
   <div class="cp-modal-card">

@@ -2,3 +2,4 @@ flask==3.0.0
 werkzeug==3.0.1
 gunicorn==21.2.0
 bleach==6.1.0
+tinycss2==1.5.1

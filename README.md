@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.21-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.22-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -188,6 +188,16 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.1.22
+
+- **# 修复**：上传者退出身份后文件列表不刷新（残留旧文件记录）
+- **# 修复**：通行证验证时上传者身份弹窗错误重叠弹出（应先验证通行证，再填写身份）
+- **# 修复**：编辑链接时 bleach 6.x 兼容性报错（`styles` 参数改用 `CSSSanitizer`）
+- **# 修复**：编辑链接 bleach 缺少 tinycss2 依赖导致保存报错
+- **# 新增**：上传者开关与通行证可共存（有通行证也可开启上传者，两者不再互斥）
+- **# 优化**：设置页功能开关改为滑动按钮，交互更直观
+- **# 优化**：设置页数据库管理卡片美化，功能分区更清晰
 
 ### v2.1.21
 

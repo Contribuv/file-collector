@@ -114,6 +114,7 @@
 const linkId = {{ link_id|tojson }};
 var requireUploader = {{ require_uploader|tojson }};
 
+
 function showToast(msg, d) {
   var t = document.getElementById('toast'); if (!t) return;
   t.textContent = msg; t.classList.add('show');
@@ -123,7 +124,7 @@ function showToast(msg, d) {
 
 function escapeHtml(str) {
   if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function fmtTime(t) { if (!t) return ''; return String(t).replace(/\.\d+/, ''); }
@@ -195,6 +196,131 @@ function getFileIcon(ext) {
 }
 
 /* ========== History ========== */
+var _allRecords = [];
+var _uploaderList = [];  // [{name, files}]
+
+function buildFileRow(r, ext, fi, canPreview, isTable) {
+  if (isTable) {
+    var iconHtml = fi.isImg
+      ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
+      : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></td>';
+    return '<tr>' +
+      iconHtml +
+      '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
+      '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
+      '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>' +
+      '<td class="cp-file-act">' +
+        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + r.id + ')" style="margin-right:8px;">预览</button>' : '') +
+        '<button class="cp-act-download-txt" onclick="downloadFile(' + r.id + ')">下载</button>' +
+      '</td>' +
+      '</tr>';
+  } else {
+    var cardIconHtml = fi.isImg
+      ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
+      : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
+    return '<div class="cp-card-item">' +
+      cardIconHtml +
+      '<div class="cp-card-info">' +
+        '<div class="cp-card-row-top">' +
+          '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
+          '<div class="cp-card-actions">' +
+            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + r.id + ')" style="margin-right:8px;">预览</button>' : '') +
+            '<button class="cp-act-download-txt" onclick="downloadFile(' + r.id + ')">下载</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
+      '</div>' +
+      '</div>';
+  }
+}
+
+/* --- Flat list (requireUploader = false) --- */
+function renderFlatList(records) {
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+
+  var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+    '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+    '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+    '<th class="cp-th-act">操作</th>' +
+    '</tr></thead><tbody>';
+  var cardHtml = '<div class="cp-card-list">';
+
+  for (var j = 0; j < records.length; j++) {
+    var r = records[j];
+    var ext = r.original_name.split('.').pop().toLowerCase();
+    var fi = getFileIcon(ext);
+    var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
+    tableHtml += buildFileRow(r, ext, fi, canPreview, true);
+    cardHtml += buildFileRow(r, ext, fi, canPreview, false);
+  }
+
+  tableHtml += '</tbody></table></div>';
+  cardHtml += '</div>';
+  return tableHtml + cardHtml;
+}
+
+/* ==== Accordion: 上传者分组折叠 ==== */
+function buildAccordionGroups() {
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+
+  var html = '';
+  for (var gi = 0; gi < _uploaderList.length; gi++) {
+    var group = _uploaderList[gi];
+    var files = group.files;
+
+    // Header
+    html += '<div class="cp-accordion-group">';
+    html += '<div class="cp-accordion-header" onclick="toggleAccordion(this)">';
+    html += '<svg class="cp-accordion-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>';
+    html += '<svg class="cp-accordion-usericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    html += '<span class="cp-accordion-name">' + escapeHtml(group.name) + '</span>';
+    html += '<span class="cp-accordion-count">' + files.length + ' 个文件</span>';
+    html += '</div>';
+
+    // Body: desktop table
+    html += '<div class="cp-accordion-body">';
+    html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+      '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      '<th class="cp-th-act">操作</th>' +
+      '</tr></thead><tbody>';
+    for (var fi = 0; fi < files.length; fi++) {
+      var r = files[fi];
+      var ext = r.original_name.split('.').pop().toLowerCase();
+      var ficon = getFileIcon(ext);
+      var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
+      html += buildFileRow(r, ext, ficon, canPreview, true);
+    }
+    html += '</tbody></table></div>';
+
+    // Body: mobile cards
+    html += '<div class="cp-card-list">';
+    for (var fj = 0; fj < files.length; fj++) {
+      var rr = files[fj];
+      var ext2 = rr.original_name.split('.').pop().toLowerCase();
+      var ficon2 = getFileIcon(ext2);
+      var canPrev2 = jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2);
+      html += buildFileRow(rr, ext2, ficon2, canPrev2, false);
+    }
+    html += '</div>';
+
+    html += '</div>'; // .cp-accordion-body
+    html += '</div>'; // .cp-accordion-group
+  }
+
+  return html;
+}
+
+function toggleAccordion(header) {
+  var group = header.parentElement;
+  group.classList.toggle('open');
+}
+
+/* ==== Entry ==== */
 async function loadHistory() {
   try {
     var res = await fetch('/share/' + linkId + '/records');
@@ -205,67 +331,26 @@ async function loadHistory() {
       return;
     }
 
-    var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
-    var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
-    var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
-    // --- Desktop table ---
-    var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
-      '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
-      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
-      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
-      '<th class="cp-th-act">操作</th>' +
-      '</tr></thead><tbody>';
+    _allRecords = data.records;
 
-    // --- Mobile card list ---
-    var cardHtml = '<div class="cp-card-list">';
-
-    for (var j = 0; j < data.records.length; j++) {
-      var r = data.records[j];
-      var ext = r.original_name.split('.').pop().toLowerCase();
-      var fi = getFileIcon(ext);
-      var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
-
-      // Table row
-      var iconHtml = fi.isImg
-        ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
-        : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></td>';
-      tableHtml += '<tr>' +
-        iconHtml +
-        '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
-        '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
-        '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>';
-      if (requireUploader) {
-        tableHtml += '<td class="cp-file-uploader">' + escapeHtml(r.uploader_name || '——') + '</td>';
+    if (requireUploader && data.require_uploader) {
+      // Group by uploader_name into ordered array
+      var groupMap = {};
+      var groupOrder = [];
+      for (var i = 0; i < _allRecords.length; i++) {
+        var name = _allRecords[i].uploader_name || '未署名';
+        if (!groupMap[name]) { groupMap[name] = []; groupOrder.push(name); }
+        groupMap[name].push(_allRecords[i]);
       }
-      tableHtml += '<td class="cp-file-act">' +
-          (canPreview ? '<button class="cp-btn cp-btn-outline cp-btn-sm" onclick="previewFile(\'' + linkId + '\',' + r.id + ',\'' + escapeHtml(r.original_name) + '\')">预览</button>' : '') +
-          '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="downloadFile(\'' + linkId + '\',' + r.id + ')">下载</button>' +
-        '</td>' +
-        '</tr>';
-
-      // Card item
-      var cardIconHtml = fi.isImg
-        ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
-        : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
-      cardHtml += '<div class="cp-card-item">' +
-        cardIconHtml +
-        '<div class="cp-card-info">' +
-          '<div class="cp-card-row-top">' +
-            '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
-            '<div class="cp-card-actions">' +
-              (canPreview ? '<button class="cp-btn cp-btn-outline cp-btn-sm" onclick="previewFile(\'' + linkId + '\',' + r.id + ',\'' + escapeHtml(r.original_name) + '\')">预览</button>' : '') +
-              '<button class="cp-btn cp-btn-primary cp-btn-sm" onclick="downloadFile(\'' + linkId + '\',' + r.id + ')">下载</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
-        '</div>' +
-        '</div>';
+      _uploaderList = [];
+      for (var j = 0; j < groupOrder.length; j++) {
+        var gn = groupOrder[j];
+        _uploaderList.push({ name: gn, files: groupMap[gn] });
+      }
+      wrap.innerHTML = buildAccordionGroups();
+    } else {
+      wrap.innerHTML = renderFlatList(_allRecords);
     }
-
-    tableHtml += '</tbody></table></div>';
-    cardHtml += '</div>';
-
-    wrap.innerHTML = tableHtml + cardHtml;
 
   } catch(e) {
     var wrap = document.getElementById('history-wrap');
@@ -274,7 +359,26 @@ async function loadHistory() {
 }
 
 /* ========== Preview & Download ========== */
-function previewFile(linkId, recordId, fileName) {
+function previewFile(recordId) {
+  // Look up filename from _allRecords or _uploaderList (avoid escaping issues in onclick)
+  var fileName = null;
+  var allRecords = _allRecords;
+  if (allRecords && allRecords.length) {
+    for (var i = 0; i < allRecords.length; i++) {
+      if (allRecords[i].id == recordId) { fileName = allRecords[i].original_name; break; }
+    }
+  }
+  if (!fileName && _uploaderList && _uploaderList.length) {
+    for (var gi = 0; gi < _uploaderList.length; gi++) {
+      var files = _uploaderList[gi].files;
+      for (var fi = 0; fi < files.length; fi++) {
+        if (files[fi].id == recordId) { fileName = files[fi].original_name; break; }
+      }
+      if (fileName) break;
+    }
+  }
+  if (!fileName) { showToast('无法找到该文件信息'); return; }
+
   var ext = fileName.split('.').pop().toLowerCase();
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
 
@@ -296,7 +400,7 @@ function previewFile(linkId, recordId, fileName) {
   modal.style.display = 'flex';
 
   var previewUrl = '/share/' + linkId + '/preview/' + recordId;
-  downloadBtn.onclick = function() { downloadFile(linkId, recordId); };
+  downloadBtn.onclick = function() { downloadFile(recordId); };
 
   if (imgExtsP.includes(ext)) {
     body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p>图片加载失败</p>\'">';
@@ -313,8 +417,13 @@ function closePreview() {
   document.getElementById('preview-modal').style.display = 'none';
 }
 
-function downloadFile(linkId, recordId) {
-  window.open('/share/' + linkId + '/download/' + recordId, '_blank');
+function downloadFile(recordId) {
+  var a = document.createElement('a');
+  a.href = '/share/' + linkId + '/download/' + recordId;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); }, 200);
 }
 
 (function() {

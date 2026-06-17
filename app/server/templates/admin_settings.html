@@ -158,9 +158,16 @@
                        value="{{ defaults.max_files or 10 }}" min="0" step="1">
               </div>
               <div class="form-group">
-                <label class="form-label" for="default_max_size">单文件上限 (GB)</label>
-                <input type="number" id="default_max_size" name="default_max_size" class="form-input form-input-sm"
-                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" max="64" step="0.01">
+                <label class="form-label" for="default_max_size_val">单文件上限</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" id="default_max_size_val" class="form-input form-input-sm" style="flex:1;"
+                         value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+                  <select id="default_max_size_unit" class="form-input form-input-sm" style="width:64px;flex:none;">
+                    <option value="MB">MB</option>
+                    <option value="GB">GB</option>
+                  </select>
+                </div>
+                <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
               </div>
             </div>
             <button type="submit" name="action" value="defaults" class="btn btn-primary btn-sm">保存</button>
@@ -178,7 +185,7 @@
               <label class="form-label" for="custom_upload_path">自定义上传目录</label>
               <input type="text" id="custom_upload_path" name="custom_upload_path" class="form-input form-input-sm"
                      value="{{ custom_upload_path }}" placeholder="例：/vol2/1000/文件收集">
-              <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径，自定义路径需要在应用中心添加权限。{% endif %}</div>
+              <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径，自定义路径需要在应用中心添加权限并重启此应用。{% endif %}</div>
             </div>
             <button type="submit" name="action" value="upload_path" class="btn btn-primary btn-sm">保存</button>
           </form>
@@ -283,6 +290,16 @@
       <div class="card card-compact">
         <div class="card-header"><h3>数据库管理</h3></div>
         <div class="card-body">
+          <!-- 路径迁移提示 -->
+          <div class="db-section" style="margin-bottom:12px;">
+            <div class="db-section-icon" style="background:#e8f0fe;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </div>
+            <div class="db-section-body">
+              <div class="db-section-title">路径自动同步</div>
+              <div class="db-section-desc">修改上传路径并保存后，系统将自动同步数据库中的文件记录路径。如未生效，请在飞牛应用中心重启本应用即可。</div>
+            </div>
+          </div>
           <!-- 备份区 -->
           <div class="db-section">
             <div class="db-section-icon" style="background:#e8f4fd;">
@@ -309,10 +326,8 @@
               <div class="db-section-body">
                 <div class="db-section-title">恢复数据库</div>
                 <div class="db-section-desc">导入 .db 备份文件，恢复前会自动备份当前数据库</div>
-                <div class="db-restore-row">
-                  <input type="file" id="db_file" name="db_file" class="form-input form-input-sm" accept=".db" required style="flex:1;min-width:0;">
-                  <button type="submit" class="btn btn-danger btn-sm">确认导入</button>
-                </div>
+                <input type="file" id="db_file" name="db_file" class="form-input form-input-sm" accept=".db" required style="width:100%;margin-top:8px;box-sizing:border-box;">
+                <button type="submit" class="btn btn-danger btn-sm" style="margin-top:6px;">确认导入</button>
               </div>
             </div>
           </form>
@@ -617,6 +632,52 @@ function closeProxyModal() {
   document.getElementById('proxy-modal').style.display = 'none';
 }
 
+// 单文件上限 MB/GB 切换
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+
 // 点击遮罩层关闭弹窗
 document.addEventListener('DOMContentLoaded', function() {
   var modal = document.getElementById('proxy-modal');
@@ -668,32 +729,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 通行证有效期表单提交验证
-  var ttlBtn = document.querySelector('button[value="passcode_ttl"]');
-  if (ttlBtn) {
-    var ttlForm = ttlBtn.closest('form');
-    ttlForm.addEventListener('submit', function(e) {
-      var el = document.getElementById('passcode_ttl_minutes');
-      if (el && el.value !== '') {
-        var v = parseInt(el.value, 10);
-        if (isNaN(v) || String(v) !== el.value.trim() || v < 1 || v > 43200) {
+  // 有效期设置表单提交验证（含通行证有效期 + 默认链接有效期）
+  var expiryBtn = document.querySelector('button[value="expiry_settings"]');
+  if (expiryBtn) {
+    var expiryForm = expiryBtn.closest('form');
+    expiryForm.addEventListener('submit', function(e) {
+      var el1 = document.getElementById('passcode_ttl_minutes');
+      if (el1 && el1.value !== '') {
+        var v1 = parseInt(el1.value, 10);
+        if (isNaN(v1) || String(v1) !== el1.value.trim() || v1 < 1 || v1 > 43200) {
           e.preventDefault();
           alert('通行证有效期必须是 1-43200 的整数（分钟）');
           return false;
         }
       }
-    });
-  }
-
-  // 默认链接有效期表单提交验证
-  var expiryBtn = document.querySelector('button[value="default_link_expiry"]');
-  if (expiryBtn) {
-    var expiryForm = expiryBtn.closest('form');
-    expiryForm.addEventListener('submit', function(e) {
-      var el = document.getElementById('default_link_expire_days');
-      if (el && el.value !== '') {
-        var v = parseInt(el.value, 10);
-        if (isNaN(v) || String(v) !== el.value.trim() || v < 1 || v > 3650) {
+      var el2 = document.getElementById('default_link_expire_days');
+      if (el2 && el2.value !== '') {
+        var v2 = parseInt(el2.value, 10);
+        if (isNaN(v2) || String(v2) !== el2.value.trim() || v2 < 1 || v2 > 3650) {
           e.preventDefault();
           alert('链接有效期天数必须是 1-3650 的整数');
           return false;
@@ -702,32 +755,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 链接每页显示数量表单提交验证
-  var lppBtn = document.querySelector('button[value="links_per_page"]');
-  if (lppBtn) {
-    var lppForm = lppBtn.closest('form');
-    lppForm.addEventListener('submit', function(e) {
-      var el = document.getElementById('links_per_page_val');
-      if (el && el.value !== '') {
-        var v = parseInt(el.value, 10);
-        if (isNaN(v) || String(v) !== el.value.trim() || v < 5 || v > 100) {
+  // 分页设置表单提交验证（含链接每页 + 记录每页）
+  var pageBtn = document.querySelector('button[value="pagination"]');
+  if (pageBtn) {
+    var pageForm = pageBtn.closest('form');
+    pageForm.addEventListener('submit', function(e) {
+      var el3 = document.getElementById('links_per_page_val');
+      if (el3 && el3.value !== '') {
+        var v3 = parseInt(el3.value, 10);
+        if (isNaN(v3) || String(v3) !== el3.value.trim() || v3 < 5 || v3 > 100) {
           e.preventDefault();
           alert('每页显示数量必须是 5-100 的整数');
           return false;
         }
       }
-    });
-  }
-
-  // 上传记录单页数量表单提交验证
-  var rppBtn = document.querySelector('button[value="records_per_page"]');
-  if (rppBtn) {
-    var rppForm = rppBtn.closest('form');
-    rppForm.addEventListener('submit', function(e) {
-      var el = document.getElementById('records_per_page_val');
-      if (el && el.value !== '') {
-        var v = parseInt(el.value, 10);
-        if (isNaN(v) || String(v) !== el.value.trim() || v < 5 || v > 200) {
+      var el4 = document.getElementById('records_per_page_val');
+      if (el4 && el4.value !== '') {
+        var v4 = parseInt(el4.value, 10);
+        if (isNaN(v4) || String(v4) !== el4.value.trim() || v4 < 5 || v4 > 200) {
           e.preventDefault();
           alert('每页显示数量必须是 5-200 的整数');
           return false;
@@ -805,6 +850,9 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }).catch(function() {});
   }
+
+  // 单文件上限 MB/GB 切换
+  (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
 })();
 </script>
 {% endblock %}

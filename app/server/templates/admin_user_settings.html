@@ -82,9 +82,16 @@
                        value="{{ defaults.max_files or 10 }}" min="0" step="1">
               </div>
               <div class="form-group">
-                <label class="form-label" for="default_max_size">单文件上限 (GB)</label>
-                <input type="number" id="default_max_size" name="default_max_size" class="form-input form-input-sm"
-                       value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" max="64" step="0.01">
+                <label class="form-label" for="default_max_size_val">单文件上限</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" id="default_max_size_val" class="form-input form-input-sm" style="flex:1;"
+                         value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+                  <select id="default_max_size_unit" class="form-input form-input-sm" style="width:64px;flex:none;">
+                    <option value="MB">MB</option>
+                    <option value="GB">GB</option>
+                  </select>
+                </div>
+                <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
               </div>
             </div>
             <div class="form-hint" style="margin-bottom:8px;">创建链接时的默认参数，留空则使用管理员全局设置</div>
@@ -172,4 +179,51 @@
   .settings-grid-sub { grid-template-columns: 1fr; }
 }
 </style>
+<script>
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+(function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
+</script>
 {% endblock %}

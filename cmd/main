@@ -130,30 +130,44 @@ start() {
         mkdir -p "$VAR_DIR"
     }
 
+    VENV_CACHE="${VAR_DIR}/.venv_cache.tar.gz"
+
     if [ ! -d "$VENV_DIR" ]; then
-        log "  创建 venv: ${VENV_DIR}"
-        "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$DEBUG_LOG" 2>&1 || {
-            log "  FATAL: venv 创建失败"
-            exit 1
-        }
-        source "$VENV_DIR/bin/activate"
-        log "  安装依赖..."
-        pip install --no-cache-dir \
-            Flask==3.0.0 \
-            Werkzeug==3.0.1 \
-            gunicorn==21.2.0 \
-            bleach==6.1.0 \
-            >> "$DEBUG_LOG" 2>&1 || {
-            log "  FATAL: pip install 失败!"
-            tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
-            exit 1
-        }
-        log "  pip install 完成"
+        if [ -f "$VENV_CACHE" ]; then
+            log "  从缓存恢复 venv（跳过安装）..."
+            tar xzf "$VENV_CACHE" -C "$VAR_DIR" >> "$DEBUG_LOG" 2>&1 || {
+                log "  缓存损坏，删除后重新创建..."
+                rm -f "$VENV_CACHE"
+            }
+        fi
+        if [ ! -d "$VENV_DIR" ]; then
+            log "  创建 venv: ${VENV_DIR}"
+            "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$DEBUG_LOG" 2>&1 || {
+                log "  FATAL: venv 创建失败"
+                exit 1
+            }
+            source "$VENV_DIR/bin/activate"
+            log "  安装依赖..."
+            pip install --no-cache-dir \
+                Flask==3.0.0 \
+                Werkzeug==3.0.1 \
+                gunicorn==21.2.0 \
+                bleach==6.1.0 \
+                >> "$DEBUG_LOG" 2>&1 || {
+                log "  FATAL: pip install 失败!"
+                tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
+                exit 1
+            }
+            log "  pip install 完成"
+            # 保存缓存，下次启动秒级恢复
+            log "  保存 venv 缓存..."
+            tar czf "$VENV_CACHE" -C "$VAR_DIR" .venv >> "$DEBUG_LOG" 2>&1 || true
+        else
+            source "$VENV_DIR/bin/activate"
+        fi
     else
         source "$VENV_DIR/bin/activate"
         log "  复用已有 venv"
-        # 确保 gunicorn 已安装（升级场景兼容）
-        pip install --no-cache-dir gunicorn==21.2.0 bleach==6.1.0 >> "$DEBUG_LOG" 2>&1 || true
     fi
 
     log "  $(pip --version)"

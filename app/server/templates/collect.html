@@ -37,7 +37,7 @@
         </div>
         <div class="cp-meta-tile-body">
           <span class="cp-meta-tile-label">单文件上限</span>
-          <span class="cp-meta-tile-value">{% if max_file_size_gb < 1 %}{{ (max_file_size_gb * 1024)|round(2) }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</span>
+          <span class="cp-meta-tile-value">{% if max_file_size_gb < 1 %}{{ ((max_file_size_gb * 1024)|round(1))|string|replace('.0', '') }} MB{% else %}{{ max_file_size_gb }} GB{% endif %}</span>
         </div>
       </div>
       <div class="cp-meta-tile">
@@ -115,6 +115,7 @@
         </div>
         <h3>点击选择文件或拖拽到此处</h3>
         <span class="cp-drop-text" style="display:none;">点击或拖拽上传文件</span>
+        <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
         <p class="cp-hint-resume">
           <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
@@ -169,6 +170,22 @@
 
 <div class="cp-toast" id="toast"></div>
 
+{# ---------- Preview Modal（浮窗预览：图片/视频等） ---------- #}
+<div class="cp-modal" id="preview-modal" style="display:none;">
+  <div class="cp-modal-mask" onclick="closePreview()"></div>
+  <div class="cp-modal-content">
+    <div class="cp-modal-header">
+      <span class="cp-modal-title" id="preview-title"></span>
+      <button class="cp-modal-close" onclick="closePreview()">&times;</button>
+    </div>
+    <div class="cp-modal-body" id="preview-body"><div class="cp-preview-loading">加载中...</div></div>
+    <div class="cp-modal-footer">
+      <button class="cp-btn cp-btn-outline" onclick="closePreview()">关闭</button>
+      <button class="cp-btn cp-btn-primary" id="preview-download-btn">下载文件</button>
+    </div>
+  </div>
+</div>
+
 {% if verified and require_uploader and not uploader_name %}
 {# ---------- Uploader Modal ---------- #}
 <div class="cp-modal-overlay" id="uploader-modal">
@@ -210,6 +227,7 @@
 <script>
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
+{% if allow_preview_download %}var allowPreviewDownload = true;{% else %}var allowPreviewDownload = false;{% endif %}
 var requireUploader = {{ require_uploader|tojson }};
 
 function showToast(msg, d) {
@@ -365,6 +383,13 @@ const MAX_FILES = {{ max_files }};
 const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
 let totalUploaded = 0;
 
+function setUploadAreaDisabled(disabled) {
+  var dz = document.getElementById('dropzone');
+  var fi = document.getElementById('file-input');
+  if (dz) dz.classList.toggle('full', disabled);
+  if (fi) fi.disabled = disabled;
+}
+
 function updateRemainingDisplay() {
   if (MAX_FILES <= 0) return;
   var remaining = MAX_FILES - totalUploaded - selectedFiles.length;
@@ -391,6 +416,8 @@ function updateRemainingDisplay() {
     if (valEl) valEl.style.color = '#059669';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
   }
+  // 配额用尽时禁用上传区域
+  setUploadAreaDisabled(totalUploaded >= MAX_FILES);
 }
 
 function handleFiles(files) {
@@ -629,6 +656,28 @@ async function startUpload() {
     return;
   }
   {% endif %}
+  // 上传前配额预检：重新获取最新的已上传数量，在上传文件数据前就拦截超限
+  if (MAX_FILES > 0) {
+    try {
+      var preCheckRes = await fetch('/collect/' + linkId + '/records');
+      var preCheckData = await preCheckRes.json();
+      var freshTotal = preCheckData.total_uploaded || 0;
+      if (freshTotal + selectedFiles.length > MAX_FILES) {
+        var remaining = MAX_FILES - freshTotal;
+        if (remaining <= 0) {
+          showToast('上传配额已用完（最多 ' + MAX_FILES + ' 个）');
+        } else {
+          showToast('还可上传 ' + remaining + ' 个文件（最多 ' + MAX_FILES + ' 个）');
+        }
+        return;
+      }
+      totalUploaded = freshTotal;
+      updateRemainingDisplay();
+    } catch(e) {
+      // 预检失败不阻塞，让后端做最终校验
+      console.warn('配额预检失败:', e);
+    }
+  }
   isUploadPaused = false;
   var btn = document.getElementById('upload-btn'); btn.disabled = true; btn.textContent = '上传中...';
 
@@ -798,13 +847,14 @@ async function loadHistory() {
       return;
     }
     var canDelete = allowDelete && (data.allow_delete === true);
+    var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
 
     // --- Desktop table ---
     var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
       (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
-      (canDelete ? '<th class="cp-th-act">操作</th>' : '') +
+      (canDelete || canPreviewDownload ? '<th class="cp-th-act">操作</th>' : '') +
       '</tr></thead><tbody>';
 
     // --- Mobile card list ---
@@ -826,8 +876,16 @@ async function loadHistory() {
       if (requireUploader) {
         tableHtml += '<td class="cp-file-uploader">' + escapeHtml(r.uploader_name || '——') + '</td>';
       }
-      if (canDelete) {
-        tableHtml += '<td class="cp-file-act"><button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button></td>';
+      if (canDelete || canPreviewDownload) {
+        tableHtml += '<td class="cp-file-act">';
+        if (canPreviewDownload) {
+          tableHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + r.id + ',\'' + escapeHtml(r.original_name) + '\')" style="margin-right:8px;">预览</button>';
+          tableHtml += '<a class="cp-act-download-txt" href="/collect/' + linkId + '/download/' + r.id + '" style="margin-right:8px;">下载</a>';
+        }
+        if (canDelete) {
+          tableHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+        }
+        tableHtml += '</td>';
       }
       tableHtml += '</tr>';
 
@@ -840,8 +898,16 @@ async function loadHistory() {
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
           '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
         '</div>';
-      if (canDelete) {
-        cardHtml += '<div class="cp-card-actions"><button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button></div>';
+      if (canDelete || canPreviewDownload) {
+        cardHtml += '<div class="cp-card-actions">';
+        if (canPreviewDownload) {
+          cardHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + r.id + ',\'' + escapeHtml(r.original_name) + '\')" style="margin-right:8px;">预览</button>';
+          cardHtml += '<a class="cp-act-download-txt" href="/collect/' + linkId + '/download/' + r.id + '" style="margin-right:8px;">下载</a>';
+        }
+        if (canDelete) {
+          cardHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+        }
+        cardHtml += '</div>';
       }
       cardHtml += '</div>';
     }
@@ -865,6 +931,49 @@ async function deleteRecord(recordId) {
     if (data.success) { showToast('已删除'); loadHistory(); }
     else { showToast(data.message || '删除失败'); }
   } catch(e) { showToast('网络错误'); }
+}
+
+/* ========== Preview & Download ========== */
+function previewFile(recordId, fileName) {
+  var ext = fileName.split('.').pop().toLowerCase();
+  // Office / PDF / MD → 新窗口 JIT Viewer
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
+  if (jitExts.includes(ext)) {
+    window.open('/collect/' + linkId + '/view/' + recordId, '_blank');
+    return;
+  }
+
+  // 图片 / 视频 → 浮窗预览
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
+
+  var modal = document.getElementById('preview-modal');
+  var title = document.getElementById('preview-title');
+  var body = document.getElementById('preview-body');
+  var downloadBtn = document.getElementById('preview-download-btn');
+
+  title.textContent = fileName;
+  body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  var previewUrl = '/collect/' + linkId + '/preview/' + recordId;
+  downloadBtn.onclick = function() { window.open('/collect/' + linkId + '/download/' + recordId, '_blank'); };
+
+  if (imgExts.includes(ext)) {
+    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>图片加载失败</p>\'">';
+  } else if (vidExts.includes(ext)) {
+    body.innerHTML = '<video src="' + previewUrl + '" controls autoplay class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
+  } else {
+    body.innerHTML = '<p style="color:#999;">不支持预览该文件类型，请下载查看</p>';
+  }
+}
+
+function closePreview() {
+  var video = document.querySelector('#preview-modal video');
+  if (video) video.pause();
+  document.getElementById('preview-modal').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 (function() {

@@ -18,6 +18,7 @@ import sqlite3
 import shutil
 import secrets
 import logging
+import warnings
 import unicodedata
 import traceback
 import tempfile
@@ -115,7 +116,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.1.23"
+VERSION = "2.1.25"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -187,6 +188,51 @@ def refresh_upload_base():
     """刷新全局 UPLOAD_BASE（数据库设置变更后调用）"""
     global UPLOAD_BASE
     UPLOAD_BASE = get_upload_base()
+
+def _migrate_stored_paths(old_base, new_base):
+    """迁移数据库中 upload_records.stored_path 从旧基础路径到新基础路径。
+    同时处理「新旧路径相同但数据库中仍有旧前缀记录」的边缘情况（如用户已手动迁移文件后再次保存）。"""
+    conn = get_db()
+    try:
+        records = conn.execute("SELECT COUNT(*) as cnt FROM upload_records").fetchone()
+        if not records or records['cnt'] == 0:
+            return
+        new_base_norm = os.path.normpath(new_base) + os.sep
+        # 查找第一条不以新 base 开头的记录，推断旧 base
+        sample = conn.execute(
+            "SELECT stored_path FROM upload_records WHERE stored_path NOT LIKE ? LIMIT 1",
+            (new_base_norm + '%',)
+        ).fetchone()
+        if not sample:
+            return  # 所有记录都已匹配，无需迁移
+        # 从样本路径提取旧基础路径（upload_records 路径结构：old_base/username/link_id/filename）
+        sample_path = sample['stored_path']
+        # 取 uploads 目录的父级作为旧 base（兼容 /path/uploads 和 /path 两种格式）
+        # 向上找两层：去掉 /username/link_id/filename
+        parts = os.path.normpath(sample_path).split(os.sep)
+        if len(parts) >= 3:
+            old_base_norm = os.sep.join(parts[:-3])
+        else:
+            old_base_norm = os.path.normpath(old_base)
+        if not old_base_norm.endswith(os.sep):
+            old_base_norm += os.sep
+        if os.path.normpath(old_base_norm.rstrip(os.sep)) == os.path.normpath(new_base_norm.rstrip(os.sep)):
+            return
+        count_before = conn.execute(
+            "SELECT COUNT(*) as cnt FROM upload_records WHERE stored_path LIKE ?",
+            (old_base_norm + '%',)
+        ).fetchone()['cnt']
+        if count_before == 0:
+            return
+        conn.execute(
+            "UPDATE upload_records SET stored_path = REPLACE(stored_path, ?, ?) WHERE stored_path LIKE ?",
+            (old_base_norm, new_base_norm, old_base_norm + '%')
+        )
+        conn.commit()
+        actual_changed = conn.total_changes
+        flash(f'已自动修复 {actual_changed} 条文件记录路径（{old_base_norm} → {new_base_norm}）。')
+    finally:
+        conn.close()
 
 DEBUG_MODE = os.environ.get('FLASK_DEBUG', '0') == '1'
 
@@ -541,6 +587,9 @@ def init_db():
         if 'allow_delete' not in columns:
             conn.execute("ALTER TABLE links ADD COLUMN allow_delete INTEGER DEFAULT 0")
             conn.commit()
+        if 'allow_preview_download' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN allow_preview_download INTEGER DEFAULT 0")
+            conn.commit()
     except Exception as e:
         print(f"数据库迁移错误(allow_delete): {e}")
 
@@ -647,6 +696,21 @@ def init_db():
     except Exception as e:
         print(f"数据库迁移错误(require_uploader): {e}")
 
+    # 为 links 表添加 collect_slug 和 share_slug 列（自定义链接 ID）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'collect_slug' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN collect_slug TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 links 表添加 collect_slug 字段")
+        if 'share_slug' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN share_slug TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 links 表添加 share_slug 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(collect_slug/share_slug): {e}")
+
     # 为 upload_records 表添加 uploader_name 列（记录上传者身份）
     try:
         cursor = conn.execute("PRAGMA table_info(upload_records)")
@@ -657,25 +721,6 @@ def init_db():
             logger.info("已为 upload_records 表添加 uploader_name 字段")
     except Exception as e:
         print(f"数据库迁移错误(upload_records.uploader_name): {e}")
-
-    # 为 upload_logs 表添加 uploader_name 列（从 upload_records 回填）
-    try:
-        cursor = conn.execute("PRAGMA table_info(upload_logs)")
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'uploader_name' not in columns:
-            conn.execute("ALTER TABLE upload_logs ADD COLUMN uploader_name TEXT DEFAULT ''")
-            conn.commit()
-            logger.info("已为 upload_logs 表添加 uploader_name 字段")
-            # 回填已有日志的 uploader_name
-            conn.execute("""
-                UPDATE upload_logs SET uploader_name = (
-                    SELECT ur.uploader_name FROM upload_records ur WHERE ur.id = upload_logs.record_id
-                ) WHERE record_id IS NOT NULL AND uploader_name = ''
-            """)
-            conn.commit()
-            logger.info("已回填 upload_logs 的 uploader_name 字段")
-    except Exception as e:
-        print(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
     # 为 users 表添加 email 列（旧数据库可能缺失）
     try:
@@ -730,7 +775,8 @@ def init_db():
                 event TEXT NOT NULL DEFAULT '',
                 event_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 details TEXT DEFAULT '',
-                success INTEGER DEFAULT 1
+                success INTEGER DEFAULT 1,
+                uploader_name TEXT DEFAULT ''
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_upload_logs_record_id ON upload_logs(record_id)")
@@ -739,6 +785,25 @@ def init_db():
         logger.info("upload_logs 表检查/创建完成")
     except Exception as e:
         print(f"数据库迁移错误(upload_logs): {e}")
+
+    # 为 upload_logs 表添加 uploader_name 列（仅对旧表做迁移 + 回填）
+    try:
+        cursor = conn.execute("PRAGMA table_info(upload_logs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'uploader_name' not in columns:
+            conn.execute("ALTER TABLE upload_logs ADD COLUMN uploader_name TEXT DEFAULT ''")
+            conn.commit()
+            logger.info("已为 upload_logs 表添加 uploader_name 字段")
+            # 回填已有日志的 uploader_name
+            conn.execute("""
+                UPDATE upload_logs SET uploader_name = (
+                    SELECT ur.uploader_name FROM upload_records ur WHERE ur.id = upload_logs.record_id
+                ) WHERE record_id IS NOT NULL AND uploader_name = ''
+            """)
+            conn.commit()
+            logger.info("已回填 upload_logs 的 uploader_name 字段")
+    except Exception as e:
+        print(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
     # 检测是否已有数据库（升级场景）
     existing_admin = conn.execute(
@@ -978,6 +1043,62 @@ def generate_link_id(title=None):
     """生成 8 位纯字母数字短链接ID"""
     return uuid.uuid4().hex[:8]
 
+def _resolve_collect_id(raw_id, conn=None):
+    """解析收集页链接 ID：优先 collect_slug，回退 id"""
+    close_conn = conn is None
+    if close_conn:
+        conn = get_db()
+    try:
+        link = conn.execute(
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
+            (raw_id, raw_id)
+        ).fetchone()
+        return link
+    finally:
+        if close_conn:
+            conn.close()
+
+def _resolve_share_id(raw_id, conn=None):
+    """解析分享页链接 ID：优先 share_slug，回退 id"""
+    close_conn = conn is None
+    if close_conn:
+        conn = get_db()
+    try:
+        link = conn.execute(
+            "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'",
+            (raw_id, raw_id)
+        ).fetchone()
+        return link
+    finally:
+        if close_conn:
+            conn.close()
+
+def _check_slug_unique(slug, exclude_id=None):
+    """检查自定义 slug 是否全局唯一（与所有 id、collect_slug、share_slug 不冲突）"""
+    if not slug:
+        return True
+    conn = get_db()
+    try:
+        # 检查是否与主键 id 冲突
+        row = conn.execute("SELECT id FROM links WHERE id = ?", (slug,)).fetchone()
+        if row and row['id'] != exclude_id:
+            return False
+        # 检查是否与 collect_slug 冲突
+        row = conn.execute(
+            "SELECT id FROM links WHERE collect_slug = ?", (slug,)
+        ).fetchone()
+        if row and row['id'] != exclude_id:
+            return False
+        # 检查是否与 share_slug 冲突
+        row = conn.execute(
+            "SELECT id FROM links WHERE share_slug = ?", (slug,)
+        ).fetchone()
+        if row and row['id'] != exclude_id:
+            return False
+        return True
+    finally:
+        conn.close()
+
 def format_file_size(size_bytes):
     """格式化文件大小"""
     for unit in ['B', 'KB', 'MB', 'GB']:
@@ -1207,10 +1328,13 @@ def get_user_folder(user_id):
     return os.path.join(get_upload_base(), safe_username)
 
 def get_link_by_id(link_id):
-    """根据ID获取链接信息"""
+    """根据ID或slug获取链接信息"""
     conn = get_db()
     try:
-        link = conn.execute("SELECT * FROM links WHERE id = ?", (link_id,)).fetchone()
+        link = conn.execute(
+            "SELECT * FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
+            (link_id, link_id, link_id)
+        ).fetchone()
         return dict(link) if link else None
     finally:
         conn.close()
@@ -1239,7 +1363,10 @@ def scan_link_folder(link_id, conn=None):
     
     try:
         # 从已有连接获取 link 信息（避免额外 DB 连接）
-        link = conn.execute("SELECT id, user_id, folder_name FROM links WHERE id = ?", (link_id,)).fetchone()
+        link = conn.execute(
+            "SELECT id, user_id, folder_name FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
+            (link_id, link_id, link_id)
+        ).fetchone()
         if not link:
             return []
         
@@ -1359,6 +1486,8 @@ def sanitize_html(html_text):
         css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_styles)
     except ModuleNotFoundError:
         logger.warning("tinycss2 未安装，CSS 样式过滤已降级（建议: pip install tinycss2）")
+        # 抑制 bleach 每次处理 style 属性时发出的 NoCssSanitizerWarning
+        warnings.filterwarnings('ignore', message='.*css_sanitizer.*', module='bleach')
     
     clean_kwargs = dict(
         tags=allowed_tags,
@@ -1830,20 +1959,25 @@ def create_upload_dir(link_id, uploader_name=''):
     """为链接创建上传目录（用户隔离：UPLOAD_BASE/<username>/<folder_name>/）
     如果提供了 uploader_name，则在其下创建子文件夹：<...>/<folder_name>/<uploader_name>/"""
     conn = get_db()
-    link = conn.execute("SELECT title, user_id, folder_name FROM links WHERE id = ?", (link_id,)).fetchone()
+    link = conn.execute(
+        "SELECT id, title, user_id, folder_name FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
+        (link_id, link_id, link_id)
+    ).fetchone()
     conn.close()
 
+    canonical_id = link['id'] if link else link_id
+
     if not link:
-        upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', link_id)
+        upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', canonical_id)
     elif link['user_id']:
         # 有用户归属：UPLOAD_BASE/<username>/<folder_name>/
         user = get_user_by_id(link['user_id'])
         if user:
             safe_username = re.sub(r'[^\w\-]', '_', user['username'])
-            folder_name = link['folder_name'] or link_id
+            folder_name = link['folder_name'] or canonical_id
             upload_dir = os.path.join(UPLOAD_BASE, safe_username, folder_name)
         else:
-            upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', link_id)
+            upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', canonical_id)
     else:
         # 无用户归属（旧数据）：使用标题命名
         folder_name = re.sub(r'[<>:"/\\|?*]', '_', link['title'].strip()) if link['title'] else 'unnamed'
@@ -1858,7 +1992,7 @@ def create_upload_dir(link_id, uploader_name=''):
     real_dir = os.path.realpath(upload_dir)
     real_base = os.path.realpath(UPLOAD_BASE)
     if not real_dir.startswith(real_base + os.sep) and real_dir != real_base:
-        upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', link_id)
+        upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', canonical_id)
         real_dir = os.path.realpath(upload_dir)
 
     # 上传者子文件夹
@@ -1899,14 +2033,14 @@ def index():
 @app.route('/collect/<link_id>')
 def collect_page(link_id):
     """文件收集页面"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return render_template('error.html',
             error_code=404,
             error_title='链接无效',
             error_message='链接格式不正确'), 404
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     conn.close()
     link = dict(row) if row else None
@@ -1916,6 +2050,9 @@ def collect_page(link_id):
             error_code=404,
             error_title='链接失效',
             error_message='链接不存在或已被停用'), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     # 检查收集页是否启用
     if not link.get('collect_enabled', 1):
@@ -2019,6 +2156,7 @@ def collect_page(link_id):
         max_file_size_gb=link['max_file_size_gb'],
         max_files=link['max_files'],
         allow_delete=bool(link['allow_delete']),
+        allow_preview_download=bool(link['allow_preview_download']),
         site_title=get_user_setting(link_owner_id, 'site_title', '文件收集器'),
         collect_footer_text=get_user_setting(link_owner_id, 'collect_footer_text', ''),
         public_url=get_user_setting(link_owner_id, 'public_url', ''),
@@ -2043,12 +2181,15 @@ def verify_passcode(link_id):
 
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     conn.close()
 
     if not link:
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
     # 空通行证：直接放行
@@ -2067,6 +2208,14 @@ def logout_passcode(link_id):
     """退出通行证，清除当前链接的验证缓存"""
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
+    # 解析链接（支持自定义 slug）
+    conn = get_db()
+    link = conn.execute(
+        "SELECT id FROM links WHERE (collect_slug = ? OR id = ?)", (link_id, link_id)
+    ).fetchone()
+    conn.close()
+    if link:
+        link_id = link['id']
     session.pop(f'verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
@@ -2089,7 +2238,7 @@ def set_uploader(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
 
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
 
     uploader_name = (request.form.get('uploader_name') or '').strip()
@@ -2126,21 +2275,20 @@ def set_uploader(link_id):
 
     conn = get_db()
     link = conn.execute(
-        "SELECT passcode_plain, require_uploader FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT id, passcode_plain, require_uploader FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     conn.close()
 
     if not link:
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
+
     if not bool(link['require_uploader']):
         return jsonify({'success': False, 'message': '该链接不需要上传者身份'}), 400
 
-    # 有通行证时需先验证
-    has_passcode = bool(link['passcode_plain'] and link['passcode_plain'].strip())
-    if has_passcode and not is_verified(link_id, link):
-        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
+    # 无需二次验证通行证：能到达此步骤的用户已通过通行证验证（或无需通行证）
     session[f'uploader_{link_id}'] = safe_name
     return jsonify({'success': True, 'uploader_name': safe_name})
 
@@ -2149,6 +2297,14 @@ def logout_uploader(link_id):
     """退出上传者身份"""
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
+    # 解析链接（支持自定义 slug）
+    conn = get_db()
+    link = conn.execute(
+        "SELECT id FROM links WHERE (collect_slug = ? OR id = ?)", (link_id, link_id)
+    ).fetchone()
+    conn.close()
+    if link:
+        link_id = link['id']
     session.pop(f'uploader_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出身份'})
 
@@ -2160,7 +2316,7 @@ def share_page(link_id):
     """文件分享页面（仅查看和下载，无上传功能）"""
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     conn.close()
     link = dict(row) if row else None
@@ -2170,6 +2326,9 @@ def share_page(link_id):
             error_code=404,
             error_title='链接失效',
             error_message='链接不存在或已被停用'), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     # 检查分享页是否启用
     if not link.get('share_enabled', 0):
@@ -2307,13 +2466,16 @@ def share_verify_passcode(link_id):
 
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     conn.close()
     link = dict(row) if row else None
 
     if not link:
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     # 判断分享页有效通行证（与 share_page 逻辑一致）
     _sp = link.get('share_passcode', '')
@@ -2348,6 +2510,14 @@ def share_logout_passcode(link_id):
     """分享页退出通行证"""
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
+    # 解析链接（支持自定义 slug）
+    conn = get_db()
+    link = conn.execute(
+        "SELECT id FROM links WHERE (share_slug = ? OR id = ?)", (link_id, link_id)
+    ).fetchone()
+    conn.close()
+    if link:
+        link_id = link['id']
     session.pop(f'share_verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
@@ -2356,12 +2526,15 @@ def share_get_records(link_id):
     """获取分享页文件列表"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
 
     if not link:
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
@@ -2388,11 +2561,14 @@ def share_preview_record(link_id, record_id):
     """预览分享页的文件（内联显示）"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
@@ -2419,11 +2595,16 @@ def share_preview_record(link_id, record_id):
 
     ext = os.path.splitext(record['original_name'])[1].lower()
     image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    _IMAGE_MIME = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+        '.svg': 'image/svg+xml'
+    }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
 
     if ext in image_exts:
-        return send_from_directory(directory, filename, mimetype=f'image/{ext[1:]}', as_attachment=False)
+        return send_from_directory(directory, filename, mimetype=_IMAGE_MIME.get(ext, 'application/octet-stream'), as_attachment=False)
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
     elif ext in video_exts:
@@ -2437,11 +2618,14 @@ def share_download_record(link_id, record_id):
     """分享页下载文件"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
@@ -2468,11 +2652,14 @@ def share_preview_file(link_id, record_id):
     """分享页预览文件（用于JIT Viewer SDK获取文件内容）"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
@@ -2523,11 +2710,14 @@ def share_jit_view(link_id, record_id):
     """新窗口纯净预览 - JIT Viewer"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
@@ -2567,12 +2757,15 @@ def get_upload_records(link_id):
     """获取上传历史记录"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
 
     if not link:
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_verified(link_id, link):
         conn.close()
@@ -2610,6 +2803,7 @@ def get_upload_records(link_id):
     return jsonify({
         'success': True,
         'allow_delete': bool(link['allow_delete']),
+        'allow_preview_download': bool(link['allow_preview_download']),
         'max_files': link['max_files'],
         'total_uploaded': total_uploaded,
         'require_uploader': require_uploader,
@@ -2621,15 +2815,22 @@ def preview_record(link_id, record_id):
     """预览上传的文件（内联显示）"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
 
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
+
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    if not link['allow_preview_download']:
+        conn.close()
+        return '预览功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2652,11 +2853,16 @@ def preview_record(link_id, record_id):
 
     ext = os.path.splitext(record['original_name'])[1].lower()
     image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    _IMAGE_MIME = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+        '.svg': 'image/svg+xml'
+    }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
 
     if ext in image_exts:
-        return send_from_directory(directory, filename, mimetype=f'image/{ext[1:]}', as_attachment=False)
+        return send_from_directory(directory, filename, mimetype=_IMAGE_MIME.get(ext, 'application/octet-stream'), as_attachment=False)
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
     elif ext in video_exts:
@@ -2670,15 +2876,22 @@ def download_record(link_id, record_id):
     """下载上传历史记录中的文件"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
 
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
+
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    if not link['allow_preview_download']:
+        conn.close()
+        return '下载功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2701,15 +2914,22 @@ def collect_preview_file(link_id, record_id):
     """收集页预览文件（用于JIT Viewer SDK获取文件内容）"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
         return '链接不存在或已失效', 404
 
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
+
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    if not link['allow_preview_download']:
+        conn.close()
+        return '预览功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2756,7 +2976,7 @@ def collect_jit_view(link_id, record_id):
     """新窗口纯净预览 - JIT Viewer（收集页）"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
@@ -2765,6 +2985,10 @@ def collect_jit_view(link_id, record_id):
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    if not link['allow_preview_download']:
+        conn.close()
+        return '预览功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2795,12 +3019,15 @@ def delete_upload_record(link_id, record_id):
     """删除单条上传记录及文件"""
     conn = get_db()
     link = conn.execute(
-        "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
 
     if not link:
         conn.close()
         return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    # 统一使用数据库规范 ID（支持自定义 slug 访问）
+    link_id = link['id']
 
     if not is_verified(link_id, link):
         conn.close()
@@ -2848,11 +3075,14 @@ def upload_file(link_id):
     try:
         conn = get_db()
         link = conn.execute(
-            "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
         ).fetchone()
 
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+        # 统一使用数据库规范 ID（支持自定义 slug 访问）
+        link_id = link['id']
 
         # 空通行证直接放行，有通行证才需要验证
         if not is_verified(link_id, link):
@@ -2873,18 +3103,25 @@ def upload_file(link_id):
                 'message': f'单次最多上传 {max_files} 个文件'
             }), 400
 
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+
         # 检查是否已超过上传总数上限（max_files=0 不限制）
+        # 开启上传者时：每个上传者独立配额；未开启时：全局配额
         if max_files > 0:
-            current_count = conn.execute(
-                "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-            ).fetchone()[0]
+            if link['require_uploader']:
+                current_count = conn.execute(
+                    "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?",
+                    (link_id, uploader_name)
+                ).fetchone()[0]
+            else:
+                current_count = conn.execute(
+                    "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+                ).fetchone()[0]
             if current_count >= max_files:
                 return jsonify({
                     'success': False,
                     'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
                 }), 400
-
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
         upload_dir = create_upload_dir(link_id, uploader_name)
         max_size_bytes = round(link['max_file_size_gb'] * 1024 * 1024 * 1024)
         results = []
@@ -2907,7 +3144,7 @@ def upload_file(link_id):
             if size > max_size_bytes:
                 limit_display = f'{link["max_file_size_gb"]} GB'
                 if link['max_file_size_gb'] < 1:
-                    limit_mb = round(link['max_file_size_gb'] * 1024, 2)
+                    limit_mb = round(link['max_file_size_gb'] * 1024, 1)
                     limit_display = f'{limit_mb} MB'
                 result.update({
                     'success': False,
@@ -3018,7 +3255,7 @@ def _cleanup_abandoned_chunks(upload_dir, max_age_hours=24):
 @app.route('/collect/<link_id>/chunk/status', methods=['GET'])
 def chunk_upload_status(link_id):
     """查询分片上传状态，返回已上传分片列表（断点续传用）"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
 
     upload_id = request.args.get('upload_id', '').strip()
@@ -3028,7 +3265,7 @@ def chunk_upload_status(link_id):
     conn = get_db()
     try:
         link = conn.execute(
-            "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
         ).fetchone()
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
@@ -3077,7 +3314,7 @@ def chunk_upload_status(link_id):
 @app.route('/collect/<link_id>/chunk/init', methods=['POST'])
 def chunk_upload_init(link_id):
     """初始化分片上传会话"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
@@ -3106,20 +3343,32 @@ def chunk_upload_init(link_id):
     conn = get_db()
     try:
         link = conn.execute(
-            "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
         ).fetchone()
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
 
+        # 统一使用数据库规范 ID（支持自定义 slug 访问）
+        link_id = link['id']
+
         if not is_verified(link_id, link):
             return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+
         # 检查数量限制
+        # 开启上传者时：每个上传者独立配额；未开启时：全局配额
         max_files = link['max_files']
         if max_files > 0:
-            current_count = conn.execute(
-                "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-            ).fetchone()[0]
+            if link['require_uploader']:
+                current_count = conn.execute(
+                    "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?",
+                    (link_id, uploader_name)
+                ).fetchone()[0]
+            else:
+                current_count = conn.execute(
+                    "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+                ).fetchone()[0]
             if current_count >= max_files:
                 return jsonify({
                     'success': False,
@@ -3131,7 +3380,7 @@ def chunk_upload_init(link_id):
         if file_size_int > max_size_bytes:
             limit_display = f'{link["max_file_size_gb"]} GB'
             if link['max_file_size_gb'] < 1:
-                limit_mb = round(link['max_file_size_gb'] * 1024, 2)
+                limit_mb = round(link['max_file_size_gb'] * 1024, 1)
                 limit_display = f'{limit_mb} MB'
             return jsonify({
                 'success': False,
@@ -3145,8 +3394,6 @@ def chunk_upload_init(link_id):
         safe_name = safe_filename_unicode(filename)
         if not safe_name:
             safe_name = 'unnamed_file'
-
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
         upload_dir = create_upload_dir(link_id, uploader_name)
         stored_path = os.path.join(upload_dir, safe_name)
 
@@ -3251,7 +3498,7 @@ def chunk_upload_init(link_id):
 @app.route('/collect/<link_id>/chunk/upload', methods=['POST'])
 def chunk_upload(link_id):
     """接收单个分片"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
@@ -3283,10 +3530,13 @@ def chunk_upload(link_id):
     conn = get_db()
     try:
         link = conn.execute(
-            "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
         ).fetchone()
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+        # 统一使用数据库规范 ID（支持自定义 slug 访问）
+        link_id = link['id']
 
         if not is_verified(link_id, link):
             return jsonify({'success': False, 'message': '请先验证通行证'}), 403
@@ -3392,7 +3642,7 @@ def chunk_upload(link_id):
 @app.route('/collect/<link_id>/chunk/merge', methods=['POST'])
 def chunk_merge(link_id):
     """合并所有分片为最终文件"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
@@ -3404,10 +3654,13 @@ def chunk_merge(link_id):
     conn = get_db()
     try:
         link = conn.execute(
-            "SELECT * FROM links WHERE id = ? AND status = 'active'", (link_id,)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
         ).fetchone()
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+        # 统一使用数据库规范 ID（支持自定义 slug 访问）
+        link_id = link['id']
 
         if not is_verified(link_id, link):
             return jsonify({'success': False, 'message': '请先验证通行证'}), 403
@@ -3594,7 +3847,7 @@ def chunk_merge(link_id):
 @app.route('/collect/<link_id>/chunk/cancel', methods=['POST'])
 def chunk_cancel(link_id):
     """取消/清理分片上传"""
-    if not re.match(r'^[a-zA-Z0-9]{8}$', link_id):
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
@@ -3605,16 +3858,22 @@ def chunk_cancel(link_id):
 
     conn = get_db()
     try:
+        # 解析链接（支持自定义 slug）
+        link_row = conn.execute(
+            "SELECT id FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+        ).fetchone()
+        canonical_id = link_row['id'] if link_row else link_id
+
         conn.execute(
             "UPDATE chunk_uploads SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ? AND link_id = ?",
-            (upload_id, link_id)
+            (upload_id, canonical_id)
         )
         conn.commit()
 
         # 清理分片文件
         try:
-            uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
-            upload_dir = create_upload_dir(link_id, uploader_name)
+            uploader_name = (session.get(f'uploader_{canonical_id}') or '').strip()
+            upload_dir = create_upload_dir(canonical_id, uploader_name)
             chunk_dir = os.path.join(upload_dir, '.chunks', re.sub(r'[^\w\-]', '_', upload_id))
             if os.path.isdir(chunk_dir):
                 shutil.rmtree(chunk_dir)
@@ -4244,7 +4503,7 @@ def user_settings():
                 if _mf != int(_mf):
                     raise ValueError('默认最大文件数必须为整数')
                 max_files = int(_mf)
-                max_size = round(float(max_size), 2)
+                max_size = round(float(max_size), 6)
                 if max_files < 0:
                     raise ValueError('默认最大文件数不能为负数')
                 if max_size < 0.01 or max_size > 64:
@@ -4499,8 +4758,8 @@ def admin_links():
     # 明确指定需要的列（避免拉取不需要的列，但 description 在 data-* 属性中需要）
     _link_cols = ("l.id, l.user_id, l.title, l.description, l.passcode, l.passcode_plain, l.passcode_empty, "
                   "l.max_files, l.max_file_size_gb, l.expires_at, l.created_at, l.updated_at, "
-                  "l.status, l.allow_delete, l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
-                  "l.require_uploader, "
+                  "l.status, l.allow_delete, l.allow_preview_download, l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
+                  "l.require_uploader, l.collect_slug, l.share_slug, "
                   "u.username, u.nickname")
     if is_admin:
         total = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
@@ -4609,7 +4868,7 @@ def create_link():
         logger.error(f"create_link sanitize_html 失败: {e}\n{traceback.format_exc()}")
         description = request.form.get('description', '')  # 降级：保留原始内容
     passcode = request.form.get('passcode', '').strip()
-    empty_passcode = request.form.get('empty_passcode') == 'on'  # 空通行证复选框
+    empty_passcode = request.form.get('empty_passcode') == '1'  # 空通行证复选框
     max_files = request.form.get('max_files', DEFAULT_MAX_FILES)
     max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
@@ -4626,7 +4885,7 @@ def create_link():
         if _mf != int(_mf):
             raise ValueError('最大文件数量必须为整数')
         max_files = int(_mf)
-        max_file_size_gb = round(float(max_file_size_gb), 2)
+        max_file_size_gb = round(float(max_file_size_gb), 6)
         if max_files < 0:
             raise ValueError('最大文件数量不能为负数')
         if max_file_size_gb < 0.01 or max_file_size_gb > 64:
@@ -4687,6 +4946,7 @@ def create_link():
             folder_name = f"{base_name}_{counter}"
     
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
+    allow_preview_download = 1 if request.form.get('allow_preview_download') == '1' else 0
     if passcode:
         passcode_hash = generate_password_hash(passcode)
         passcode_plain = passcode
@@ -4734,18 +4994,45 @@ def create_link():
     collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
     require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
 
+    # 自定义链接 ID
+    collect_slug = request.form.get('collect_slug', '').strip()
+    share_slug = request.form.get('share_slug', '').strip()
+    SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$')
+    SLUG_RESERVED = {'admin', 'api', 'static', 'login', 'logout', 'register', 'setup',
+                     'collect', 'share', 'links', 'settings', 'upload', 'download',
+                     'preview', 'chunk', 'verify', 'records', 'delete', 'toggle'}
+    for field_name, slug_val in [('收集页', collect_slug), ('分享页', share_slug)]:
+        if not slug_val:
+            continue
+        slug_lower = slug_val.lower()
+        if slug_lower in SLUG_RESERVED:
+            flash(f'{field_name}自定义链接"{slug_val}"为系统保留字，请更换')
+            return redirect(url_for('admin_links'))
+        if not SLUG_PATTERN.match(slug_val):
+            flash(f'{field_name}自定义链接只能使用3-32位字母数字及-_，且必须以字母或数字开头')
+            return redirect(url_for('admin_links'))
+        if not _check_slug_unique(slug_val):
+            flash(f'{field_name}自定义链接"{slug_val}"已被占用，请更换')
+            return redirect(url_for('admin_links'))
+    if not collect_slug:
+        collect_slug = None
+    if not share_slug:
+        share_slug = None
+
     try:
         conn = get_db()
         passcode_empty = 1 if (not passcode or not passcode.strip()) else 0
         conn.execute(
             """INSERT INTO links (id, user_id, title, description, passcode, passcode_plain,
-               max_file_size_gb, max_files, expires_at, allow_delete, passcode_empty,
+               max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
-               share_description, share_expires_at, collect_enabled, require_uploader, folder_name)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, passcode_empty,
+               share_description, share_expires_at, collect_enabled, require_uploader, 
+               folder_name, collect_slug, share_slug)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, passcode_empty,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-             share_description, share_expires_at, collect_enabled, require_uploader, folder_name)
+             share_description, share_expires_at, collect_enabled, require_uploader, 
+             folder_name, collect_slug, share_slug)
         )
         conn.commit()
         conn.close()
@@ -4787,7 +5074,7 @@ def edit_link(link_id):
             logger.error(f"edit_link sanitize_html 失败: {e}\n{traceback.format_exc()}")
             description = request.form.get('description', '')  # 降级：保留原始内容
         passcode = request.form.get('passcode', '').strip()
-        empty_passcode = request.form.get('empty_passcode') == 'on'  # 新的空通行证复选框
+        empty_passcode = request.form.get('empty_passcode') == '1'  # 空通行证复选框（选中时值为 '1'）
         max_files = request.form.get('max_files', DEFAULT_MAX_FILES)
         max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
@@ -4796,7 +5083,7 @@ def edit_link(link_id):
             if _mf != int(_mf):
                 raise ValueError('最大文件数量必须为整数')
             max_files = int(_mf)
-            max_file_size_gb = round(float(max_file_size_gb), 2)
+            max_file_size_gb = round(float(max_file_size_gb), 6)
             if max_files < 0:
                 raise ValueError('最大文件数量不能为负数')
             if max_file_size_gb < 0.01 or max_file_size_gb > 64:
@@ -4846,6 +5133,7 @@ def edit_link(link_id):
 
         conn = get_db()
         allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
+        allow_preview_download = 1 if request.form.get('allow_preview_download') == '1' else 0
 
         # 分享页设置
         share_enabled = 1 if request.form.get('share_enabled') == '1' else 0
@@ -4868,9 +5156,20 @@ def edit_link(link_id):
             share_description = sanitize_html(request.form.get('share_description', ''))
         except Exception:
             share_description = request.form.get('share_description', '')
-        # 分享页独立有效期
-        share_expires_at_raw = request.form.get('share_expires_at', '').strip()
+        # 分享页独立有效期（天数优先，日期可覆盖，与创建路由逻辑一致）
+        share_expire_days_edit = request.form.get('share_expire_days', '').strip()
         share_expires_at = None
+        if share_expire_days_edit:
+            try:
+                sd = int(share_expire_days_edit)
+                if 0 < sd <= _max_expire_days:
+                    share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
+                elif sd == 0:
+                    share_expires_at = None  # 清除
+            except ValueError:
+                pass
+        # 分享页独立截止日期（优先级高于天数）
+        share_expires_at_raw = request.form.get('share_expires_at', '').strip()
         if share_expires_at_raw:
             try:
                 parsed = datetime.strptime(share_expires_at_raw, '%Y-%m-%dT%H:%M')
@@ -4878,20 +5177,34 @@ def edit_link(link_id):
                     share_expires_at = share_expires_at_raw
             except ValueError:
                 pass
-        else:
-            share_expire_days = request.form.get('share_expire_days', '').strip()
-            if share_expire_days:
-                try:
-                    sd = int(share_expire_days)
-                    if 0 < sd <= _max_expire_days:
-                        share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
-                    elif sd == 0:
-                        share_expires_at = None  # 清除
-                except ValueError:
-                    pass
         # 收集页开关
         collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
         require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
+
+        # 自定义链接 ID
+        collect_slug = request.form.get('collect_slug', '').strip()
+        share_slug = request.form.get('share_slug', '').strip()
+        SLUG_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$')
+        SLUG_RESERVED = {'admin', 'api', 'static', 'login', 'logout', 'register', 'setup',
+                         'collect', 'share', 'links', 'settings', 'upload', 'download',
+                         'preview', 'chunk', 'verify', 'records', 'delete', 'toggle'}
+        for field_name, slug_val in [('收集页', collect_slug), ('分享页', share_slug)]:
+            if not slug_val:
+                continue
+            slug_lower = slug_val.lower()
+            if slug_lower in SLUG_RESERVED:
+                flash(f'{field_name}自定义链接"{slug_val}"为系统保留字，请更换')
+                return redirect(url_for('admin_links'))
+            if not SLUG_PATTERN.match(slug_val):
+                flash(f'{field_name}自定义链接只能使用3-32位字母数字及-_，且必须以字母或数字开头')
+                return redirect(url_for('admin_links'))
+            if not _check_slug_unique(slug_val, exclude_id=link_id):
+                flash(f'{field_name}自定义链接"{slug_val}"已被占用，请更换')
+                return redirect(url_for('admin_links'))
+        if not collect_slug:
+            collect_slug = None
+        if not share_slug:
+            share_slug = None
 
         # 处理通行证更新逻辑（新的复选框方案）
         if empty_passcode:
@@ -4901,22 +5214,22 @@ def edit_link(link_id):
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=1,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=1,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=1,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=1,
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
         elif passcode:
             # 用户输入了新通行证：设置新通行证
@@ -4925,44 +5238,44 @@ def edit_link(link_id):
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=0,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=0,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, passcode_empty=0,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=0,
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
         else:
             # 保持原有通行证不变 - 只更新其他字段
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete,
+                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, updated_at=CURRENT_TIMESTAMP
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?,
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, link_id)
+                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
 
         conn.commit()
@@ -5539,7 +5852,7 @@ def admin_settings():
                 if _mf != int(_mf):
                     raise ValueError('默认最大文件数必须为整数')
                 max_files = int(_mf)
-                max_size = round(float(max_size), 2)
+                max_size = round(float(max_size), 6)
                 if max_files < 0:
                     raise ValueError('默认最大文件数不能为负数')
                 if max_size < 0.01 or max_size > 64:
@@ -5621,8 +5934,10 @@ def admin_settings():
                 elif not os.path.exists(custom_path):
                     flash(f'路径不存在: {custom_path}')
                 else:
+                    old_base = get_upload_base()
                     set_setting('custom_upload_path', custom_path)
                     refresh_upload_base()
+                    new_base = UPLOAD_BASE
                     # 确保目录可写
                     try:
                         os.makedirs(UPLOAD_BASE, mode=0o755, exist_ok=True)
@@ -5630,9 +5945,13 @@ def admin_settings():
                         pass
                     flash('上传路径已更新。请确认飞牛应用设置中已授权该文件夹的读写权限。')
             else:
+                old_base = get_upload_base()
                 set_setting('custom_upload_path', '')
                 refresh_upload_base()
+                new_base = UPLOAD_BASE
                 flash('已恢复默认上传路径')
+            # 无论新旧路径是否相同，都检查并修复数据库中不匹配的 stored_path
+            _migrate_stored_paths(old_base, new_base)
 
         elif action == 'default_link_expiry':
             raw = request.form.get('default_link_expire_days', '30')
@@ -6253,6 +6572,9 @@ if __name__ == '__main__':
 
     # Gunicorn worker 启动后，启动后台文件扫描线程
     def post_worker_init(worker):
+        # 启动时自动修复可能不匹配的 stored_path（如管理员修改了上传路径后重启）
+        current_base = get_upload_base()
+        _migrate_stored_paths(current_base, current_base)
         start_bg_scanner(interval=30)
 
     options = {

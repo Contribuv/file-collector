@@ -29,6 +29,21 @@
                       placeholder="轻量化运行，不支持富文本">{{ (edit_link['description'] or '')|e if edit_link else '' }}</textarea>
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="collect_slug">自定义收集链接 (可选)</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/collect/</span>
+              <input type="text" id="collect_slug" name="collect_slug" class="form-input"
+                     value="{{ edit_link['collect_slug'] if edit_link and edit_link.get('collect_slug') else '' }}"
+                     placeholder="留空则使用系统生成ID"
+                     minlength="3" maxlength="32"
+                     pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
+                     title="3-32位字母数字及-_，必须以字母或数字开头"
+                     style="flex:1;">
+            </div>
+            <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="max_files">最大文件数量</label>
@@ -37,10 +52,18 @@
               <div class="form-hint">0 表示不限制</div>
             </div>
             <div class="form-group">
-              <label class="form-label" for="max_file_size_gb">单文件上限 (GB)</label>
-              <input type="number" id="max_file_size_gb" name="max_file_size_gb" class="form-input"
-                     value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}"
-                     min="0.01" max="64" step="0.01" required>
+              <label class="form-label" for="max_file_size_val">单文件上限</label>
+              <div style="display:flex; gap:6px;">
+                <input type="number" id="max_file_size_val" class="form-input" style="flex:1;"
+                       value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}"
+                       min="0.01" step="0.01">
+                <select id="max_file_size_unit" class="form-input" style="width:64px;flex:none;font-size:.82rem;">
+                  <option value="MB">MB</option>
+                  <option value="GB">GB</option>
+                </select>
+              </div>
+              <input type="hidden" id="max_file_size_gb" name="max_file_size_gb"
+                     value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}">
             </div>
           </div>
 
@@ -70,6 +93,17 @@
                 <span class="switch-thumb"></span>
               </span>
               <span>允许上传者删除已上传文件</span>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-top:4px;">
+            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="allow_preview_download" name="allow_preview_download" value="1"
+                     {{ 'checked' if edit_link and edit_link.get('allow_preview_download') else '' }}>
+              <span class="switch-track">
+                <span class="switch-thumb"></span>
+              </span>
+              <span>收集页显示下载和预览按钮</span>
             </label>
           </div>
 
@@ -162,9 +196,24 @@
               <div class="form-hint">仅显示在分享页，为空时自动使用收集页描述</div>
             </div>
 
+            <div class="form-group">
+              <label class="form-label" for="share_slug">自定义分享链接 (可选)</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/share/</span>
+                <input type="text" id="share_slug" name="share_slug" class="form-input"
+                       value="{{ edit_link['share_slug'] if edit_link and edit_link.get('share_slug') else '' }}"
+                       placeholder="留空则使用系统生成ID"
+                       minlength="3" maxlength="32"
+                       pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
+                       title="3-32位字母数字及-_，必须以字母或数字开头"
+                       style="flex:1;">
+              </div>
+              <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="share_expire_days">分享页有效期（天）</label>
+                <label class="form-label" for="share_expire_days">分享页有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
                 <input type="number" id="share_expire_days" name="share_expire_days" class="form-input"
                        value="{{ edit_link['_share_expire_days'] if edit_link and edit_link.get('_share_expire_days') else '' }}"
                        placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
@@ -242,6 +291,52 @@
 </style>
 
 <script>
+// 单文件上限 MB/GB 切换
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+
 function togglePasscodeInput() {
   var emptyPasscode = document.getElementById('empty_passcode').checked;
   var passcodeInput = document.getElementById('passcode');
@@ -310,6 +405,53 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clear-expiry-btn').style.display = '';
   }
   {% endif %}
+
+  // 分享页有效期默认复用收集页设置（用户手动编辑后永久停止自动同步）
+  (function() {
+    var shareDays = document.getElementById('share_expire_days');
+    var shareAt   = document.getElementById('share_expires_at');
+    var collectDays = document.getElementById('expire_days');
+    var collectAt   = document.getElementById('expires_at');
+
+    // 初始加载：分享页字段为空时自动填入收集页的值
+    if (shareDays && !shareDays.value && collectDays && collectDays.value) {
+      shareDays.value = collectDays.value;
+    }
+    if (shareAt && !shareAt.value && collectAt && collectAt.value) {
+      shareAt.value = collectAt.value;
+    }
+
+    // 标记分享页是否已被手动编辑过（脏标记）
+    function markDirty(el) { if (el) el._dirty = true; }
+    if (shareDays) { shareDays.addEventListener('input', function(){ markDirty(shareDays); }); shareDays.addEventListener('change', function(){ markDirty(shareDays); }); }
+    if (shareAt)   { shareAt.addEventListener('change', function(){ markDirty(shareAt); }); }
+
+    // 收集页变化 → 仅在分享页未被手动编辑时自动同步
+    if (collectDays && shareDays) {
+      function syncDays() { if (!shareDays._dirty) shareDays.value = collectDays.value; }
+      collectDays.addEventListener('input', syncDays);
+      collectDays.addEventListener('change', syncDays);
+    }
+    if (collectAt && shareAt) {
+      function syncAt() { if (!shareAt._dirty) shareAt.value = collectAt.value; }
+      collectAt.addEventListener('change', syncAt);
+    }
+  })();
+
+  // 分享页天数与日期互斥：改其中一个则清空另一个，确保后端拿到明确的字段
+  (function() {
+    var shareDays = document.getElementById('share_expire_days');
+    var shareAt   = document.getElementById('share_expires_at');
+    if (shareDays && shareAt) {
+      shareDays.addEventListener('input', function(){ if (shareDays.value) shareAt.value = ''; });
+      shareDays.addEventListener('change', function(){ if (shareDays.value) shareAt.value = ''; });
+      shareAt.addEventListener('change', function(){ if (shareAt.value) shareDays.value = ''; });
+      shareAt.addEventListener('input', function(){ if (shareAt.value) shareDays.value = ''; });
+    }
+  })();
+
+  // 单文件上限 MB/GB 切换
+  initSizeUnitToggle('max_file_size_val', 'max_file_size_unit', 'max_file_size_gb', {{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }});
 });
 </script>
 {% endblock %}

@@ -88,7 +88,7 @@ a:active { opacity: .6; }
   color: var(--c-text);
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* gap: 8px; */
   text-decoration: none;
   letter-spacing: -.3px;
 }
@@ -963,6 +963,87 @@ tbody tr:active { background: #f7f8fa; }
   letter-spacing: .1px;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ============================================================
+   Flash Toast — 顶部居中浮窗提示（自动消失）
+   ============================================================ */
+.flash-toast-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.flash-toast-item {
+  max-width: 420px;
+  min-width: 200px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: .85rem;
+  line-height: 1.4;
+  color: #1e293b;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
+  pointer-events: auto;
+  animation: flashToastIn .3s cubic-bezier(.22,.61,.36,1);
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-left: 3px solid transparent;
+}
+.flash-toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  margin-right: 9px;
+}
+.flash-toast-icon svg {
+  display: block;
+  width: 18px; height: 18px;
+}
+.flash-toast-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.flash-toast-overlay.flash-toast-out .flash-toast-item {
+  animation: flashToastOut .25s ease forwards;
+}
+@keyframes flashToastIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes flashToastOut {
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+/* 颜色变体 — 仅左侧色条 + 图标颜色区分 */
+.flash-toast-success { border-left-color: #10b981; }
+.flash-toast-success .flash-toast-icon { color: #059669; }
+.flash-toast-error   { border-left-color: #ef4444; }
+.flash-toast-error   .flash-toast-icon { color: #dc2626; }
+.flash-toast-warning { border-left-color: #f59e0b; }
+.flash-toast-warning .flash-toast-icon { color: #d97706; }
+.flash-toast-info    { border-left-color: #3b82f6; }
+.flash-toast-info    .flash-toast-icon { color: #2563eb; }
+
+/* 移动端适配 */
+@media (max-width: 640px) {
+  .flash-toast-overlay {
+    padding: 16px;
+  }
+  .flash-toast-item {
+    max-width: none;
+    width: 100%;
+  }
+}
 
 /* ============================================================
    Copy Row

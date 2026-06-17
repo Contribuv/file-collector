@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.23-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.25-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -172,6 +172,8 @@ GET /api/status
 | `POST` | `/collect/<link_id>/upload` | 上传文件（multipart） |
 | `GET` | `/collect/<link_id>/records` | 获取上传历史（JSON） |
 | `GET` | `/collect/<link_id>/download/<record_id>` | 下载已上传文件 |
+| `GET` | `/collect/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/Office） |
+| `GET` | `/collect/<link_id>/preview_file/<record_id>` | 获取文件原始内容（JIT SDK 调用） |
 | `POST` | `/collect/<link_id>/delete_record/<record_id>` | 删除单条记录 |
 
 ### 分享页
@@ -183,11 +185,23 @@ GET /api/status
 | `POST` | `/share/<link_id>/logout` | 退出通行证 |
 | `GET` | `/share/<link_id>/records` | 获取文件列表（JSON） |
 | `GET` | `/share/<link_id>/download/<record_id>` | 下载文件 |
+| `GET` | `/share/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/Office） |
+| `GET` | `/share/<link_id>/preview_file/<record_id>` | 获取文件原始内容（JIT SDK 调用） |
 | `POST` | `/share/<link_id>/delete_record/<record_id>` | 删除单条记录 |
 
 ---
 
 ## 更新日志
+
+### v2.1.25
+
+- **# 新增**：上传路径自动同步 — 修改上传路径并保存后，自动迁移数据库中所有文件记录的存储路径；应用重启时也会自动触发同步
+- **# 新增**：分享页/收集页预览下载权限双重门控 — 管理员关闭「允许预览下载」后，前端按钮自动隐藏，后端路由同步拦截，无法绕过
+
+### v2.1.24
+
+- **# 修复**：单文件上限 MB 显示精度修复（100.04 MB → 100 MB），去除冗余小数位
+- **# 修复**：旧链接数据自动兼容，已有链接无需手动修复
 
 ### v2.1.23
 

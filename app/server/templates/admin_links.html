@@ -32,10 +32,15 @@
             <tr>
               <td class="col-title">{{ link['title'] }}</td>
               <td class="col-share">
-                {% if link['share_enabled'] %}
+                {% if link['share_enabled'] and link['status'] == 'active' %}
                 <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                   已开启
+                </span>
+                {% elif link['share_enabled'] and link['status'] != 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#d97706;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  随链接停用
                 </span>
                 {% else %}
                 <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
@@ -92,7 +97,10 @@
                   data-share-passcode="{{ share_pass_text }}"
                   data-has-share-passcode="{{ link['_has_share_passcode']|lower }}"
                   data-is-share-legacy="{{ share_need_reset }}"
-                  data-allow-delete="{{ link['allow_delete'] }}">操作</button>
+                  data-allow-delete="{{ link['allow_delete'] }}"
+                  data-allow-preview-download="{{ link['allow_preview_download'] }}"
+                  data-collect-slug="{{ link['collect_slug'] or '' }}"
+                  data-share-slug="{{ link['share_slug'] or '' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -434,6 +442,7 @@
 
 <script>
 var _lpBtn = null;
+var adminLinkUploadLogsUrl = {{ url_for('admin_link_upload_logs', link_id='LID_PLACEHOLDER')|tojson }};
 
 function getBaseUrl() {
   var pu = {{ public_url|tojson }};
@@ -484,6 +493,8 @@ function showLinkPopover(btn) {
 
   var d = {
     linkId:   btn.getAttribute('data-link-id'),
+    collectSlug: btn.getAttribute('data-collect-slug') || '',
+    shareSlug: btn.getAttribute('data-share-slug') || '',
     title:    btn.getAttribute('data-title'),
     desc:     btn.getAttribute('data-description'),
     status:   btn.getAttribute('data-status'),
@@ -499,6 +510,7 @@ function showLinkPopover(btn) {
     hasSharePasscode: btn.getAttribute('data-has-share-passcode') === 'true',
     isShareLegacy: btn.getAttribute('data-is-share-legacy') === '1',
     allowDelete: btn.getAttribute('data-allow-delete') === '1',
+    allowPreviewDownload: btn.getAttribute('data-allow-preview-download') === '1',
     csrfToken: document.querySelector('input[name="csrf_token"]').value
   };
 
@@ -534,7 +546,8 @@ function showLinkPopover(btn) {
     descHtml +
     '<div class="lp-row"><span class="lp-label">创建</span><span class="lp-val" style="font-size:.76rem;color:#999;">' + escapeHtml(d.createdAt) + '</span></div>' +
     '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>' +
-    '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="/admin/links/' + d.linkId + '/upload-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+    '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="' + adminLinkUploadLogsUrl.replace('LID_PLACEHOLDER', d.linkId) + '" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
+    '<div class="lp-row"><span class="lp-label">收集预览</span><span class="lp-val">' + (d.allowPreviewDownload ? '<span style="color:#059669;">已开启</span>' : '<span style="color:#999;">未开启</span>') + '</span></div>';
 
   var toggleLabel = isActive ? '停用链接' : '启用链接';
   var toggleClass = isActive ? 'warning' : 'primary';
@@ -553,9 +566,11 @@ function showLinkPopover(btn) {
   var editUrl = '{{ url_for("admin_link_form", link_id="_ID_") }}'.replace('_ID_', d.linkId);
 
   // 第一排：分享 & 收集
+  var collectId = d.collectSlug || d.linkId;
+  var shareId = d.shareSlug || d.linkId;
   html += '<div class="lp-action-row">';
-  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + d.linkId + '\',\'' + escapeJs(d.sharePasscode) + '\',' + d.isShareLegacy + ')">' + svgCopy + '复制分享链接</button>';
-  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + d.linkId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + shareId + '\',\'' + escapeJs(d.sharePasscode) + '\',' + d.isShareLegacy + ')">' + svgCopy + '复制分享链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + collectId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
   html += '</div>';
 
   html += '<div class="lp-action-divider"></div>';

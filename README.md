@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.25-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.26-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -192,6 +192,12 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.1.26
+
+- **# 新增**：分享页上传者分组首个文件夹默认展开，访客打开即见内容
+- **# 优化**：venv 缓存加速 — 首次安装后自动存档，后续重建秒级恢复，大幅缩短启动时间
+- **# 修复**：分享页预览/下载权限回归独立，不再受收集页开关影响
 
 ### v2.1.25
 

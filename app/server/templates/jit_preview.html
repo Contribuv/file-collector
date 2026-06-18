@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ filename }} - 文件预览</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jit-viewer.min.css') }}">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f5f5; }
+  #jit-viewer-container { width: 100%; height: 100%; }
+  /* 隐藏 JIT Viewer 底部工具栏 */
+  .jv-toolbar__bottom { display: none !important; }
+  /* PDF 页自动适配容器宽度（移动端关键：防止 canvas 溢出视口） */
+  .jv-pdf-page-wrapper { max-width: 100%; }
+  .jv-pdf-canvas { max-width: 100%; height: auto !important; }
+  .jit-error {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #666; background: #fafafa;
+  }
+  .jit-error .jit-error-icon { font-size: 3rem; margin-bottom: 12px; }
+  .jit-error .jit-error-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; color: #333; }
+  .jit-error .jit-error-detail { font-size: 0.85rem; color: #999; }
+  .jit-error .jit-error-link { margin-top: 16px; font-size: 0.85rem; color: #4b89ff; text-decoration: none; }
+  .jit-error .jit-error-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div id="jit-viewer-container"></div>
+<script src="{{ url_for('static', filename='js/jit-viewer.min.js') }}"></script>
+<script>
+(function() {
+  try {
+    var viewer = window.JitViewer.createViewer({
+      target: document.getElementById('jit-viewer-container'),
+      file: {{ file_url|tojson }},
+      filename: {{ filename|tojson }},
+      toolbar: true,
+      theme: 'light',
+      width: '100%',
+      height: '100%'
+    });
+
+    viewer.on('error', function(err) {
+      var msg = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
+      document.getElementById('jit-viewer-container').innerHTML =
+        '<div class="jit-error">' +
+        '<div class="jit-error-icon">⚠️</div>' +
+        '<div class="jit-error-title">预览失败</div>' +
+        '<div class="jit-error-detail">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
+        '<a class="jit-error-link" href="{{ download_url }}">下载文件</a>' +
+        '</div>';
+    });
+
+    viewer.mount();
+  } catch(e) {
+    document.getElementById('jit-viewer-container').innerHTML =
+      '<div class="jit-error">' +
+      '<div class="jit-error-icon">⚠️</div>' +
+      '<div class="jit-error-title">预览组件加载失败</div>' +
+      '<div class="jit-error-detail">' + (e.message || '未知错误').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
+      '<a class="jit-error-link" href="{{ download_url }}">下载文件</a>' +
+      '</div>';
+  }
+})();
+</script>
+</body>
+</html>

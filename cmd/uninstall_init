@@ -1,3 +1,14 @@
 #!/bin/bash
-### This script is called before the user uninstalls the application.
+### 卸载前回调 - 根据卸载向导准备清理策略
+###
+### wizard_uninstall_mode:
+###   keep_db  - 保留数据库卸载（默认）
+###   delete_db - 删除数据库卸载（上传文件始终保留）
+
+UNINSTALL_MODE="${wizard_uninstall_mode:-keep_db}"
+echo "[uninstall_init] 卸载模式: ${UNINSTALL_MODE}" >> /tmp/file-collector-uninstall.log 2>/dev/null
+
+# 无论哪种模式，上传文件始终保留（用户资料禁止删除）
+echo "[uninstall_init] 上传文件始终保留" >> /tmp/file-collector-uninstall.log 2>/dev/null
+
 exit 0

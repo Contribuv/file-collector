@@ -19,16 +19,29 @@ echo "--- 系统信息 ---" >> "$DEBUG_LOG"
 echo "USER=$USER PWD=$PWD WHOAMI=$(whoami) ID=$(id)" >> "$DEBUG_LOG"
 
 APP_PORT="5557"
+export PORT="${APP_PORT}"
 VAR_DIR="${TRIM_PKGVAR}"
 PID_FILE="${VAR_DIR}/gunicorn.pid"
 LOG_FILE="${VAR_DIR}/gunicorn.log"
 VENV_DIR="${VAR_DIR}/.venv"
 
-# 数据库存放在用户数据目录（飞牛持久化存储）
-# TRIM_PKGHOME = 用户数据目录（home），存放长期用户数据，如上传内容和个性化设置
-export DATA_DIR="${TRIM_PKGHOME}/data"
-export UPLOAD_BASE="${wizard_upload_dir}"
-export PORT="${APP_PORT}"
+# 数据库存放路径 — 使用 TRIM_PKGVAR（应用私有目录，升级/卸载时保留）
+# 上传文件目录 — 使用 TRIM_DATA_SHARE_PATHS（data-share 共享目录）
+if [ -n "$TRIM_PKGVAR" ]; then
+    export DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    export DATA_DIR="/tmp/file-collector/data"
+fi
+
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    # 可能包含多个路径（冒号分隔），取第一个
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    export UPLOAD_BASE="${_SHARE_BASE}/uploads"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    export UPLOAD_BASE="${TRIM_PKGVAR}/uploads"
+else
+    export UPLOAD_BASE="/tmp/file-collector/uploads"
+fi
 
 log() {
     local msg="[$(date '+%H:%M:%S')] $@"
@@ -43,7 +56,7 @@ start() {
     log "=== START ==="
 
     # ---- 第1步：Python ----
-    log "[1/5] 查找 Python 3.12..."
+    log "[1/7] 查找 Python 3.12..."
     PYTHON_BIN=""
     for p in "/var/apps/python312/target/bin/python3" \
              "/var/apps/python312/target/bin/python" \
@@ -58,7 +71,7 @@ start() {
     log "  Python: $($PYTHON_BIN --version 2>&1)"
 
     # ---- 第2步：查找 app.py ----
-    log "[2/5] 查找 app.py..."
+    log "[2/7] 查找 app.py..."
 
     # 打印 TRIM_APPDEST 实际目录结构
     log "  TRIM_APPDEST = ${TRIM_APPDEST}"
@@ -104,7 +117,7 @@ start() {
     ls -la >> "$DEBUG_LOG"
 
     # ---- 第3步：虚拟环境 ----
-    log "[3/5] 虚拟环境..."
+    log "[3/7] 虚拟环境..."
 
     [ ! -d "$VAR_DIR" ] && mkdir -p "$VAR_DIR"
     touch "${VAR_DIR}/.write_test" 2>/dev/null && rm -f "${VAR_DIR}/.write_test" || {
@@ -113,27 +126,45 @@ start() {
         VENV_DIR="${VAR_DIR}/.venv"
         PID_FILE="${VAR_DIR}/gunicorn.pid"
         LOG_FILE="${VAR_DIR}/gunicorn.log"
-        # 注意：不覆盖 DATA_DIR，数据库始终在应用文件目录
+        # 数据库路径由 DATA_DIR 环境变量控制，始终保存在持久化目录
         mkdir -p "$VAR_DIR"
     }
 
+    VENV_CACHE="${VAR_DIR}/.venv_cache.tar.gz"
+
     if [ ! -d "$VENV_DIR" ]; then
-        log "  创建 venv: ${VENV_DIR}"
-        "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$DEBUG_LOG" 2>&1 || {
-            log "  FATAL: venv 创建失败"
-            exit 1
-        }
-        source "$VENV_DIR/bin/activate"
-        log "  安装依赖..."
-        pip install --no-cache-dir \
-            Flask==3.0.0 \
-            Werkzeug==3.0.1 \
-            >> "$DEBUG_LOG" 2>&1 || {
-            log "  FATAL: pip install 失败!"
-            tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
-            exit 1
-        }
-        log "  pip install 完成"
+        if [ -f "$VENV_CACHE" ]; then
+            log "  从缓存恢复 venv（跳过安装）..."
+            tar xzf "$VENV_CACHE" -C "$VAR_DIR" >> "$DEBUG_LOG" 2>&1 || {
+                log "  缓存损坏，删除后重新创建..."
+                rm -f "$VENV_CACHE"
+            }
+        fi
+        if [ ! -d "$VENV_DIR" ]; then
+            log "  创建 venv: ${VENV_DIR}"
+            "$PYTHON_BIN" -m venv "$VENV_DIR" >> "$DEBUG_LOG" 2>&1 || {
+                log "  FATAL: venv 创建失败"
+                exit 1
+            }
+            source "$VENV_DIR/bin/activate"
+            log "  安装依赖..."
+            pip install --no-cache-dir \
+                Flask==3.0.0 \
+                Werkzeug==3.0.1 \
+                gunicorn==21.2.0 \
+                bleach==6.1.0 \
+                >> "$DEBUG_LOG" 2>&1 || {
+                log "  FATAL: pip install 失败!"
+                tail -20 "$DEBUG_LOG" >> "$DEBUG_LOG"
+                exit 1
+            }
+            log "  pip install 完成"
+            # 保存缓存，下次启动秒级恢复
+            log "  保存 venv 缓存..."
+            tar czf "$VENV_CACHE" -C "$VAR_DIR" .venv >> "$DEBUG_LOG" 2>&1 || true
+        else
+            source "$VENV_DIR/bin/activate"
+        fi
     else
         source "$VENV_DIR/bin/activate"
         log "  复用已有 venv"
@@ -142,16 +173,92 @@ start() {
     log "  $(pip --version)"
     pip list --format=columns >> "$DEBUG_LOG" 2>&1
 
-    # ---- 第4步：启动 ----
-    log "[4/5] 启动 Flask..."
+    # ---- 第4步：准备目录与权限 ----
+    log "[4/7] 准备目录与权限..."
     mkdir -p "$DATA_DIR" "$UPLOAD_BASE"
 
-    # 清理旧进程
+    # ---- 第5步：数据库恢复检查 ----
+    log "[5/7] 检查数据库..."
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    DB_VALID=0
+
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        DB_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
+        # 用 sqlite3 CLI 验证数据库是否包含核心表（users），而非仅检查文件大小
+        if command -v sqlite3 &>/dev/null; then
+            USER_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "")
+            if [ -n "$USER_COUNT" ]; then
+                LINK_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM links;" 2>/dev/null || echo "?")
+                log "  数据库完整: ${DB_PATH} (${DB_SIZE} bytes, ${USER_COUNT} 用户, ${LINK_COUNT} 链接)"
+                DB_VALID=1
+            else
+                log "  WARN: SQLite 文件存在但无有效表结构 (${DB_SIZE} bytes)，视为无效"
+            fi
+        else
+            # 无 sqlite3 CLI，回退到文件大小粗略判断（>4096 才可能包含数据）
+            if [ "$DB_SIZE" -gt 4096 ]; then
+                log "  数据库存在（无法验证）: ${DB_PATH} (${DB_SIZE} bytes)"
+                DB_VALID=1
+            else
+                log "  WARN: 数据库仅 ${DB_SIZE} bytes（疑似空壳）"
+            fi
+        fi
+    else
+        log "  INFO: 数据库文件不存在或为空"
+    fi
+
+    # 如果数据库无效，尝试从多个来源恢复
+    if [ $DB_VALID -eq 0 ]; then
+        log "  尝试从备份恢复数据库..."
+        RESTORED=0
+        # 来源1: /var/backups 安全备份（PKGVAR 清理也能存活）
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        if [ -d "$SAFE_BACKUP_DIR" ]; then
+            LATEST_SAFE=$(ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+            if [ -n "$LATEST_SAFE" ] && [ -s "$LATEST_SAFE" ]; then
+                cp "$LATEST_SAFE" "$DB_PATH"
+                log "  已从安全备份恢复: ${LATEST_SAFE}"
+                RESTORED=1
+            fi
+        fi
+        # 来源2: TRIM_PKGVAR 内备份
+        if [ $RESTORED -eq 0 ] && [ -n "$TRIM_PKGVAR" ]; then
+            PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
+            if [ -d "$PKG_BACKUP_DIR" ]; then
+                LATEST_PKG_BACKUP=$(ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+                if [ -n "$LATEST_PKG_BACKUP" ] && [ -s "$LATEST_PKG_BACKUP" ]; then
+                    cp "$LATEST_PKG_BACKUP" "$DB_PATH"
+                    log "  已从 PKGVAR 备份恢复: ${LATEST_PKG_BACKUP}"
+                    RESTORED=1
+                fi
+            fi
+        fi
+        # 来源3: /tmp 兜底（旧版本兼容）
+        if [ $RESTORED -eq 0 ]; then
+            TMP_BACKUP_DIR="/tmp/file-collector-backup"
+            if [ -d "$TMP_BACKUP_DIR" ]; then
+                LATEST_BACKUP=$(ls -t "${TMP_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | head -1)
+                if [ -n "$LATEST_BACKUP" ] && [ -s "$LATEST_BACKUP" ]; then
+                    cp "$LATEST_BACKUP" "$DB_PATH"
+                    log "  已从 /tmp 备份恢复: ${LATEST_BACKUP}"
+                    RESTORED=1
+                fi
+            fi
+        fi
+        if [ $RESTORED -eq 0 ]; then
+            log "  INFO: 未找到备份，将创建新数据库"
+        fi
+    fi
+
+    # ---- 第6步：清理旧进程并启动 ----
+    log "[6/7] 清理旧进程并启动..."
     [ -f "$PID_FILE" ] && {
         OLD=$(cat "$PID_FILE")
         kill -0 "$OLD" 2>/dev/null && kill -9 "$OLD" 2>/dev/null
         rm -f "$PID_FILE"
     }
+
+    log "  监听端口: ${APP_PORT}"
 
     python app.py >> "${LOG_FILE}" 2>&1 &
     APP_PID=$!
@@ -169,7 +276,19 @@ start() {
         }
     done
 
-    log "[5/5] 启动成功! 端口 ${APP_PORT}"
+    log "[7/7] 启动成功! 端口 ${APP_PORT}"
+
+    # 启动成功后双重备份数据库（PKGVAR + /var/backups 安全位置）
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        BACKUP_DIR="${TRIM_PKGVAR}/backups"
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        log "  已备份数据库到 ${BACKUP_DIR} 和 ${SAFE_BACKUP_DIR}"
+    fi
     exit 0
 }
 
@@ -197,7 +316,7 @@ uninstall() {
     log "=== UNINSTALL 卸载清理 ==="
 
     # 1. 强制停止所有相关进程
-    log "[1/7] 停止进程..."
+    log "[1/8] 停止进程..."
     # 按 PID 文件停止
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
@@ -212,40 +331,66 @@ uninstall() {
             log "  已停止端口占用进程 PID=${p}"
         done
     fi
-    # 按进程名杀（app.py / python 相关）
-    pkill -f "file-collector" 2>/dev/null || true
+    # 按进程名杀（仅匹配 python app.py 进程）
+    pkill -f "python.*file-collector.*app\.py" 2>/dev/null || true
     sleep 1
 
     # 2. 删除虚拟环境
-    log "[2/7] 删除虚拟环境..."
+    log "[2/8] 删除虚拟环境..."
     if [ -d "$VENV_DIR" ]; then
         rm -rf "$VENV_DIR"
         log "  已删除: ${VENV_DIR}"
     fi
 
-    # 3. 删除上传目录
-    log "[3/8] 删除上传目录..."
+    # 3. 处理用户数据 - 上传文件始终保留，数据库根据卸载向导选择
+    log "[3/8] 处理用户数据..."
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    UNINSTALL_MODE="${wizard_uninstall_mode:-keep_db}"
+    log "  卸载模式: ${UNINSTALL_MODE}"
+
+    # 无论哪种模式，先安全备份数据库到 /var/backups
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        log "  已安全备份到: ${SAFE_BACKUP_DIR}"
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    fi
+
+    # 上传文件始终保留（用户资料，禁止删除）
     if [ -n "$UPLOAD_BASE" ] && [ -d "$UPLOAD_BASE" ]; then
-        rm -rf "$UPLOAD_BASE"
-        log "  已删除: ${UPLOAD_BASE}"
+        log "  上传文件始终保留: ${UPLOAD_BASE}"
     fi
 
-    # 4. 删除数据库目录（应用文件 data 目录）
-    log "[4/8] 删除数据库目录..."
-    if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
-        rm -rf "$DATA_DIR"
-        log "  已删除 DATA_DIR: ${DATA_DIR}"
+    # 根据卸载向导选择处理数据库
+    if [ "$UNINSTALL_MODE" = "delete_db" ]; then
+        log "  用户选择：删除数据库"
+        if [ -f "$DB_PATH" ]; then
+            rm -f "$DB_PATH"
+            log "  已删除数据库: ${DB_PATH}"
+        fi
+        if [ -f "${DB_PATH}-wal" ]; then
+            rm -f "${DB_PATH}-wal" "${DB_PATH}-shm" 2>/dev/null || true
+            log "  已删除 WAL 文件"
+        fi
+    else
+        log "  用户选择：保留数据库"
+        if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
+            log "  保留数据库目录: ${DATA_DIR}"
+        fi
     fi
 
-    # 5. 清理 /var 下的应用运行目录（TRIM_PKGVAR）
-    log "[5/8] 清理 /var 运行目录..."
-    if [ -n "$VAR_DIR" ]; then
-        rm -rf "$VAR_DIR"
-        log "  已删除 VAR_DIR: ${VAR_DIR}"
+    # 4. 清理运行时文件（数据库和上传在 TRIM_PKGVAR 中保留）
+    log "[4/8] 清理 /var 运行时文件..."
+    if [ -n "$VAR_DIR" ] && [ -d "$VAR_DIR" ]; then
+        rm -rf "${VAR_DIR}/.venv" 2>/dev/null || true
+        rm -f "${VAR_DIR}/gunicorn.pid" "${VAR_DIR}/gunicorn.log" 2>/dev/null || true
+        rm -f "${VAR_DIR}/.write_test" 2>/dev/null || true
+        log "  已清理运行时文件"
     fi
 
-    # 6. 清理 /var/apps 下可能残留的 file-collector 目录
-    log "[6/8] 清理 /var/apps 残留..."
+    # 5. 清理 /var/apps 下可能残留的 file-collector 目录
+    log "[5/8] 清理 /var/apps 残留..."
     for dir in /var/apps/file-collector /var/apps/file-collector-*; do
         if [ -d "$dir" ]; then
             rm -rf "$dir"
@@ -253,8 +398,8 @@ uninstall() {
         fi
     done 2>/dev/null || true
 
-    # 7. 清理 /usr/local/apps 下可能残留的 file-collector 目录
-    log "[7/8] 清理 /usr/local/apps 残留..."
+    # 6. 清理 /usr/local/apps 下可能残留的 file-collector 目录
+    log "[6/8] 清理 /usr/local/apps 残留..."
     for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collector; do
         if [ -d "$dir" ]; then
             rm -rf "$dir"
@@ -262,12 +407,37 @@ uninstall() {
         fi
     done 2>/dev/null || true
 
+    # 7. 清理 PID 文件
+    log "[7/8] 清理 PID 文件..."
+    rm -f "$PID_FILE" 2>/dev/null
+
     # 8. 清理 /tmp 和调试日志
     log "[8/8] 清理临时文件..."
-    rm -f "$PID_FILE" "$LOG_FILE" "$DEBUG_LOG" 2>/dev/null
+    rm -f "$LOG_FILE" "$DEBUG_LOG" 2>/dev/null
     rm -rf /tmp/file-collector /tmp/file-collector-debug.log 2>/dev/null || true
 
     log "=== UNINSTALL 完成 ==="
+    exit 0
+}
+
+# ============================================================
+upgrade() {
+    log "=== UPGRADE 升级前备份 ==="
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
+        PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$PKG_BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        UPGRADE_BACKUP_NAME="file_collector_pre_upgrade_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${PKG_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
+        log "  升级前已备份数据库到 PKGVAR 和 /var/backups"
+        # 各保留最近5个备份
+        ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    else
+        log "  WARN: 升级前数据库不存在或为空: ${DB_PATH}"
+    fi
     exit 0
 }
 
@@ -276,5 +446,6 @@ case "$1" in
     stop)     stop ;;
     status)   status ;;
     uninstall) uninstall ;;
+    upgrade)  upgrade ;;
     *)        exit 1 ;;
 esac

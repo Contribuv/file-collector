@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑链接' if edit_link else '创建新链接' }}{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <h3>{{ '编辑链接' if edit_link else '创建新链接' }}</h3>
+        <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('edit_link', link_id=edit_link['id']) if edit_link else url_for('create_link') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+          <div class="form-group">
+            <label class="form-label" for="title">收集名称 *</label>
+            <input type="text" id="title" name="title" class="form-input"
+                   value="{{ edit_link['title'] if edit_link and edit_link.get('title') else '' }}"
+                   placeholder="例：项目A文件收集" maxlength="20" required>
+                   <div class="form-hint">这是文件夹和收集链接名称，建议不要超过7个字。</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="description">描述</label>
+            <textarea id="description" name="description" class="form-input"
+                      style="min-height:80px;resize:vertical;"
+                      placeholder="轻量化运行，不支持富文本">{{ (edit_link['description'] or '')|e if edit_link else '' }}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="collect_slug">自定义收集链接 (可选)</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/collect/</span>
+              <input type="text" id="collect_slug" name="collect_slug" class="form-input"
+                     value="{{ edit_link['collect_slug'] if edit_link and edit_link.get('collect_slug') else '' }}"
+                     placeholder="留空则使用系统生成ID"
+                     minlength="3" maxlength="32"
+                     pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
+                     title="3-32位字母数字及-_，必须以字母或数字开头"
+                     style="flex:1;">
+            </div>
+            <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="max_files">最大文件数量</label>
+              <input type="number" id="max_files" name="max_files" class="form-input"
+                     value="{{ edit_link['max_files'] if edit_link and edit_link.get('max_files') is not none else defaults['max_files'] }}" min="0" step="1" required>
+              <div class="form-hint">0 表示不限制</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="max_file_size_val">单文件上限</label>
+              <div style="display:flex; gap:6px;">
+                <input type="number" id="max_file_size_val" class="form-input" style="flex:1;"
+                       value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}"
+                       min="0.01" step="0.01">
+                <select id="max_file_size_unit" class="form-input" style="width:64px;flex:none;font-size:.82rem;">
+                  <option value="MB">MB</option>
+                  <option value="GB">GB</option>
+                </select>
+              </div>
+              <input type="hidden" id="max_file_size_gb" name="max_file_size_gb"
+                     value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
+              <input type="number" id="expire_days" name="expire_days" class="form-input"
+                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else defaults.expire_days }}"
+                     placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="expires_at">截止日期和时间</label>
+              <input type="datetime-local" id="expires_at" name="expires_at" class="form-input"
+                     value="{{ edit_link['expires_at'] if edit_link and edit_link.get('expires_at') else '' }}"
+                     onkeydown="return false;">
+              <span style="font-size:.72rem;color:var(--c-text-muted);">优先级高于上述天数，最长 {{ defaults.expire_days }} 天</span>
+            </div>
+          </div>
+
+          <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
+
+          <div class="form-group" style="margin-top:4px;">
+            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="allow_delete" name="allow_delete" value="1"
+                     {{ 'checked' if edit_link and edit_link.get('allow_delete') else '' }}>
+              <span class="switch-track">
+                <span class="switch-thumb"></span>
+              </span>
+              <span>允许上传者删除已上传文件</span>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-top:4px;">
+            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="allow_preview_download" name="allow_preview_download" value="1"
+                     {{ 'checked' if edit_link and edit_link.get('allow_preview_download') else '' }}>
+              <span class="switch-track">
+                <span class="switch-thumb"></span>
+              </span>
+              <span>收集页显示下载和预览按钮</span>
+            </label>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
+
+          <!-- 通行证设置 -->
+          <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">通行证设置</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="passcode">通行证</label>
+              <input type="password" id="passcode" name="passcode" class="form-input"
+                     autocomplete="off" placeholder="{{ '留空则保持原有通行证' if edit_link else '请输入通行证' }}">
+            </div>
+            <div class="form-group" style="align-self: flex-end;">
+              <label class="form-checkbox">
+                <input type="checkbox" id="empty_passcode" name="empty_passcode"
+                       onchange="togglePasscodeInput()"
+                       {{ 'checked' if edit_link and (edit_link.get('passcode_empty', 0) == 1 or not edit_link.get('passcode_plain')) else '' }}>
+                <i class="form-icon"></i> 空通行证（无需验证）
+              </label>
+            </div>
+          </div>
+          <div class="form-hint" id="passcode-hint" style="margin:2px 0 8px;">
+            {{ '留空则保持原有通行证不变' if edit_link else '设置后访问者需输入通行证才能进入；留空则无需验证' }}
+          </div>
+
+          <!-- 上传者开关 -->
+          <div id="uploader-section" style="padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="require_uploader" name="require_uploader" value="1"
+                       {{ 'checked' if edit_link and edit_link.get('require_uploader') else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>上传者</span>
+              </label>
+              <div class="form-hint" style="margin:6px 0 0;">开启后，上传者需填写昵称身份，上传的文件将按上传者分文件夹存放（中文最多8字，英文/数字/符号最多20字）</div>
+            </div>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
+
+          <!-- 分享页设置 -->
+          <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">分享页设置</h4>
+          <div class="form-group">
+            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="share_enabled" name="share_enabled" value="1"
+                     onchange="toggleShareSection()"
+                     {{ 'checked' if edit_link and edit_link.get('share_enabled') else '' }}>
+              <span class="switch-track">
+                <span class="switch-thumb"></span>
+              </span>
+              <span>启用分享页</span>
+            </label>
+            <div class="form-hint">开启后，将生成独立的分享页面供他人查看和下载文件</div>
+          </div>
+
+          <div id="share-section" style="{{ 'display:block;' if edit_link and edit_link.get('share_enabled') else 'display:none;' }}padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="share_passcode">分享页通行证</label>
+                <input type="password" id="share_passcode" name="share_passcode" class="form-input"
+                       autocomplete="off" placeholder="{{ '留空则保持原有分享通行证' if edit_link else '留空则复用收集页通行证' }}">
+              </div>
+              <div class="form-group" style="align-self: flex-end;">
+                <label class="form-checkbox">
+                <input type="checkbox" id="share_passcode_empty" name="share_passcode_empty" value="1"
+                       onchange="toggleSharePasscodeInput()"
+                       {{ 'checked' if edit_link and edit_link.get('share_passcode_empty') else '' }}>
+                  <i class="form-icon"></i> 空通行证（无需验证）
+                </label>
+              </div>
+            </div>
+            <div class="form-hint" id="share-passcode-hint" style="margin:2px 0 0;color:#e67e22;">
+              {% if edit_link and edit_link.get('share_passcode') and edit_link['share_passcode']|string|length > 1 %}
+              留空则保持原有分享通行证不变
+              {% else %}
+              ⚠ 如不设置，将复用上方的收集页通行证
+              {% endif %}
+            </div>
+
+            <hr style="border: none; border-top: 1px dashed #e5e7eb; margin: 14px 0;">
+
+            <div class="form-group">
+              <label class="form-label" for="share_description">分享页描述</label>
+              <textarea id="share_description" name="share_description" class="form-input"
+                        style="min-height:60px;resize:vertical;"
+                        placeholder="分享页独立描述，留空则使用上方收集描述">{{ (edit_link.get('share_description') or '')|e if edit_link else '' }}</textarea>
+              <div class="form-hint">仅显示在分享页，为空时自动使用收集页描述</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="share_slug">自定义分享链接 (可选)</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/share/</span>
+                <input type="text" id="share_slug" name="share_slug" class="form-input"
+                       value="{{ edit_link['share_slug'] if edit_link and edit_link.get('share_slug') else '' }}"
+                       placeholder="留空则使用系统生成ID"
+                       minlength="3" maxlength="32"
+                       pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
+                       title="3-32位字母数字及-_，必须以字母或数字开头"
+                       style="flex:1;">
+              </div>
+              <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="share_expire_days">分享页有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
+                <input type="number" id="share_expire_days" name="share_expire_days" class="form-input"
+                       value="{{ edit_link['_share_expire_days'] if edit_link and edit_link.get('_share_expire_days') else '' }}"
+                       placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="share_expires_at">分享页截止日期</label>
+                <input type="datetime-local" id="share_expires_at" name="share_expires_at" class="form-input"
+                       value="{{ edit_link and (edit_link.get('share_expires_at') or '') or '' }}"
+                       onkeydown="return false;">
+                <span style="font-size:.72rem;color:var(--c-text-muted);">留空使用收集页有效期</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:4px;">
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="collect_disabled" name="collect_disabled" value="1"
+                       {{ 'checked' if edit_link and not edit_link.get('collect_enabled', 1) else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>关闭收集页（仅保留分享页）</span>
+              </label>
+              <div class="form-hint">关闭后收集链接将不可访问，但分享页仍可正常使用</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;">
+            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建链接' }}</button>
+            <a href="{{ url_for('admin_links') }}" class="btn">取消</a>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearExpiry()" id="clear-expiry-btn" title="点击后保存将清除过期设置" style="{{ 'display:block;' if edit_link and edit_link.get('expires_at') else 'display:none;' }}">清除过期设置</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.form-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.form-switch input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.switch-track {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 12px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.form-switch input:checked + .switch-track { background: #2563eb; }
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.form-switch input:checked + .switch-track .switch-thumb {
+  transform: translateX(20px);
+}
+
+</style>
+
+<script>
+// 单文件上限 MB/GB 切换
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+
+function togglePasscodeInput() {
+  var emptyPasscode = document.getElementById('empty_passcode').checked;
+  var passcodeInput = document.getElementById('passcode');
+  if (emptyPasscode) {
+    passcodeInput.disabled = true;
+    passcodeInput.value = '';
+    passcodeInput.placeholder = '空通行证（无需验证）';
+    passcodeInput.style.opacity = '0.5';
+    passcodeInput.style.cursor = 'not-allowed';
+    var hint = document.getElementById('passcode-hint');
+    if (hint) hint.textContent = '开启后任何人无需通行证即可进入收集页';
+  } else {
+    passcodeInput.disabled = false;
+    passcodeInput.placeholder = '请输入通行证';
+    passcodeInput.style.opacity = '1';
+    passcodeInput.style.cursor = 'text';
+    var hint = document.getElementById('passcode-hint');
+    if (hint) hint.textContent = '设置后访问者需输入通行证才能进入；留空则无需验证';
+  }
+}
+
+function toggleShareSection() {
+  var enabled = document.getElementById('share_enabled').checked;
+  document.getElementById('share-section').style.display = enabled ? 'block' : 'none';
+}
+
+function toggleSharePasscodeInput() {
+  var empty = document.getElementById('share_passcode_empty').checked;
+  var input = document.getElementById('share_passcode');
+  if (empty) {
+    input.disabled = true;
+    input.value = '';
+    input.placeholder = '空通行证（无需验证）';
+    input.style.opacity = '0.5';
+    input.style.cursor = 'not-allowed';
+  } else {
+    input.disabled = false;
+    input.placeholder = '{{ "留空则保持原有分享通行证" if edit_link else "留空则复用收集页通行证" }}';
+    input.style.opacity = '1';
+    input.style.cursor = 'text';
+  }
+}
+
+function clearExpiry() {
+  document.getElementById('expires_at').value = '';
+  document.getElementById('expire_days').value = '';
+  document.getElementById('clear_expiry').value = '1';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  {% if edit_link %}
+  {% if edit_link.get('passcode_plain') %}
+  document.getElementById('passcode').placeholder = '留空则保持原有通行证';
+  {% else %}
+  document.getElementById('empty_passcode').checked = true;
+  togglePasscodeInput();
+  {% endif %}
+
+  {% if edit_link.get('share_passcode_empty') %}
+  document.getElementById('share_passcode_empty').checked = true;
+  toggleSharePasscodeInput();
+  {% endif %}
+
+  var expiresAt = {{ (edit_link.get('expires_at') or '')|tojson }};
+  if (expiresAt) {
+    document.getElementById('clear-expiry-btn').style.display = '';
+  }
+  {% endif %}
+
+  // 分享页有效期默认复用收集页设置（用户手动编辑后永久停止自动同步）
+  (function() {
+    var shareDays = document.getElementById('share_expire_days');
+    var shareAt   = document.getElementById('share_expires_at');
+    var collectDays = document.getElementById('expire_days');
+    var collectAt   = document.getElementById('expires_at');
+
+    // 初始加载：分享页字段为空时自动填入收集页的值
+    if (shareDays && !shareDays.value && collectDays && collectDays.value) {
+      shareDays.value = collectDays.value;
+    }
+    if (shareAt && !shareAt.value && collectAt && collectAt.value) {
+      shareAt.value = collectAt.value;
+    }
+
+    // 标记分享页是否已被手动编辑过（脏标记）
+    function markDirty(el) { if (el) el._dirty = true; }
+    if (shareDays) { shareDays.addEventListener('input', function(){ markDirty(shareDays); }); shareDays.addEventListener('change', function(){ markDirty(shareDays); }); }
+    if (shareAt)   { shareAt.addEventListener('change', function(){ markDirty(shareAt); }); }
+
+    // 收集页变化 → 仅在分享页未被手动编辑时自动同步
+    if (collectDays && shareDays) {
+      function syncDays() { if (!shareDays._dirty) shareDays.value = collectDays.value; }
+      collectDays.addEventListener('input', syncDays);
+      collectDays.addEventListener('change', syncDays);
+    }
+    if (collectAt && shareAt) {
+      function syncAt() { if (!shareAt._dirty) shareAt.value = collectAt.value; }
+      collectAt.addEventListener('change', syncAt);
+    }
+  })();
+
+  // 分享页天数与日期互斥：改其中一个则清空另一个，确保后端拿到明确的字段
+  (function() {
+    var shareDays = document.getElementById('share_expire_days');
+    var shareAt   = document.getElementById('share_expires_at');
+    if (shareDays && shareAt) {
+      shareDays.addEventListener('input', function(){ if (shareDays.value) shareAt.value = ''; });
+      shareDays.addEventListener('change', function(){ if (shareDays.value) shareAt.value = ''; });
+      shareAt.addEventListener('change', function(){ if (shareAt.value) shareDays.value = ''; });
+      shareAt.addEventListener('input', function(){ if (shareAt.value) shareDays.value = ''; });
+    }
+  })();
+
+  // 单文件上限 MB/GB 切换
+  initSizeUnitToggle('max_file_size_val', 'max_file_size_unit', 'max_file_size_gb', {{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }});
+});
+</script>
+{% endblock %}

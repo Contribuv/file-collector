@@ -1,7 +1,23 @@
 #!/bin/bash
-# ============================================================
-# 文件收集器 - 安装初始化脚本
-# fnOS Native App: cmd/install_init
-# ============================================================
-echo "文件收集器安装初始化完成"
+### 安装前初始化回调
+### 区分首次安装和升级场景：
+###   - 首次安装：数据库不存在，需要 wizard 收集管理员账号
+###   - 升级安装：数据库已存在，保留所有数据，跳过账号设置
+
+LOG="/tmp/file-collector-install.log"
+echo "[$(date)] === INSTALL INIT ===" >> "$LOG"
+
+DATA_DIR="${TRIM_PKGVAR}/data"
+DB_PATH="${DATA_DIR}/file_collector.db"
+
+if [ -f "$DB_PATH" ]; then
+    DB_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || echo "0")
+    echo "  检测到已有数据库 (${DB_SIZE} bytes)，判定为升级安装" >> "$LOG"
+    echo "  数据将保留，不会覆盖" >> "$LOG"
+else
+    echo "  数据库不存在，判定为首次安装" >> "$LOG"
+    echo "  将通过安装向导设置管理员账号" >> "$LOG"
+fi
+
+echo "[$(date)] install_init done" >> "$LOG"
 exit 0

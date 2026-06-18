@@ -2,79 +2,18 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>{{ site_title }}</title>
 <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { font-size: 16px; -webkit-text-size-adjust: 100%; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #374151;
-    background: #fafbfc;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-  .landing-card {
-    text-align: center;
-    max-width: 420px;
-    width: 100%;
-  }
-  .landing-logo {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 20px;
-    display: block;
-  }
-  .landing-card h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #1f2937;
-  }
-  .landing-card p {
-    font-size: .9rem;
-    color: #6b7280;
-    line-height: 1.7;
-    margin-bottom: 28px;
-  }
-  .landing-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 32px;
-    font-size: .9rem;
-    font-weight: 500;
-    font-family: inherit;
-    color: #fff;
-    background: #3b82f6;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background .15s;
-  }
-  .landing-btn:hover {
-    background: #2563eb;
-    text-decoration: none;
-  }
-  .landing-footer {
-    margin-top: 40px;
-    font-size: .78rem;
-    color: #9ca3af;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
 </head>
 <body>
   <div class="landing-card">
     <img class="landing-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="">
     <h1>{{ site_title }}</h1>
     <p>简单高效的文件收集工具，适用于团队协作、作业收集、资料汇总等场景。</p>
-    <a class="landing-btn" href="/admin">进入管理后台</a>
+    <a class="landing-btn" href="{{ url_for('admin_dashboard') }}">进入管理后台</a>
     <div class="landing-footer">fnOS 应用</div>
   </div>
 </body>

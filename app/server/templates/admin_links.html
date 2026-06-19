@@ -12,7 +12,7 @@
           <h3 class="links-header-title">收集链接</h3>
           <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
         </div>
-        <a href="{{ url_for('admin_link_new') }}" class="btn btn-primary btn-create-link">＋ 创建新链接</a>
+        <a href="{{ url_for('admin_link_new') }}" class="btn btn-primary btn-create-link">＋ 创建收集链接</a>
       </div>
       <div class="table-wrap">
         {% if links %}
@@ -107,7 +107,7 @@
           </tbody>
         </table>
         {% else %}
-        <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建新链接」开始使用</p></div>
+        <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建收集链接」开始使用</p></div>
         {% endif %}
       </div>
       {% if total_pages > 1 %}
@@ -214,11 +214,13 @@
 
 /* PC端 /admin/links 表格 */
 .admin-links-table { table-layout: auto; }
+.admin-links-table th, .admin-links-table td { font-size: .82rem; }
 .admin-links-table .col-title { width: auto; min-width: 0; }
 .admin-links-table .col-share { white-space: nowrap; width: 1px; }
 .admin-links-table .col-status { white-space: nowrap; text-align: left; width: 1px; }
 .admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
 .admin-links-table th.col-act { padding-right: 26px; }
+.admin-links-table th { font-weight: 600; color: var(--c-text-soft, #6b7280); }
 
 /* 移动端 */
 @media (max-width: 640px) {
@@ -235,10 +237,9 @@
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
   .col-title { width: auto; min-width: 0; }
-  .col-share { white-space: nowrap; width: 1px; font-size: .72rem !important; }
-  .col-share span { font-size: .7rem !important; }
-  .col-share span svg { width: 11px; height: 11px; }
-  .col-status { white-space: nowrap; text-align: right; width: 1px; }
+  .col-share, .col-status { white-space: nowrap; width: 1px; font-size: .72rem !important; }
+  .col-share span, .col-status span { font-size: .7rem !important; }
+  .col-share span svg, .col-status span svg { width: 11px; height: 11px; }
   .col-act { white-space: nowrap; text-align: right; width: 1px; }
   .admin-links-table th.col-act { padding-right: 22px; }
 }
@@ -577,7 +578,7 @@ function showLinkPopover(btn) {
 
   // 第二排：编辑 / 启停 / 删除
   html += '<div class="lp-action-row">';
-  html += '<a href="' + editUrl + '" class="lp-action-btn edit">' + svgEdit + '编辑链接</a>';
+  html += '<a href="' + editUrl + '" class="lp-action-btn edit">' + svgEdit + '编辑此收集</a>';
   html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
     '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
     '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +

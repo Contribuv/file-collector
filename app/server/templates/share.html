@@ -28,7 +28,7 @@
   <div class="cp-header">
     <h1>{{ creator_name or '用户' }}，分享了文件给您！</h1>
     {% if description %}
-    <div class="cp-desc">{{ description }}</div>
+    <div class="cp-desc">{{ description | safe }}</div>
     {% endif %}
     <div class="cp-meta-grid single">
       <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}">
@@ -113,6 +113,34 @@
 <script>
 const linkId = {{ link_id|tojson }};
 var requireUploader = {{ require_uploader|tojson }};
+var _dlToken = {{ dl_token|tojson }};
+var _dlExpires = {{ dl_token_expires|tojson }};
+
+function getTokenParam() {
+  if (!_dlToken) return '';
+  return 'token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
+}
+
+function refreshToken() {
+  return fetch('/api/download-token/' + linkId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { _dlToken = d.token; _dlExpires = d.expires; }
+      return d.success;
+    })
+    .catch(function() { return false; });
+}
+
+function refreshTokenThenRetry(url) {
+  return refreshToken().then(function(ok) {
+    if (ok) {
+      var sep = url.indexOf('?') >= 0 ? '&' : '?';
+      window.location.href = url + sep + getTokenParam();
+    } else {
+      showToast('令牌刷新失败，请刷新页面');
+    }
+  });
+}
 
 
 function showToast(msg, d) {
@@ -383,7 +411,8 @@ function previewFile(recordId) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
 
   if (jitExts.includes(ext)) {
-    window.open('/share/' + linkId + '/view/' + recordId, '_blank');
+    var tpJit = getTokenParam();
+    window.open('/share/' + linkId + '/view/' + recordId + (tpJit ? '?' + tpJit : ''), '_blank');
     return;
   }
 
@@ -399,13 +428,14 @@ function previewFile(recordId) {
   body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
   modal.style.display = 'flex';
 
-  var previewUrl = '/share/' + linkId + '/preview/' + recordId;
+  var tp = getTokenParam();
+  var previewUrl = '/share/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
   downloadBtn.onclick = function() { downloadFile(recordId); };
 
   if (imgExtsP.includes(ext)) {
-    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p>图片加载失败</p>\'">';
+    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p>图片加载失败，请刷新页面后重试</p>\'">';
   } else if (vidExtsP.includes(ext)) {
-    body.innerHTML = '<video src="' + previewUrl + '" controls class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
+    body.innerHTML = '<video src="' + previewUrl + '" controls class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p>视频加载失败，请刷新页面后重试</p>\'">您的浏览器不支持视频播放</video>';
   } else {
     body.innerHTML = '<p>不支持预览该文件类型</p>';
   }
@@ -418,8 +448,9 @@ function closePreview() {
 }
 
 function downloadFile(recordId) {
+  var tp = getTokenParam();
   var a = document.createElement('a');
-  a.href = '/share/' + linkId + '/download/' + recordId;
+  a.href = '/share/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();

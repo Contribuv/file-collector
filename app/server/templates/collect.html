@@ -28,7 +28,7 @@
   <div class="cp-header">
     <h1>{{ creator_name or '用户' }}，邀请您上传文件！</h1>
     {% if description %}
-    <div class="cp-desc">{{ description }}</div>
+    <div class="cp-desc">{{ description | safe }}</div>
     {% endif %}
     <div class="cp-meta-grid">
       <div class="cp-meta-tile">
@@ -229,6 +229,34 @@ const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
 {% if allow_preview_download %}var allowPreviewDownload = true;{% else %}var allowPreviewDownload = false;{% endif %}
 var requireUploader = {{ require_uploader|tojson }};
+var _dlToken = {{ dl_token|tojson }};
+var _dlExpires = {{ dl_token_expires|tojson }};
+
+function getTokenParam() {
+  if (!_dlToken) return '';
+  return 'token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
+}
+
+function refreshToken() {
+  return fetch('/api/download-token/' + linkId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { _dlToken = d.token; _dlExpires = d.expires; }
+      return d.success;
+    })
+    .catch(function() { return false; });
+}
+
+function refreshTokenThenRetry(url) {
+  return refreshToken().then(function(ok) {
+    if (ok) {
+      var sep = url.indexOf('?') >= 0 ? '&' : '?';
+      window.location.href = url + sep + getTokenParam();
+    } else {
+      showToast('令牌刷新失败，请刷新页面');
+    }
+  });
+}
 
 function showToast(msg, d) {
   var t = document.getElementById('toast'); if (!t) return;
@@ -896,7 +924,8 @@ async function loadHistory() {
           if (canPreviewExt(ext)) {
             tableHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',\'' + escapeHtml(r.original_name) + '\')" style="margin-right:8px;">预览</button>';
           }
-          tableHtml += '<a class="cp-act-download-txt" href="/collect/' + linkId + '/download/' + r.id + '" style="margin-right:8px;">下载</a>';
+          var dlParamsT = getTokenParam();
+          tableHtml += '<a class="cp-act-download-txt" data-dl="1" href="/collect/' + linkId + '/download/' + r.id + (dlParamsT ? '?' + dlParamsT : '') + '" style="margin-right:8px;">下载</a>';
         }
         if (canDelete) {
           tableHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
@@ -920,7 +949,8 @@ async function loadHistory() {
           if (canPreviewExt(ext)) {
             cardHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',\'' + escapeHtml(r.original_name) + '\')" style="margin-right:8px;">预览</button>';
           }
-          cardHtml += '<a class="cp-act-download-txt" href="/collect/' + linkId + '/download/' + r.id + '" style="margin-right:8px;">下载</a>';
+          var dlParamsC = getTokenParam();
+          cardHtml += '<a class="cp-act-download-txt" data-dl="1" href="/collect/' + linkId + '/download/' + r.id + (dlParamsC ? '?' + dlParamsC : '') + '" style="margin-right:8px;">下载</a>';
         }
         if (canDelete) {
           cardHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
@@ -965,7 +995,8 @@ function previewFile(recordId, fileName) {
   // Office / PDF / MD → 新窗口 JIT Viewer
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
   if (jitExts.includes(ext)) {
-    window.open('/collect/' + linkId + '/view/' + recordId, '_blank');
+    var tpJ = getTokenParam();
+    window.open('/collect/' + linkId + '/view/' + recordId + (tpJ ? '?' + tpJ : ''), '_blank');
     return;
   }
 
@@ -983,13 +1014,15 @@ function previewFile(recordId, fileName) {
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
-  var previewUrl = '/collect/' + linkId + '/preview/' + recordId;
-  downloadBtn.onclick = function() { window.open('/collect/' + linkId + '/download/' + recordId, '_blank'); };
+  var tp = getTokenParam();
+  var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
+  var dlUrl = '/collect/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
+  downloadBtn.onclick = function() { window.open(dlUrl, '_blank'); };
 
   if (imgExts.includes(ext)) {
-    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>图片加载失败</p>\'">';
+    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>图片加载失败，请刷新页面后重试</p>\'">';
   } else if (vidExts.includes(ext)) {
-    body.innerHTML = '<video src="' + previewUrl + '" controls autoplay class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>视频加载失败</p>\'">您的浏览器不支持视频播放</video>';
+    body.innerHTML = '<video src="' + previewUrl + '" controls autoplay class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>视频加载失败，请刷新页面后重试</p>\'">您的浏览器不支持视频播放</video>';
   } else {
     body.innerHTML = '<p style="color:#999;">不支持预览该文件类型，请下载查看</p>';
   }
@@ -1010,6 +1043,22 @@ function closePreview() {
     console.log('收集链接：' + (publicUrl + 'collect/' + linkId));
   } catch(e) {}
 })();
+
+// 下载链接点击拦截：令牌过期时自动刷新重试
+if (_dlToken) {
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a[data-dl]');
+    if (!link) return;
+    e.preventDefault();
+    var url = link.getAttribute('href');
+    // 快速检查是否需要刷新令牌（提前 60 秒刷新）
+    if (_dlExpires && Date.now()/1000 > _dlExpires - 60) {
+      refreshTokenThenRetry(url.replace(/\?.*$/, ''));
+    } else {
+      window.location.href = url;
+    }
+  });
+}
 
 {% if verified %}loadHistory();{% endif %}
 </script>

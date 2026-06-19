@@ -38,6 +38,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import bleach
 import mimetypes
+import hmac
+import hashlib
 # smtplib / email 延迟导入（仅邮件功能需要，启动时跳过 ~50ms）
 
 # 确保 CSS / JS 等静态资源的 MIME 类型注册正确
@@ -116,7 +118,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.1.27"
+VERSION = "2.2.13"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1228,6 +1230,78 @@ def link_has_passcode(link_id):
     return bool(row['passcode_plain'] and row['passcode_plain'].strip())
 
 # ============================================================
+# 下载令牌（防盗链防护）— 仅对公开链接（无通行证）生效
+# ============================================================
+
+_DL_TOKEN_TTL = 900  # 令牌有效期 15 分钟
+
+def _is_link_public(link, for_share=False):
+    """判断链接是否为公开链接（无通行证保护）"""
+    link = dict(link)  # 兼容 sqlite3.Row 传入
+    if for_share:
+        _sp = link.get('share_passcode', '')
+        _spe = link.get('share_passcode_empty', 0)
+        if _spe:
+            return True
+        if _sp and _sp.strip():
+            return False
+        return not (link.get('passcode_plain', '') and link['passcode_plain'].strip())
+    else:
+        return not (link.get('passcode_plain', '') and link['passcode_plain'].strip())
+
+def _generate_download_token(link_id):
+    """为公开链接生成 HMAC-SHA256 下载令牌"""
+    expires = int(time.time()) + _DL_TOKEN_TTL
+    msg = f"{link_id}|{expires}"
+    signature = hmac.new(
+        app.secret_key.encode('utf-8'),
+        msg.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    return signature, expires
+
+def _verify_download_token(link_id, token, expires):
+    """验证下载令牌的签名和过期时间"""
+    try:
+        expires = int(expires)
+    except (ValueError, TypeError):
+        return False
+    if time.time() > expires:
+        return False
+    expected = hmac.new(
+        app.secret_key.encode('utf-8'),
+        f"{link_id}|{expires}".encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, token)
+
+def _check_download_rate_limit():
+    """IP 级别下载速率限制（对所有链接生效）"""
+    client_ip = _get_client_ip()
+    if not rate_limit(f'dl_{client_ip}', max_attempts=10, window_seconds=60):
+        return False, '下载过于频繁，请稍后再试'
+    return True, ''
+
+def _check_public_link_token(link_id, link, for_share=False):
+    """
+    公开链接的下载令牌检查。仅对无通行证链接生效。
+    返回 (通过: bool, 错误信息: str)
+    """
+    if not _is_link_public(link, for_share):
+        return True, ''  # 有通行证保护，跳过令牌检查
+
+    token = request.args.get('token', '')
+    expires = request.args.get('expires', '')
+
+    if not token or not expires:
+        return False, '缺少访问令牌，请刷新页面后重试'
+
+    if not _verify_download_token(link_id, token, expires):
+        return False, '访问令牌无效或已过期，请刷新页面后重试'
+
+    return True, ''
+
+# ============================================================
 # 用户认证相关函数
 # ============================================================
 
@@ -2173,6 +2247,11 @@ def collect_page(link_id):
         pass
 
     csrf_token = generate_csrf_token()
+    # 公开链接下载令牌
+    dl_token = ''
+    dl_token_expires = 0
+    if not has_passcode:
+        dl_token, dl_token_expires = _generate_download_token(link_id)
     return render_template('collect.html',
         link_id=link_id,
         task_title=link['title'],
@@ -2197,7 +2276,9 @@ def collect_page(link_id):
         expire_text=expire_text,
         expire_level=expire_level,
         creator_name=creator_name,
-        csrf_token=csrf_token)
+        csrf_token=csrf_token,
+        dl_token=dl_token,
+        dl_token_expires=dl_token_expires)
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
@@ -2464,6 +2545,11 @@ def share_page(link_id):
     csrf_token = generate_csrf_token()
     share_page_title = get_user_setting(share_owner_id, 'share_page_title', '')
     share_footer_text = get_user_setting(share_owner_id, 'share_footer_text', '')
+    # 公开链接下载令牌
+    dl_token = ''
+    dl_token_expires = 0
+    if not has_passcode:
+        dl_token, dl_token_expires = _generate_download_token(link_id)
     return render_template('share.html',
         link_id=link_id,
         task_title=link['title'],
@@ -2484,7 +2570,9 @@ def share_page(link_id):
         expire_level=expire_level,
         creator_name=creator_name,
         require_uploader=bool(link.get('require_uploader', 0)),
-        csrf_token=csrf_token)
+        csrf_token=csrf_token,
+        dl_token=dl_token,
+        dl_token_expires=dl_token_expires)
 
 @app.route('/share/<link_id>/verify', methods=['POST'])
 def share_verify_passcode(link_id):
@@ -2557,6 +2645,31 @@ def share_logout_passcode(link_id):
     session.pop(f'share_verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
 
+@app.route('/api/download-token/<link_id>', methods=['GET'])
+def api_download_token(link_id):
+    """刷新下载令牌（仅对公开链接有效）"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id, link_id)
+    ).fetchone()
+    conn.close()
+
+    if not link:
+        return jsonify({'success': False, 'message': '链接不存在'}), 404
+
+    link_id = link['id']
+
+    # 仅公开链接可获取令牌
+    if not _is_link_public(link, for_share=True) and not _is_link_public(link, for_share=False):
+        return jsonify({'success': False, 'message': '此链接无需令牌'}), 400
+
+    token, expires = _generate_download_token(link_id)
+    return jsonify({'success': True, 'token': token, 'expires': expires})
+
 @app.route('/share/<link_id>/records', methods=['GET'])
 def share_get_records(link_id):
     """获取分享页文件列表"""
@@ -2613,6 +2726,16 @@ def share_preview_record(link_id, record_id):
     if not is_share_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return err, 401
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2673,6 +2796,16 @@ def share_download_record(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return err, 401
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -2708,6 +2841,16 @@ def share_preview_file(link_id, record_id):
     if not is_share_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return err, 401
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -2769,6 +2912,11 @@ def share_jit_view(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return err, 401
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -2786,8 +2934,12 @@ def share_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
-    file_url = request.host_url.rstrip('/') + '/share/' + link_id + '/preview_file/' + str(record_id)
-    download_url = '/share/' + link_id + '/download/' + str(record_id)
+    # 传递令牌给 JIT SDK 内部请求（公开链接需要）
+    jit_token = request.args.get('token', '')
+    jit_expires = request.args.get('expires', '')
+    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+    file_url = request.host_url.rstrip('/') + '/share/' + link_id + '/preview_file/' + str(record_id) + token_params
+    download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
     return render_template('jit_preview.html',
         filename=record['original_name'],
         file_url=file_url,
@@ -2876,6 +3028,11 @@ def preview_record(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return err, 401
+
     if not link['allow_preview_download']:
         conn.close()
         return '预览功能未开启', 403
@@ -2937,6 +3094,16 @@ def download_record(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return err, 401
+
     if not link['allow_preview_download']:
         conn.close()
         return '下载功能未开启', 403
@@ -2974,6 +3141,16 @@ def collect_preview_file(link_id, record_id):
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return err, 401
 
     if not link['allow_preview_download']:
         conn.close()
@@ -3034,6 +3211,16 @@ def collect_jit_view(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    ok, err = _check_download_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
+
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return err, 401
+
     if not link['allow_preview_download']:
         conn.close()
         return '预览功能未开启', 403
@@ -3055,8 +3242,12 @@ def collect_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
-    file_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/preview_file/' + str(record_id)
-    download_url = '/collect/' + link_id + '/download/' + str(record_id)
+    # 传递令牌给 JIT SDK 内部请求（公开链接需要）
+    jit_token = request.args.get('token', '')
+    jit_expires = request.args.get('expires', '')
+    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+    file_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/preview_file/' + str(record_id) + token_params
+    download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
     return render_template('jit_preview.html',
         filename=record['original_name'],
         file_url=file_url,

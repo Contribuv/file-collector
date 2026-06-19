@@ -1,6 +1,15 @@
 [
     {
-        "stepTitle": "管理员账号",
+        "stepTitle": "安装向导",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "<strong>欢迎使用文件收集器</strong><br><br>创建收集链接，分享给他人即可接收文件。<br><br>点击下一步继续。"
+            }
+        ]
+    },
+    {
+        "stepTitle": "管理员与端口",
         "items": [
             {
                 "type": "text",
@@ -19,6 +28,16 @@
                 "rules": [
                     { "required": true, "message": "请输入管理员密码" },
                     { "min": 6, "message": "密码长度不能少于6位" }
+                ]
+            },
+            {
+                "type": "text",
+                "field": "wizard_app_port",
+                "label": "监听端口",
+                "initValue": "5557",
+                "rules": [
+                    { "required": true, "message": "请输入监听端口" },
+                    { "pattern": "^[0-9]+$", "message": "端口号必须是数字" }
                 ]
             }
         ]

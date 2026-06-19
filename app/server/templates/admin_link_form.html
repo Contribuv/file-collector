@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ '编辑链接' if edit_link else '创建新链接' }}{% endblock %}
+{% block title %}{{ '编辑此收集' if edit_link else '创建收集链接' }}{% endblock %}
 
 {% block content %}
 <div class="admin-layout">
@@ -7,7 +7,7 @@
   <div class="admin-content">
     <div class="card">
       <div class="card-header">
-        <h3>{{ '编辑链接' if edit_link else '创建新链接' }}</h3>
+        <h3>{{ '编辑此收集' if edit_link else '创建收集链接' }}</h3>
         <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
       </div>
       <div class="card-body">
@@ -71,15 +71,17 @@
             <div class="form-group">
               <label class="form-label" for="expire_days">有效期（天）<span style="color:var(--c-text-muted);font-weight:400;"> 0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
               <input type="number" id="expire_days" name="expire_days" class="form-input"
-                     value="{{ edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else defaults.expire_days }}"
+                     value="{{ '' if edit_link and edit_link.get('expires_at') else (edit_link['expire_days'] if edit_link and edit_link.get('expire_days') else defaults.expire_days) }}"
                      placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
+              <span class="field-muted-hint" id="expire_days_hint">已由截止日期控制</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="expires_at">截止日期和时间</label>
               <input type="datetime-local" id="expires_at" name="expires_at" class="form-input"
                      value="{{ edit_link['expires_at'] if edit_link and edit_link.get('expires_at') else '' }}"
                      onkeydown="return false;">
-              <span style="font-size:.72rem;color:var(--c-text-muted);">优先级高于上述天数，最长 {{ defaults.expire_days }} 天</span>
+              <span class="field-muted-hint" id="expires_at_hint">已由有效期（天）控制</span>
+              <span style="font-size:.72rem;color:var(--c-text-muted);" id="expires_at_tip">最长 {{ defaults.expire_days }} 天</span>
             </div>
           </div>
 
@@ -119,9 +121,9 @@
             </div>
             <div class="form-group" style="align-self: flex-end;">
               <label class="form-checkbox">
-                <input type="checkbox" id="empty_passcode" name="empty_passcode"
+                <input type="checkbox" id="empty_passcode" name="empty_passcode" value="1"
                        onchange="togglePasscodeInput()"
-                       {{ 'checked' if edit_link and (edit_link.get('passcode_empty', 0) == 1 or not edit_link.get('passcode_plain')) else '' }}>
+                       {{ 'checked' if edit_link and edit_link.get('passcode_empty', 0) == 1 else '' }}>
                 <i class="form-icon"></i> 空通行证（无需验证）
               </label>
             </div>
@@ -217,13 +219,15 @@
                 <input type="number" id="share_expire_days" name="share_expire_days" class="form-input"
                        value="{{ edit_link['_share_expire_days'] if edit_link and edit_link.get('_share_expire_days') else '' }}"
                        placeholder="0或留空则永不过期" min="0" max="{{ defaults.expire_days }}" step="1">
+                <span class="field-muted-hint" id="share_expire_days_hint">已由截止日期控制</span>
               </div>
               <div class="form-group">
                 <label class="form-label" for="share_expires_at">分享页截止日期</label>
                 <input type="datetime-local" id="share_expires_at" name="share_expires_at" class="form-input"
                        value="{{ edit_link and (edit_link.get('share_expires_at') or '') or '' }}"
                        onkeydown="return false;">
-                <span style="font-size:.72rem;color:var(--c-text-muted);">留空使用收集页有效期</span>
+                <span class="field-muted-hint" id="share_expires_at_hint">已由有效期（天）控制</span>
+                <span style="font-size:.72rem;color:var(--c-text-muted);" id="share_expires_at_tip">留空使用收集页有效期</span>
               </div>
             </div>
 
@@ -241,7 +245,7 @@
           </div>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;">
-            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建链接' }}</button>
+            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建收集链接' }}</button>
             <a href="{{ url_for('admin_links') }}" class="btn">取消</a>
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearExpiry()" id="clear-expiry-btn" title="点击后保存将清除过期设置" style="{{ 'display:block;' if edit_link and edit_link.get('expires_at') else 'display:none;' }}">清除过期设置</button>
           </div>
@@ -287,6 +291,18 @@
 .form-switch input:checked + .switch-track .switch-thumb {
   transform: translateX(20px);
 }
+.field-muted {
+  opacity: 0.45;
+  pointer-events: none;
+  background-color: #f3f4f6 !important;
+}
+.field-muted-hint {
+  font-size: .68rem;
+  color: #9ca3af;
+  margin-top: 2px;
+  display: none;
+}
+.field-muted-hint.show { display: block; }
 
 </style>
 
@@ -384,7 +400,46 @@ function clearExpiry() {
   document.getElementById('expires_at').value = '';
   document.getElementById('expire_days').value = '';
   document.getElementById('clear_expiry').value = '1';
+  updateExpiryGreyState();
 }
+
+// 通用互斥+灰化：输入一个字段则清空并灰化另一个
+function setupExpiryMutual(daysId, atId, daysHintId, atHintId, atTipId) {
+  var days = document.getElementById(daysId);
+  var at   = document.getElementById(atId);
+  var daysHint = document.getElementById(daysHintId);
+  var atHint   = document.getElementById(atHintId);
+  var atTip    = atTipId ? document.getElementById(atTipId) : null;
+  
+  function updateGrey() {
+    var dv = days ? days.value : '';
+    var av = at ? at.value : '';
+    var daysMuted = !!av;
+    var atMuted   = !!dv;
+    if (days) {
+      days.classList.toggle('field-muted', daysMuted);
+      days.readOnly = daysMuted;
+    }
+    if (at) {
+      at.classList.toggle('field-muted', atMuted);
+      at.readOnly = atMuted;
+    }
+    if (daysHint) daysHint.classList.toggle('show', daysMuted);
+    if (atHint)   atHint.classList.toggle('show', atMuted);
+    if (atTip)    atTip.style.display = atMuted ? 'none' : '';
+  }
+  
+  if (days && at) {
+    days.addEventListener('input', function() { if (days.value) { at.value = ''; } updateGrey(); });
+    days.addEventListener('change', function() { if (days.value) { at.value = ''; } updateGrey(); });
+    at.addEventListener('change', function() { if (at.value) { days.value = ''; } updateGrey(); });
+    at.addEventListener('input', function() { if (at.value) { days.value = ''; } updateGrey(); });
+    updateGrey();
+  }
+  return updateGrey;
+}
+
+var updateExpiryGreyState = function(){};
 
 document.addEventListener('DOMContentLoaded', function() {
   {% if edit_link %}
@@ -436,19 +491,21 @@ document.addEventListener('DOMContentLoaded', function() {
       function syncAt() { if (!shareAt._dirty) shareAt.value = collectAt.value; }
       collectAt.addEventListener('change', syncAt);
     }
-  })();
 
-  // 分享页天数与日期互斥：改其中一个则清空另一个，确保后端拿到明确的字段
-  (function() {
-    var shareDays = document.getElementById('share_expire_days');
-    var shareAt   = document.getElementById('share_expires_at');
-    if (shareDays && shareAt) {
-      shareDays.addEventListener('input', function(){ if (shareDays.value) shareAt.value = ''; });
-      shareDays.addEventListener('change', function(){ if (shareDays.value) shareAt.value = ''; });
-      shareAt.addEventListener('change', function(){ if (shareAt.value) shareDays.value = ''; });
-      shareAt.addEventListener('input', function(){ if (shareAt.value) shareDays.value = ''; });
+    // 分享页天数与日期互斥+灰化
+    var shareGrey = setupExpiryMutual('share_expire_days', 'share_expires_at', 'share_expire_days_hint', 'share_expires_at_hint', 'share_expires_at_tip');
+    // 收集页变化自动同步分享页后，刷新灰化状态（仅当分享页未被手动编辑）
+    if (collectDays && shareDays) {
+      collectDays.addEventListener('input', function(){ if (!shareDays._dirty) shareGrey(); });
+      collectDays.addEventListener('change', function(){ if (!shareDays._dirty) shareGrey(); });
+    }
+    if (collectAt && shareAt) {
+      collectAt.addEventListener('change', function(){ if (!shareAt._dirty) shareGrey(); });
     }
   })();
+
+  // 收集页天数与日期互斥+灰化
+  updateExpiryGreyState = setupExpiryMutual('expire_days', 'expires_at', 'expire_days_hint', 'expires_at_hint', 'expires_at_tip');
 
   // 单文件上限 MB/GB 切换
   initSizeUnitToggle('max_file_size_val', 'max_file_size_unit', 'max_file_size_gb', {{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }});

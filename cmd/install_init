@@ -4,10 +4,19 @@
 ###   - 首次安装：数据库不存在，需要 wizard 收集管理员账号
 ###   - 升级安装：数据库已存在，保留所有数据，跳过账号设置
 
-LOG="/tmp/file-collector-install.log"
+# 数据目录（与 main 脚本保持一致：优先 TRIM_DATA_SHARE_PATHS）
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    DATA_DIR="${_SHARE_BASE}/data"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    DATA_DIR="/tmp/file-collector/data"
+fi
+mkdir -p "$DATA_DIR"
+LOG="${DATA_DIR}/install.log"
 echo "[$(date)] === INSTALL INIT ===" >> "$LOG"
 
-DATA_DIR="${TRIM_PKGVAR}/data"
 DB_PATH="${DATA_DIR}/file_collector.db"
 
 if [ -f "$DB_PATH" ]; then

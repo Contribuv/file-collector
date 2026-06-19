@@ -5,10 +5,21 @@
 ###   keep_db  - 保留数据库卸载（默认）
 ###   delete_db - 删除数据库卸载（上传文件始终保留）
 
+# 数据目录（与 main 脚本保持一致）
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    DATA_DIR="${_SHARE_BASE}/data"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    DATA_DIR="/tmp/file-collector/data"
+fi
+mkdir -p "$DATA_DIR"
+
 UNINSTALL_MODE="${wizard_uninstall_mode:-keep_db}"
-echo "[uninstall_init] 卸载模式: ${UNINSTALL_MODE}" >> /tmp/file-collector-uninstall.log 2>/dev/null
+echo "[uninstall_init] 卸载模式: ${UNINSTALL_MODE}" >> "${DATA_DIR}/uninstall.log" 2>/dev/null
 
 # 无论哪种模式，上传文件始终保留（用户资料禁止删除）
-echo "[uninstall_init] 上传文件始终保留" >> /tmp/file-collector-uninstall.log 2>/dev/null
+echo "[uninstall_init] 上传文件始终保留" >> "${DATA_DIR}/uninstall.log" 2>/dev/null
 
 exit 0

@@ -18,30 +18,29 @@ env | grep -E "^TRIM_|^wizard_" | sort >> "$DEBUG_LOG"
 echo "--- 系统信息 ---" >> "$DEBUG_LOG"
 echo "USER=$USER PWD=$PWD WHOAMI=$(whoami) ID=$(id)" >> "$DEBUG_LOG"
 
-APP_PORT="5557"
+APP_PORT="${wizard_app_port:-5557}"
 export PORT="${APP_PORT}"
 VAR_DIR="${TRIM_PKGVAR}"
 PID_FILE="${VAR_DIR}/gunicorn.pid"
-LOG_FILE="${VAR_DIR}/gunicorn.log"
 VENV_DIR="${VAR_DIR}/.venv"
 
-# 数据库存放路径 — 使用 TRIM_PKGVAR（应用私有目录，升级/卸载时保留）
-# 上传文件目录 — 使用 TRIM_DATA_SHARE_PATHS（data-share 共享目录）
-if [ -n "$TRIM_PKGVAR" ]; then
-    export DATA_DIR="${TRIM_PKGVAR}/data"
-else
-    export DATA_DIR="/tmp/file-collector/data"
-fi
-
+# 共享目录解析 — 优先使用 TRIM_DATA_SHARE_PATHS（应用数据共享目录）
+# 数据库、日志均存放于共享目录，卸载/重装不丢失
 if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
     # 可能包含多个路径（冒号分隔），取第一个
     _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
     export UPLOAD_BASE="${_SHARE_BASE}/uploads"
+    export DATA_DIR="${_SHARE_BASE}/data"
 elif [ -n "$TRIM_PKGVAR" ]; then
     export UPLOAD_BASE="${TRIM_PKGVAR}/uploads"
+    export DATA_DIR="${TRIM_PKGVAR}/data"
 else
     export UPLOAD_BASE="/tmp/file-collector/uploads"
+    export DATA_DIR="/tmp/file-collector/data"
 fi
+
+# Gunicorn 日志迁到共享数据目录
+LOG_FILE="${DATA_DIR}/gunicorn.log"
 
 log() {
     local msg="[$(date '+%H:%M:%S')] $@"
@@ -125,8 +124,7 @@ start() {
         VAR_DIR="/tmp/file-collector"
         VENV_DIR="${VAR_DIR}/.venv"
         PID_FILE="${VAR_DIR}/gunicorn.pid"
-        LOG_FILE="${VAR_DIR}/gunicorn.log"
-        # 数据库路径由 DATA_DIR 环境变量控制，始终保存在持久化目录
+        # 数据库/日志路径由 DATA_DIR 控制，始终保存在持久化目录
         mkdir -p "$VAR_DIR"
     }
 
@@ -173,9 +171,19 @@ start() {
     log "  $(pip --version)"
     pip list --format=columns >> "$DEBUG_LOG" 2>&1
 
-    # ---- 第4步：准备目录与权限 ----
-    log "[4/7] 准备目录与权限..."
+    # ---- 第4步：准备目录、迁移旧数据、权限 ----
+    log "[4/7] 准备目录、迁移旧数据..."
     mkdir -p "$DATA_DIR" "$UPLOAD_BASE"
+
+    # 自动迁移旧数据（v2.1.28- 数据在 TRIM_PKGVAR，v2.1.29+ 迁到 SHARE/data）
+    OLD_DB="${TRIM_PKGVAR}/data/file_collector.db"
+    if [ -f "$OLD_DB" ] && [ ! -f "$DB_PATH" ]; then
+        log "  检测到旧数据库（v2.1.28-），迁移到共享目录..."
+        cp "$OLD_DB" "$DB_PATH"
+        # 同时迁移旧日志
+        [ -f "${TRIM_PKGVAR}/gunicorn.log" ] && cp "${TRIM_PKGVAR}/gunicorn.log" "${DATA_DIR}/gunicorn.log" 2>/dev/null
+        log "  数据迁移完成: ${TRIM_PKGVAR}/data → ${DATA_DIR}"
+    fi
 
     # ---- 第5步：数据库恢复检查 ----
     log "[5/7] 检查数据库..."
@@ -278,16 +286,18 @@ start() {
 
     log "[7/7] 启动成功! 端口 ${APP_PORT}"
 
-    # 启动成功后双重备份数据库（PKGVAR + /var/backups 安全位置）
+    # 启动成功后三重备份数据库（DATA_DIR + PKGVAR + /var/backups）
     if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
         BACKUP_DIR="${TRIM_PKGVAR}/backups"
         SAFE_BACKUP_DIR="/var/backups/file-collector"
-        mkdir -p "$BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        mkdir -p "$DATA_DIR/backups" "$BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${DATA_DIR}/backups/file_collector_$(date +%Y%m%d_%H%M%S).db"
         cp "$DB_PATH" "${BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
         cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        ls -t "${DATA_DIR}/backups"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
         ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
         ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
-        log "  已备份数据库到 ${BACKUP_DIR} 和 ${SAFE_BACKUP_DIR}"
+        log "  已备份数据库到 DATA_DIR/backups + PKGVAR + /var/backups"
     fi
     exit 0
 }
@@ -348,12 +358,14 @@ uninstall() {
     UNINSTALL_MODE="${wizard_uninstall_mode:-keep_db}"
     log "  卸载模式: ${UNINSTALL_MODE}"
 
-    # 无论哪种模式，先安全备份数据库到 /var/backups
+    # 卸载前备份数据库到 DATA_DIR/backups + /var/backups
     if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
         SAFE_BACKUP_DIR="/var/backups/file-collector"
-        mkdir -p "$SAFE_BACKUP_DIR"
+        mkdir -p "$DATA_DIR/backups" "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${DATA_DIR}/backups/file_collector_$(date +%Y%m%d_%H%M%S).db"
         cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
-        log "  已安全备份到: ${SAFE_BACKUP_DIR}"
+        log "  已备份到 DATA_DIR/backups 和 /var/backups"
+        ls -t "${DATA_DIR}/backups"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
         ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
     fi
 
@@ -373,11 +385,15 @@ uninstall() {
             rm -f "${DB_PATH}-wal" "${DB_PATH}-shm" 2>/dev/null || true
             log "  已删除 WAL 文件"
         fi
-    else
-        log "  用户选择：保留数据库"
-        if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
-            log "  保留数据库目录: ${DATA_DIR}"
-        fi
+    fi
+
+    # 无论哪种模式，都清理日志文件
+    if [ -d "$DATA_DIR" ]; then
+        rm -f "${DATA_DIR}/gunicorn.log" "${DATA_DIR}/install.log" \
+              "${DATA_DIR}/upgrade.log" "${DATA_DIR}/uninstall.log" 2>/dev/null || true
+        # 如果 DATA_DIR 为空则删除
+        rmdir "$DATA_DIR" 2>/dev/null || true
+        log "  已清理日志文件"
     fi
 
     # 4. 清理运行时文件（数据库和上传在 TRIM_PKGVAR 中保留）
@@ -427,12 +443,14 @@ upgrade() {
     if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
         PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
         SAFE_BACKUP_DIR="/var/backups/file-collector"
-        mkdir -p "$PKG_BACKUP_DIR" "$SAFE_BACKUP_DIR"
+        mkdir -p "$DATA_DIR/backups" "$PKG_BACKUP_DIR" "$SAFE_BACKUP_DIR"
         UPGRADE_BACKUP_NAME="file_collector_pre_upgrade_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${DATA_DIR}/backups/${UPGRADE_BACKUP_NAME}"
         cp "$DB_PATH" "${PKG_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
         cp "$DB_PATH" "${SAFE_BACKUP_DIR}/${UPGRADE_BACKUP_NAME}"
-        log "  升级前已备份数据库到 PKGVAR 和 /var/backups"
+        log "  升级前已备份数据库到 DATA_DIR/backups + PKGVAR + /var/backups"
         # 各保留最近5个备份
+        ls -t "${DATA_DIR}/backups"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
         ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
         ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
     else

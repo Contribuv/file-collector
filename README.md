@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.27-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.1.29-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -67,10 +67,10 @@
 
 1. 下载 `.fpk` 安装包
 2. 在 fnOS 应用管理中点「手动安装」，选择 `.fpk` 文件
-3. 安装向导中填写**上传文件存储目录**（绝对路径，如 `/vol1/收集文件`）
-4. 安装完成后访问 `http://[NAS_IP]:5557/admin`
+3. 安装向导中设置管理员账号及**监听端口**（默认 5557）
+4. 安装完成后访问 `http://[NAS_IP]:端口/admin`
 
-> ⚠️ **注意：此应用强制使用 IP+5557 访问，请使用 Lucky 反代访问！**
+> 💡 **端口可自定义**，安装时自由选择。如需外网访问，建议配合反代使用。
 
 ### 默认账户
 
@@ -192,6 +192,16 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.2.13
+- 数据库与日志完整迁入共享目录：DATA_DIR 从 `${TRIM_PKGVAR}/data` 改为 `${TRIM_DATA_SHARE_PATHS}/data`
+- 所有生命周期日志（安装/升级/卸载/Gunicorn）统一放入共享 DATA_DIR，卸载/重装不丢失
+- cmd/main 启动时自动迁移旧数据（从 TRIM_PKGVAR → SHARE/data），无需手动操作
+- 6 个脚本统一 DATA_DIR 解析逻辑，调试日志仍保留在 /tmp（临时性质）
+- 安装向导新增自定义监听端口（默认 5557），管理员账号与端口合并为同一页面
+- 桌面快捷方式端口动态适配：`app/ui/config` 通过 `${wizard_app_port}` 变量自动替换
+- cmd/main 启动脚本读取 `wizard_app_port` 环境变量，升级用户自动 fallback 5557
+- 公开链接安全增强：无通行证链接的下载/预览请求携带 HMAC-SHA256 签名令牌，15 分钟有效期，防止盗链直连
 
 ### v2.1.27
 - 卸载向导：可选择保留或删除数据库，上传文件始终保留

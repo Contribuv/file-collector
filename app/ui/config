@@ -5,7 +5,7 @@
             "icon": "images/icon-{0}.png",
             "type": "url",
             "protocol": "http",
-            "port": "5557",
+            "port": "${wizard_app_port}",
             "url": "/admin",
             "allUsers": true
         }

@@ -891,8 +891,8 @@ tbody tr:active { background: #f7f8fa; }
 }
 
 @media (max-width: 480px) {
-  .auth-page { padding: 10px; }
-  .auth-card { padding: 28px 18px; border-radius: 16px; max-width: 100%; }
+  .auth-page { padding: 0; min-height: 100vh; min-height: 100dvh; background: var(--c-white); }
+  .auth-card { padding: 28px 20px; border-radius: 0; max-width: 100%; box-shadow: none; background: var(--c-white); }
   .auth-card h1 { font-size: 1.15rem; }
   .auth-card .auth-subtitle { font-size: .8rem; margin-bottom: 20px; }
   .form-group { margin-bottom: 14px; }
@@ -1123,7 +1123,7 @@ tbody tr:active { background: #f7f8fa; }
   .stat-card { padding: 14px 10px; }
   .stat-value { font-size: 1.4rem; }
   .stat-label { font-size: .7rem; }
-  .btn { font-size: .82rem; padding: 7px 14px; }
+  .btn { font-size: .82rem;/*  padding: 7px 14px; */ }
   .btn-sm { font-size: .75rem; padding: 4px 12px; }
   thead th, tbody td { padding: 8px 10px; font-size: .78rem; }
   .sidebar-nav { border-radius: var(--radius-sm); }

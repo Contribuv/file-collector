@@ -478,9 +478,7 @@ function escapeJs(str) {
 }
 
 function stripHtml(html) {
-  var tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || '';
+  return String(html).replace(/<[^>]*>/g, '');
 }
 
 /* ==================== 浮窗 ==================== */
@@ -623,7 +621,7 @@ var _deleteLinkId = null;
 
 function showDeleteConfirm(linkId, title) {
   _deleteLinkId = linkId;
-  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + title + '」吗？<br>该链接的所有文件、文件夹及数据将被永久删除，无法找回！此操作不可撤销。';
+  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + escapeHtml(title) + '」吗？<br>该链接的所有文件、文件夹及数据将被永久删除，无法找回！此操作不可撤销。';
   document.getElementById('delete-confirm-modal').style.display = '';
   closeLinkPopover();
 }

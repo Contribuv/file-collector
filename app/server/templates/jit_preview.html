@@ -50,7 +50,7 @@
         '<div class="jit-error-icon">⚠️</div>' +
         '<div class="jit-error-title">预览失败</div>' +
         '<div class="jit-error-detail">' + msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
-        '<a class="jit-error-link" href="{{ download_url }}">下载文件</a>' +
+        '<a class="jit-error-link" href="{{ download_url|e }}">下载文件</a>' +
         '</div>';
     });
 
@@ -61,7 +61,7 @@
       '<div class="jit-error-icon">⚠️</div>' +
       '<div class="jit-error-title">预览组件加载失败</div>' +
       '<div class="jit-error-detail">' + (e.message || '未知错误').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
-      '<a class="jit-error-link" href="{{ download_url }}">下载文件</a>' +
+      '<a class="jit-error-link" href="{{ download_url|e }}">下载文件</a>' +
       '</div>';
   }
 })();

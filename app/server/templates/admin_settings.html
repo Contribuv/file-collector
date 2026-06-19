@@ -163,8 +163,8 @@
                   <input type="number" id="default_max_size_val" class="form-input form-input-sm" style="flex:1;"
                          value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
                   <select id="default_max_size_unit" class="form-input form-input-sm" style="width:64px;flex:none;">
-                    <option value="MB">MB</option>
-                    <option value="GB">GB</option>
+                    <option value="MB" {{ 'selected' if (defaults.max_file_size_gb or 1)|float < 1 and (defaults.max_file_size_gb or 1)|float > 0 else '' }}>MB</option>
+                    <option value="GB" {{ 'selected' if (defaults.max_file_size_gb or 1)|float >= 1 or (defaults.max_file_size_gb or 1)|float <= 0 else '' }}>GB</option>
                   </select>
                 </div>
                 <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
@@ -209,7 +209,7 @@
                 <label class="form-label" for="default_link_expire_days">链接最大有效期（天）</label>
                 <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
                        value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
-                <div class="form-hint">创建链接时有效期上限，默认 30 天</div>
+                <div class="form-hint">创建链接时有效期上限（天/小时/分钟均受此换算约束），当前 {{ defaults.default_link_expire_days }} 天</div>
               </div>
             </div>
             <button type="submit" name="action" value="expiry_settings" class="btn btn-primary btn-sm">保存</button>
@@ -789,8 +789,6 @@ document.addEventListener('DOMContentLoaded', function() {
     smtpTlsEl.addEventListener('change', function() {
       smtpPortEl.value = this.value === '1' ? '587' : '465';
     });
-    // 页面加载时同步一次
-    smtpPortEl.value = smtpTlsEl.value === '1' ? '587' : '465';
   }
 
   // 测试 SMTP 发送 — 直接使用发件人邮箱作为收件人

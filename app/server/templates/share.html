@@ -31,13 +31,13 @@
     <div class="cp-desc">{{ description | safe }}</div>
     {% endif %}
     <div class="cp-meta-grid single">
-      <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}">
+      <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}" id="expire-tile">
         <div class="cp-meta-tile-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="cp-meta-tile-body">
           <span class="cp-meta-tile-label">到期时间</span>
-          <span class="cp-meta-tile-value">{{ expire_text }}</span>
+          <span class="cp-meta-tile-value" id="expire-countdown"{% if expire_days_left >= 0 %} data-expires-at="{{ expire_display }}"{% endif %}>{{ expire_text }}</span>
         </div>
       </div>
     </div>
@@ -464,6 +464,64 @@ function downloadFile(recordId) {
     if (!publicUrl.endsWith('/')) publicUrl += '/';
     console.log('分享链接：' + (publicUrl + 'share/' + linkId));
   } catch(e) {}
+})();
+
+// 到期时间实时倒计时
+(function startCountdown() {
+  var el = document.getElementById('expire-countdown');
+  if (!el) return;
+  var expiresAt = el.getAttribute('data-expires-at');
+  if (!expiresAt) return; // 永不过期
+  var expireTime;
+  try {
+    expireTime = new Date(expiresAt.replace(' ', 'T') + ':00');
+    if (isNaN(expireTime.getTime())) return;
+  } catch(e) { return; }
+  var tile = document.getElementById('expire-tile');
+  var timerId = null;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function update() {
+    var now = new Date();
+    var diff = expireTime - now;
+    var totalSeconds = Math.floor(diff / 1000);
+
+    if (totalSeconds <= 0) {
+      el.textContent = '已过期';
+      if (tile) { tile.classList.remove('forever', 'normal', 'warn'); tile.classList.add('danger'); }
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      return;
+    }
+
+    var days = Math.floor(totalSeconds / 86400);
+    var hours = Math.floor((totalSeconds % 86400) / 3600);
+    var minutes = Math.floor((totalSeconds % 3600) / 60);
+    var seconds = totalSeconds % 60;
+    var text, level;
+
+    if (totalSeconds < 60) {
+      text = '即将过期';
+      level = 'danger';
+    } else if (totalSeconds < 3600) {
+      text = '还剩 ' + minutes + ' 分 ' + pad(seconds) + ' 秒';
+      level = 'danger';
+    } else if (totalSeconds < 86400) {
+      text = '还剩 ' + hours + ' 时 ' + minutes + ' 分 ' + pad(seconds) + ' 秒';
+      level = 'warn';
+    } else {
+      text = '还剩 ' + days + ' 天 ' + hours + ' 时 ' + minutes + ' 分';
+      level = days <= 1 ? 'warn' : 'normal';
+    }
+
+    el.textContent = text;
+    if (tile) { tile.classList.remove('forever', 'normal', 'warn', 'danger'); tile.classList.add(level); }
+  }
+
+  update();
+  if (expireTime > new Date()) {
+    timerId = setInterval(update, 1000);
+  }
 })();
 
 {% if verified %}loadHistory();{% endif %}

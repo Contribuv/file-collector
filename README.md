@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.1.29-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.14-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -192,6 +192,20 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.2.14
+- 修复管理后台删除确认弹窗 XSS（链接标题含 HTML 标签时可注入）
+- 修复收集页预览按钮在文件名含特殊字符时的 onclick 截断问题
+- 修复文件预览页下载链接未转义，URL 含双引号可破坏 HTML 结构
+- 修复管理后台 stripHtml 使用 innerHTML 解析的安全隐患
+- 默认密码 admin123 登录后强制跳转设置页修改，不再仅提醒
+- 频率限制改为 SQLite 存储，多 worker 部署下计数共享
+- 分片上传断点续传增加 IP 校验，防止不同用户传同名文件时串会话
+- 分片上传接口增加频率限制（120次/分钟），防止刷分片占满磁盘
+- SESSION_COOKIE_SECURE 改为环境变量控制，HTTPS 部署时设 SESSION_COOKIE_SECURE=1 启用
+- 获取客户端 IP 优先使用 ProxyFix 修正后的 remote_addr，不再直接取 X-Forwarded-For 首个值
+- 数据库还原接口补全显式 CSRF 校验
+- 收集页和分享页新增到期时间实时倒计时
 
 ### v2.2.13
 - 数据库与日志完整迁入共享目录：DATA_DIR 从 `${TRIM_PKGVAR}/data` 改为 `${TRIM_DATA_SHARE_PATHS}/data`

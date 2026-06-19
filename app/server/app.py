@@ -17,6 +17,7 @@ import uuid
 import sqlite3
 import shutil
 import secrets
+import math
 import logging
 import warnings
 import unicodedata
@@ -118,7 +119,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.13"
+VERSION = "2.2.14"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -141,7 +142,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1, x_port=1, x_
 # 反向代理场景：ProxyFix 修正 request.scheme 后，Flask 内部会正确处理
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # 默认 False，适配大多数反代场景（HTTP 回源）
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'  # HTTPS 部署时设为 1
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 @app.before_request
@@ -454,6 +455,22 @@ def init_db():
         conn.commit()
     except Exception as e:
         print(f"数据库迁移错误(verification_codes): {e}")
+
+    # 3.4 检查并创建 rate_limits 表（基于 SQLite 的频率限制，支持多 worker）
+    try:
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='rate_limits'")
+        if not cursor.fetchone():
+            conn.execute('''
+                CREATE TABLE rate_limits (
+                    key TEXT PRIMARY KEY,
+                    attempts INTEGER DEFAULT 1,
+                    first_attempt REAL NOT NULL
+                )
+            ''')
+            conn.commit()
+            logger.info("已创建 rate_limits 表")
+    except Exception as e:
+        print(f"数据库迁移错误(rate_limits): {e}")
 
     # 4. 检查并创建 user_settings 表（用户级设置）
     try:
@@ -994,31 +1011,58 @@ del _tn, _TEMPLATE_NAMES
 # ============================================================
 # 频率限制 & CSRF 保护
 # ============================================================
-_rate_limits = {}
 _rate_limit_calls = 0
 
 def rate_limit(key, max_attempts=5, window_seconds=60):
-    """简单的内存频率限制（定期清理过期条目防止内存泄漏）"""
+    """基于 SQLite 的频率限制（支持多 worker 部署）
+    
+    将限流计数存储在数据库中，确保 gunicorn 多 worker 场景下计数共享。
+    """
     global _rate_limit_calls
     now = time.time()
     _rate_limit_calls += 1
-    # 每 100 次调用清理一次过期条目
-    if _rate_limit_calls % 100 == 0:
-        expired = [k for k, v in _rate_limits.items() if now - v[1] > window_seconds]
-        for k in expired:
-            del _rate_limits[k]
-
-    if key in _rate_limits:
-        attempts, first = _rate_limits[key]
-        if now - first > window_seconds:
-            _rate_limits[key] = (1, now)
-            return True
-        if attempts >= max_attempts:
-            return False
-        _rate_limits[key] = (attempts + 1, first)
-    else:
-        _rate_limits[key] = (1, now)
-    return True
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT attempts, first_attempt FROM rate_limits WHERE key = ?", (key,)
+        ).fetchone()
+        if row:
+            attempts = row['attempts']
+            first = row['first_attempt']
+            if now - first > window_seconds:
+                # 窗口过期，重置计数
+                conn.execute(
+                    "UPDATE rate_limits SET attempts = 1, first_attempt = ? WHERE key = ?",
+                    (now, key)
+                )
+                conn.commit()
+            elif attempts >= max_attempts:
+                return False
+            else:
+                conn.execute(
+                    "UPDATE rate_limits SET attempts = attempts + 1 WHERE key = ?",
+                    (key,)
+                )
+                conn.commit()
+        else:
+            conn.execute(
+                "INSERT INTO rate_limits (key, attempts, first_attempt) VALUES (?, 1, ?)",
+                (key, now)
+            )
+            conn.commit()
+        # 每 100 次调用清理一次过期条目（防止表膨胀）
+        if _rate_limit_calls % 100 == 0:
+            conn.execute(
+                "DELETE FROM rate_limits WHERE ? - first_attempt > ?",
+                (now, max(window_seconds, 3600))
+            )
+            conn.commit()
+        return True
+    except Exception as e:
+        logger.warning(f"rate_limit 异常，放行请求: {e}")
+        return True
+    finally:
+        conn.close()
 
 def generate_csrf_token():
     """生成 CSRF token"""
@@ -1112,49 +1156,40 @@ def format_file_size(size_bytes):
 def _get_client_ip():
     """获取客户端真实IP
     
-    支持多种反向代理场景：
-    - 普通 HTTP 反向代理（X-Forwarded-For）
-    - Unix Socket 反向代理（remote_addr 为空或特殊值）
-    - 多层反向代理（X-Forwarded-For 包含多个IP）
-    """
-    # 优先从 X-Forwarded-For 获取（支持多层代理）
-    x_forwarded_for = request.headers.get('X-Forwarded-For', '')
-    if x_forwarded_for:
-        # X-Forwarded-For 格式: client, proxy1, proxy2, ...
-        ip = x_forwarded_for.split(',')[0].strip()
-        if ip and ip != 'unknown':
-            return ip
+    ProxyFix(x_for=2) 已正确修正 request.remote_addr，优先使用它。
+    避免直接从 X-Forwarded-For 取第一个值（可被客户端伪造）。
     
-    # 其次检查 X-Real-IP（某些代理使用此头）
+    支持多种反向代理场景：
+    - 普通 HTTP 反向代理（ProxyFix 已修正 remote_addr）
+    - Unix Socket 反向代理（remote_addr 为特殊值时回退）
+    """
+    # 优先使用 ProxyFix 修正后的 remote_addr（已正确处理 X-Forwarded-For 信任链）
+    ip = (request.remote_addr or '').strip()
+    if ip and ip != 'unknown' and not ip.startswith('unix'):
+        return ip
+    
+    # Unix Socket 场景：remote_addr 可能为空或特殊值，回退到其他头
     x_real_ip = request.headers.get('X-Real-IP', '').strip()
     if x_real_ip and x_real_ip != 'unknown':
         return x_real_ip
     
-    # 最后使用 remote_addr（ProxyFix 已修正，或直接连接）
-    ip = (request.remote_addr or '').strip()
-    
-    # Unix Socket 场景：remote_addr 可能为空或特殊值
-    if not ip or ip == 'unknown' or ip.startswith('unix'):
-        # 尝试从其他常见头获取
-        for header in ['X-Client-IP', 'X-Forwarded', 'Forwarded-For', 'Forwarded']:
-            val = request.headers.get(header, '').strip()
-            if val and val != 'unknown':
-                # 处理 Forwarded 头格式: for=192.168.0.1;proto=http;host=example.com
-                if header.lower() == 'forwarded':
-                    for part in val.split(';'):
-                        part = part.strip()
-                        if part.lower().startswith('for='):
-                            ip_val = part[4:].strip()
-                            # 移除可能的引号
-                            if ip_val.startswith(('"', "'")):
-                                ip_val = ip_val[1:-1]
-                            return ip_val
-                else:
-                    return val
-        # 如果都没有，返回一个标识性值
-        return 'unknown'
-    
-    return ip
+    for header in ['X-Client-IP', 'X-Forwarded', 'Forwarded-For', 'Forwarded']:
+        val = request.headers.get(header, '').strip()
+        if val and val != 'unknown':
+            # 处理 Forwarded 头格式: for=192.168.0.1;proto=http;host=example.com
+            if header.lower() == 'forwarded':
+                for part in val.split(';'):
+                    part = part.strip()
+                    if part.lower().startswith('for='):
+                        ip_val = part[4:].strip()
+                        # 移除可能的引号
+                        if ip_val.startswith(('"', "'")):
+                            ip_val = ip_val[1:-1]
+                        return ip_val
+            else:
+                return val
+    # 如果都没有，返回一个标识性值
+    return 'unknown'
 
 def _log_download(record_id, source='admin'):
     """记录下载日志"""
@@ -1234,6 +1269,56 @@ def link_has_passcode(link_id):
 # ============================================================
 
 _DL_TOKEN_TTL = 900  # 令牌有效期 15 分钟
+
+
+def _parse_expire_input(days_str, unit_str, max_days, current_time=None):
+    """将用户输入的天数+单位转换为 expires_at 字符串。
+    返回 (expires_at_str_or_None, error_msg_or_None)"""
+    if not days_str or not days_str.strip():
+        return None, None
+    try:
+        value = int(days_str.strip())
+    except ValueError:
+        return None, None
+    if value <= 0:
+        return None, None
+    unit = (unit_str or '天').strip()
+    if unit == '分钟':
+        total_minutes = value
+    elif unit == '小时':
+        total_minutes = value * 60
+    else:
+        total_minutes = value * 1440
+    max_minutes = max_days * 1440
+    if total_minutes > max_minutes:
+        return None, f'有效期不能超过 {max_days} 天'
+    now = current_time or datetime.now()
+    expires_at = (now + timedelta(minutes=total_minutes)).strftime('%Y-%m-%dT%H:%M')
+    return expires_at, None
+
+
+def _format_expire_for_edit(expires_at_str):
+    """根据 expires_at 反算编辑表单的值+单位+展示字符串。
+    返回 (value_str, unit_str, display_str)"""
+    if not expires_at_str:
+        return '', '天', ''
+    try:
+        et = datetime.strptime(expires_at_str, '%Y-%m-%dT%H:%M')
+        remaining_minutes = (et - datetime.now()).total_seconds() / 60
+        display = et.strftime('%Y-%m-%d %H:%M')
+        if remaining_minutes <= 0:
+            return '', '天', display
+        if remaining_minutes >= 1440 * 2:
+            days = math.ceil(remaining_minutes / 1440)
+            return str(days), '天', display
+        elif remaining_minutes >= 120:
+            hours = math.ceil(remaining_minutes / 60)
+            return str(hours), '小时', display
+        else:
+            mins = max(1, math.ceil(remaining_minutes))
+            return str(mins), '分钟', display
+    except (ValueError, TypeError):
+        return '', '天', ''
 
 def _is_link_public(link, for_share=False):
     """判断链接是否为公开链接（无通行证保护）"""
@@ -1801,10 +1886,13 @@ def admin_required(f):
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
         admin_hash = get_setting('admin_password_hash', '')
-        # 默认密码提醒（仅 flash 提醒，不强制跳转）
+        # 默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
             if request.endpoint not in ('admin_settings', 'admin_logout'):
-                flash('安全提醒：您仍在使用默认密码，建议尽快修改！')
+                if request.path.startswith('/api/'):
+                    return jsonify({'error': '请先修改默认密码'}), 403
+                flash('安全警告：您仍在使用默认密码，请立即修改！', 'error')
+                return redirect(url_for('admin_settings'))
         # 昵称未设置提醒
         if session.get('is_admin'):
             conn = get_db()
@@ -1826,12 +1914,15 @@ def login_required(f):
         if request.method == 'POST':
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
-        # 管理员默认密码提醒（仅 flash 提醒，不强制跳转）
+        # 管理员默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if session.get('is_admin'):
             admin_hash = get_setting('admin_password_hash', '')
             if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
                 if request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
-                    flash('安全提醒：您仍在使用默认密码，建议尽快修改！')
+                    if request.path.startswith('/api/'):
+                        return jsonify({'error': '请先修改默认密码'}), 403
+                    flash('安全警告：您仍在使用默认密码，请立即修改！', 'error')
+                    return redirect(url_for('admin_settings'))
             # 昵称未设置提醒
             conn = get_db()
             user = conn.execute("SELECT nickname FROM users WHERE id = ?", (session['user_id'],)).fetchone()
@@ -2450,8 +2541,8 @@ def share_page(link_id):
             error_title='分享未启用',
             error_message='该链接的分享功能未开启。'), 404
 
-    # 分享页有效期：优先使用独立设置，否则回退到收集页有效期
-    share_expires_at = link.get('share_expires_at') or link.get('expires_at')
+    # 分享页有效期：独立设置，不依赖收集页（留空表示永不过期）
+    share_expires_at = link.get('share_expires_at')
     if share_expires_at:
         try:
             expire_time = datetime.strptime(share_expires_at, '%Y-%m-%dT%H:%M')
@@ -3645,14 +3736,16 @@ def chunk_upload_init(link_id):
             (upload_id, link_id)
         ).fetchone()
 
-        # 如果按 upload_id 找不到，尝试按 文件名+大小 匹配（支持跨页面刷新的断点续传）
+        # 如果按 upload_id 找不到，尝试按 文件名+大小+IP 匹配（支持跨页面刷新的断点续传）
+        # 加 uploader_ip 校验：防止不同用户上传同名同大小文件时跨用户劫持分片会话
         if not existing:
+            client_ip = _get_client_ip()
             existing = conn.execute(
                 """SELECT * FROM chunk_uploads
                    WHERE link_id = ? AND original_name = ? AND total_size = ?
-                   AND status = 'uploading'
+                   AND status = 'uploading' AND uploader_ip = ?
                    ORDER BY updated_at DESC LIMIT 1""",
-                (link_id, filename, file_size_int)
+                (link_id, filename, file_size_int, client_ip)
             ).fetchone()
             if existing:
                 upload_id = existing['upload_id']  # 使用已存在的 upload_id
@@ -3742,7 +3835,10 @@ def chunk_upload(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
 
-    # 分片上传不限频（无"暴力破解"攻击面；安全由 CSRF + upload_id + 通行证保证）
+    # 分片上传频率限制（防止恶意刷分片耗尽磁盘临时空间）
+    client_ip = _get_client_ip()
+    if not rate_limit(f'chunk_upload_{client_ip}', max_attempts=120, window_seconds=60):
+        return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
 
     upload_id = request.form.get('upload_id', '').strip()
     chunk_index_str = request.form.get('chunk_index', '').strip()
@@ -5162,13 +5258,26 @@ def admin_link_form(link_id):
         return redirect(url_for('admin_links'))
 
     link_dict = dict(link)
-    # 计算分享页有效期天数（用于编辑表单回显）
-    if link_dict.get('share_expires_at'):
-        try:
-            et = datetime.strptime(link_dict['share_expires_at'], '%Y-%m-%dT%H:%M')
-            link_dict['_share_expire_days'] = max(1, (et - datetime.now()).days + 1)
-        except (ValueError, TypeError):
-            link_dict['_share_expire_days'] = ''
+    # 编辑表单回显：收集页有效期 → 反算天数+单位
+    if link_dict.get('expires_at'):
+        val_str, unit_str, display_str = _format_expire_for_edit(link_dict['expires_at'])
+        link_dict['_expire_days_value'] = val_str
+        link_dict['_expire_unit'] = unit_str
+        link_dict['_expires_display'] = display_str
+    else:
+        link_dict['_expire_days_value'] = ''
+        link_dict['_expire_unit'] = '天'
+        link_dict['_expires_display'] = ''
+    # 编辑表单回显：分享页有效期 → 反算天数+单位
+    if link_dict.get('share_expires_at') and link_dict['share_expires_at']:
+        val_str, unit_str, display_str = _format_expire_for_edit(link_dict['share_expires_at'])
+        link_dict['_share_expire_days_value'] = val_str
+        link_dict['_share_expire_unit'] = unit_str
+        link_dict['_share_expires_display'] = display_str
+    else:
+        link_dict['_share_expire_days_value'] = ''
+        link_dict['_share_expire_unit'] = '天'
+        link_dict['_share_expires_display'] = ''
 
     user_id = session.get('user_id')
     return render_template('admin_link_form.html',
@@ -5218,37 +5327,13 @@ def create_link():
         flash(str(e) if '必须' in str(e) else '数字格式错误')
         return redirect(url_for('admin_links'))
 
-    expires_at = request.form.get('expires_at', '').strip()
     _max_expire_days = int(get_user_setting(session.get('user_id'), 'default_link_expire_days', '30'))
-    if not expires_at:
-        expire_days = request.form.get('expire_days', '').strip()
-        if expire_days:
-            try:
-                days = int(expire_days)
-                if days == 0:
-                    expires_at = None
-                elif 1 <= days <= _max_expire_days:
-                    expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
-                else:
-                    flash(f'有效期天数必须在 0-{_max_expire_days} 天之间')
-                    return redirect(url_for('admin_links'))
-            except ValueError:
-                pass
-    elif expires_at:
-        # 验证日期格式和合法性（万年历校验）
-        try:
-            parsed = datetime.strptime(expires_at, '%Y-%m-%dT%H:%M')
-            now = datetime.now()
-            max_date = now + timedelta(days=_max_expire_days)
-            if parsed <= now:
-                flash('截止日期必须晚于当前时间')
-                return redirect(url_for('admin_links'))
-            if parsed > max_date:
-                flash(f'截止日期不能超过 {_max_expire_days} 天')
-                return redirect(url_for('admin_links'))
-        except ValueError:
-            flash('日期格式无效，请使用日历选择器选择日期时间')
-            return redirect(url_for('admin_links'))
+    expire_days_val = request.form.get('expire_days', '').strip()
+    expire_unit = request.form.get('expire_unit', '天').strip()
+    expires_at, err = _parse_expire_input(expire_days_val, expire_unit, _max_expire_days)
+    if err:
+        flash(err)
+        return redirect(url_for('admin_links'))
 
     link_id = generate_link_id()
     
@@ -5295,25 +5380,10 @@ def create_link():
         share_description = sanitize_html(request.form.get('share_description', ''))
     except Exception:
         share_description = request.form.get('share_description', '')
-    # 分享页独立有效期（天数）
+    # 分享页独立有效期（天数+单位）
     share_expire_days = request.form.get('share_expire_days', '').strip()
-    share_expires_at = None
-    if share_expire_days:
-        try:
-            sd = int(share_expire_days)
-            if sd > 0 and sd <= _max_expire_days:
-                share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
-        except ValueError:
-            pass
-    # 分享页独立截止日期（优先级高于天数）
-    share_expires_at_raw = request.form.get('share_expires_at', '').strip()
-    if share_expires_at_raw:
-        try:
-            parsed = datetime.strptime(share_expires_at_raw, '%Y-%m-%dT%H:%M')
-            if parsed > datetime.now() and parsed <= datetime.now() + timedelta(days=_max_expire_days):
-                share_expires_at = share_expires_at_raw
-        except ValueError:
-            pass
+    share_expire_unit = request.form.get('share_expire_unit', '天').strip()
+    share_expires_at, _share_err = _parse_expire_input(share_expire_days, share_expire_unit, _max_expire_days)
     # 收集页开关
     collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
     require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
@@ -5420,40 +5490,22 @@ def edit_link(link_id):
             flash('标题不能为空')
             return redirect(url_for('admin_links'))
 
-        expires_at = request.form.get('expires_at', '').strip()
-        clear_expiry = request.form.get('clear_expiry') == '1'
         _max_expire_days = int(get_user_setting(session.get('user_id'), 'default_link_expire_days', '30'))
+        clear_expiry = request.form.get('clear_expiry') == '1'
         if clear_expiry:
             expires_at = None
-        elif not expires_at:
-            expire_days = request.form.get('expire_days', '').strip()
-            if expire_days:
-                try:
-                    days = int(expire_days)
-                    if days == 0:
-                        expires_at = None
-                    elif 1 <= days <= _max_expire_days:
-                        expires_at = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
-                    else:
-                        flash(f'有效期天数必须在 0-{_max_expire_days} 天之间')
-                        return redirect(url_for('admin_links'))
-                except ValueError:
-                    pass
-        elif expires_at:
-            # 验证日期格式和合法性
-            try:
-                parsed = datetime.strptime(expires_at, '%Y-%m-%dT%H:%M')
-                now = datetime.now()
-                max_date = now + timedelta(days=_max_expire_days)
-                if parsed <= now:
-                    flash('截止日期必须晚于当前时间')
-                    return redirect(url_for('admin_links'))
-                if parsed > max_date:
-                    flash(f'截止日期不能超过 {_max_expire_days} 天')
-                    return redirect(url_for('admin_links'))
-            except ValueError:
-                flash('日期格式无效，请使用日历选择器选择日期时间')
+            share_expires_at = None
+        else:
+            expire_days_val = request.form.get('expire_days', '').strip()
+            expire_unit = request.form.get('expire_unit', '天').strip()
+            expires_at, err = _parse_expire_input(expire_days_val, expire_unit, _max_expire_days)
+            if err:
+                flash(err)
                 return redirect(url_for('admin_links'))
+            # 分享页独立有效期（天数+单位，独立设置不受收集页影响）
+            share_expire_days_edit = request.form.get('share_expire_days', '').strip()
+            share_expire_unit = request.form.get('share_expire_unit', '天').strip()
+            share_expires_at, _share_err2 = _parse_expire_input(share_expire_days_edit, share_expire_unit, _max_expire_days)
 
         conn = get_db()
         allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
@@ -5480,27 +5532,6 @@ def edit_link(link_id):
             share_description = sanitize_html(request.form.get('share_description', ''))
         except Exception:
             share_description = request.form.get('share_description', '')
-        # 分享页独立有效期（天数优先，日期可覆盖，与创建路由逻辑一致）
-        share_expire_days_edit = request.form.get('share_expire_days', '').strip()
-        share_expires_at = None
-        if share_expire_days_edit:
-            try:
-                sd = int(share_expire_days_edit)
-                if 0 < sd <= _max_expire_days:
-                    share_expires_at = (datetime.now() + timedelta(days=sd)).strftime('%Y-%m-%dT%H:%M')
-                elif sd == 0:
-                    share_expires_at = None  # 清除
-            except ValueError:
-                pass
-        # 分享页独立截止日期（优先级高于天数）
-        share_expires_at_raw = request.form.get('share_expires_at', '').strip()
-        if share_expires_at_raw:
-            try:
-                parsed = datetime.strptime(share_expires_at_raw, '%Y-%m-%dT%H:%M')
-                if parsed > datetime.now() and parsed <= datetime.now() + timedelta(days=_max_expire_days):
-                    share_expires_at = share_expires_at_raw
-            except ValueError:
-                pass
         # 收集页开关
         collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
         require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
@@ -6574,6 +6605,9 @@ def backup_database():
 @admin_required
 def restore_database():
     """导入数据库备份"""
+    if not validate_csrf():
+        flash('安全验证失败，请刷新页面重试')
+        return redirect(url_for('admin_settings'))
     if 'db_file' not in request.files:
         flash('请选择数据库文件')
         return redirect(url_for('admin_settings'))

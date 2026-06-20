@@ -61,6 +61,37 @@
 
 ---
 
+## 界面预览
+
+<table>
+  <tr>
+    <td align="center"><b>首页</b></td>
+    <td align="center"><b>登录</b></td>
+  </tr>
+  <tr>
+    <td><img src="首页.png" alt="首页" width="400"></td>
+    <td><img src="登陆.png" alt="登录" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>收集页</b></td>
+    <td align="center"><b>带通行证-收集页</b></td>
+  </tr>
+  <tr>
+    <td><img src="收集页.png" alt="收集页" width="400"></td>
+    <td><img src="带通行证-收集页.png" alt="带通行证-收集页" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>带上传者-收集页</b></td>
+    <td align="center"><b>分享页</b></td>
+  </tr>
+  <tr>
+    <td><img src="带上传者-收集页.png" alt="带上传者-收集页" width="400"></td>
+    <td><img src="分享页.png" alt="分享页" width="400"></td>
+  </tr>
+</table>
+
+---
+
 ## 快速开始
 
 ### 方式一：fnOS 应用商店安装

@@ -119,7 +119,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.15"
+VERSION = "2.2.16"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1209,9 +1209,9 @@ def _log_download(record_id, source='admin'):
         conn = get_db()
         ua = (request.headers.get('User-Agent', '') or '')[:512]
         conn.execute(
-            """INSERT INTO download_logs (record_id, downloader_ip, source, user_agent)
-               VALUES (?, ?, ?, ?)""",
-            (record_id, _get_client_ip(), source, ua)
+            """INSERT INTO download_logs (record_id, downloader_ip, downloaded_at, source, user_agent)
+               VALUES (?, ?, ?, ?, ?)""",
+            (record_id, _get_client_ip(), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), source, ua)
         )
         conn.commit()
         conn.close()
@@ -1224,9 +1224,10 @@ def _log_upload(link_id, event, record_id=None, details=None, success=1, uploade
         conn = get_db()
         detail_str = json.dumps(details, ensure_ascii=False) if isinstance(details, dict) else (details or '')
         conn.execute(
-            """INSERT INTO upload_logs (record_id, link_id, uploader_ip, event, details, success, uploader_name)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (record_id, link_id, _get_client_ip(), event, detail_str, success, uploader_name)
+            """INSERT INTO upload_logs (record_id, link_id, uploader_ip, event, event_time, details, success, uploader_name)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (record_id, link_id, _get_client_ip(), event,
+             datetime.now().strftime('%Y-%m-%d %H:%M:%S'), detail_str, success, uploader_name)
         )
         conn.commit()
         conn.close()
@@ -3805,7 +3806,19 @@ def chunk_upload_init(link_id):
                 'uploaded_chunks': uploaded
             })
         else:
-            # 新建会话
+            # 新建会话前检查并发上传会话数（防止恶意刷会话耗尽磁盘）
+            client_ip = _get_client_ip()
+            active_count = conn.execute(
+                """SELECT COUNT(*) FROM chunk_uploads
+                   WHERE uploader_ip = ? AND status = 'uploading'
+                   AND updated_at > datetime('now', '-2 hours')""",
+                (client_ip,)
+            ).fetchone()[0]
+            if active_count >= 10:
+                return jsonify({
+                    'success': False,
+                    'message': '同时上传的任务过多，请等待已有上传完成后再试'
+                }), 429
             conn.execute(
                 """INSERT INTO chunk_uploads
                    (upload_id, link_id, user_id, original_name, stored_name,
@@ -3813,7 +3826,7 @@ def chunk_upload_init(link_id):
                     uploader_ip)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)""",
                 (upload_id, link_id, link['user_id'] or '', filename, safe_name,
-                 file_size_int, chunk_size_int, total_chunks, '[]', _get_client_ip())
+                 file_size_int, chunk_size_int, total_chunks, '[]', client_ip)
             )
             conn.commit()
             _log_upload(link_id, 'chunk_init',
@@ -3847,10 +3860,8 @@ def chunk_upload(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'}), 403
 
-    # 分片上传频率限制（防止恶意刷分片耗尽磁盘临时空间）
-    client_ip = _get_client_ip()
-    if not rate_limit(f'chunk_upload_{client_ip}', max_attempts=120, window_seconds=60):
-        return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
+    # 不对单个分片请求做频率限制（3并发上传大文件时5秒内可发上百个分片）
+    # 改为在 chunk_init 阶段限制每个 IP 同时进行的上传会话数
 
     upload_id = request.form.get('upload_id', '').strip()
     chunk_index_str = request.form.get('chunk_index', '').strip()

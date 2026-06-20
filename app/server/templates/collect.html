@@ -657,20 +657,31 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
 
   if (pendingChunks.length === 0 && uploadedChunks.length === totalChunks) {
     updateProgress(totalChunks);
+    if (progressText) progressText.innerHTML = '<span>正在合并分片...</span><span>请稍候</span>';
+    if (speedText) speedText.innerHTML = '';
     var mergeRes = await doMergeWithRetry(uploadId, file, totalChunks);
     removeUploadIdForFile(file);
     return mergeRes;
   }
 
   var completed = uploadedChunks.length, queue = pendingChunks.slice(), errors = [];
+  var activeWorkers = 0, resolved = false;
   await new Promise(function(resolveQueue, rejectQueue) {
+    function checkDone() {
+      // 所有分片已派出且全部返回结果后才 resolve
+      if (queue.length === 0 && activeWorkers === 0 && !resolved) {
+        resolved = true;
+        resolveQueue();
+      }
+    }
     function processNext() {
       if (isUploadPaused) return;
-      if (queue.length === 0) { resolveQueue(); return; }
+      if (queue.length === 0) { checkDone(); return; }
       var chunkIdx = queue.shift();
+      activeWorkers++;
       uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks)
-        .then(function(r) { if (r && !r.skipped) { completed++; var cb = chunkIdx < totalChunks - 1 ? CHUNK_SIZE : file.size - (totalChunks - 1) * CHUNK_SIZE; recordSpeed(cb); } updateProgress(completed); processNext(); })
-        .catch(function(err) { errors.push({chunk: chunkIdx, error: err.message}); if (errors.length > 10) { rejectQueue(new Error('多个分片失败')); return; } processNext(); });
+        .then(function(r) { if (r && !r.skipped) { completed++; var cb = chunkIdx < totalChunks - 1 ? CHUNK_SIZE : file.size - (totalChunks - 1) * CHUNK_SIZE; recordSpeed(cb); } updateProgress(completed); activeWorkers--; processNext(); })
+        .catch(function(err) { errors.push({chunk: chunkIdx, error: err.message}); if (errors.length > 10) { if (!resolved) { resolved = true; rejectQueue(new Error('多个分片失败')); } return; } activeWorkers--; processNext(); });
     }
     var workers = Math.min(CHUNK_MAX_CONCURRENT, queue.length);
     for (var w = 0; w < workers; w++) processNext();
@@ -678,6 +689,8 @@ async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
 
   if (errors.length > 0) throw new Error(errors.length + ' 个分片失败');
   updateProgress(totalChunks);
+  if (progressText) progressText.innerHTML = '<span>正在合并分片...</span><span>请稍候</span>';
+  if (speedText) speedText.innerHTML = '';
   var result = await doMergeWithRetry(uploadId, file, totalChunks);
   removeUploadIdForFile(file);
   return result;

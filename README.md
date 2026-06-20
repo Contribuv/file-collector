@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.15-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.16-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -192,6 +192,12 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.2.16
+- 修复分片上传合并时偶发缺失分片的问题（并发上传队列提前 resolve 竞态条件）
+- 分片上传到 100% 后显示"正在合并分片"提示，不再卡住无反馈
+- 修复上传日志和下载日志时间显示为 UTC 时间的问题（慢 8 小时）
+- 分片上传频率限制改为并发会话数限制，不再误杀正常大文件上传
 
 ### v2.2.15
 - 修复 Nginx 反代和 Unix Socket 反代场景下获取不到用户真实 IP 的问题

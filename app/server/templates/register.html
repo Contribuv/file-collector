@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block body_class %} auth-layout{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block title %}用户注册{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+    </div>
+    <h1>{{ config_title|default('文件收集器') }}</h1>
+    <p class="auth-subtitle">创建新账户</p>
+
+    {% if error %}
+    <div class="auth-tip auth-tip--err">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="auth-tip auth-tip--ok">{{ success }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('register') }}" onsubmit="return validateForm()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      
+      <div class="form-group">
+        <label class="form-label" for="username">用户名</label>
+        <input type="text" id="username" name="username" class="form-input" placeholder="3-20位字母、数字或下划线" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">密码</label>
+        <input type="password" id="password" name="password" class="form-input" placeholder="至少8位，包含字母和数字" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="confirm_password">确认密码</label>
+        <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="再次输入密码" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">邮箱 <span style="color:#ef4444;">*</span></label>
+        <input type="email" id="email" name="email" class="form-input" placeholder="请输入您的邮箱地址" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="invite_code">邀请码</label>
+        <input type="text" id="invite_code" name="invite_code" class="form-input" placeholder="请输入管理员提供的邀请码" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">注册</button>
+    </form>
+
+    <div class="auth-extra">
+      已有账号？<a href="{{ url_for('admin_login') }}">立即登录</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.auth-logo { text-align: center; margin-bottom: 20px; }
+.auth-logo img { width: 48px; height: 48px; border-radius: 10px; }
+.auth-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
+.auth-subtitle { color: #86868b; margin-bottom: 28px; }
+.auth-extra {
+  margin-top: 18px; text-align: center; font-size: .85rem; color: #86868b;
+}
+.auth-extra a { color: var(--c-primary); font-weight: 500; }
+.auth-extra a:hover { text-decoration: underline; }
+.auth-tip {
+  margin-bottom: 20px; padding: 10px 14px; border-radius: 8px;
+  font-size: .8rem; text-align: center; border: 1px solid;
+}
+.auth-tip--err { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.auth-tip--ok { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function validateForm() {
+  var username = document.getElementById('username').value;
+  var password = document.getElementById('password').value;
+  var confirm_password = document.getElementById('confirm_password').value;
+  var email = document.getElementById('email').value.trim();
+  var invite_code = document.getElementById('invite_code').value;
+
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+    alert('用户名格式错误：需由3-20个字母、数字或下划线组成');
+    return false;
+  }
+  if (!email || email.indexOf('@') < 0) {
+    alert('请输入有效的邮箱地址');
+    return false;
+  }
+  if (password.length < 8) {
+    alert('密码长度不足：至少需要8位');
+    return false;
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    alert('密码格式错误：必须同时包含字母和数字');
+    return false;
+  }
+  if (password !== confirm_password) {
+    alert('两次输入的密码不一致');
+    return false;
+  }
+  if (!invite_code.trim()) {
+    alert('请输入邀请码');
+    return false;
+  }
+  return true;
+}
+</script>
+{% endblock %}

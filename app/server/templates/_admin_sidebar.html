@@ -1,0 +1,11 @@
+<nav class="sidebar-nav">
+  <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' }}">信息面板</a>
+  <a href="{{ url_for('admin_links') }}" class="{{ 'active' if request.endpoint == 'admin_links' }}">收集链接</a>
+  <a href="{{ url_for('admin_records') }}" class="{{ 'active' if request.endpoint == 'admin_records' }}">文件记录</a>
+  {% if session.is_admin %}
+  <a href="{{ url_for('admin_users') }}" class="{{ 'active' if request.endpoint in ('admin_users', 'admin_user_create') }}">用户管理</a>
+  <a href="{{ url_for('admin_settings') }}" class="{{ 'active' if request.endpoint == 'admin_settings' }}">收集设置</a>
+  {% else %}
+  <a href="{{ url_for('user_settings') }}" class="{{ 'active' if request.endpoint == 'user_settings' }}">个人设置</a>
+  {% endif %}
+</nav>

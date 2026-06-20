@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>{{ site_title }}</title>
+<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body>
+  <div class="landing-card">
+    <img class="landing-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+    <h1>{{ site_title }}</h1>
+    <p>简单高效的文件收集工具，适用于团队协作、作业收集、资料汇总等场景。</p>
+    <a class="landing-btn" href="{{ url_for('admin_dashboard') }}">进入管理后台</a>
+    <div class="landing-footer">fnOS 应用</div>
+  </div>
+</body>
+</html>

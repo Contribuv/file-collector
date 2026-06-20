@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+{% block title %}链接管理{% endblock %}
+
+{% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card links-card">
+      <div class="links-header">
+        <div class="links-header-left">
+          <h3 class="links-header-title">收集链接</h3>
+          <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
+        </div>
+        <a href="{{ url_for('admin_link_new') }}" class="btn btn-primary btn-create-link">＋ 创建收集链接</a>
+      </div>
+      <div class="table-wrap">
+        {% if links %}
+        <table class="admin-table admin-links-table">
+          <thead>
+            <tr>
+              <th class="col-title">收集名称</th>
+              <th class="col-share">分享</th>
+              <th class="col-hide-mobile col-limit">限制</th>
+              <th class="col-status">状态</th>
+              <th class="col-hide-mobile col-time">创建</th>
+              <th class="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for link in links %}
+            <tr>
+              <td class="col-title">{{ link['title'] }}</td>
+              <td class="col-share">
+                {% if link['share_enabled'] and link['status'] == 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  已开启
+                </span>
+                {% elif link['share_enabled'] and link['status'] != 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#d97706;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  随链接停用
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  未开启
+                </span>
+                {% endif %}
+              </td>
+              <td class="col-hide-mobile col-limit" style="color:var(--c-text-soft);font-size:.82rem;">
+                {% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}
+              </td>
+              <td class="col-status">
+                {% if link['status'] == 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  已启用
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  已停用
+                </span>
+                {% endif %}
+                {% if link['expires_at'] %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;visibility:hidden;" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="transparent" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                {% endif %}
+              </td>
+              <td class="col-hide-mobile col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
+              <td class="col-act">
+                {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
+                {% set need_reset = '1' if link['_is_legacy'] else '0' %}
+                {% set share_pass_text = link['share_passcode_plain'] if link['_has_share_passcode'] else '' %}
+                {% set share_need_reset = '1' if link['_is_share_legacy'] else '0' %}
+                <button class="btn btn-sm btn-outline btn-more-link" title="更多操作"
+                  onclick="showLinkPopover(this)"
+                  data-link-id="{{ link['id'] }}"
+                  data-title="{{ link['title']|e }}"
+                  data-description="{{ link['description']|e if link['description'] else '' }}"
+                  data-status="{{ link['status'] }}"
+                  data-max-files="{{ link['max_files'] }}"
+                  data-max-size-gb="{{ link['max_file_size_gb'] }}"
+                  data-expires-at="{{ link['expires_at'] or '' }}"
+                  data-created-at="{{ link['created_at'] }}"
+                  data-creator="{{ link['creator_name']|e }}"
+                  data-passcode="{{ pass_text }}"
+                  data-has-passcode="{{ link['_has_passcode']|lower }}"
+                  data-is-legacy="{{ need_reset }}"
+                  data-share-passcode="{{ share_pass_text }}"
+                  data-has-share-passcode="{{ link['_has_share_passcode']|lower }}"
+                  data-is-share-legacy="{{ share_need_reset }}"
+                  data-allow-delete="{{ link['allow_delete'] }}"
+                  data-allow-preview-download="{{ link['allow_preview_download'] }}"
+                  data-collect-slug="{{ link['collect_slug'] or '' }}"
+                  data-share-slug="{{ link['share_slug'] or '' }}">操作</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建收集链接」开始使用</p></div>
+        {% endif %}
+      </div>
+      {% if total_pages > 1 %}
+      <div class="card-footer">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_links', page=page-1) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_links', page=page+1) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 链接浮窗遮罩层 -->
+<div id="link-popover-overlay" class="link-popover-overlay" style="display:none;" onclick="closeLinkPopover()"></div>
+<!-- 链接浮窗 -->
+<div id="link-popover" class="link-popover" style="display:none;">
+  <div class="link-popover-header">
+    <strong id="lp-title"></strong>
+    <button class="link-popover-close" onclick="closeLinkPopover()">&times;</button>
+  </div>
+  <div class="link-popover-info" id="lp-info"></div>
+  <div class="link-popover-actions" id="lp-actions"></div>
+</div>
+
+{# --- 删除确认模态框 --- #}
+<div class="modal-overlay" id="delete-confirm-modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header"><h3>确认删除</h3></div>
+    <div class="modal-body">
+      <p id="delete-confirm-text" style="margin:0;line-height:1.6;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeDeleteConfirm()">取消</button>
+      <button class="btn btn-sm btn-danger" id="delete-confirm-btn" onclick="confirmDeleteLink()">确认删除</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* 链接管理页卡片头部 */
+.links-card { overflow: hidden; }
+
+.links-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--c-border, #e8ecf1);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.links-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.links-header-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--c-text, #1a1d28);
+  letter-spacing: -0.01em;
+}
+
+.links-header-stats {
+  font-size: 0.78rem;
+  color: #8896a4;
+  white-space: nowrap;
+}
+
+.btn-create-link {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+/* 更多按钮 */
+.btn-more-link {
+  background: transparent;
+  color: var(--c-primary);
+  border: 1px solid var(--c-primary);
+  font-size: 0.8rem;
+  padding: 3px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-more-link:hover { background: var(--c-primary-light); }
+.btn-more-link.active { background: var(--c-primary); color: #fff; }
+
+/* PC端 /admin/links 表格 */
+.admin-links-table { table-layout: auto; }
+.admin-links-table th, .admin-links-table td { font-size: .82rem; }
+.admin-links-table .col-title { width: auto; min-width: 0; }
+.admin-links-table .col-share { white-space: nowrap; width: 1px; }
+.admin-links-table .col-status { white-space: nowrap; text-align: left; width: 1px; }
+.admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
+.admin-links-table th.col-act { padding-right: 26px; }
+.admin-links-table th { font-weight: 600; color: var(--c-text-soft, #6b7280); }
+
+/* 移动端 */
+@media (max-width: 640px) {
+  .links-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+  .links-header-left { width: 100%; }
+  .links-header-title { font-size: 1.05rem; }
+  .btn-create-link { width: 100%; text-align: center; }
+  .col-hide-mobile { display: none !important; }
+  .admin-links-table { table-layout: auto; }
+  .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
+  .col-title { width: auto; min-width: 0; }
+  .col-share, .col-status { white-space: nowrap; width: 1px; font-size: .72rem !important; }
+  .col-share span, .col-status span { font-size: .7rem !important; }
+  .col-share span svg, .col-status span svg { width: 11px; height: 11px; }
+  .col-act { white-space: nowrap; text-align: right; width: 1px; }
+  .admin-links-table th.col-act { padding-right: 22px; }
+}
+
+/* 浮窗遮罩 */
+.link-popover-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 浮窗 */
+.link-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  animation: popoverCenterIn 0.25s ease;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.link-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+  border-radius: 16px 16px 0 0;
+}
+.link-popover-header strong {
+  font-size: 1rem;
+  color: var(--c-text);
+  word-break: break-all;
+  padding-right: 8px;
+}
+.link-popover-close {
+  background: none; border: none; font-size: 22px; color: #aaa; cursor: pointer;
+  padding: 0; width: 30px; height: 30px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.link-popover-close:hover { background: #f0f0f0; color: #666; }
+
+.link-popover-info {
+  padding: 12px 18px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.link-popover-info .lp-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.link-popover-info .lp-row .lp-label {
+  color: #999;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+.link-popover-info .lp-row .lp-val {
+  color: #333;
+  flex: 1;
+  word-break: break-all;
+}
+.link-popover-info .lp-row .lp-val.lp-desc {
+  color: #666;
+  font-size: .76rem;
+  overflow-y: auto;
+}
+
+.link-popover-actions { padding: 6px 0; }
+.link-popover-actions .lp-action-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 20px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: .85rem;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid #fafafa;
+}
+.link-popover-actions .lp-action-btn:last-child { border-bottom: none; }
+.link-popover-actions .lp-action-btn:hover { background: #f5f7fa; }
+.link-popover-actions .lp-action-btn.primary { color: var(--c-primary); }
+.link-popover-actions .lp-action-btn.warning { color: #d97706; }
+.link-popover-actions .lp-action-btn.danger { color: #dc2626; }
+.link-popover-actions .lp-action-btn.danger:hover { background: #fef2f2; }
+.link-popover-actions form { margin: 0; }
+.link-popover-actions form .lp-action-btn { width: 100%; }
+.link-popover-actions .lp-action-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 16px;
+}
+
+.lp-action-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+}
+.lp-action-row .lp-action-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  border-bottom: none;
+  white-space: nowrap;
+  min-width: 0;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lp-action-row .lp-action-btn svg {
+  margin-right: 4px !important;
+  flex-shrink: 0;
+}
+.lp-action-row .lp-action-btn.primary { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.lp-action-row .lp-action-btn.primary:hover { background: #e0e7ff; }
+.lp-action-row .lp-action-btn.warning { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.lp-action-row .lp-action-btn.warning:hover { background: #ffedd5; }
+.lp-action-row .lp-action-btn.danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.lp-action-row .lp-action-btn.danger:hover { background: #fee2e2; }
+.lp-action-row .lp-action-btn.edit { background: #ecfdf5; border-color: #a7f3d0; color: #059669; }
+.lp-action-row .lp-action-btn.edit:hover { background: #d1fae5; }
+.lp-action-row form {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.lp-action-row form .lp-action-btn { width: 100%; }
+
+@media (max-width: 640px) {
+  .link-popover {
+    width: calc(100vw - 24px);
+    border-radius: 18px;
+  }
+  .link-popover-header { padding: 14px 16px; }
+  .link-popover-header strong { font-size: .95rem; }
+  .link-popover-info { padding: 10px 16px; }
+  .link-popover-info .lp-row { font-size: .78rem; }
+  .link-popover-actions .lp-action-btn:not(.lp-action-row .lp-action-btn) { padding: 12px 18px; font-size: .84rem; }
+  .lp-action-row { gap: 4px; padding: 5px 8px; }
+  .lp-action-row .lp-action-btn { font-size: 0.76rem; padding: 10px 4px; }
+  .lp-action-row .lp-action-btn svg { width: 14px; height: 14px; margin-right: 2px !important; }
+}
+
+/* 模态弹窗（删除确认等） */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1200; padding: 20px;
+}
+.modal-content {
+  background: #fff; border-radius: 12px; max-width: 400px; width: 100%;
+  overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex; flex-direction: column;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--c-border, #e5e7eb);
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; color: var(--c-text, #1a1d28); }
+.modal-body {
+  padding: 20px; overflow-y: auto; flex: 1; min-height: 0;
+}
+.modal-body p { line-height: 1.8; margin: 0; color: var(--c-text, #1a1d28); }
+.modal-footer {
+  padding: 16px 20px; border-top: 1px solid var(--c-border, #e5e7eb);
+  text-align: right; flex-shrink: 0;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.btn-danger { background: #dc2626; color: #fff; border: none; }
+.btn-danger:hover { background: #b91c1c; }
+
+@media (max-width: 640px) {
+  .modal-overlay { padding: 10px; }
+  .modal-content { border-radius: 8px; max-width: calc(100vw - 20px); }
+  .modal-body { padding: 16px; }
+  .modal-header { padding: 12px 16px; }
+  .modal-footer { padding: 12px 16px; }
+}
+</style>
+
+<script>
+var _lpBtn = null;
+var adminLinkUploadLogsUrl = {{ url_for('admin_link_upload_logs', link_id='LID_PLACEHOLDER')|tojson }};
+
+function getBaseUrl() {
+  var pu = {{ public_url|tojson }};
+  if (pu) {
+    pu = String(pu).trim();
+    if (pu && !pu.endsWith('/')) pu += '/';
+    if (pu) return pu;
+  }
+  var origin = window.location.origin;
+  if (!origin.endsWith('/')) origin += '/';
+  return origin;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { showToast('已复制'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('已复制');
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeJs(str) {
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n');
+}
+
+function stripHtml(html) {
+  return String(html).replace(/<[^>]*>/g, '');
+}
+
+/* ==================== 浮窗 ==================== */
+
+function showLinkPopover(btn) {
+  if (_lpBtn === btn) { closeLinkPopover(); return; }
+  closeLinkPopover();
+
+  _lpBtn = btn;
+  btn.classList.add('active');
+
+  var d = {
+    linkId:   btn.getAttribute('data-link-id'),
+    collectSlug: btn.getAttribute('data-collect-slug') || '',
+    shareSlug: btn.getAttribute('data-share-slug') || '',
+    title:    btn.getAttribute('data-title'),
+    desc:     btn.getAttribute('data-description'),
+    status:   btn.getAttribute('data-status'),
+    maxFiles: btn.getAttribute('data-max-files'),
+    maxSizeGb:btn.getAttribute('data-max-size-gb'),
+    expiresAt:btn.getAttribute('data-expires-at'),
+    createdAt:btn.getAttribute('data-created-at'),
+    creator:  btn.getAttribute('data-creator') || '未知用户',
+    passcode: btn.getAttribute('data-passcode'),
+    hasPasscode: btn.getAttribute('data-has-passcode') === 'true',
+    isLegacy: btn.getAttribute('data-is-legacy') === '1',
+    sharePasscode: btn.getAttribute('data-share-passcode'),
+    hasSharePasscode: btn.getAttribute('data-has-share-passcode') === 'true',
+    isShareLegacy: btn.getAttribute('data-is-share-legacy') === '1',
+    allowDelete: btn.getAttribute('data-allow-delete') === '1',
+    allowPreviewDownload: btn.getAttribute('data-allow-preview-download') === '1',
+    csrfToken: document.querySelector('input[name="csrf_token"]').value
+  };
+
+  var isActive = d.status === 'active';
+  var statusText = isActive ? '<span style="color:#059669;">● 已启用</span>' : '<span style="color:#999;">● 已停用</span>';
+
+  var limitText;
+  if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }
+  else { limitText = d.maxFiles + ' 个'; }
+  limitText += ' / ';
+  if (parseFloat(d.maxSizeGb) < 1) {
+    limitText += Math.round(parseFloat(d.maxSizeGb) * 1024) + ' MB';
+  } else {
+    limitText += d.maxSizeGb + ' GB';
+  }
+
+  var expireText;
+  if (d.expiresAt) {
+    expireText = '<span style="color:#f59e0b;">' + escapeHtml(d.expiresAt.replace('T',' ')) + '</span>';
+  } else {
+    expireText = '<span style="color:#999;">永不过期</span>';
+  }
+
+  var descPlain = d.desc ? stripHtml(d.desc).replace(/\s+/g, ' ').trim() : '';
+  if (descPlain.length > 80) descPlain = descPlain.substring(0, 80) + '...';
+  var descHtml = descPlain ? '<div class="lp-row"><span class="lp-label">描述</span><span class="lp-val lp-desc">' + escapeHtml(descPlain) + '</span></div>' : '';
+
+  document.getElementById('lp-title').textContent = d.title;
+  document.getElementById('lp-info').innerHTML =
+    '<div class="lp-row"><span class="lp-label">状态</span><span class="lp-val">' + statusText + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">限制</span><span class="lp-val">' + escapeHtml(limitText) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">有效期</span><span class="lp-val">' + expireText + '</span></div>' +
+    descHtml +
+    '<div class="lp-row"><span class="lp-label">创建</span><span class="lp-val" style="font-size:.76rem;color:#999;">' + escapeHtml(d.createdAt) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="' + adminLinkUploadLogsUrl.replace('LID_PLACEHOLDER', d.linkId) + '" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
+    '<div class="lp-row"><span class="lp-label">收集预览</span><span class="lp-val">' + (d.allowPreviewDownload ? '<span style="color:#059669;">已开启</span>' : '<span style="color:#999;">未开启</span>') + '</span></div>';
+
+  var toggleLabel = isActive ? '停用链接' : '启用链接';
+  var toggleClass = isActive ? 'warning' : 'primary';
+  var html = '';
+
+  var svgCopy = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  var svgDownload = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  var svgEdit = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  var svgToggleStop = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
+  var svgTogglePlay = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
+  var svgToggle = isActive ? svgToggleStop : svgTogglePlay;
+  var svgDelete = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+  var toggleUrl = '{{ url_for("toggle_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+  var deleteUrl = '{{ url_for("delete_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+  var editUrl = '{{ url_for("admin_link_form", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+
+  // 第一排：分享 & 收集
+  var collectId = d.collectSlug || d.linkId;
+  var shareId = d.shareSlug || d.linkId;
+  html += '<div class="lp-action-row">';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + shareId + '\',\'' + escapeJs(d.sharePasscode) + '\',' + d.isShareLegacy + ')">' + svgCopy + '复制分享链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + collectId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
+  html += '</div>';
+
+  html += '<div class="lp-action-divider"></div>';
+
+  // 第二排：编辑 / 启停 / 删除
+  html += '<div class="lp-action-row">';
+  html += '<a href="' + editUrl + '" class="lp-action-btn edit">' + svgEdit + '编辑此收集</a>';
+  html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +
+    '</form>';
+  html += '<form method="POST" action="' + deleteUrl + '" id="delete-form-' + d.linkId + '" onsubmit="return false;">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="button" class="lp-action-btn danger" onclick="showDeleteConfirm(\'' + d.linkId + '\',\'' + escapeJs(d.title) + '\')">' + svgDelete + '删除链接</button>' +
+    '</form>';
+  html += '</div>';
+
+  document.getElementById('lp-actions').innerHTML = html;
+
+  document.getElementById('link-popover-overlay').style.display = '';
+  document.getElementById('link-popover').style.display = '';
+}
+
+function closeLinkPopover() {
+  if (_lpBtn) { _lpBtn.classList.remove('active'); _lpBtn = null; }
+  document.getElementById('link-popover-overlay').style.display = 'none';
+  document.getElementById('link-popover').style.display = 'none';
+}
+
+function popoverCopyLink(type, linkId, passcode, isLegacy) {
+  var url = getBaseUrl() + type + '/' + linkId;
+  if (isLegacy) {
+    alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
+    return;
+  }
+  var actionHint = type === 'collect' ? '请通过此链接上传文件' : '请通过此链接提取文件';
+  var text;
+  if (passcode) {
+    var passLabel = type === 'collect' ? '上传通行证' : '分享通行证';
+    text = url + '\n' + passLabel + '：' + passcode + '\n' + actionHint;
+  } else {
+    text = url + '\n\n' + actionHint;
+  }
+  copyToClipboard(text);
+}
+
+/* --- 删除确认弹窗 --- */
+var _deleteLinkId = null;
+
+function showDeleteConfirm(linkId, title) {
+  _deleteLinkId = linkId;
+  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + escapeHtml(title) + '」吗？<br>该链接的所有文件、文件夹及数据将被永久删除，无法找回！此操作不可撤销。';
+  document.getElementById('delete-confirm-modal').style.display = '';
+  closeLinkPopover();
+}
+
+function closeDeleteConfirm() {
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
+}
+
+function confirmDeleteLink() {
+  if (!_deleteLinkId) return;
+  var form = document.getElementById('delete-form-' + _deleteLinkId);
+  if (form) form.submit();
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
+}
+</script>
+{% endblock %}

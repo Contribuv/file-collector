@@ -1,0 +1,136 @@
+#!/bin/bash
+### 升级后回调 - 验证数据完整性，执行数据库迁移
+
+# 数据目录（与 main 脚本保持一致：优先 TRIM_DATA_SHARE_PATHS）
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    DATA_DIR="${_SHARE_BASE}/data"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    DATA_DIR="/tmp/file-collector/data"
+fi
+mkdir -p "$DATA_DIR"
+LOG="${DATA_DIR}/upgrade.log"
+echo "[$(date)] === UPGRADE CALLBACK (升级后验证) ===" >> "$LOG"
+
+DB_PATH="${DATA_DIR}/file_collector.db"
+
+# 1. 验证数据库文件存在且完整
+if [ -f "$DB_PATH" ]; then
+    DB_SIZE=$(stat -c%s "$DB_PATH" 2>/dev/null || stat -f%z "$DB_PATH" 2>/dev/null || echo "0")
+    if [ "$DB_SIZE" -gt 0 ]; then
+        echo "  数据库存在且完整: ${DB_PATH} (${DB_SIZE} bytes)" >> "$LOG"
+
+        # 检查 SQLite 数据库完整性
+        if command -v sqlite3 &>/dev/null; then
+            INTEGRITY=$(sqlite3 "$DB_PATH" "PRAGMA integrity_check;" 2>/dev/null)
+            echo "  数据库完整性检查: ${INTEGRITY}" >> "$LOG"
+        fi
+
+        # 显示统计信息
+        if command -v sqlite3 &>/dev/null; then
+            LINK_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM links;" 2>/dev/null || echo "?")
+            RECORD_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM upload_records;" 2>/dev/null || echo "?")
+            echo "  当前数据: ${LINK_COUNT} 个链接, ${RECORD_COUNT} 条上传记录" >> "$LOG"
+        fi
+    else
+        echo "  WARN: 数据库文件为空!" >> "$LOG"
+    fi
+else
+    echo "  INFO: 数据库不存在，首次安装无需验证" >> "$LOG"
+fi
+
+# 2. 验证上传目录
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    UPLOAD_DIR="${_SHARE_BASE}/uploads"
+    if [ -d "$UPLOAD_DIR" ]; then
+        UPLOAD_FILES=$(find "$UPLOAD_DIR" -type f 2>/dev/null | wc -l)
+        echo "  上传目录存在: ${UPLOAD_DIR} (${UPLOAD_FILES} 个文件)" >> "$LOG"
+    fi
+fi
+
+# 3. 关键：执行数据库迁移（创建新表和字段）
+echo "  执行数据库迁移..." >> "$LOG"
+if command -v sqlite3 &>/dev/null && [ -f "$DB_PATH" ]; then
+    # 创建 users 表（如果不存在）
+    sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        is_admin INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login_at TIMESTAMP
+    );" 2>> "$LOG"
+    echo "  users 表检查完成" >> "$LOG"
+
+    # 创建 invite_codes 表（如果不存在）
+    sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS invite_codes (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used_by TEXT,
+        used_at TIMESTAMP,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );" 2>> "$LOG"
+    echo "  invite_codes 表检查完成" >> "$LOG"
+
+    # 为 links 表添加 user_id 字段（如果不存在）
+    USER_ID_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(links);" 2>/dev/null | grep -c "user_id")
+    if [ "$USER_ID_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE links ADD COLUMN user_id TEXT DEFAULT '';" 2>> "$LOG"
+        echo "  links 表添加 user_id 字段" >> "$LOG"
+    fi
+
+    # 为 upload_records 表添加 user_id 字段（如果不存在）
+    USER_ID_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(upload_records);" 2>/dev/null | grep -c "user_id")
+    if [ "$USER_ID_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE upload_records ADD COLUMN user_id TEXT DEFAULT '';" 2>> "$LOG"
+        echo "  upload_records 表添加 user_id 字段" >> "$LOG"
+    fi
+
+    # 为 upload_records 表添加 source 字段（如果不存在）
+    SOURCE_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(upload_records);" 2>/dev/null | grep -c "source")
+    if [ "$SOURCE_EXISTS" -eq 0 ]; then
+        sqlite3 "$DB_PATH" "ALTER TABLE upload_records ADD COLUMN source TEXT DEFAULT 'upload';" 2>> "$LOG"
+        echo "  upload_records 表添加 source 字段" >> "$LOG"
+    fi
+
+    echo "  数据库迁移完成" >> "$LOG"
+else
+    echo "  WARN: sqlite3 命令不可用，跳过迁移（应用启动时会执行）" >> "$LOG"
+fi
+
+# 4. 如果数据库丢失，从备份自动恢复
+if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
+    echo "  WARN: 数据库丢失，尝试自动恢复..." >> "$LOG"
+    RESTORED=0
+    for BACKUP_SRC in "/tmp/file-collector-backup" "${TRIM_PKGVAR}/backups"; do
+        if [ -d "$BACKUP_SRC" ]; then
+            LATEST=$(ls -t "${BACKUP_SRC}"/file_collector_*.db 2>/dev/null | head -1)
+            if [ -n "$LATEST" ] && [ -s "$LATEST" ]; then
+                mkdir -p "$DATA_DIR"
+                cp "$LATEST" "$DB_PATH"
+                echo "  已从 ${BACKUP_SRC} 恢复数据库" >> "$LOG"
+                RESTORED=1
+                break
+            fi
+        fi
+    done
+    [ $RESTORED -eq 0 ] && echo "  FATAL: 数据库恢复失败，所有备份来源均无效!" >> "$LOG"
+fi
+
+# 5. 清理旧备份（保留最近5个）
+for BACKUP_DIR in "/var/backups/file-collector" "${TRIM_PKGVAR}/backups" "/tmp/file-collector-backup"; do
+    if [ -d "$BACKUP_DIR" ]; then
+        ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    fi
+done
+
+echo "  升级完成，所有数据已保留" >> "$LOG"
+echo "[$(date)] upgrade_callback done" >> "$LOG"
+exit 0

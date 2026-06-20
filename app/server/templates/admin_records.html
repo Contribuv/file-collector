@@ -1,0 +1,646 @@
+{% extends "base.html" %}
+{% block title %}上传记录{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header records-card-header">
+        <h3>上传记录</h3>
+        <div class="records-toolbar">
+          <form method="GET" action="{{ url_for('admin_records') }}" class="records-filter-form">
+            <select name="link_id" class="form-select records-filter-select" onchange="this.form.submit()">
+              <option value="">全部链接</option>
+              {% for l in links %}
+              <option value="{{ l['id'] }}" {{ 'selected' if l['id']|string == link_filter }}>{{ l['title'] }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <form id="batch-form" method="POST" action="{{ url_for('batch_delete_records') }}" onsubmit="return prepareBatchDelete()">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger" id="batch-btn" disabled>批量删除</button>
+          </form>
+        </div>
+      </div>
+
+      {% if records %}
+      <!-- PC 端：精简表格 -->
+      <div class="records-table-pc">
+        <table class="admin-table admin-table--records">
+          <thead>
+            <tr>
+              <th class="col-chk"><input type="checkbox" onchange="toggleAll(this)"></th>
+              <th>文件名</th><th class="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+            <tr>
+              <td class="col-chk"><input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()"></td>
+              <td class="col-name"><span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span></td>
+              <td class="col-act">
+                <button class="btn btn-sm btn-outline btn-more" title="查看详情"
+                  data-record-id="{{ r['id'] }}"
+                  data-filename="{{ r['original_name']|e }}"
+                  data-size="{{ r['file_size_display'] }}"
+                  data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+                  data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+                  data-downloads="{{ r['download_count'] }}"
+                  data-ip="{{ r['uploader_ip'] }}"
+                  data-time="{{ r['uploaded_at'] }}"
+                  data-uploader="{{ r['uploader_name'] or '' }}"
+                  data-require-uploader="{{ r['require_uploader']|string|lower }}"
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 移动端：简洁卡片列表（参考仪表盘设计） -->
+      <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <span class="records-mobile-h-col">文件名</span>
+          <span class="records-mobile-h-act">操作</span>
+        </div>
+        {% for r in records %}
+        {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+        <div class="record-card">
+          <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
+            <label class="record-card-check" style="flex-shrink:0;margin-top:2px;">
+              <input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()">
+            </label>
+            <span class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</span>
+            <button class="btn btn-sm btn-outline btn-more" title="查看详情" style="flex-shrink:0;"
+              data-record-id="{{ r['id'] }}"
+              data-filename="{{ r['original_name']|e }}"
+              data-size="{{ r['file_size_display'] }}"
+              data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+              data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+              data-downloads="{{ r['download_count'] }}"
+              data-ip="{{ r['uploader_ip'] }}"
+              data-time="{{ r['uploaded_at'] }}"
+              data-uploader="{{ r['uploader_name'] or '' }}"
+              data-require-uploader="{{ r['require_uploader']|string|lower }}"
+              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="empty-state"><h3>暂无上传记录</h3></div>
+      {% endif %}
+
+      {% if total_pages > 1 %}
+      <div class="card-footer">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_records', page=page-1, link_id=link_filter) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 预览浮窗 -->
+<div id="preview-modal" class="preview-modal" style="display:none;">
+  <div class="preview-overlay" onclick="closePreview()"></div>
+  <div class="preview-container">
+    <div class="preview-header">
+      <h3 id="preview-title">文件预览</h3>
+      <button onclick="closePreview()" class="preview-close">&times;</button>
+    </div>
+    <div class="preview-content" id="preview-content">
+      <!-- 预览内容区域 -->
+    </div>
+    <div class="preview-footer">
+      <a id="preview-download-link" class="btn btn-primary" download>下载文件</a>
+    </div>
+  </div>
+</div>
+
+<style>
+/* 精简表格 */
+.admin-table--records .col-chk { width: 38px; text-align: center; }
+.admin-table--records .col-chk input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--c-primary); }
+.admin-table--records .col-act { width: 120px; text-align: center; white-space: nowrap; }
+
+/* ========== 记录页头部工具栏 ========== */
+.records-card-header { flex-wrap: wrap; gap: 8px; }
+.records-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.records-filter-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.records-filter-select {
+  width: auto;
+  padding: 6px 28px 6px 10px;
+  font-size: .82rem;
+  border-radius: 4px;
+}
+@media (max-width: 640px) {
+  .records-card-header { gap: 6px; }
+  .records-card-header h3 { font-size: .95rem; margin: 0; }
+  .records-toolbar { width: 100%; justify-content: space-between; gap: 6px; }
+  .records-filter-select { max-width: 140px; font-size: .78rem; padding: 5px 24px 5px 8px; }
+  .records-toolbar .btn-sm { font-size: .73rem; padding: 4px 10px; flex-shrink: 0; }
+}
+
+/* 更多按钮 */
+.btn-more {
+  background: transparent;
+  color: var(--c-primary);
+  border: 1px solid var(--c-primary);
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-more:hover { background: var(--c-primary-light); }
+.btn-more.active { background: var(--c-primary); color: #fff; }
+
+/* ========== Popover 浮窗（全设备居中弹窗） ========== */
+.detail-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 280px;
+  max-width: 360px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.2s ease;
+  pointer-events: auto;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.detail-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.detail-popover-header strong {
+  font-size: 0.85rem;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+.detail-popover-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.detail-popover-close:hover { background: #f5f5f5; }
+.detail-popover-body { padding: 10px 14px; }
+.detail-popover-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.detail-popover-row:not(:last-child) { border-bottom: 1px solid #f8f8f8; }
+.detail-popover-label {
+  color: #999;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+.detail-popover-value { color: #333; flex: 1; word-break: break-all; }
+.detail-popover-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+}
+.detail-popover-footer .btn { font-size: 0.8rem; }
+
+/* 浮窗遮罩 */
+.popover-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 移动端浮窗宽度微调 */
+@media (max-width: 640px) {
+  .detail-popover {
+    max-width: calc(100vw - 40px);
+    min-width: 260px;
+  }
+}
+
+/* 移动端卡片微调 */
+@media (max-width: 640px) {
+  .record-card {
+    padding: 10px 12px;
+  }
+  .record-card-name {
+    font-size: .88rem;
+  }
+  .record-card .btn-more {
+    font-size: .75rem;
+    padding: 3px 10px;
+  }
+  .record-card-check input {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* 移动端列表标题 */
+.records-mobile-header {
+  display: none;
+}
+@media (max-width: 640px) {
+  .records-mobile-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fb;
+    border-bottom: 2px solid #e5e7eb;
+    font-size: .78rem;
+    font-weight: 600;
+    color: #6b7280;
+    gap: 8px;
+  }
+  .records-mobile-h-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .records-mobile-h-act {
+    flex-shrink: 0;
+    width: 80px;
+    text-align: center;
+  }
+}
+
+/* 预览相关样式 */
+.preview-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow-y: auto;
+}
+/* 隐藏 JIT Viewer 重复的文件名工具栏，preview-header 已显示 */
+.jv-toolbar__filename { display: none !important; }
+.preview-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+.preview-container {
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  max-width: 90%;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  margin: 10px;
+}
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+.preview-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  padding-right: 10px;
+}
+.preview-content {
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  text-align: center;
+}
+.preview-content #office-preview-container {
+  width: 100%;
+  height: calc(100vh - 140px);
+  min-height: 400px;
+}
+.preview-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #eee;
+  text-align: center;
+  flex-shrink: 0;
+}
+.preview-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  flex-shrink: 0;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+.preview-close:hover { background: #f0f0f0; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(el) {
+  document.querySelectorAll('.record-checkbox').forEach(cb => { cb.checked = el.checked; });
+  updateBatchBtn();
+}
+function updateBatchBtn() {
+  const n = document.querySelectorAll('.record-checkbox:checked').length;
+  document.getElementById('batch-btn').disabled = n === 0;
+  document.getElementById('batch-btn').textContent = n > 0 ? '批量删除 (' + n + ')' : '批量删除';
+}
+function prepareBatchDelete() {
+  const checked = document.querySelectorAll('.record-checkbox:checked');
+  if (!checked.length) return false;
+  if (!confirm('确定删除选中的 ' + checked.length + ' 条记录？')) return false;
+  const form = document.getElementById('batch-form');
+  form.querySelectorAll('input[data-dynamic]').forEach(el => el.remove());
+  checked.forEach(cb => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = cb.value;
+    inp.setAttribute('data-dynamic', '1');
+    form.appendChild(inp);
+  });
+  return true;
+}
+
+// ======= 详情浮窗逻辑 =======
+let currentPopover = null;
+let currentPopoverBtn = null;
+let currentOverlay = null;
+
+function closeAllPopovers() {
+  if (currentPopover) { currentPopover.remove(); currentPopover = null; }
+  if (currentOverlay) { currentOverlay.remove(); currentOverlay = null; }
+  if (currentPopoverBtn) { currentPopoverBtn.classList.remove('active'); currentPopoverBtn = null; }
+  document.body.style.overflow = '';
+}
+
+function toggleDetailPopover(btn) {
+  // 如果点击的是同一个按钮，则关闭
+  if (currentPopoverBtn === btn) { closeAllPopovers(); return; }
+  
+  // 关闭之前的浮窗
+  closeAllPopovers();
+  
+  // 标记当前按钮
+  currentPopoverBtn = btn;
+  btn.classList.add('active');
+  
+  // 读取数据
+  var id = btn.getAttribute('data-record-id');
+  var filename = btn.getAttribute('data-filename');
+  var size = btn.getAttribute('data-size');
+  var source = btn.getAttribute('data-source');
+  var creator = btn.getAttribute('data-creator') || '未知用户';
+  var downloads = btn.getAttribute('data-downloads');
+  var ip = btn.getAttribute('data-ip');
+  var time = btn.getAttribute('data-time');
+  var uploader = btn.getAttribute('data-uploader') || '';
+  var requireUploader = btn.getAttribute('data-require-uploader') === 'true' || btn.getAttribute('data-require-uploader') === '1';
+  var previewable = btn.getAttribute('data-previewable') === '1';
+  var csrfToken = document.querySelector('input[name="csrf_token"]').value;
+  
+  // 添加遮罩层
+  var overlay = document.createElement('div');
+  overlay.className = 'popover-overlay';
+  overlay.addEventListener('click', closeAllPopovers);
+  document.body.appendChild(overlay);
+  currentOverlay = overlay;
+  document.body.style.overflow = 'hidden';
+  
+  // 构建操作按钮区
+  var actionBtns = '';
+  if (previewable) {
+    actionBtns += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\');closeAllPopovers();">预览</button>';
+  }
+  actionBtns += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
+  actionBtns += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
+  
+  // 构建信息行，上传者信息动态显示
+  var infoRows = '';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>';
+  if (requireUploader && uploader) {
+    infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">上传者</span><span class="detail-popover-value">' + escapeHtml(uploader) + '</span></div>';
+  }
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>';
+  
+  // 创建浮窗
+  var popover = document.createElement('div');
+  popover.className = 'detail-popover';
+  popover.innerHTML = 
+    '<div class="detail-popover-header">' +
+      '<strong title="' + escapeHtml(filename) + '">' + escapeHtml(filename) + '</strong>' +
+      '<button class="detail-popover-close" onclick="closeAllPopovers()">&times;</button>' +
+    '</div>' +
+    '<div class="detail-popover-body">' +
+      infoRows +
+    '</div>' +
+    '<div class="detail-popover-footer" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' + actionBtns +
+    '</div>';
+  
+  document.body.appendChild(popover);
+  currentPopover = popover;
+  
+  // 阻止浮窗内部点击冒泡
+  popover.addEventListener('click', function(e) { e.stopPropagation(); });
+}
+
+function escapeHtml(str) {
+  if (!str) return '-';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function fmtTime(t) {
+  if (!t) return '-';
+  // 去除微秒部分：2026-06-14 00:32:52.097572 -> 2026-06-14 00:32:52
+  return String(t).replace(/\.\d+/, '');
+}
+
+function escapeJs(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// 全局点击关闭浮窗
+document.addEventListener('click', function(e) {
+  if (currentPopover && !currentPopover.contains(e.target)) {
+    // 检查是否点击的是更多按钮（按钮有自己的toggle逻辑）
+    if (!e.target.closest('.btn-more')) {
+      closeAllPopovers();
+    }
+  }
+});
+
+// ESC 关闭浮窗
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeAllPopovers();
+});
+
+// 绑定所有"操作"按钮
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.btn-more').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDetailPopover(this);
+    });
+  });
+});
+
+// 预览功能
+function previewFile(recordId, fileName) {
+  const ext = fileName.split('.').pop().toLowerCase();
+  
+  // JIT Viewer 新窗口纯净预览（Office/PDF/MD/TXT/CSV/OFD/DXF/HTML/代码/音频）
+  const jitExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'md', 'markdown', 'txt', 'csv', 'ofd', 'dxf', 'html', 'htm', 'js', 'css', 'json', 'xml', 'log', 'mp3', 'wav'];
+  if (jitExts.includes(ext)) {
+    window.open('/admin/records/' + recordId + '/view', '_blank');
+    return;
+  }
+  
+  const modal = document.getElementById('preview-modal');
+  const content = document.getElementById('preview-content');
+  const title = document.getElementById('preview-title');
+  const downloadLink = document.getElementById('preview-download-link');
+  
+  title.textContent = fileName;
+  downloadLink.href = '/admin/records/' + recordId + '/download';
+  downloadLink.download = fileName;
+  
+  content.innerHTML = '<div class="loading">加载中...</div>';
+  
+  // 图片预览（batch 3 - 保持原生）
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+    content.innerHTML = '<img src="/admin/records/' + recordId + '/download" style="max-width:100%;max-height:70vh;">';
+  }
+  // 视频预览（batch 3 - 保持原生）
+  else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+    content.innerHTML = '<video src="/admin/records/' + recordId + '/download" controls style="max-width:100%;max-height:70vh;"></video>';
+  }
+  else {
+    content.innerHTML = '<p class="info">该文件类型不支持预览</p>';
+  }
+  
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closePreview() {
+  document.getElementById('preview-modal').style.display = 'none';
+  document.body.style.overflow = '';
+  // 停止视频播放
+  const video = document.querySelector('#preview-content video');
+  if (video) video.pause();
+}
+
+// ESC键关闭预览
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closePreview();
+});
+
+// 后台扫描状态轮询（每30秒检查一次是否有新文件或清理）
+(function() {
+  var _lastNewFiles = 0;
+  var _lastOrphans = 0;
+  var _pollInterval = 30000; // 30秒
+
+  function pollScanStatus() {
+    fetch('/api/scan-status', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.total_new_files > _lastNewFiles || data.total_orphans_cleaned > _lastOrphans) {
+          // 有变化时刷新页面
+          window.location.reload();
+        }
+        _lastNewFiles = data.total_new_files || 0;
+        _lastOrphans = data.total_orphans_cleaned || 0;
+      })
+      .catch(function(e) {
+        // 静默失败
+      });
+  }
+
+  // 首次延迟后开始轮询
+  setTimeout(function() {
+    pollScanStatus();
+    setInterval(pollScanStatus, _pollInterval);
+  }, _pollInterval);
+})();
+</script>
+{% endblock %}

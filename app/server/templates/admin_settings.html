@@ -1,0 +1,857 @@
+{% extends "base.html" %}
+{% block title %}系统设置{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="settings-grid">
+      <!-- Row1: 高卡片配对 -->
+      <!-- Account -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>账号设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_username">管理员用户名</label>
+                <input type="text" id="new_username" name="new_username" class="form-input form-input-sm"
+                       value="{{ admin_username }}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="new_nickname">昵称 <span style="color:#3b82f6;font-weight:400;font-size:.72rem;">* 必填</span></label>
+                <input type="text" id="new_nickname" name="new_nickname" class="form-input form-input-sm"
+                       value="{{ admin_nickname }}" placeholder="显示名称，将展示在收集页和分享页" required>
+                <div class="form-hint" style="color:#3b82f6;">{% if not admin_nickname %}⚠ 未设置昵称，收集页和分享页将显示用户名{% else %}收集页和分享页上将显示此昵称{% endif %}</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new_email">邮箱</label>
+              <input type="email" id="new_email" name="new_email" class="form-input form-input-sm"
+                     value="{{ admin_email }}" placeholder="用于密码找回">
+              <div class="form-hint" style="color:#3b82f6;margin-top:4px;">
+                设置邮箱后，可通过登录页"忘记密码"功能重置密码。<br>如已配置 SMTP，系统将发送验证码到该邮箱。
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="old_password">当前密码 *</label>
+              <input type="password" id="old_password" name="old_password" class="form-input form-input-sm"
+                     placeholder="修改信息需验证" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new_password">新密码</label>
+              <input type="password" id="new_password" name="new_password" class="form-input form-input-sm" placeholder="留空则不修改">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="confirm_password">确认新密码</label>
+              <input type="password" id="confirm_password" name="confirm_password" class="form-input form-input-sm" placeholder="再次输入新密码">
+            </div>
+            <button type="submit" name="action" value="account" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 邮箱设置 (SMTP) - 高卡片与账号设置配对 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>邮箱设置 (SMTP)</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}" id="smtp-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="smtp_host">SMTP 服务器地址</label>
+              <input type="text" id="smtp_host" name="smtp_host" class="form-input form-input-sm"
+                     value="{{ defaults.smtp_host }}" placeholder="例如 smtp.qq.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="smtp_use_tls">加密方式</label>
+              <select id="smtp_use_tls" name="smtp_use_tls" class="form-input form-input-sm" style="width:auto;">
+                <option value="1" {% if defaults.smtp_use_tls == '1' %}selected{% endif %}>STARTTLS (端口 587)</option>
+                <option value="0" {% if defaults.smtp_use_tls == '0' %}selected{% endif %}>SSL (端口 465)</option>
+              </select>
+            </div>
+            <input type="hidden" id="smtp_port" name="smtp_port" value="{{ defaults.smtp_port or '587' }}">
+            <div class="form-group">
+              <label class="form-label" for="smtp_username">邮箱账号</label>
+              <input type="text" id="smtp_username" name="smtp_username" class="form-input form-input-sm"
+                     value="{{ defaults.smtp_username }}" placeholder="例如 your@qq.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="smtp_password">邮箱密码/授权码</label>
+              <input type="password" id="smtp_password" name="smtp_password" class="form-input form-input-sm"
+                     value="{{ defaults.smtp_password }}" placeholder="QQ邮箱请使用授权码">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="smtp_from_name">发件人名称</label>
+              <input type="text" id="smtp_from_name" name="smtp_from_name" class="form-input form-input-sm"
+                     value="{{ defaults.smtp_from_name }}" placeholder="例如 文件收集器">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="smtp_from_email">发件人邮箱</label>
+              <input type="email" id="smtp_from_email" name="smtp_from_email" class="form-input form-input-sm"
+                     value="{{ defaults.smtp_from_email }}" placeholder="与邮箱账号相同即可">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="submit" name="action" value="smtp_config" class="btn btn-primary btn-sm">保存配置</button>
+              <button type="button" id="test-smtp-btn" class="btn btn-outline btn-sm">发送测试邮件</button>
+            </div>
+            <div id="smtp-test-result" style="margin-top:8px;font-size:.82rem;display:none;"></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 页面与品牌（合并：站点标题 + 收集页 + 分享页 + 登录页） -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>页面与品牌</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="site_title">站点标题 *</label>
+              <input type="text" id="site_title" name="site_title" class="form-input form-input-sm"
+                     value="{{ defaults.site_title or '文件收集器' }}" maxlength="60" required>
+              <div class="form-hint">显示在页面标题栏和顶部栏</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="share_page_title">分享页标题</label>
+              <input type="text" id="share_page_title" name="share_page_title" class="form-input form-input-sm"
+                     value="{{ defaults.share_page_title or '' }}" maxlength="60" placeholder="留空则使用站点标题">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="public_url">公网网址</label>
+              <input type="text" id="public_url" name="public_url" class="form-input form-input-sm"
+                     value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
+              <div class="form-hint"><a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="collect_footer_text">收集页页尾</label>
+                <textarea id="collect_footer_text" name="collect_footer_text" class="form-textarea form-textarea-sm" rows="2"
+                          placeholder="显示在收集页底部">{{ defaults.collect_footer_text or '' }}</textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="share_footer_text">分享页页尾</label>
+                <textarea id="share_footer_text" name="share_footer_text" class="form-textarea form-textarea-sm" rows="2"
+                          placeholder="留空则显示默认">{{ defaults.share_footer_text or '' }}</textarea>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="login_tip_text">登录页提示</label>
+              <textarea id="login_tip_text" name="login_tip_text" class="form-textarea form-textarea-sm" rows="2"
+                        placeholder="显示在登录页底部的提示信息">{{ defaults.login_tip or '' }}</textarea>
+            </div>
+            <button type="submit" name="action" value="page_branding" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 默认设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>默认设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="default_max_files">默认最大文件数</label>
+                <input type="number" id="default_max_files" name="default_max_files" class="form-input form-input-sm"
+                       value="{{ defaults.max_files or 10 }}" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_max_size_val">单文件上限</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" id="default_max_size_val" class="form-input form-input-sm" style="flex:1;"
+                         value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+                  <select id="default_max_size_unit" class="form-input form-input-sm" style="width:64px;flex:none;">
+                    <option value="MB" {{ 'selected' if (defaults.max_file_size_gb or 1)|float < 1 and (defaults.max_file_size_gb or 1)|float > 0 else '' }}>MB</option>
+                    <option value="GB" {{ 'selected' if (defaults.max_file_size_gb or 1)|float >= 1 or (defaults.max_file_size_gb or 1)|float <= 0 else '' }}>GB</option>
+                  </select>
+                </div>
+                <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
+              </div>
+            </div>
+            <button type="submit" name="action" value="defaults" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 上传路径 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>上传路径</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="custom_upload_path">自定义上传目录</label>
+              <input type="text" id="custom_upload_path" name="custom_upload_path" class="form-input form-input-sm"
+                     value="{{ custom_upload_path }}" placeholder="例：/vol2/1000/文件收集">
+              <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径，自定义路径需要在应用中心添加权限并重启此应用。{% endif %}</div>
+            </div>
+            <button type="submit" name="action" value="upload_path" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 有效期设置（合并：通行证有效期 + 默认链接有效期） -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>有效期设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="passcode_ttl_minutes">通行证缓存有效期（分钟）</label>
+                <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input form-input-sm"
+                       value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
+                <div class="form-hint">验证后浏览器缓存有效期，默认 120 分钟</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_link_expire_days">链接最大有效期（天）</label>
+                <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
+                       value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
+                <div class="form-hint">创建链接时有效期上限（天/小时/分钟均受此换算约束），当前 {{ defaults.default_link_expire_days }} 天</div>
+              </div>
+            </div>
+            <button type="submit" name="action" value="expiry_settings" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 功能开关（合并：用户注册 + 首页设置） -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>功能开关</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="toggle-switch">
+                <input type="checkbox" name="allow_registration" value="1"{{ ' checked' if defaults.allow_registration == '1' else '' }}>
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">开放用户注册</span>
+              </label>
+              <div class="form-hint" style="margin-left:54px;">开启后用户可通过邀请码自行注册</div>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="toggle-switch">
+                <input type="checkbox" name="landing_page_enabled" value="1"{{ ' checked' if defaults.landing_page_enabled == '1' else '' }}>
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">启用首页介绍页</span>
+              </label>
+              <div class="form-hint" style="margin-left:54px;">开启后访问首页显示介绍页</div>
+            </div>
+            <button type="submit" name="action" value="feature_toggles" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 分页设置（合并：收集链接 + 上传记录） -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>分页设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="links_per_page_val">收集链接每页数量</label>
+                <input type="number" id="links_per_page_val" name="links_per_page_val" class="form-input form-input-sm"
+                       value="{{ defaults.links_per_page or '10' }}" min="5" max="100" step="1">
+                <div class="form-hint">默认 10 条，范围 5-100</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="records_per_page_val">上传记录每页数量</label>
+                <input type="number" id="records_per_page_val" name="records_per_page_val" class="form-input form-input-sm"
+                       value="{{ defaults.records_per_page or '10' }}" min="5" max="200" step="1">
+                <div class="form-hint">默认 10 条，范围 5-200（仅对自己生效）</div>
+              </div>
+            </div>
+            <button type="submit" name="action" value="pagination" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 禁止上传文件类型 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>禁止上传文件类型</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <input type="text" id="blocked_extensions_input" name="blocked_extensions_input" class="form-input form-input-sm"
+                     value="{{ defaults.blocked_extensions or '' }}"
+                     placeholder="例：.exe .php .sh .bat">
+              <div class="form-hint">{% if not defaults.blocked_extensions %}默认禁用：.exe .php .sh .bat ...{% else %}当前：{{ defaults.blocked_extensions }}{% endif %}</div>
+            </div>
+            <button type="submit" name="action" value="blocked_extensions" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 数据库管理 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>数据库管理</h3></div>
+        <div class="card-body">
+          <!-- 路径迁移提示 -->
+          <div class="db-section" style="margin-bottom:12px;">
+            <div class="db-section-icon" style="background:#e8f0fe;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </div>
+            <div class="db-section-body">
+              <div class="db-section-title">路径自动同步</div>
+              <div class="db-section-desc">修改上传路径并保存后，系统将自动同步数据库中的文件记录路径。如未生效，请在飞牛应用中心重启本应用即可。</div>
+            </div>
+          </div>
+          <!-- 备份区 -->
+          <div class="db-section">
+            <div class="db-section-icon" style="background:#e8f4fd;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8" width="20" height="20"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            </div>
+            <div class="db-section-body">
+              <div class="db-section-title">备份数据库</div>
+              <div class="db-section-desc">下载当前数据库文件到本地，用于数据迁移或存档</div>
+              <a href="{{ url_for('backup_database') }}" class="btn btn-outline btn-sm" style="margin-top:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                下载备份
+              </a>
+            </div>
+          </div>
+          <!-- 分隔线 -->
+          <div class="db-divider"></div>
+          <!-- 恢复区 -->
+          <form method="POST" action="{{ url_for('restore_database') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="db-section">
+              <div class="db-section-icon" style="background:#fef3c7;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.8" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="db-section-body">
+                <div class="db-section-title">恢复数据库</div>
+                <div class="db-section-desc">导入 .db 备份文件，恢复前会自动备份当前数据库</div>
+                <input type="file" id="db_file" name="db_file" class="form-input form-input-sm" accept=".db" required style="width:100%;margin-top:8px;box-sizing:border-box;">
+                <button type="submit" class="btn btn-danger btn-sm" style="margin-top:6px;">确认导入</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    <!-- 系统信息 -->
+    <div class="card card-compact card-full-width">
+      <div class="card-header"><h3>系统信息</h3></div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">开发者</span><span class="info-value"><a href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener">豪子</a></span></div>
+          <div class="info-row"><span class="info-label">数据库</span><span class="info-value">SQLite</span></div>
+          <div class="info-row"><span class="info-label">版本号</span><span class="info-value">{{ version }} <a id="update-link" href="https://github.com/Contribuv/file-collector/releases" target="_blank" rel="noopener" style="display:none;font-size:.78rem;color:var(--c-primary);">发现新版本</a></span></div>
+          <div class="info-row"><span class="info-label">监听端口</span><span class="info-value">{{ sys_info.port }}</span></div>
+          <div class="info-row"><span class="info-label">数据目录</span><span class="info-value" style="word-break:break-all">{{ sys_info.db_path }}</span></div>
+          <div class="info-row"><span class="info-label">上传目录</span><span class="info-value" style="word-break:break-all">{{ sys_info.upload_base }}</span></div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<!-- 反向代理设置方法弹窗 -->
+<div class="modal-overlay" id="proxy-modal" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>反向代理设置方法</h3>
+      <button class="modal-close" onclick="closeProxyModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>请在飞牛应用中心下载 <b>反向代理服务器 > 大于 V1.0.8</b> 由<b> laok </b>大佬开发。</p>
+      <p>请根据以下图示设置即可通过外网访问，然后将反代的URL地址填入上方。</p>
+      <p><strong>反代举例：</strong>假如你的DDNS域名为 nas.fons.com，且配置了飞牛证书，根据图下设置，那么你的公网地址为 <code>https://nas.fons.com:7786</code> 即可。
+      </p>
+      <p><b>高级设置：</b>启用 HSTS , 强制跳转 HTTPS , 保留原始主机头</p>
+      <div class="modal-image-container">
+        <img src="{{ url_for('static', filename='img/fd.png') }}" alt="反向代理设置图示" class="modal-image">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeProxyModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* 紧凑卡片 */
+.card-compact { margin-bottom: 10px; }
+.card-compact .card-header { padding: 10px 14px; }
+.card-compact .card-header h3 { font-size: 0.88rem; }
+.card-compact .card-body { padding: 12px 14px; }
+.card-compact .form-group { margin-bottom: 10px; }
+.card-compact .form-label { font-size: 0.75rem; margin-bottom: 4px; }
+.card-compact .form-hint { font-size: 0.68rem; margin-top: 2px; }
+.card-compact .info-row { padding: 6px 0; font-size: 0.8rem; }
+.card-compact .info-row .info-label { font-size: 0.78rem; }
+.card-compact .info-row .info-value { font-size: 0.75rem; }
+
+/* 紧凑输入框 */
+.form-input-sm { padding: 7px 11px; font-size: 0.82rem; }
+.form-textarea-sm { min-height: 52px; font-size: 0.82rem; }
+
+/* 双栏瀑布流 */
+.settings-grid {
+  display: block;
+  column-count: 2;
+  column-gap: 16px;
+}
+
+.settings-grid .card {
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.settings-grid .card.card-full-width {
+  display: block;
+  column-span: all;
+}
+
+/* 系统信息双栏 */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+}
+@media (max-width: 768px) {
+  .settings-grid { column-count: 1; }
+  .info-grid { grid-template-columns: 1fr; }
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--c-text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--c-text-soft);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--c-bg-hover);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.modal-body p {
+  line-height: 1.8;
+  margin: 0 0 12px 0;
+  color: var(--c-text);
+}
+
+.modal-body code {
+  background: var(--c-bg-hover);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: var(--c-primary);
+}
+
+.modal-image-container {
+  margin-top: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.modal-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--c-border);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+  
+  .modal-content {
+    border-radius: 8px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
+}
+
+/* 开关按钮 */
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  user-select: none;
+}
+.toggle-switch input[type="checkbox"] {
+  display: none;
+}
+.toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #cbd5e1;
+  border-radius: 12px;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--c-primary, #3b82f6);
+}
+.toggle-switch input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
+.toggle-text {
+  color: var(--c-text);
+}
+
+/* 数据库管理 */
+.db-section {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.db-section-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.db-section-body {
+  flex: 1;
+  min-width: 0;
+  margin: 3px 0;
+}
+.db-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-bottom: 2px;
+}
+.db-section-desc {
+  font-size: 0.72rem;
+  color: var(--c-text-soft);
+  line-height: 1.5;
+}
+.db-divider {
+  height: 1px;
+  background: var(--c-border);
+  margin-bottom: 10px;
+}
+.db-restore-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+</style>
+
+<script>
+function showProxyGuide() {
+  document.getElementById('proxy-modal').style.display = 'flex';
+}
+
+function closeProxyModal() {
+  document.getElementById('proxy-modal').style.display = 'none';
+}
+
+// 单文件上限 MB/GB 切换
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+
+// 点击遮罩层关闭弹窗
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = document.getElementById('proxy-modal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeProxyModal();
+      }
+    });
+  }
+});
+
+(function() {
+  // 实时拦截：整数输入框禁止输入小数点
+  ['default_max_files', 'passcode_ttl_minutes', 'default_link_expire_days', 'links_per_page_val', 'records_per_page_val'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function() {
+        if (this.value.includes('.')) {
+          this.value = this.value.split('.')[0];
+        }
+      });
+    }
+  });
+
+  // 默认设置表单提交验证
+  var defaultsBtn = document.querySelector('button[value="defaults"]');
+  if (defaultsBtn) {
+    var form = defaultsBtn.closest('form');
+    form.addEventListener('submit', function(e) {
+      var mf = document.getElementById('default_max_files');
+      var ms = document.getElementById('default_max_size');
+      if (mf && mf.value !== '') {
+        var v = parseInt(mf.value, 10);
+        if (isNaN(v) || String(v) !== mf.value.trim() || v < 0) {
+          e.preventDefault();
+          alert('默认最大文件数必须是大于等于0的整数（0表示不限制）');
+          return false;
+        }
+      }
+      if (ms && ms.value !== '') {
+        var v2 = parseFloat(ms.value);
+        if (isNaN(v2) || v2 < 0.01 || v2 > 64) {
+          e.preventDefault();
+          alert('单文件上限必须在 0.01-64 GB 之间');
+          return false;
+        }
+      }
+    });
+  }
+
+  // 有效期设置表单提交验证（含通行证有效期 + 默认链接有效期）
+  var expiryBtn = document.querySelector('button[value="expiry_settings"]');
+  if (expiryBtn) {
+    var expiryForm = expiryBtn.closest('form');
+    expiryForm.addEventListener('submit', function(e) {
+      var el1 = document.getElementById('passcode_ttl_minutes');
+      if (el1 && el1.value !== '') {
+        var v1 = parseInt(el1.value, 10);
+        if (isNaN(v1) || String(v1) !== el1.value.trim() || v1 < 1 || v1 > 43200) {
+          e.preventDefault();
+          alert('通行证有效期必须是 1-43200 的整数（分钟）');
+          return false;
+        }
+      }
+      var el2 = document.getElementById('default_link_expire_days');
+      if (el2 && el2.value !== '') {
+        var v2 = parseInt(el2.value, 10);
+        if (isNaN(v2) || String(v2) !== el2.value.trim() || v2 < 1 || v2 > 3650) {
+          e.preventDefault();
+          alert('链接有效期天数必须是 1-3650 的整数');
+          return false;
+        }
+      }
+    });
+  }
+
+  // 分页设置表单提交验证（含链接每页 + 记录每页）
+  var pageBtn = document.querySelector('button[value="pagination"]');
+  if (pageBtn) {
+    var pageForm = pageBtn.closest('form');
+    pageForm.addEventListener('submit', function(e) {
+      var el3 = document.getElementById('links_per_page_val');
+      if (el3 && el3.value !== '') {
+        var v3 = parseInt(el3.value, 10);
+        if (isNaN(v3) || String(v3) !== el3.value.trim() || v3 < 5 || v3 > 100) {
+          e.preventDefault();
+          alert('每页显示数量必须是 5-100 的整数');
+          return false;
+        }
+      }
+      var el4 = document.getElementById('records_per_page_val');
+      if (el4 && el4.value !== '') {
+        var v4 = parseInt(el4.value, 10);
+        if (isNaN(v4) || String(v4) !== el4.value.trim() || v4 < 5 || v4 > 200) {
+          e.preventDefault();
+          alert('每页显示数量必须是 5-200 的整数');
+          return false;
+        }
+      }
+    });
+  }
+
+  // SMTP 端口根据加密方式自动设置
+  var smtpTlsEl = document.getElementById('smtp_use_tls');
+  var smtpPortEl = document.getElementById('smtp_port');
+  if (smtpTlsEl && smtpPortEl) {
+    smtpTlsEl.addEventListener('change', function() {
+      smtpPortEl.value = this.value === '1' ? '587' : '465';
+    });
+  }
+
+  // 测试 SMTP 发送 — 直接使用发件人邮箱作为收件人
+  var testBtn = document.getElementById('test-smtp-btn');
+  if (testBtn) {
+    testBtn.addEventListener('click', function() {
+      var smtpEmail = document.getElementById('smtp_from_email');
+      var testEmail = smtpEmail ? smtpEmail.value.trim() : '';
+      if (!testEmail || testEmail.indexOf('@') < 0) {
+        alert('请先填写发件人邮箱，测试邮件将发送到该地址');
+        return;
+      }
+      testBtn.disabled = true;
+      testBtn.textContent = '发送中...';
+      var resultDiv = document.getElementById('smtp-test-result');
+      resultDiv.style.display = 'none';
+      var csrf = document.querySelector('#smtp-form input[name="csrf_token"]').value;
+      var formData = new FormData();
+      formData.append('test_email', testEmail);
+      formData.append('csrf_token', csrf);
+      fetch('{{ url_for("test_smtp") }}', { method: 'POST', body: formData, headers: { 'X-CSRFToken': csrf } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          resultDiv.style.display = 'block';
+          if (data.success) {
+            resultDiv.innerHTML = '';
+            var s = document.createElement('span');
+            s.style.color = '#059669';
+            s.textContent = '✓ ' + data.message;
+            resultDiv.appendChild(s);
+          } else {
+            resultDiv.innerHTML = '';
+            var s = document.createElement('span');
+            s.style.color = '#dc2626';
+            s.textContent = '✗ ' + data.message;
+            resultDiv.appendChild(s);
+          }
+        })
+        .catch(function() {
+          resultDiv.style.display = 'block';
+          resultDiv.innerHTML = '<span style="color:#dc2626;">✗ 请求失败，请检查网络</span>';
+        })
+        .finally(function() {
+          testBtn.disabled = false;
+          testBtn.textContent = '发送测试邮件';
+        });
+    });
+  }
+
+  // 异步检查版本更新
+  var updateLink = document.getElementById('update-link');
+  if (updateLink) {
+    fetch('{{ url_for("check_update") }}').then(function(r) { return r.json(); }).then(function(data) {
+      if (data.has_update) {
+        if (data.url) updateLink.href = data.url;
+        if (data.latest_version) updateLink.textContent = '发现新版本 v' + data.latest_version;
+        updateLink.style.display = '';
+      }
+    }).catch(function() {});
+  }
+
+  // 单文件上限 MB/GB 切换
+  (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
+})();
+</script>
+{% endblock %}

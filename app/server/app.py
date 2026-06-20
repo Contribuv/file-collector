@@ -26,13 +26,13 @@ import tempfile
 import threading
 import urllib.request
 import urllib.error
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
 from flask import (
     Flask, request, render_template, redirect, url_for,
-    session, jsonify, flash, send_from_directory, abort
+    session, jsonify, flash, send_from_directory, abort, make_response
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -119,7 +119,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.16"
+VERSION = "2.2.18"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -432,6 +432,38 @@ def init_db():
         conn.commit()
     except Exception as e:
         print(f"数据库迁移错误(chunk_uploads): {e}")
+
+    try:
+        # 3.3.2 创建 tus_uploads 表（Tus 协议断点续传）
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tus_uploads'")
+        if not cursor.fetchone():
+            conn.execute('''
+                CREATE TABLE tus_uploads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    upload_id TEXT NOT NULL UNIQUE,
+                    link_id TEXT NOT NULL,
+                    user_id TEXT DEFAULT '',
+                    original_name TEXT NOT NULL,
+                    stored_name TEXT NOT NULL,
+                    total_size INTEGER NOT NULL,
+                    uploaded_offset INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'uploading',
+                    stored_path TEXT DEFAULT '',
+                    temp_path TEXT DEFAULT '',
+                    uploader_ip TEXT DEFAULT '',
+                    uploader_name TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            logger.info("已创建 tus_uploads 表")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tus_uploads_upload_id ON tus_uploads(upload_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tus_uploads_link_id ON tus_uploads(link_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tus_uploads_status ON tus_uploads(status)")
+        conn.commit()
+    except Exception as e:
+        print(f"数据库迁移错误(tus_uploads): {e}")
 
     # 数据库迁移 - 字段升级
     # 0. 检查并创建 verification_codes 表（如果不存在）
@@ -2382,7 +2414,8 @@ def collect_page(link_id):
         creator_name=creator_name,
         csrf_token=csrf_token,
         dl_token=dl_token,
-        dl_token_expires=dl_token_expires)
+        dl_token_expires=dl_token_expires,
+        blocked_extensions=sorted(list(get_blocked_extensions())))
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
@@ -3476,7 +3509,8 @@ def upload_file(link_id):
             result = {'filename': file.filename, 'success': True}
 
             if not allowed_file(file.filename):
-                result.update({'success': False, 'message': '不支持的文件类型'})
+                _, ext = os.path.splitext(file.filename.lower())
+                result.update({'success': False, 'message': f'文件类型 {ext or "（无扩展名）"} 被禁止上传'})
                 results.append(result)
                 continue
 
@@ -3504,7 +3538,7 @@ def upload_file(link_id):
             if os.path.exists(stored_path):
                 result.update({
                     'success': False,
-                    'message': '文件已存在，请重命名后重新上传'
+                    'message': f'「{file.filename}」已存在，请改名后上传'
                 })
                 results.append(result)
                 continue
@@ -3556,26 +3590,49 @@ def upload_file(link_id):
                 pass
 
 # ============================================================
-# 路由 - 分片上传 / 断点续传
+# 路由 - Tus 协议断点续传上传
 # ============================================================
 
-CHUNK_SIZE = 5 * 1024 * 1024  # 5MB per chunk (default)
-CHUNK_MAX_CONCURRENT = 3       # max concurrent chunk uploads
+TUS_VERSION = '1.0.0'
+TUS_EXTENSIONS = 'creation,creation-with-upload,termination'
+TUS_CHUNK_SIZE = 5 * 1024 * 1024  # 5MB per PATCH (前端分片大小)
 
-def _get_chunk_dir(upload_dir, upload_id):
-    """获取分片临时目录，确保路径安全"""
-    safe_uid = re.sub(r'[^\w\-]', '_', upload_id)
-    chunk_dir = os.path.join(upload_dir, '.chunks', safe_uid)
-    real_chunk_dir = os.path.realpath(chunk_dir)
+# 保留旧常量用于清理旧数据
+CHUNK_SIZE = 5 * 1024 * 1024
+
+def _get_tus_dir(upload_dir):
+    """获取 Tus 临时文件目录，确保路径安全"""
+    tus_dir = os.path.join(upload_dir, '.tus')
+    real_tus_dir = os.path.realpath(tus_dir)
     real_base = os.path.realpath(upload_dir)
-    if not real_chunk_dir.startswith(real_base + os.sep) and real_chunk_dir != real_base:
-        raise ValueError('Invalid chunk path')
-    os.makedirs(real_chunk_dir, mode=0o755, exist_ok=True)
-    return real_chunk_dir
+    if not real_tus_dir.startswith(real_base + os.sep) and real_tus_dir != real_base:
+        raise ValueError('Invalid tus path')
+    os.makedirs(real_tus_dir, mode=0o755, exist_ok=True)
+    return real_tus_dir
+
+def _cleanup_abandoned_tus(upload_dir, max_age_hours=24):
+    """清理超时的 Tus 临时文件"""
+    tus_dir = os.path.join(upload_dir, '.tus')
+    if not os.path.isdir(tus_dir):
+        return
+    now = time.time()
+    cutoff = now - (max_age_hours * 3600)
+    try:
+        for fname in os.listdir(tus_dir):
+            fpath = os.path.join(tus_dir, fname)
+            if os.path.isfile(fpath):
+                mtime = os.path.getmtime(fpath)
+                if mtime < cutoff:
+                    try:
+                        os.remove(fpath)
+                        logger.info(f"清理过期 Tus 临时文件: {fpath}")
+                    except Exception:
+                        pass
+    except Exception:
+        pass
 
 def _cleanup_abandoned_chunks(upload_dir, max_age_hours=24):
-    """清理超时的分片临时文件"""
-    import glob as _glob
+    """清理超时的分片临时文件（兼容旧版 .chunks 目录）"""
     chunks_root = os.path.join(upload_dir, '.chunks')
     if not os.path.isdir(chunks_root):
         return
@@ -3595,112 +3652,175 @@ def _cleanup_abandoned_chunks(upload_dir, max_age_hours=24):
     except Exception:
         pass
 
-@app.route('/collect/<link_id>/chunk/status', methods=['GET'])
-def chunk_upload_status(link_id):
-    """查询分片上传状态，返回已上传分片列表（断点续传用）"""
+def _cleanup_chunk_dir(chunk_dir):
+    """安全删除分片目录（兼容旧版）"""
+    try:
+        if os.path.isdir(chunk_dir):
+            shutil.rmtree(chunk_dir)
+    except Exception:
+        pass
+
+def _get_chunk_dir(upload_dir, upload_id):
+    """获取分片临时目录（兼容旧版）"""
+    safe_uid = re.sub(r'[^\w\-]', '_', upload_id)
+    chunk_dir = os.path.join(upload_dir, '.chunks', safe_uid)
+    real_chunk_dir = os.path.realpath(chunk_dir)
+    real_base = os.path.realpath(upload_dir)
+    if not real_chunk_dir.startswith(real_base + os.sep) and real_chunk_dir != real_base:
+        raise ValueError('Invalid chunk path')
+    os.makedirs(real_chunk_dir, mode=0o755, exist_ok=True)
+    return real_chunk_dir
+
+def _tus_response(code=204, extra_headers=None):
+    """构造 Tus 协议响应"""
+    resp = make_response('', code)
+    resp.headers['Tus-Resumable'] = TUS_VERSION
+    if extra_headers:
+        for k, v in extra_headers.items():
+            resp.headers[k] = v
+    return resp
+
+def _tus_error(code, message):
+    """构造 Tus 错误响应"""
+    logger.info(f"Tus error {code}: {message} [link_id={request.view_args.get('link_id','?')}]")
+    resp = make_response(json.dumps({'error': message}), code)
+    resp.headers['Content-Type'] = 'application/json'
+    resp.headers['Tus-Resumable'] = TUS_VERSION
+    return resp
+
+def _parse_tus_metadata(metadata_str):
+    """解析 Tus Upload-Metadata 头，返回 dict（值已 base64 解码）"""
+    result = {}
+    if not metadata_str:
+        return result
+    import base64
+    for pair in metadata_str.split(','):
+        pair = pair.strip()
+        if not pair:
+            continue
+        parts = pair.split(' ', 1)
+        key = parts[0]
+        val = ''
+        if len(parts) > 1 and parts[1]:
+            try:
+                val = base64.b64decode(parts[1]).decode('utf-8')
+            except Exception:
+                val = ''
+        result[key] = val
+    return result
+
+def _tus_resolve_link(link_id):
+    """解析链接，返回 (link_dict, canonical_id) 或 (None, None)"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return jsonify({'success': False, 'message': '链接格式无效'}), 400
-
-    upload_id = request.args.get('upload_id', '').strip()
-    if not upload_id or len(upload_id) > 128:
-        return jsonify({'success': False, 'message': '缺少有效的 upload_id'}), 400
-
+        return None, None
     conn = get_db()
     try:
         link = conn.execute(
-            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
+            (link_id, link_id)
         ).fetchone()
         if not link:
-            return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-
-        if not is_verified(link_id, link):
-            return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-        row = conn.execute(
-            "SELECT * FROM chunk_uploads WHERE upload_id = ? AND link_id = ?",
-            (upload_id, link_id)
-        ).fetchone()
-
-        if row:
-            uploaded = []
-            if row['uploaded_chunks']:
-                try:
-                    uploaded = json.loads(row['uploaded_chunks'])
-                except (json.JSONDecodeError, TypeError):
-                    uploaded = []
-            return jsonify({
-                'success': True,
-                'upload_id': upload_id,
-                'status': row['status'],
-                'total_chunks': row['total_chunks'],
-                'chunk_size': row['chunk_size'],
-                'total_size': row['total_size'],
-                'uploaded_chunks': uploaded,
-                'stored_path': row['stored_path'] if row['status'] == 'completed' else ''
-            })
-        else:
-            return jsonify({
-                'success': True,
-                'upload_id': upload_id,
-                'status': 'new',
-                'total_chunks': 0,
-                'chunk_size': CHUNK_SIZE,
-                'total_size': 0,
-                'uploaded_chunks': []
-            })
-    except Exception as e:
-        logger.error(f"chunk_status error: {e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': '查询状态失败'}), 500
+            return None, None
+        return dict(link), link['id']
     finally:
         conn.close()
 
-@app.route('/collect/<link_id>/chunk/init', methods=['POST'])
-def chunk_upload_init(link_id):
-    """初始化分片上传会话"""
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+def _tus_complete_upload(conn, upload_id, link, link_id, uploader_name, temp_path, upload_dir, stored_name, original_name, total_size):
+    """完成 Tus 上传：移动文件、写入记录、日志"""
+    stored_path = os.path.join(upload_dir, stored_name)
+
+    # 文件名冲突检查（创建会话时已预检，此处为并发兜底）
+    if os.path.exists(stored_path):
+        raise FileExistsError(f'「{original_name}」已存在，请改名后上传')
+
+    # 移动临时文件到最终位置
+    import shutil as _shutil
+    _shutil.move(temp_path, stored_path)
+
+    # 写入 upload_records
+    cursor = conn.execute(
+        """INSERT INTO upload_records
+           (link_id, user_id, original_name, stored_name, stored_path, file_size,
+            file_size_display, uploader_ip, uploader_name, uploaded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (link_id, link.get('user_id', '') or '', original_name,
+         stored_name, stored_path, total_size,
+         format_file_size(total_size), _get_client_ip(), uploader_name,
+         datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    )
+    record_id = cursor.lastrowid
+
+    # 标记完成
+    conn.execute(
+        "UPDATE tus_uploads SET status = 'completed', stored_path = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+        (stored_path, upload_id)
+    )
+    conn.commit()
+
+    # 记录日志
+    _log_upload(link_id, 'tus_upload', record_id=record_id,
+                details={'name': original_name, 'size': total_size, 'stored': stored_name},
+                uploader_name=uploader_name)
+
+    logger.info(f"Tus 上传完成: link={link_id}, file={stored_name}, record_id={record_id}")
+    return record_id, stored_name, stored_path
+
+
+@app.route('/collect/<link_id>/tus', methods=['OPTIONS'])
+def tus_options(link_id):
+    """Tus 协议能力发现"""
+    return _tus_response(204, {
+        'Tus-Version': TUS_VERSION,
+        'Tus-Extension': TUS_EXTENSIONS,
+        'Tus-Max-Size': str(round(2048 * 1024 * 1024 * 1024)),  # 2TB 上限
+        'Access-Control-Allow-Methods': 'POST,HEAD,PATCH,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Tus-Resumable,Upload-Length,Upload-Offset,Upload-Metadata,Upload-Concat,Content-Type,X-CSRFToken,X-HTTP-Method-Override',
+        'Access-Control-Max-Age': '86400',
+    })
+
+
+@app.route('/collect/<link_id>/tus', methods=['POST'])
+def tus_create(link_id):
+    """Tus 创建上传会话（POST）"""
+    # 检查 Tus-Resumable 头
+    tus_resumable = request.headers.get('Tus-Resumable', '')
+    if not tus_resumable:
+        return _tus_error(412, 'Missing Tus-Resumable header')
+    if tus_resumable != TUS_VERSION:
+        return _tus_error(412, f'Unsupported Tus version: {tus_resumable}')
+
     if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+        return _tus_error(403, 'CSRF validation failed')
 
-    upload_id = request.form.get('upload_id', '').strip()
-    filename = request.form.get('filename', '').strip()
-    file_size = request.form.get('file_size', '0').strip()
-    chunk_size_str = request.form.get('chunk_size', str(CHUNK_SIZE)).strip()
+    link, canonical_id = _tus_resolve_link(link_id)
+    if not link:
+        return _tus_error(404, 'Link not found')
+    link_id = canonical_id
 
-    if not upload_id or len(upload_id) > 128:
-        return jsonify({'success': False, 'message': '缺少有效的 upload_id'}), 400
-    if not filename:
-        return jsonify({'success': False, 'message': '缺少文件名'}), 400
+    if not is_verified(link_id, link):
+        return _tus_error(403, 'Passcode verification required')
 
+    # 解析 Upload-Length
+    upload_length_str = request.headers.get('Upload-Length', '')
     try:
-        file_size_int = int(file_size)
-        chunk_size_int = min(int(chunk_size_str), CHUNK_SIZE)
+        total_size = int(upload_length_str)
     except (ValueError, TypeError):
-        return jsonify({'success': False, 'message': '参数格式错误'}), 400
+        return _tus_error(400, 'Invalid or missing Upload-Length')
 
-    if file_size_int <= 0:
-        return jsonify({'success': False, 'message': '无效的文件大小'}), 400
+    if total_size <= 0:
+        return _tus_error(400, 'Invalid file size')
 
-    total_chunks = max(1, (file_size_int + chunk_size_int - 1) // chunk_size_int)
+    # 解析 Upload-Metadata
+    metadata = _parse_tus_metadata(request.headers.get('Upload-Metadata', ''))
+    filename = metadata.get('filename', '')
+    if not filename:
+        return _tus_error(400, 'Missing filename in metadata')
+
+    uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
 
     conn = get_db()
     try:
-        link = conn.execute(
-            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-        ).fetchone()
-        if not link:
-            return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-
-        # 统一使用数据库规范 ID（支持自定义 slug 访问）
-        link_id = link['id']
-
-        if not is_verified(link_id, link):
-            return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
-
         # 检查数量限制
-        # 开启上传者时：每个上传者独立配额；未开启时：全局配额
         max_files = link['max_files']
         if max_files > 0:
             if link['require_uploader']:
@@ -3713,552 +3833,348 @@ def chunk_upload_init(link_id):
                     "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
                 ).fetchone()[0]
             if current_count >= max_files:
-                return jsonify({
-                    'success': False,
-                    'message': f'已达到最大上传数 {max_files} 个，无法继续上传'
-                }), 400
+                return _tus_error(400, f'已达到最大上传数 {max_files} 个，无法继续上传')
 
         # 检查大小限制
         max_size_bytes = round(link['max_file_size_gb'] * 1024 * 1024 * 1024)
-        if file_size_int > max_size_bytes:
+        if total_size > max_size_bytes:
             limit_display = f'{link["max_file_size_gb"]} GB'
             if link['max_file_size_gb'] < 1:
                 limit_mb = round(link['max_file_size_gb'] * 1024, 1)
                 limit_display = f'{limit_mb} MB'
-            return jsonify({
-                'success': False,
-                'message': f'文件大小 {format_file_size(file_size_int)} 超过限制（上限 {limit_display}）'
-            }), 400
+            return _tus_error(413, f'文件大小 {format_file_size(total_size)} 超过限制（上限 {limit_display}）')
 
         # 检查文件类型
         if not allowed_file(filename):
-            return jsonify({'success': False, 'message': '不支持的文件类型'}), 400
+            _, ext = os.path.splitext(filename.lower())
+            return _tus_error(400, f'文件类型 {ext or "（无扩展名）"} 被禁止上传')
 
         safe_name = safe_filename_unicode(filename)
         if not safe_name:
             safe_name = 'unnamed_file'
         upload_dir = create_upload_dir(link_id, uploader_name)
-        stored_path = os.path.join(upload_dir, safe_name)
 
-        # 清理过期分片（每次初始化时触发一次）
+        # 检查文件名是否已存在（提前拦截，避免传完大文件才发现冲突）
+        if os.path.exists(os.path.join(upload_dir, safe_name)):
+            return _tus_error(409, f'「{filename}」已存在，请改名后上传')
+
+        # 清理过期临时文件
+        _cleanup_abandoned_tus(upload_dir, max_age_hours=24)
         _cleanup_abandoned_chunks(upload_dir, max_age_hours=24)
 
-        # 先按 upload_id 精确查找
-        existing = conn.execute(
-            "SELECT * FROM chunk_uploads WHERE upload_id = ? AND link_id = ?",
-            (upload_id, link_id)
-        ).fetchone()
+        # 生成 upload_id
+        upload_id = secrets.token_hex(16)
 
-        # 如果按 upload_id 找不到，尝试按 文件名+大小+IP 匹配（支持跨页面刷新的断点续传）
-        # 加 uploader_ip 校验：防止不同用户上传同名同大小文件时跨用户劫持分片会话
-        if not existing:
-            client_ip = _get_client_ip()
-            existing = conn.execute(
-                """SELECT * FROM chunk_uploads
-                   WHERE link_id = ? AND original_name = ? AND total_size = ?
-                   AND status = 'uploading' AND uploader_ip = ?
-                   ORDER BY updated_at DESC LIMIT 1""",
-                (link_id, filename, file_size_int, client_ip)
-            ).fetchone()
-            if existing:
-                upload_id = existing['upload_id']  # 使用已存在的 upload_id
-                logger.info(f"断点续传匹配: {filename} → upload_id={upload_id}")
+        # 检查并发上传会话数
+        client_ip = _get_client_ip()
+        active_count = conn.execute(
+            """SELECT COUNT(*) FROM tus_uploads
+               WHERE uploader_ip = ? AND status = 'uploading'
+               AND updated_at > datetime('now', '-2 hours')""",
+            (client_ip,)
+        ).fetchone()[0]
+        if active_count >= 10:
+            return _tus_error(429, '同时上传的任务过多，请等待已有上传完成后再试')
 
-        if existing:
-            # 续传：返回已上传的分片
-            uploaded = []
-            if existing['uploaded_chunks']:
-                try:
-                    uploaded = json.loads(existing['uploaded_chunks'])
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            # 验证磁盘文件是否真实存在（旧会话分片可能已被清理，避免前端误显示 100%）
-            chunk_dir = _get_chunk_dir(upload_dir, upload_id)
-            if uploaded and os.path.isdir(chunk_dir):
-                valid_uploaded = [ci for ci in uploaded if os.path.exists(os.path.join(chunk_dir, f'chunk_{ci:05d}'))]
-                removed = len(uploaded) - len(valid_uploaded)
-                if removed > 0:
-                    logger.info(f"续传校验: {filename} 清理 {removed} 个无效分片记录（磁盘文件不存在）")
-                    uploaded = valid_uploaded
-                    conn.execute(
-                        "UPDATE chunk_uploads SET uploaded_chunks = ? WHERE upload_id = ?",
-                        (json.dumps(uploaded), upload_id)
-                    )
-                    conn.commit()
-            # 更新元数据（可能已变更）
-            conn.execute(
-                """UPDATE chunk_uploads SET
-                   original_name=?, stored_name=?, total_size=?, chunk_size=?, total_chunks=?,
-                   updated_at=CURRENT_TIMESTAMP
-                   WHERE upload_id=? AND link_id=?""",
-                (filename, safe_name, file_size_int, chunk_size_int, total_chunks, upload_id, link_id)
-            )
-            conn.commit()
-            _log_upload(link_id, 'chunk_init',
-                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'resumed', 'uploaded': len(uploaded)},
-                        uploader_name=uploader_name)
-            return jsonify({
-                'success': True,
-                'upload_id': upload_id,
-                'total_chunks': total_chunks,
-                'chunk_size': chunk_size_int,
-                'total_size': file_size_int,
-                'uploaded_chunks': uploaded
-            })
-        else:
-            # 新建会话前检查并发上传会话数（防止恶意刷会话耗尽磁盘）
-            client_ip = _get_client_ip()
-            active_count = conn.execute(
-                """SELECT COUNT(*) FROM chunk_uploads
-                   WHERE uploader_ip = ? AND status = 'uploading'
-                   AND updated_at > datetime('now', '-2 hours')""",
-                (client_ip,)
-            ).fetchone()[0]
-            if active_count >= 10:
-                return jsonify({
-                    'success': False,
-                    'message': '同时上传的任务过多，请等待已有上传完成后再试'
-                }), 429
-            conn.execute(
-                """INSERT INTO chunk_uploads
-                   (upload_id, link_id, user_id, original_name, stored_name,
-                    total_size, chunk_size, total_chunks, uploaded_chunks, status,
-                    uploader_ip)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)""",
-                (upload_id, link_id, link['user_id'] or '', filename, safe_name,
-                 file_size_int, chunk_size_int, total_chunks, '[]', client_ip)
-            )
-            conn.commit()
-            _log_upload(link_id, 'chunk_init',
-                        details={'name': filename, 'size': file_size_int, 'chunks': total_chunks, 'status': 'initialized'},
-                        uploader_name=uploader_name)
-            return jsonify({
-                'success': True,
-                'upload_id': upload_id,
-                'total_chunks': total_chunks,
-                'chunk_size': chunk_size_int,
-                'total_size': file_size_int,
-                'uploaded_chunks': []
-            })
-    except sqlite3.OperationalError as e:
-        logger.error(f"chunk_init DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... err={e}")
-        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
-    except PermissionError as e:
-        logger.error(f"chunk_init 目录无权限: {e}")
-        return jsonify({'success': False, 'message': '请在飞牛应用设置中添加自定义文件夹的读写权限'}), 500
-    except Exception as e:
-        logger.error(f"chunk_init error: link={link_id} type={type(e).__name__} err={e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': f'初始化失败: {type(e).__name__}'}), 500
-    finally:
-        conn.close()
+        # 创建临时文件路径
+        tus_dir = _get_tus_dir(upload_dir)
+        safe_uid = re.sub(r'[^\w\-]', '_', upload_id)
+        temp_path = os.path.join(tus_dir, f'{safe_uid}.part')
 
-@app.route('/collect/<link_id>/chunk/upload', methods=['POST'])
-def chunk_upload(link_id):
-    """接收单个分片"""
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return jsonify({'success': False, 'message': '链接格式无效'}), 400
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+        # 创建空临时文件
+        with open(temp_path, 'wb') as f:
+            pass
 
-    # 不对单个分片请求做频率限制（3并发上传大文件时5秒内可发上百个分片）
-    # 改为在 chunk_init 阶段限制每个 IP 同时进行的上传会话数
+        # 插入 DB 记录
+        conn.execute(
+            """INSERT INTO tus_uploads
+               (upload_id, link_id, user_id, original_name, stored_name,
+                total_size, uploaded_offset, status, temp_path,
+                uploader_ip, uploader_name)
+               VALUES (?, ?, ?, ?, ?, ?, 0, 'uploading', ?, ?, ?)""",
+            (upload_id, link_id, link.get('user_id', '') or '', filename, safe_name,
+             total_size, temp_path, client_ip, uploader_name)
+        )
+        conn.commit()
 
-    upload_id = request.form.get('upload_id', '').strip()
-    chunk_index_str = request.form.get('chunk_index', '').strip()
+        _log_upload(link_id, 'tus_create',
+                    details={'name': filename, 'size': total_size, 'upload_id': upload_id},
+                    uploader_name=uploader_name)
 
-    logger.debug(f"chunk_upload: link={link_id} upload_id={upload_id[:20]}... chunk={chunk_index_str}")
-
-    if not upload_id or len(upload_id) > 128:
-        return jsonify({'success': False, 'message': '缺少有效的 upload_id'}), 400
-    if not chunk_index_str:
-        return jsonify({'success': False, 'message': '缺少 chunk_index'}), 400
-
-    try:
-        chunk_index = int(chunk_index_str)
-    except (ValueError, TypeError):
-        return jsonify({'success': False, 'message': 'chunk_index 格式错误'}), 400
-
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': '没有接收到分片数据'}), 400
-
-    chunk_file = request.files['file']
-    if not chunk_file or not chunk_file.filename:
-        return jsonify({'success': False, 'message': '分片数据为空'}), 400
-
-    conn = get_db()
-    try:
-        link = conn.execute(
-            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-        ).fetchone()
-        if not link:
-            return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-
-        # 统一使用数据库规范 ID（支持自定义 slug 访问）
-        link_id = link['id']
-
-        if not is_verified(link_id, link):
-            return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-        session_row = conn.execute(
-            "SELECT * FROM chunk_uploads WHERE upload_id = ? AND link_id = ? AND status = 'uploading'",
-            (upload_id, link_id)
-        ).fetchone()
-
-        if not session_row:
-            return jsonify({'success': False, 'message': '上传会话不存在或已结束，请重新初始化'}), 404
-
-        if chunk_index < 0 or chunk_index >= session_row['total_chunks']:
-            return jsonify({'success': False, 'message': f'chunk_index 超出范围 (0~{session_row["total_chunks"]-1})'}), 400
-
-        # 检查是否已上传
-        uploaded = []
-        if session_row['uploaded_chunks']:
-            try:
-                uploaded = json.loads(session_row['uploaded_chunks'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        if chunk_index in uploaded:
-            return jsonify({
-                'success': True,
-                'chunk_index': chunk_index,
-                'uploaded_chunks': uploaded,
-                'skipped': True
-            })
-
-        # 保存分片
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
-        upload_dir = create_upload_dir(link_id, uploader_name)
-        chunk_dir = _get_chunk_dir(upload_dir, upload_id)
-        chunk_path = os.path.join(chunk_dir, f'chunk_{chunk_index:05d}')
-        chunk_file.save(chunk_path)
-
-        # 验证分片大小
-        actual_size = os.path.getsize(chunk_path)
-        expected_max = session_row['chunk_size']
-        # 最后一个分片可能小于 chunk_size
-        is_last = (chunk_index == session_row['total_chunks'] - 1)
-        if actual_size > expected_max and not is_last:
-            os.remove(chunk_path)
-            return jsonify({'success': False, 'message': '分片大小异常'}), 400
-
-        # 使用 BEGIN IMMEDIATE 事务防止并发写覆盖（读-改-写竞态条件）
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            # 重新读取最新的 uploaded_chunks，避免覆盖其他 worker 的写入
-            fresh = conn.execute(
-                "SELECT uploaded_chunks FROM chunk_uploads WHERE upload_id = ?",
-                (upload_id,)
-            ).fetchone()
-            fresh_uploaded = []
-            if fresh and fresh['uploaded_chunks']:
-                try:
-                    fresh_uploaded = json.loads(fresh['uploaded_chunks'])
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            if chunk_index not in fresh_uploaded:
-                fresh_uploaded.append(chunk_index)
-                fresh_uploaded.sort()
-            conn.execute(
-                "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-                (json.dumps(fresh_uploaded), upload_id)
-            )
-            conn.commit()
-            uploaded = fresh_uploaded
-        except Exception:
-            conn.execute("ROLLBACK")
-            # 回退到简单更新（写入失败时仍返回成功，容错）
-            uploaded.append(chunk_index)
-            uploaded.sort()
-            try:
-                conn.execute(
-                    "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-                    (json.dumps(uploaded), upload_id)
-                )
-                conn.commit()
-            except Exception:
-                pass
-
-        return jsonify({
-            'success': True,
-            'chunk_index': chunk_index,
-            'uploaded_chunks': uploaded,
-            'total_chunks': session_row['total_chunks']
+        # 返回 201 + Location
+        # 使用 url_for 生成 Location，确保在带路径前缀的反代场景下路径正确
+        # （ProxyFix x_prefix=1 仅对 url_for 生效，手动拼接字符串会丢失前缀）
+        location = url_for('tus_patch', link_id=link_id, upload_id=upload_id)
+        return _tus_response(201, {
+            'Location': location,
+            'Upload-Expires': (datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')),
         })
+
     except sqlite3.OperationalError as e:
-        logger.error(f"chunk_upload DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... chunk={chunk_index_str} err={e}")
-        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
+        logger.error(f"tus_create DB错误: {e}")
+        return _tus_error(503, '服务器繁忙，请重试')
     except PermissionError as e:
-        logger.error(f"chunk_upload 目录无权限: {e}")
-        return jsonify({'success': False, 'message': '请在飞牛应用设置中添加自定义文件夹的读写权限'}), 500
+        logger.error(f"tus_create 目录无权限: {e}")
+        return _tus_error(500, '请在飞牛应用设置中添加自定义文件夹的读写权限')
     except Exception as e:
-        logger.error(f"chunk_upload error: link={link_id} upload_id={upload_id[:20]}... chunk={chunk_index_str} type={type(e).__name__} err={e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': f'分片上传失败: {type(e).__name__}'}), 500
+        logger.error(f"tus_create error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+        return _tus_error(500, f'创建失败: {type(e).__name__}')
     finally:
         conn.close()
 
-@app.route('/collect/<link_id>/chunk/merge', methods=['POST'])
-def chunk_merge(link_id):
-    """合并所有分片为最终文件"""
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return jsonify({'success': False, 'message': '链接格式无效'}), 400
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'}), 403
 
-    upload_id = request.form.get('upload_id', '').strip()
-    if not upload_id or len(upload_id) > 128:
-        return jsonify({'success': False, 'message': '缺少有效的 upload_id'}), 400
+@app.route('/collect/<link_id>/tus/<upload_id>', methods=['HEAD'])
+def tus_head(link_id, upload_id):
+    """Tus 查询上传偏移（HEAD）"""
+    tus_resumable = request.headers.get('Tus-Resumable', '')
+    if not tus_resumable or tus_resumable != TUS_VERSION:
+        return _tus_error(412, 'Unsupported Tus version')
+
+    link, canonical_id = _tus_resolve_link(link_id)
+    if not link:
+        return _tus_error(404, 'Link not found')
+    link_id = canonical_id
+
+    if not is_verified(link_id, link):
+        return _tus_error(403, 'Passcode verification required')
 
     conn = get_db()
     try:
-        link = conn.execute(
-            "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-        ).fetchone()
-        if not link:
-            return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-
-        # 统一使用数据库规范 ID（支持自定义 slug 访问）
-        link_id = link['id']
-
-        if not is_verified(link_id, link):
-            return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-        session_row = conn.execute(
-            "SELECT * FROM chunk_uploads WHERE upload_id = ? AND link_id = ? AND status = 'uploading'",
+        row = conn.execute(
+            "SELECT * FROM tus_uploads WHERE upload_id = ? AND link_id = ?",
             (upload_id, link_id)
         ).fetchone()
 
-        if not session_row:
+        if not row:
+            return _tus_error(404, 'Upload not found')
+
+        if row['status'] == 'completed':
+            return _tus_response(200, {
+                'Upload-Offset': str(row['total_size']),
+                'Upload-Length': str(row['total_size']),
+                'Cache-Control': 'no-store',
+            })
+
+        if row['status'] == 'cancelled':
+            return _tus_error(404, 'Upload was cancelled')
+
+        # 返回实际文件大小作为 offset（而非 DB 存储值，确保部分写入也能正确恢复）
+        temp_path = row['temp_path']
+        actual_offset = 0
+        if temp_path and os.path.exists(temp_path):
+            actual_offset = os.path.getsize(temp_path)
+
+        # 如果 DB offset 与实际不一致，更新 DB
+        if actual_offset != row['uploaded_offset']:
+            conn.execute(
+                "UPDATE tus_uploads SET uploaded_offset = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                (actual_offset, upload_id)
+            )
+            conn.commit()
+
+        return _tus_response(200, {
+            'Upload-Offset': str(actual_offset),
+            'Upload-Length': str(row['total_size']),
+            'Cache-Control': 'no-store',
+        })
+    except Exception as e:
+        logger.error(f"tus_head error: {e}")
+        return _tus_error(500, 'Internal error')
+    finally:
+        conn.close()
+
+
+@app.route('/collect/<link_id>/tus/<upload_id>', methods=['PATCH'])
+def tus_patch(link_id, upload_id):
+    """Tus 上传分片数据（PATCH）"""
+    tus_resumable = request.headers.get('Tus-Resumable', '')
+    if not tus_resumable or tus_resumable != TUS_VERSION:
+        return _tus_error(412, 'Unsupported Tus version')
+
+    if not validate_csrf():
+        return _tus_error(403, 'CSRF validation failed')
+
+    # 检查 Content-Type
+    content_type = request.headers.get('Content-Type', '')
+    if content_type != 'application/offset+octet-stream':
+        return _tus_error(415, 'Unsupported Media Type, expected application/offset+octet-stream')
+
+    link, canonical_id = _tus_resolve_link(link_id)
+    if not link:
+        return _tus_error(404, 'Link not found')
+    link_id = canonical_id
+
+    if not is_verified(link_id, link):
+        return _tus_error(403, 'Passcode verification required')
+
+    # 解析 Upload-Offset
+    offset_str = request.headers.get('Upload-Offset', '')
+    try:
+        client_offset = int(offset_str)
+    except (ValueError, TypeError):
+        return _tus_error(400, 'Invalid or missing Upload-Offset')
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM tus_uploads WHERE upload_id = ? AND link_id = ? AND status = 'uploading'",
+            (upload_id, link_id)
+        ).fetchone()
+
+        if not row:
             # 检查是否已完成
             completed = conn.execute(
-                "SELECT * FROM chunk_uploads WHERE upload_id = ? AND link_id = ? AND status = 'completed'",
+                "SELECT * FROM tus_uploads WHERE upload_id = ? AND link_id = ? AND status = 'completed'",
                 (upload_id, link_id)
             ).fetchone()
             if completed:
-                return jsonify({
-                    'success': True,
-                    'message': '文件已合并完成',
-                    'stored_path': completed['stored_path'],
-                    'status': 'already_completed'
+                return _tus_response(204, {
+                    'Upload-Offset': str(completed['total_size']),
                 })
-            return jsonify({'success': False, 'message': '上传会话不存在'}), 404
+            return _tus_error(404, 'Upload not found or already finished')
 
-        # 验证所有分片都已上传
-        uploaded = []
-        if session_row['uploaded_chunks']:
+        temp_path = row['temp_path']
+        total_size = row['total_size']
+
+        # 获取实际文件大小
+        actual_offset = 0
+        if os.path.exists(temp_path):
+            actual_offset = os.path.getsize(temp_path)
+
+        # 验证 offset 匹配
+        if client_offset != actual_offset:
+            logger.warning(f"tus_patch offset mismatch: client={client_offset} actual={actual_offset} upload_id={upload_id[:16]}...")
+            return _tus_error(409, f'Offset mismatch: client sent {client_offset}, actual is {actual_offset}')
+
+        # 检查是否会超出总大小
+        content_length = request.content_length or 0
+        if actual_offset + content_length > total_size:
+            return _tus_error(413, 'Upload exceeds declared size')
+
+        # 追加写入数据（流式读取，避免大内存占用）
+        bytes_written = 0
+        try:
+            with open(temp_path, 'ab') as f:
+                while True:
+                    buf = request.stream.read(65536)
+                    if not buf:
+                        break
+                    f.write(buf)
+                    bytes_written += len(buf)
+        except IOError as e:
+            logger.error(f"tus_patch 写入失败: {e}")
+            return _tus_error(500, 'File write error')
+
+        new_offset = actual_offset + bytes_written
+
+        # 更新 DB
+        conn.execute(
+            "UPDATE tus_uploads SET uploaded_offset = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+            (new_offset, upload_id)
+        )
+        conn.commit()
+
+        # 检查是否上传完成
+        if new_offset >= total_size:
+            uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+            upload_dir = create_upload_dir(link_id, uploader_name)
+            stored_name = row['stored_name']
+            original_name = row['original_name']
+
             try:
-                uploaded = json.loads(session_row['uploaded_chunks'])
-            except (json.JSONDecodeError, TypeError):
-                pass
+                record_id, final_stored_name, stored_path = _tus_complete_upload(
+                    conn, upload_id, link, link_id, uploader_name,
+                    temp_path, upload_dir, stored_name, original_name, total_size
+                )
+            except FileExistsError as e:
+                # 文件名冲突：回滚状态，提示用户改名后重新上传
+                logger.warning(f"tus_patch 文件名冲突: {e}")
+                conn.execute(
+                    "UPDATE tus_uploads SET status = 'uploading', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                    (upload_id,)
+                )
+                conn.commit()
+                return _tus_error(409, str(e))
+            except Exception as e:
+                logger.error(f"tus_patch 完成上传失败: {e}\n{traceback.format_exc()}")
+                # 回滚状态
+                conn.execute(
+                    "UPDATE tus_uploads SET status = 'uploading', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+                    (upload_id,)
+                )
+                conn.commit()
+                return _tus_error(500, f'完成上传失败: {type(e).__name__}')
 
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
-        upload_dir = create_upload_dir(link_id, uploader_name)
-        chunk_dir = _get_chunk_dir(upload_dir, upload_id)
-        total_chunks = session_row['total_chunks']
-
-        # 始终校验磁盘实际文件（DB 可能因并发写入提前记录分片，但文件尚未落盘）
-        uploaded_set = set(uploaded)
-        db_missing_in_disk = []
-        disk_missing = []
-        for ci in range(total_chunks):
-            exists = os.path.exists(os.path.join(chunk_dir, f'chunk_{ci:05d}'))
-            if exists and ci not in uploaded_set:
-                db_missing_in_disk.append(ci)
-            elif not exists:
-                disk_missing.append(ci)
-
-        if db_missing_in_disk:
-            # 磁盘有但 DB 没记录的，补齐 DB
-            uploaded.extend(db_missing_in_disk)
-            uploaded.sort()
-            conn.execute(
-                "UPDATE chunk_uploads SET uploaded_chunks = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-                (json.dumps(uploaded), upload_id)
-            )
-            conn.commit()
-
-        if disk_missing:
-            logger.warning(
-                f"chunk_merge 缺失分片: link={link_id} upload_id={upload_id[:20]}... "
-                f"total={total_chunks} db_has={len(uploaded)} missing={disk_missing} chunk_dir={chunk_dir}"
-            )
-            # 返回 200（而非 400/500），避免反向代理将 JSON 替换为 HTML 错误页
-            return jsonify({
-                'success': False,
-                'message': f'还有 {len(disk_missing)} 个分片未上传',
-                'missing_chunks': disk_missing
+            return _tus_response(204, {
+                'Upload-Offset': str(new_offset),
             })
 
-        # 标记为合并中
+        return _tus_response(204, {
+            'Upload-Offset': str(new_offset),
+        })
+
+    except sqlite3.OperationalError as e:
+        logger.error(f"tus_patch DB错误: {e}")
+        return _tus_error(503, '服务器繁忙，请重试')
+    except PermissionError as e:
+        logger.error(f"tus_patch 目录无权限: {e}")
+        return _tus_error(500, '请在飞牛应用设置中添加自定义文件夹的读写权限')
+    except Exception as e:
+        logger.error(f"tus_patch error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+        return _tus_error(500, f'上传失败: {type(e).__name__}')
+    finally:
+        conn.close()
+
+
+@app.route('/collect/<link_id>/tus/<upload_id>', methods=['DELETE'])
+def tus_delete(link_id, upload_id):
+    """Tus 取消上传（DELETE）"""
+    tus_resumable = request.headers.get('Tus-Resumable', '')
+    if not tus_resumable or tus_resumable != TUS_VERSION:
+        return _tus_error(412, 'Unsupported Tus version')
+
+    if not validate_csrf():
+        return _tus_error(403, 'CSRF validation failed')
+
+    link, canonical_id = _tus_resolve_link(link_id)
+    if not link:
+        return _tus_error(404, 'Link not found')
+    link_id = canonical_id
+
+    if not is_verified(link_id, link):
+        return _tus_error(403, 'Passcode verification required')
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM tus_uploads WHERE upload_id = ? AND link_id = ?",
+            (upload_id, link_id)
+        ).fetchone()
+
+        if not row:
+            return _tus_error(404, 'Upload not found')
+
+        # 标记取消
         conn.execute(
-            "UPDATE chunk_uploads SET status = 'merging', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
+            "UPDATE tus_uploads SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
             (upload_id,)
         )
         conn.commit()
 
-        # 合并分片
-        stored_name = session_row['stored_name']
-        stored_path = os.path.join(upload_dir, stored_name)
+        # 删除临时文件
+        temp_path = row['temp_path']
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
-        # 检查最终文件是否已存在
-        if os.path.exists(stored_path):
-            _cleanup_chunk_dir(chunk_dir)
-            conn.execute(
-                "UPDATE chunk_uploads SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-                (upload_id,)
-            )
-            conn.commit()
-            return jsonify({
-                'success': False,
-                'message': '文件已存在，请重命名后重新上传'
-            }), 409
-
-        # 合并写入（带校验和大小验证）
-        total_written = 0
-        expected_size = session_row['total_size']
-        try:
-            with open(stored_path, 'wb') as outfile:
-                for i in range(total_chunks):
-                    chunk_path = os.path.join(chunk_dir, f'chunk_{i:05d}')
-                    if not os.path.exists(chunk_path):
-                        raise FileNotFoundError(f'分片 {i} 丢失: {chunk_path}')
-                    with open(chunk_path, 'rb') as infile:
-                        data = infile.read()
-                        outfile.write(data)
-                        total_written += len(data)
-
-            if total_written != expected_size:
-                os.remove(stored_path)
-                raise ValueError(
-                    f'合并后文件大小不一致: 期望 {expected_size}, 实际 {total_written}'
-                )
-
-            logger.info(f"分片合并完成: {stored_path} ({format_file_size(total_written)})")
-
-        except Exception as merge_err:
-            # 合并失败，回滚状态
-            if os.path.exists(stored_path):
-                try:
-                    os.remove(stored_path)
-                except Exception:
-                    pass
-            conn.execute(
-                "UPDATE chunk_uploads SET status = 'uploading', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-                (upload_id,)
-            )
-            conn.commit()
-            logger.error(f"分片合并失败: {merge_err}")
-            return jsonify({
-                'success': False,
-                'message': f'文件合并失败: {str(merge_err)}'
-            }), 500
-
-        # 写入 upload_records
-        cursor = conn.execute(
-            """INSERT INTO upload_records
-               (link_id, user_id, original_name, stored_name, stored_path, file_size,
-                file_size_display, uploader_ip, uploader_name, uploaded_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (link_id, link['user_id'] or '', session_row['original_name'],
-             stored_name, stored_path, total_written,
-             format_file_size(total_written), _get_client_ip(), uploader_name,
-             datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        )
-        record_id = cursor.lastrowid
-
-        # 标记完成
-        conn.execute(
-            "UPDATE chunk_uploads SET status = 'completed', stored_path = ?, updated_at = CURRENT_TIMESTAMP WHERE upload_id = ?",
-            (stored_path, upload_id)
-        )
-        conn.commit()
-
-        # 记录分片合并成功日志
-        _log_upload(link_id, 'chunk_merge', record_id=record_id,
-                    details={'name': session_row['original_name'], 'size': total_written,
-                             'chunks': total_chunks, 'stored': stored_name},
-                    uploader_name=uploader_name)
-
-        # 清理分片临时文件
-        _cleanup_chunk_dir(chunk_dir)
-
-        logger.info(f"分片上传完成: link={link_id}, file={stored_name}, record_id={record_id}")
-
-        return jsonify({
-            'success': True,
-            'message': '文件上传成功',
-            'record_id': record_id,
-            'original_name': session_row['original_name'],
-            'file_size_display': format_file_size(total_written),
-            'stored_path': stored_path
-        })
-
-    except sqlite3.OperationalError as e:
-        logger.error(f"chunk_merge DB锁/操作错误: link={link_id} upload_id={upload_id[:20]}... err={e}")
-        return jsonify({'success': False, 'message': '服务器繁忙，请重试'}), 503
+        return _tus_response(204)
     except Exception as e:
-        logger.error(f"chunk_merge error: link={link_id} upload_id={upload_id[:20]}... type={type(e).__name__} err={e}\n{traceback.format_exc()}")
-        return jsonify({'success': False, 'message': f'文件合并失败: {type(e).__name__}'}), 500
+        logger.error(f"tus_delete error: {e}")
+        return _tus_error(500, 'Cancel failed')
     finally:
         conn.close()
-
-@app.route('/collect/<link_id>/chunk/cancel', methods=['POST'])
-def chunk_cancel(link_id):
-    """取消/清理分片上传"""
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return jsonify({'success': False, 'message': '链接格式无效'}), 400
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'}), 403
-
-    upload_id = request.form.get('upload_id', '').strip()
-    if not upload_id or len(upload_id) > 128:
-        return jsonify({'success': False, 'message': '缺少有效的 upload_id'}), 400
-
-    conn = get_db()
-    try:
-        # 解析链接（支持自定义 slug）
-        link_row = conn.execute(
-            "SELECT id FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-        ).fetchone()
-        if not link_row:
-            return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
-        canonical_id = link_row['id']
-        if not is_verified(canonical_id):
-            return jsonify({'success': False, 'message': '请先验证通行证'}), 403
-
-        conn.execute(
-            "UPDATE chunk_uploads SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE upload_id = ? AND link_id = ?",
-            (upload_id, canonical_id)
-        )
-        conn.commit()
-
-        # 清理分片文件
-        try:
-            uploader_name = (session.get(f'uploader_{canonical_id}') or '').strip()
-            upload_dir = create_upload_dir(canonical_id, uploader_name)
-            chunk_dir = os.path.join(upload_dir, '.chunks', re.sub(r'[^\w\-]', '_', upload_id))
-            if os.path.isdir(chunk_dir):
-                shutil.rmtree(chunk_dir)
-        except Exception:
-            pass
-
-        return jsonify({'success': True, 'message': '已取消'})
-    except PermissionError:
-        # 取消操作即使无权限也忽略
-        pass
-    except Exception as e:
-        logger.error(f"chunk_cancel error: {e}")
-        return jsonify({'success': False, 'message': '取消失败'}), 500
-    finally:
-        conn.close()
-
-def _cleanup_chunk_dir(chunk_dir):
-    """安全删除分片目录"""
-    try:
-        if os.path.isdir(chunk_dir):
-            shutil.rmtree(chunk_dir)
-    except Exception:
-        pass
 
 # ============================================================
 # 路由 - 用户注册和邀请码管理

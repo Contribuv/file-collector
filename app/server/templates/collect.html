@@ -224,6 +224,7 @@
 </div>
 {% endif %}
 
+<script src="{{ url_for('static', filename='js/tus.min.js') }}"></script>
 <script>
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
@@ -412,7 +413,15 @@ async function logoutUploader() {
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
 const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
+const BLOCKED_EXTENSIONS = {{ blocked_extensions|tojson }};
 let totalUploaded = 0;
+
+/* 检查文件类型是否被禁止 */
+function isBlockedFile(name) {
+  var dot = name.lastIndexOf('.');
+  if (dot < 0) return false;
+  return BLOCKED_EXTENSIONS.indexOf(name.slice(dot).toLowerCase()) >= 0;
+}
 
 function setUploadAreaDisabled(disabled) {
   var dz = document.getElementById('dropzone');
@@ -458,6 +467,7 @@ function handleFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     if (MAX_FILES > 0 && selectedFiles.length >= canAdd) { showToast('还可添加 ' + canAdd + ' 个'); break; }
+    if (isBlockedFile(f.name)) { showToast(f.name + ' 文件类型被禁止上传'); continue; }
     if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制'); continue; }
     if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
     selectedFiles.push(f);
@@ -490,15 +500,14 @@ if (dropzone) {
   dropzone.addEventListener('drop', function(e){ handleFiles(e.dataTransfer.files); });
 }
 
-/* ========== Chunked Upload ========== */
-const CHUNK_SIZE = 5 * 1024 * 1024;
-const CHUNK_MAX_CONCURRENT = 3;
-const CHUNK_MAX_RETRIES = 3;
+/* ========== Tus Upload (断点续传) ========== */
+const TUS_CHUNK_SIZE = 5 * 1024 * 1024;  // 5MB per PATCH
 let isUploadPaused = false;
 let failedChunkedFiles = [];
 let uploadStartTime = 0;
 let _speedSamples = [];
 let _lastSpeedValue = 0;
+let _activeTusUploads = [];  // 当前活动的 Tus Upload 实例（用于暂停/取消）
 
 function recordSpeed(bytes) {
   var now = Date.now();
@@ -513,187 +522,129 @@ function getSpeed() {
   var elapsed = (last - first) / 1000;
   return elapsed > 0.05 ? _lastSpeedValue = total / elapsed : _lastSpeedValue;
 }
-function resetSpeedTracker() { _speedSamples = []; }
+function resetSpeedTracker() { _speedSamples = []; _lastSpeedValue = 0; }
 
-function _storageKey(filename, fileSize) {
-  return 'fc_chunk_' + linkId + '_' + fileSize + '_' + encodeURIComponent(filename);
-}
+/* Tus 上传核心函数：使用 tus-js-client 实现断点续传 */
+function uploadFileWithTus(file, fileIdx, totalFiles) {
+  var csrfToken = '{{ csrf_token }}';
+  var progressText = document.getElementById('progress-text');
+  var progressBar = document.getElementById('progress-bar');
+  var speedText = document.getElementById('speed-text');
+  var _lastBytesUploaded = 0;
 
-function generateUploadId(file, filename, fileSize) {
-  try {
-    var key = _storageKey(filename || file.name, fileSize || file.size);
-    var cached = localStorage.getItem(key);
-    if (cached) { var parsed = JSON.parse(cached); if (parsed.upload_id && parsed.expires > Date.now()) { return parsed.upload_id; } }
-  } catch(e) {}
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16);
-  });
-}
-
-function saveUploadIdForFile(file, uploadId) {
-  try { localStorage.setItem(_storageKey(file.name, file.size), JSON.stringify({ upload_id: uploadId, expires: Date.now() + 86400000 })); } catch(e) {}
-}
-function removeUploadIdForFile(file) {
-  try { localStorage.removeItem(_storageKey(file.name, file.size)); } catch(e) {}
-}
-
-async function initChunkSession(uploadId, filename, fileSize) {
-  var formData = new FormData();
-  formData.append('upload_id', uploadId); formData.append('filename', filename);
-  formData.append('file_size', fileSize.toString()); formData.append('chunk_size', CHUNK_SIZE.toString());
-  var res = await fetch('/collect/' + linkId + '/chunk/init', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: formData });
-  var data = await res.json();
-  if (!data.success) throw new Error(data.message || '初始化失败');
-  return data;
-}
-
-function uploadChunkXHR(uploadId, file, chunkIndex, totalChunks) {
-  var start = chunkIndex * CHUNK_SIZE, end = Math.min(start + CHUNK_SIZE, file.size);
-  var blob = file.slice(start, end);
-  var formData = new FormData();
-  formData.append('upload_id', uploadId); formData.append('chunk_index', chunkIndex.toString());
-  formData.append('file', blob, 'chunk_' + String(chunkIndex).padStart(5,'0') + '.bin');
   return new Promise(function(resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/collect/' + linkId + '/chunk/upload');
-    xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); xhr.timeout = 0;
-    xhr.onload = function() {
-      try {
-        var data = JSON.parse(xhr.responseText);
-        if (xhr.status === 200 && data.success) resolve(data);
-        else {
-          var err = new Error(data.message || '分片失败');
-          err.isRateLimit = (xhr.status === 429);
-          reject(err);
+    var retried404 = false;
+    var upload = null;
+
+    function startUpload(skipResume) {
+      var options = {
+        endpoint: {{ url_for('tus_create', link_id=link_id)|tojson }},
+        chunkSize: TUS_CHUNK_SIZE,
+        retryDelays: [0, 1000, 3000, 5000, 10000, 15000, 30000],
+        metadata: {
+          filename: file.name,
+          filetype: file.type || 'application/octet-stream'
+        },
+        headers: { 'X-CSRFToken': csrfToken },
+        removeFingerprintOnSuccess: true,
+        storeFingerprintForResuming: true,
+        // 永久性错误不重试，避免 409/400/403/412 等被 retryDelays 反复重试造成延迟
+        onShouldRetry: function(err, retryAttempt, options) {
+          var status = 0;
+          if (err && err.originalResponse) {
+            status = err.originalResponse.getStatus();
+          }
+          // 400/403/409/410/412/413/415 是永久错误，重试无意义
+          if (status === 400 || status === 403 || status === 409 ||
+              status === 410 || status === 412 || status === 413 || status === 415) {
+            return false;
+          }
+          // 404 由 onError 内部处理（清 localStorage 后重新创建），这里放行不额外重试
+          if (status === 404) {
+            return false;
+          }
+          // 其他错误（如网络抖动、5xx）允许重试
+          return true;
+        },
+        onProgress: function(bytesUploaded, bytesTotal) {
+          var delta = bytesUploaded - _lastBytesUploaded;
+          _lastBytesUploaded = bytesUploaded;
+          if (delta > 0) recordSpeed(delta);
+          var pct = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
+          if (progressBar) progressBar.style.width = pct + '%';
+          if (progressText) progressText.innerHTML = '<span>上传 ' + (fileIdx + 1) + '/' + totalFiles + '</span><span>' + pct + '%</span>';
+          var speed = getSpeed();
+          if (speed > 0 && speedText) speedText.innerHTML = formatSize(speed) + '/s';
+        },
+        onSuccess: function() {
+          var idx = _activeTusUploads.indexOf(upload);
+          if (idx > -1) _activeTusUploads.splice(idx, 1);
+          resolve();
+        },
+        onError: function(error) {
+          var status = 0;
+          if (error.originalResponse) {
+            status = error.originalResponse.getStatus();
+            // 尝试从响应体解析服务器返回的中文错误信息（如文件名冲突）
+            try {
+              var body = error.originalResponse.getBody();
+              if (body) {
+                var errData = JSON.parse(body);
+                if (errData && errData.error) {
+                  error.message = errData.error;
+                }
+              }
+            } catch(e) {}
+          }
+          // 404: 上传会话已被清理，清除 localStorage 并重新创建
+          if ((status === 404 || (error.message && error.message.indexOf('404') > -1)) && !retried404) {
+            retried404 = true;
+            console.warn('Tus upload not found (404), starting fresh...');
+            try {
+              for (var i = localStorage.length - 1; i >= 0; i--) {
+                var key = localStorage.key(i);
+                if (key && key.indexOf('tus::') === 0) {
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch(e) {}
+            startUpload(true);
+            return;
+          }
+          // 网络错误（无响应）提示中文
+          if (status === 0) {
+            error.message = '网络连接失败，请检查网络后重试';
+          }
+          // 永久性错误标记（调用方据此决定是否显示重试按钮）
+          if (status === 400 || status === 403 || status === 409 ||
+              status === 410 || status === 412 || status === 413 || status === 415) {
+            error.permanent = true;
+          }
+          var idx2 = _activeTusUploads.indexOf(upload);
+          if (idx2 > -1) _activeTusUploads.splice(idx2, 1);
+          reject(error);
         }
+      };
+
+      upload = new tus.Upload(file, options);
+      _activeTusUploads.push(upload);
+
+      if (skipResume) {
+        upload.start();
+      } else {
+        upload.findPreviousUploads().then(function(previousUploads) {
+          if (previousUploads.length > 0) {
+            upload.resumeFromPreviousUpload(previousUploads[0]);
+          }
+          upload.start();
+        }).catch(function() {
+          upload.start();
+        });
       }
-      catch(e) { reject(new Error('响应异常')); }
-    };
-    xhr.onerror = function() { reject(new Error('网络错误')); };
-    xhr.ontimeout = function() { reject(new Error('超时')); };
-    xhr.send(formData);
+    }
+
+    startUpload(false);
   });
-}
-
-async function uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks) {
-  for (var attempt = 0; attempt <= CHUNK_MAX_RETRIES; attempt++) {
-    try { return await uploadChunkXHR(uploadId, file, chunkIdx, totalChunks); }
-    catch(e) {
-      if (attempt >= CHUNK_MAX_RETRIES) throw e;
-      var delay = e.isRateLimit ? 5000 : 1000 * Math.pow(2, attempt);
-      await new Promise(function(r){ setTimeout(r, delay); });
-    }
-  }
-}
-
-async function mergeChunksAPI(uploadId) {
-  var formData = new FormData(); formData.append('upload_id', uploadId);
-  var res = await fetch('/collect/' + linkId + '/chunk/merge', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: formData });
-  var text = await res.text();
-  var data;
-  try {
-    data = JSON.parse(text);
-  } catch (parseErr) {
-    // 反向代理可能将非 200 响应替换为 HTML 错误页，重试一次
-    console.warn('Merge response not JSON (status ' + res.status + '), retrying once after 2s...');
-    await new Promise(function(r) { setTimeout(r, 2000); });
-    var retryRes = await fetch('/collect/' + linkId + '/chunk/merge', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: formData });
-    data = await retryRes.json();
-  }
-  if (!data.success) {
-    var err = new Error(data.message || '合并失败');
-    err.missingChunks = data.missing_chunks || null;
-    throw err;
-  }
-  return data;
-}
-
-async function doMergeWithRetry(uploadId, file, totalChunks) {
-  for (var attempt = 0; attempt < 2; attempt++) {
-    try { return await mergeChunksAPI(uploadId); }
-    catch(e) {
-      if (e.missingChunks && e.missingChunks.length > 0) {
-        console.warn('Merge missing ' + e.missingChunks.length + ' chunks, retrying...');
-        for (var mi = 0; mi < e.missingChunks.length; mi++) {
-          await uploadChunkWithRetry(uploadId, file, e.missingChunks[mi], totalChunks);
-        }
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw new Error('合并重试失败');
-}
-
-async function uploadSingleFileChunked(file, fileIdx, totalFiles, globalCtx) {
-  var uploadId = generateUploadId(file, file.name, file.size);
-  saveUploadIdForFile(file, uploadId);
-  var initResult;
-  try {
-    initResult = await initChunkSession(uploadId, file.name, file.size);
-  } catch(e) {
-    e.retryable = false;
-    throw e;
-  }
-  if (initResult.upload_id && initResult.upload_id !== uploadId) { uploadId = initResult.upload_id; saveUploadIdForFile(file, uploadId); }
-  var uploadedChunks = initResult.uploaded_chunks || [];
-  var totalChunks = initResult.total_chunks;
-
-  var pendingChunks = [];
-  for (var i = 0; i < totalChunks; i++) { if (uploadedChunks.indexOf(i) === -1) pendingChunks.push(i); }
-
-  var progressText = document.getElementById('progress-text'), progressBar = document.getElementById('progress-bar'), speedText = document.getElementById('speed-text');
-
-  function updateProgress(completed) {
-    var pct = totalChunks > 0 ? Math.round((completed / totalChunks) * 100) : 0;
-    progressBar.style.width = pct + '%';
-    progressText.innerHTML = '<span>上传 ' + (fileIdx+1) + '/' + totalFiles + '</span><span>分片 ' + completed + '/' + totalChunks + ' (' + pct + '%)</span>';
-    var speed = getSpeed();
-    if (speed > 0) speedText.innerHTML = formatSize(speed) + '/s';
-  }
-
-  updateProgress(uploadedChunks.length);
-
-  if (pendingChunks.length === 0 && uploadedChunks.length === totalChunks) {
-    updateProgress(totalChunks);
-    if (progressText) progressText.innerHTML = '<span>正在合并分片...</span><span>请稍候</span>';
-    if (speedText) speedText.innerHTML = '';
-    var mergeRes = await doMergeWithRetry(uploadId, file, totalChunks);
-    removeUploadIdForFile(file);
-    return mergeRes;
-  }
-
-  var completed = uploadedChunks.length, queue = pendingChunks.slice(), errors = [];
-  var activeWorkers = 0, resolved = false;
-  await new Promise(function(resolveQueue, rejectQueue) {
-    function checkDone() {
-      // 所有分片已派出且全部返回结果后才 resolve
-      if (queue.length === 0 && activeWorkers === 0 && !resolved) {
-        resolved = true;
-        resolveQueue();
-      }
-    }
-    function processNext() {
-      if (isUploadPaused) return;
-      if (queue.length === 0) { checkDone(); return; }
-      var chunkIdx = queue.shift();
-      activeWorkers++;
-      uploadChunkWithRetry(uploadId, file, chunkIdx, totalChunks)
-        .then(function(r) { if (r && !r.skipped) { completed++; var cb = chunkIdx < totalChunks - 1 ? CHUNK_SIZE : file.size - (totalChunks - 1) * CHUNK_SIZE; recordSpeed(cb); } updateProgress(completed); activeWorkers--; processNext(); })
-        .catch(function(err) { errors.push({chunk: chunkIdx, error: err.message}); if (errors.length > 10) { if (!resolved) { resolved = true; rejectQueue(new Error('多个分片失败')); } return; } activeWorkers--; processNext(); });
-    }
-    var workers = Math.min(CHUNK_MAX_CONCURRENT, queue.length);
-    for (var w = 0; w < workers; w++) processNext();
-  });
-
-  if (errors.length > 0) throw new Error(errors.length + ' 个分片失败');
-  updateProgress(totalChunks);
-  if (progressText) progressText.innerHTML = '<span>正在合并分片...</span><span>请稍候</span>';
-  if (speedText) speedText.innerHTML = '';
-  var result = await doMergeWithRetry(uploadId, file, totalChunks);
-  removeUploadIdForFile(file);
-  return result;
 }
 
 async function startUpload() {
@@ -744,22 +695,23 @@ async function startUpload() {
     if (isUploadPaused) { resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>'; break; }
     var f = selectedFiles[i];
 
-    if (f.size > CHUNK_SIZE) {
+    if (f.size > TUS_CHUNK_SIZE) {
       try {
-        await uploadSingleFileChunked(f, i, selectedFiles.length);
+        await uploadFileWithTus(f, i, selectedFiles.length);
         successCount++;
         resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
       } catch(e) {
         failCount++;
-        if (e.retryable !== false) {
+        // 永久错误（文件名冲突、禁止类型等）不进重试队列，只显示错误信息
+        if (e.permanent) {
+          resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' +
+            escapeHtml(e.message || '上传失败') + '</div>';
+        } else {
           var fid = 'fail_' + failedChunkedFiles.length;
           failedChunkedFiles.push({id: fid, file: f, name: f.name});
           resultDiv.innerHTML += '<div class="cp-result-item cp-result-err" id="' + fid + '">' +
-            escapeHtml(f.name) + ' - ' + escapeHtml(e.message) +
+            escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') +
             ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button></div>';
-        } else {
-          resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' +
-            escapeHtml(f.name) + ' - ' + escapeHtml(e.message) + '</div>';
         }
       }
       continue;
@@ -800,7 +752,7 @@ async function startUpload() {
         xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 超时</div>'; resolve(); };
         xhr.send(formData);
       });
-    } catch(e){ failCount++; }
+    } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') + '</div>'; }
   }
 
   progressBar.style.width = '100%';
@@ -827,24 +779,14 @@ async function retryFailedFile(fid) {
   var el = document.getElementById(fid); if (!el) return;
   el.innerHTML = escapeHtml(item.file.name) + ' - 重试中…'; el.className = 'cp-result-item cp-result-retrying';
   try {
-    var uploadId = generateUploadId(item.file, item.file.name, item.file.size);
-    saveUploadIdForFile(item.file, uploadId);
-    var res = await initChunkSession(uploadId, item.file.name, item.file.size);
-    if (res.upload_id && res.upload_id !== uploadId) { uploadId = res.upload_id; saveUploadIdForFile(item.file, uploadId); }
-    var uploadedChunks = res.uploaded_chunks || [], totalChunks = res.total_chunks;
-    var pending = [];
-    for (var ci = 0; ci < totalChunks; ci++) { if (uploadedChunks.indexOf(ci) === -1) pending.push(ci); }
-    if (pending.length === 0) { await doMergeWithRetry(uploadId, item.file, totalChunks); } else {
-      for (var pi = 0; pi < pending.length; pi++) { await uploadChunkWithRetry(uploadId, item.file, pending[pi], totalChunks); }
-      await doMergeWithRetry(uploadId, item.file, totalChunks);
-    }
-    removeUploadIdForFile(item.file);
+    // Tus 客户端会自动从 localStorage 中恢复之前的上传进度（断点续传）
+    await uploadFileWithTus(item.file, 0, 1);
     el.innerHTML = escapeHtml(item.file.name) + ' - 上传成功 ✓'; el.className = 'cp-result-item cp-result-ok';
     failedChunkedFiles = failedChunkedFiles.filter(function(x){ return x.id !== fid; });
     renderRetrySummary(document.getElementById('upload-result'));
     loadHistory();
   } catch(e) {
-    el.innerHTML = escapeHtml(item.file.name) + ' - ' + escapeHtml(e.message) + ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button>';
+    el.innerHTML = escapeHtml(item.file.name) + ' - ' + escapeHtml(e.message || '上传失败') + ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button>';
     el.className = 'cp-result-item cp-result-err';
   }
 }

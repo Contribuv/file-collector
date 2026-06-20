@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.16-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.18-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -192,6 +192,26 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.2.18
+- 修复 TUS 断点续传上传因 `make_response` 未导入导致所有大文件上传返回 500 的严重错误
+- 禁止上传同名文件，冲突时提示「已存在，请改名后上传」，不再静默自动改名
+  - TUS 上传在创建会话时即预检文件名冲突，避免传完大文件才发现
+  - 前端选择文件时预检禁止的扩展名，实时提示「文件类型被禁止上传」
+- 优化上传错误反馈
+  - TUS 永久错误（409/400/403 等）立即提示，不再被 retryDelays 反复重试导致 59 秒延迟
+  - 网络错误显示「网络连接失败，请检查网络后重试」
+  - 普通上传异常不再静默吞错，显示具体错误信息
+- 修复反向代理场景兼容性
+  - TUS Location 头和前端 endpoint 改用 `url_for` 生成，支持带路径前缀的反代
+  - 修复 `Upload-Expires` 时区偏差（本地时间误标 GMT），改用 UTC
+- 上传日志页事件类型补全中文显示（创建会话、断点续传完成）
+
+### v2.2.17
+- 修复 Nginx 反代环境下大文件合并超时导致"上传会话不存在"的错误
+  - 合并端点同时接受 `uploading` 和 `merging` 状态，Nginx 超时重连后自动等待合并完成
+  - 前端合并重试从 2 次增至 10 次，递增等待最长 30 秒
+  - 对"正在合并中"和"上传会话不存在"错误自动重试，无需手动干预
 
 ### v2.2.16
 - 修复分片上传合并时偶发缺失分片的问题（并发上传队列提前 resolve 竞态条件）

@@ -1,0 +1,69 @@
+/* ============================================================
+   批量选择公共样式（collect + share 共用）
+   使用 --batch-accent 变量区分主色：
+     collect 页面：红色 #dc2626（删除主题）
+     share  页面：蓝色 #3b82f6（下载主题）
+   ============================================================ */
+.cp-sel-col { width: 36px; text-align: center; vertical-align: middle; }
+.cp-sel-check {
+  width: 15px; height: 15px; cursor: pointer;
+  accent-color: var(--batch-accent, #3b82f6);
+  margin: 0; vertical-align: middle;
+}
+.cp-card-check {
+  flex-shrink: 0; width: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cp-card-check .cp-sel-check { width: 15px; height: 15px; }
+
+.cp-batch-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #fff; border-top: 1px solid #e4e6eb;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  padding: 10px var(--cp-pad);
+  display: none; align-items: center; justify-content: center;
+  gap: 10px; z-index: 200;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.cp-batch-bar.on { display: flex; }
+.cp-batch-info { font-size: .82rem; font-weight: 500; color: #1a1d28; white-space: nowrap; }
+.cp-batch-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 14px; border-radius: 4px; border: 1px solid;
+  font-size: .78rem; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all .12s; white-space: nowrap;
+}
+/* 主操作按钮（删除/下载），颜色由 --batch-accent 控制 */
+.cp-batch-btn-accent {
+  background: var(--batch-accent, #3b82f6);
+  color: #fff; border-color: var(--batch-accent, #3b82f6);
+}
+.cp-batch-btn-accent:hover { filter: brightness(.88); }
+.cp-batch-btn-cancel {
+  background: #fff; color: #6b7280; border-color: #d1d5db;
+}
+.cp-batch-btn-cancel:hover { background: #f5f6f8; }
+
+/* 骨架屏 */
+.cp-skeleton-list { padding: 8px 0; }
+.cp-skeleton-row {
+  height: 42px; margin: 6px 14px;
+  background: linear-gradient(90deg, #f0f1f3 25%, #e4e6eb 50%, #f0f1f3 75%);
+  background-size: 200% 100%;
+  animation: cpShimmer 1.4s infinite linear;
+  border-radius: 6px;
+}
+@keyframes cpShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 768px) {
+  .cp-batch-bar {
+    gap: 8px; padding: 8px var(--cp-pad);
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .cp-batch-info { font-size: .76rem; }
+  .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
+  .cp-card-check { align-self: center; }
+}

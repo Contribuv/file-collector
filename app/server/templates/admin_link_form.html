@@ -253,8 +253,8 @@
           </div>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;">
-            <button type="submit" class="btn btn-primary">{{ '保存修改' if edit_link else '创建收集链接' }}</button>
-            <a href="{{ url_for('admin_links') }}" class="btn">取消</a>
+            <button type="submit" class="btn btn-sm btn-primary">{{ '保存修改' if edit_link else '创建收集链接' }}</button>
+            <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">取消</a>
             <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearExpiry()" id="clear-expiry-btn" title="点击后保存将清除过期设置" style="{{ 'display:block;' if edit_link and (edit_link.get('expires_at') or edit_link.get('share_expires_at')) else 'display:none;' }}">清除过期设置</button>
           </div>
         </form>

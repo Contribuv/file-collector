@@ -140,7 +140,7 @@
       <!-- 预览内容区域 -->
     </div>
     <div class="preview-footer">
-      <a id="preview-download-link" class="btn btn-primary" download>下载文件</a>
+      <a id="preview-download-link" class="btn btn-sm btn-primary" download>下载文件</a>
     </div>
   </div>
 </div>
@@ -187,20 +187,8 @@
   .records-toolbar .btn-sm { font-size: .73rem; padding: 4px 10px; flex-shrink: 0; }
 }
 
-/* 更多按钮 */
-.btn-more {
-  background: transparent;
-  color: var(--c-primary);
-  border: 1px solid var(--c-primary);
-  font-size: 0.8rem;
-  padding: 3px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.btn-more:hover { background: var(--c-primary-light); }
-.btn-more.active { background: var(--c-primary); color: #fff; }
+/* 更多按钮 — 已提取到全局 style.css */
+
 
 /* ========== Popover 浮窗（全设备居中弹窗） ========== */
 .detail-popover {

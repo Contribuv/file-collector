@@ -354,7 +354,7 @@
 
 <!-- 反向代理设置方法弹窗 -->
 <div class="modal-overlay" id="proxy-modal" style="display:none;">
-  <div class="modal-content">
+  <div class="modal-content modal-lg">
     <div class="modal-header">
       <h3>反向代理设置方法</h3>
       <button class="modal-close" onclick="closeProxyModal()">&times;</button>
@@ -376,21 +376,7 @@
 </div>
 
 <style>
-/* 紧凑卡片 */
-.card-compact { margin-bottom: 10px; }
-.card-compact .card-header { padding: 10px 14px; }
-.card-compact .card-header h3 { font-size: 0.88rem; }
-.card-compact .card-body { padding: 12px 14px; }
-.card-compact .form-group { margin-bottom: 10px; }
-.card-compact .form-label { font-size: 0.75rem; margin-bottom: 4px; }
-.card-compact .form-hint { font-size: 0.68rem; margin-top: 2px; }
-.card-compact .info-row { padding: 6px 0; font-size: 0.8rem; }
-.card-compact .info-row .info-label { font-size: 0.78rem; }
-.card-compact .info-row .info-value { font-size: 0.75rem; }
-
-/* 紧凑输入框 */
-.form-input-sm { padding: 7px 11px; font-size: 0.82rem; }
-.form-textarea-sm { min-height: 52px; font-size: 0.82rem; }
+/* card-compact / form-input-sm / form-textarea-sm / toggle-switch 已提取到全局 style.css */
 
 /* 双栏瀑布流 */
 .settings-grid {
@@ -422,163 +408,9 @@
   .info-grid { grid-template-columns: 1fr; }
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
+/* modal 已提取到全局 style.css */
 
-.modal-content {
-  background: #fff;
-  border-radius: 12px;
-  max-width: 600px;
-  width: 100%;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--c-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--c-text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--c-text-soft);
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background 0.2s;
-}
-
-.modal-close:hover {
-  background: var(--c-bg-hover);
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.modal-body p {
-  line-height: 1.8;
-  margin: 0 0 12px 0;
-  color: var(--c-text);
-}
-
-.modal-body code {
-  background: var(--c-bg-hover);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: monospace;
-  color: var(--c-primary);
-}
-
-.modal-image-container {
-  margin-top: 16px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #f8f9fa;
-}
-
-.modal-image {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.modal-footer {
-  padding: 16px 20px;
-  border-top: 1px solid var(--c-border);
-  text-align: right;
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .modal-overlay {
-    padding: 10px;
-  }
-  
-  .modal-content {
-    border-radius: 8px;
-  }
-  
-  .modal-body {
-    padding: 16px;
-  }
-}
-
-/* 开关按钮 */
-.toggle-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  user-select: none;
-}
-.toggle-switch input[type="checkbox"] {
-  display: none;
-}
-.toggle-slider {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: #cbd5e1;
-  border-radius: 12px;
-  transition: background 0.25s;
-  flex-shrink: 0;
-}
-.toggle-slider::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.25s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
-}
-.toggle-switch input:checked + .toggle-slider {
-  background: var(--c-primary, #3b82f6);
-}
-.toggle-switch input:checked + .toggle-slider::after {
-  transform: translateX(20px);
-}
-.toggle-text {
-  color: var(--c-text);
-}
+/* 开关按钮 — 已提取到全局 style.css */
 
 /* 数据库管理 */
 .db-section {

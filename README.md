@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.19-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.20-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -22,7 +22,7 @@
 
 文件收集器是一个功能完备的轻量级 Web 应用，支持**多用户体系**、**Office 在线预览**和**双模式分享**。管理员可在后台创建多个独立的收集链接，每个链接自动生成**收集页**（上传）和**分享页**（浏览下载）两种模式——两者拥有**各自独立的通行证**（可分别设为密码保护或公开访问），以及独立的上传限制、有效期和自定义短链接。支持上传者身份识别、按上传者分文件夹存储，0.01-64 GB 大文件断点续传（TUS 协议）。内置邀请码注册系统，支持管理员和普通用户两种角色。Office 文件（Word/Excel/PPT）可直接在线预览，无需下载。非常适合团队协作、作业收集、资料汇总、文件分发等场景。
 
-**适用平台：** [飞牛 fnOS](https://www.fnnas.com/) **独占** Native 应用（.fpk 格式），不支持 Docker 部署（已停止更新）。支持 **x86 / ARM / LoongArch / RISC-V** 全平台。
+**适用平台：** [飞牛 fnOS](https://www.fnnas.com/) **独占** Native 应用（.fpk 格式），不支持 Docker 部署（已停止更新）。支持 **x86 / ARM** 平台。
 
 ---
 
@@ -268,6 +268,17 @@ GET /api/status
 
 ## 更新日志
 
+### v2.2.20
+- **离线 wheel 打包**：内置 x86_64 + aarch64 双架构预编译 wheel，安装零网络依赖，2 秒完成（原在线安装需 5+ 分钟）
+- **三层安装保障**：离线 wheel 优先 → 清华镜像回退 → 跳过非关键依赖，确保任何环境都能安装
+- `cmd/main` 补全 `tinycss2` 和 `pillow-heif` 安装（之前漏装），`pillow-heif` 强制用 wheel 避免源码编译
+- 提取 `card-compact`/`form-input-sm`/`toggle-switch`/`btn-more`/`modal` 等公共组件到全局 `style.css`，消除多页面样式碎片化
+- `collect`/`share` 页提取批量选择 CSS 到 `_batch.css`，用 `--batch-accent` 变量区分主色
+- `tus.min.js` 改 `defer` 非阻塞加载，提升首屏速度
+- `collect`/`share` 页预览图片/视频保留 loading spinner，加载完成再替换内容
+- 文件列表新增骨架屏，改善加载感知速度
+- 平台支持调整为 **x86 / ARM**（去除 LoongArch / RISC-V）
+
 ### v2.2.19
 - 全新应用图标，替换全部 ICON 和 favicon
 - 上传进度条 rAF 平滑插值引擎，60fps 丝滑动画，告别台阶式跳变
@@ -442,7 +453,7 @@ GET /api/status
 
 **数据管理**：一键备份/导入 SQLite 数据库、上传记录分页/筛选/批量删除、下载计数、孤儿文件自动清理
 
-**部署与界面**：响应式 UI（桌面 + 移动端）、公网网址配置、页尾自定义、首页介绍页（可开关）、全平台支持（x86/ARM/LoongArch/RISC-V）
+**部署与界面**：响应式 UI（桌面 + 移动端）、公网网址配置、页尾自定义、首页介绍页（可开关）、支持 x86 / ARM 平台
 
 ---
 

@@ -5,95 +5,88 @@
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
-    <div class="card">
+    <div class="card card-compact">
       <div class="card-header">
         <h3>新增用户</h3>
         <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline">返回用户列表</a>
       </div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('admin_user_create') }}" class="user-create-form" onsubmit="return validateCreateForm()">
+        <form method="POST" action="{{ url_for('admin_user_create') }}" onsubmit="return validateCreateForm()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-          <div class="form-grid">
-            {# 左侧列 #}
-            <div class="form-col">
-              <div class="form-group">
-                <label class="form-label" for="username">用户名 <span class="required">*</span></label>
-                <input type="text" id="username" name="username" class="form-input"
-                       value="{{ form_data.username|default('') }}"
-                       placeholder="3-20位字母、数字或下划线"
-                       maxlength="20" minlength="3" required autofocus>
-                <div class="form-hint">3-20位字母、数字或下划线，创建后不可修改</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="password">密码 <span class="required">*</span></label>
-                <input type="password" id="password" name="password" class="form-input"
-                       placeholder="至少8位，须含字母和数字"
-                       minlength="8" required>
-                <div class="form-hint">至少8位，必须同时包含字母和数字</div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="confirm_password">确认密码 <span class="required">*</span></label>
-                <input type="password" id="confirm_password" name="confirm_password" class="form-input"
-                       placeholder="再次输入密码"
-                       minlength="8" required>
-              </div>
+          {# 基础信息：双列（PC）→ 单列（移动端，全局 form-row 自动响应） #}
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="username">用户名</label>
+              <input type="text" id="username" name="username" class="form-input form-input-sm"
+                     value="{{ form_data.username|default('') }}"
+                     placeholder="3-20位字母、数字或下划线"
+                     maxlength="20" minlength="3" required autofocus>
+              <div class="form-hint">3-20位字母、数字或下划线，创建后不可修改</div>
             </div>
+            <div class="form-group">
+              <label class="form-label" for="email">邮箱</label>
+              <input type="email" id="email" name="email" class="form-input form-input-sm"
+                     value="{{ form_data.email|default('') }}"
+                     placeholder="用于密码找回" required>
+            </div>
+          </div>
 
-            {# 右侧列 #}
-            <div class="form-col">
-              <div class="form-group">
-                <label class="form-label" for="email">邮箱 <span class="required">*</span></label>
-                <input type="email" id="email" name="email" class="form-input"
-                       value="{{ form_data.email|default('') }}"
-                       placeholder="用于密码找回" required>
-              </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="password">密码</label>
+              <input type="password" id="password" name="password" class="form-input form-input-sm"
+                     placeholder="至少8位，须含字母和数字"
+                     minlength="8" required>
+              <div class="form-hint">至少8位，必须同时包含字母和数字</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="confirm_password">确认密码</label>
+              <input type="password" id="confirm_password" name="confirm_password" class="form-input form-input-sm"
+                     placeholder="再次输入密码"
+                     minlength="8" required>
+            </div>
+          </div>
 
-              <div class="form-group">
-                <label class="form-label" for="nickname">昵称</label>
-                <input type="text" id="nickname" name="nickname" class="form-input"
-                       value="{{ form_data.nickname|default('') }}"
-                       placeholder="选填，显示名称" maxlength="50">
-              </div>
+          <div class="form-group">
+            <label class="form-label" for="nickname">昵称</label>
+            <input type="text" id="nickname" name="nickname" class="form-input form-input-sm"
+                   value="{{ form_data.nickname|default('') }}"
+                   placeholder="选填，显示名称" maxlength="50">
+          </div>
 
-              <div class="form-group">
-                <label class="form-label">角色</label>
-                <div class="form-toggle-row">
-                  <label class="toggle-wrap">
-                    <input type="checkbox" name="is_admin" value="1"
-                           {% if form_data.is_admin|default('') == '1' %}checked{% endif %}>
-                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                    <span class="toggle-label">管理员</span>
-                  </label>
-                  <span class="toggle-hint">管理员拥有全部权限</span>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">账号状态</label>
-                <div class="form-radio-row">
-                  <label class="radio-wrap">
-                    <input type="radio" name="status" value="active"
-                           {% if form_data.status|default('active') == 'active' %}checked{% endif %}>
-                    <span class="radio-mark"></span>
-                    <span>启用</span>
-                  </label>
-                  <label class="radio-wrap">
-                    <input type="radio" name="status" value="inactive"
-                           {% if form_data.status|default('') == 'inactive' %}checked{% endif %}>
-                    <span class="radio-mark"></span>
-                    <span>禁用</span>
-                  </label>
-                </div>
+          {# 权限与状态：双列 #}
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">角色权限</label>
+              <label class="toggle-switch">
+                <input type="checkbox" name="is_admin" value="1"
+                       {% if form_data.is_admin|default('') == '1' %}checked{% endif %}>
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">管理员</span>
+              </label>
+              <div class="form-hint">管理员拥有全部权限，普通用户无法登录后台</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">账号状态</label>
+              <div class="radio-row">
+                <label class="radio-item">
+                  <input type="radio" name="status" value="active"
+                         {% if form_data.status|default('active') == 'active' %}checked{% endif %}>
+                  <span>启用</span>
+                </label>
+                <label class="radio-item">
+                  <input type="radio" name="status" value="inactive"
+                         {% if form_data.status|default('') == 'inactive' %}checked{% endif %}>
+                  <span>禁用</span>
+                </label>
               </div>
             </div>
           </div>
 
           <div class="form-actions">
-            <a href="{{ url_for('admin_users') }}" class="btn btn-outline">取消</a>
-            <button type="submit" class="btn btn-primary">创建用户</button>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline">取消</a>
+            <button type="submit" class="btn btn-sm btn-primary">创建用户</button>
           </div>
         </form>
       </div>
@@ -104,195 +97,46 @@
 
 {% block styles %}
 <style>
-/* 表单双列布局 */
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 32px;
+/* card-compact / form-input-sm / toggle-switch 已提取到全局 style.css */
+
+/* ===== Radio（原生 input + accent-color，跨端一致） ===== */
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding-top: 4px;
 }
-.form-col {
-  min-width: 0;
-}
-.form-group {
-  margin-bottom: 18px;
-}
-.form-label {
-  display: block;
+.radio-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
   font-size: 0.85rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 6px;
+  color: var(--c-text);
+  user-select: none;
 }
-.form-label .required {
-  color: #ef4444;
+.radio-item input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+  margin: 0;
 }
-.form-input {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1.5px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #111827;
-  background: #fff;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  box-sizing: border-box;
-}
-.form-input:focus {
-  outline: none;
-  border-color: var(--c-primary);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-}
-.form-input::placeholder {
-  color: #9ca3af;
-}
-.form-hint {
-  font-size: 0.72rem;
-  color: #9ca3af;
-  margin-top: 4px;
-}
-.form-input.error {
+
+/* ===== 错误状态 ===== */
+.form-input-sm.error {
   border-color: #ef4444;
   box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
 }
 
-/* Toggle 开关 */
-.form-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-}
-.toggle-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-.toggle-wrap input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.toggle-track {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: #d1d5db;
-  border-radius: 12px;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-}
-.toggle-wrap input:checked + .toggle-track {
-  background: var(--c-primary);
-}
-.toggle-wrap input:checked + .toggle-track .toggle-thumb {
-  transform: translateX(20px);
-}
-.toggle-label {
-  font-size: 0.88rem;
-  color: #374151;
-}
-.toggle-hint {
-  font-size: 0.72rem;
-  color: #9ca3af;
-}
-
-/* Radio 单选 */
-.form-radio-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 4px 0;
-}
-.radio-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: #374151;
-  user-select: none;
-}
-.radio-wrap input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.radio-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid #d1d5db;
-  background: #fff;
-  transition: border-color 0.2s, background 0.2s;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.radio-mark::after {
-  content: '';
-  display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #fff;
-  transform: scale(0);
-  transition: transform 0.15s;
-}
-.radio-wrap input:checked + .radio-mark {
-  border-color: var(--c-primary);
-  background: var(--c-primary);
-}
-.radio-wrap input:checked + .radio-mark::after {
-  transform: scale(1);
-}
-
-/* 提交按钮区 */
+/* ===== 提交按钮区（与其它管理页一致） ===== */
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding-top: 18px;
-  margin-top: 8px;
-  border-top: 1px solid #f0f0f0;
-}
-
-/* 移动端适配 */
-@media (max-width: 640px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .form-actions {
-    flex-direction: column-reverse;
-    gap: 8px;
-  }
-  .form-actions .btn {
-    width: 100%;
-    text-align: center;
-  }
-  .form-input {
-    padding: 12px 14px;
-    font-size: 16px; /* 防止 iOS 缩放 */
-  }
-  .card-header {
-    flex-wrap: wrap;
-  }
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--c-border);
 }
 </style>
 {% endblock %}

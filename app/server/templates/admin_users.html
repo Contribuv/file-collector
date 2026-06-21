@@ -36,7 +36,7 @@
                 <td class="col-hide-mobile col-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ user.email or '' }}">{{ user.email or '—' }}</td>
                 <td>
                   {% if user.is_admin %}
-                  <span class="badge badge-admin">管理员</span>
+                  <span class="badge badge-admin">管理账号</span>
                   {% else %}
                   <span class="badge badge-user">普通用户</span>
                   {% endif %}
@@ -57,15 +57,15 @@
                 <td class="col-time">{{ user.created_at }}</td>
                 <td>
                   {% if not user.is_admin %}
-                  <button class="btn btn-sm btn-outline btn-more-user" title="更多操作"
+                  <button class="btn btn-sm btn-outline btn-more" title="更多操作"
                     data-user-id="{{ user.id }}"
                     data-username="{{ user.username }}"
                     data-email="{{ user.email or '' }}"
-                    data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
+                    data-role="{{ '管理账号' if user.is_admin else '普通用户' }}"
                     data-status="{{ user.status }}"
                     data-created="{{ user.created_at }}">操作</button>
                   {% else %}
-                  <span class="text-muted">管理员</span>
+                  <span class="text-muted">管理账号</span>
                   {% endif %}
                 </td>
               </tr>
@@ -89,20 +89,20 @@
                 <span class="record-card-name">{{ user.username }}</span>
                 <div class="record-card-meta">
                   <span>{{ user.created_at[:10] }}</span>
-                  <span>{% if user.is_admin %}管理员{% else %}普通用户{% endif %}</span>
+                  <span>{% if user.is_admin %}管理账号{% else %}普通用户{% endif %}</span>
                   <span style="{% if user.status == 'active' %}color:#059669;{% else %}color:#dc2626;{% endif %}">{% if user.status == 'active' %}已启用{% else %}已禁用{% endif %}</span>
                 </div>
               </div>
               {% if not user.is_admin %}
-              <button class="btn btn-sm btn-outline btn-more-user" title="更多操作"
+              <button class="btn btn-sm btn-outline btn-more" title="更多操作"
                 data-user-id="{{ user.id }}"
                 data-username="{{ user.username }}"
                 data-email="{{ user.email or '' }}"
-                data-role="{{ '管理员' if user.is_admin else '普通用户' }}"
+                data-role="{{ '管理账号' if user.is_admin else '普通用户' }}"
                 data-status="{{ user.status }}"
                 data-created="{{ user.created_at }}">操作</button>
               {% else %}
-              <span class="text-muted">管理员</span>
+              <span class="text-muted">管理账号</span>
               {% endif %}
             </div>
           </div>
@@ -149,8 +149,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline" onclick="closeEditModal()">取消</button>
-        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-sm btn-outline" onclick="closeEditModal()">取消</button>
+        <button type="submit" class="btn btn-sm btn-primary">保存</button>
       </div>
     </form>
   </div>
@@ -171,8 +171,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button type="button" class="btn btn-outline" id="reset-close-btn" onclick="closeResetModal()">关闭</button>
-      <button type="button" class="btn btn-primary" id="reset-confirm-btn" onclick="confirmReset()">确定重置</button>
+      <button type="button" class="btn btn-sm btn-outline" id="reset-close-btn" onclick="closeResetModal()">关闭</button>
+      <button type="button" class="btn btn-sm btn-primary" id="reset-confirm-btn" onclick="confirmReset()">确定重置</button>
     </div>
   </div>
 </div>
@@ -182,34 +182,30 @@
 <style>
 /* 状态徽章 */
 .badge-status {
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 0.78rem;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 0.82rem;
   font-weight: 500;
 }
 .badge-active {
-  background: #ecfdf5;
-  color: #065f46;
+  background: none;
+  color: #059669;
 }
 .badge-inactive {
-  background: #fef2f2;
-  color: #991b1b;
+  background: none;
+  color: #dc2626;
+}
+
+/* 角色徽章 */
+.badge-admin,
+.badge-user {
+  background: none;
+  color: #6b7280;
 }
 
 /* 更多操作按钮 */
-.btn-more-user {
-  background: transparent;
-  color: var(--c-primary);
-  border: 1px solid var(--c-primary);
-  font-size: 0.8rem;
-  padding: 3px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.btn-more-user:hover { background: var(--c-primary-light); }
-.btn-more-user.active { background: var(--c-primary); color: #fff; }
+/* .btn-more-user 已统一为全局 .btn-more */
 
 /* 强化管理页按钮可见性 */
 .card .btn-outline {
@@ -229,6 +225,18 @@
 @media (max-width: 640px) {
   .col-hide-mobile { display: none !important; }
   .admin-users-table th, .admin-users-table td { font-size: .82rem; padding: 8px 10px; }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-header h3 {
+    width: 100%;
+  }
+  .card-header .btn {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
 }
 
 /* 用户操作浮窗 */
@@ -329,23 +337,7 @@
 }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* 模态弹窗 */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5); display: flex; align-items: center;
-  justify-content: center; z-index: 1000; padding: 20px;
-}
-.modal-content { background: #fff; border-radius: 10px; max-width: 400px; width: 100%; overflow: hidden; }
-.modal-sm { max-width: 360px; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eee; }
-.modal-header h3 { margin: 0; font-size: 1rem; }
-.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-.modal-close:hover { background: #f3f4f6; }
-.modal-body { padding: 18px; }
-.modal-body p { margin: 0 0 4px; color: var(--c-text); }
-.modal-body .form-group { margin-bottom: 12px; }
-.modal-body .form-hint { font-size: .72rem; color: var(--c-text-muted); margin-top: 2px; }
-.modal-footer { padding: 12px 18px; border-top: 1px solid #eee; text-align: right; display: flex; gap: 8px; justify-content: flex-end; }
+/* modal 已提取到全局 style.css */
 
 @media (max-width: 640px) {
   .user-popover { max-width: calc(100vw - 32px); min-width: 240px; border-radius: 18px; }
@@ -452,7 +444,7 @@ function escapeJs(str) {
 
 // 绑定"更多操作"按钮
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.btn-more-user').forEach(function(btn) {
+  document.querySelectorAll('.btn-more').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -463,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 全局点击关闭浮窗
 document.addEventListener('click', function(e) {
-  if (_upPopover && !_upPopover.contains(e.target) && !e.target.closest('.btn-more-user')) {
+  if (_upPopover && !_upPopover.contains(e.target) && !e.target.closest('.btn-more')) {
     closeUserPopover();
   }
 });

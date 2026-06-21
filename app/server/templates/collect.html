@@ -8,44 +8,11 @@
   <title>{{ task_title|default('文件收集') }} - {{ site_title }}</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
   <style>
-    /* 批量选择 —— 参考 share 批量下载样式，红色删除主题 */
-    .cp-sel-col { width: 36px; text-align: center; vertical-align: middle; }
-    .cp-sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; margin: 0; vertical-align: middle; }
-    .cp-card-check { flex-shrink: 0; width: 22px; display: flex; align-items: center; justify-content: center; }
-    .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
-    .cp-batch-bar {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      background: #fff; border-top: 1px solid #e4e6eb;
-      box-shadow: 0 -2px 12px rgba(0,0,0,.08);
-      padding: 10px var(--cp-pad);
-      display: none; align-items: center; justify-content: center;
-      gap: 10px; z-index: 200;
-      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    }
-    .cp-batch-bar.on { display: flex; }
-    .cp-batch-info { font-size: .82rem; font-weight: 500; color: #1a1d28; white-space: nowrap; }
-    .cp-batch-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 6px 14px; border-radius: 4px; border: 1px solid;
-      font-size: .78rem; font-weight: 500; cursor: pointer;
-      font-family: inherit; transition: all .12s; white-space: nowrap;
-    }
-    .cp-batch-btn-del {
-      background: #dc2626; color: #fff; border-color: #dc2626;
-    }
-    .cp-batch-btn-del:hover { background: #b91c1c; }
-    .cp-batch-btn-cancel {
-      background: #fff; color: #6b7280; border-color: #d1d5db;
-    }
-    .cp-batch-btn-cancel:hover { background: #f5f6f8; }
-    @media (max-width: 768px) {
-      .cp-batch-bar { gap: 8px; padding: 8px var(--cp-pad);
-        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
-      .cp-batch-info { font-size: .76rem; }
-      .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
-      .cp-card-check { align-self: center; }
-    }
+    /* collect 页面批量操作主色：红色（删除） */
+    :root { --batch-accent: #dc2626; }
+  </style>
   </style>
 </head>
 <body>
@@ -194,9 +161,10 @@
     </div>
     <div class="cp-card-body cp-card-body--flush">
       <div id="history-wrap">
-        <div class="cp-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-          <p>暂无文件</p><p>上传文件后将在此列出</p>
+        <div class="cp-skeleton-list">
+          <div class="cp-skeleton-row"></div>
+          <div class="cp-skeleton-row"></div>
+          <div class="cp-skeleton-row"></div>
         </div>
       </div>
     </div>
@@ -208,7 +176,7 @@
 {% if allow_delete %}
 <div class="cp-batch-bar" id="batch-bar">
   <span class="cp-batch-info" id="batch-info">已选 0 个文件</span>
-  <button class="cp-batch-btn cp-batch-btn-del" id="batch-del-btn" onclick="batchDelete()">批量删除</button>
+  <button class="cp-batch-btn cp-batch-btn-accent" id="batch-del-btn" onclick="batchDelete()">批量删除</button>
   <button class="cp-batch-btn cp-batch-btn-cancel" onclick="clearSelection()">取消选择</button>
 </div>
 {% endif %}
@@ -272,7 +240,7 @@
 </div>
 {% endif %}
 
-<script src="{{ url_for('static', filename='js/tus.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tus.min.js') }}" defer></script>
 <script>
 const linkId = {{ link_id|tojson }};
 {% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
@@ -1145,7 +1113,7 @@ async function batchDelete() {
 /* ========== Preview helpers ========== */
 function canPreviewExt(ext) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
-  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
   return jitExts.includes(ext) || imgExts.includes(ext) || vidExts.includes(ext);
 }
@@ -1162,7 +1130,7 @@ function previewFile(recordId, fileName) {
   }
 
   // 图片 / 视频 → 浮窗预览
-  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
 
   var modal = document.getElementById('preview-modal');
@@ -1178,9 +1146,22 @@ function previewFile(recordId, fileName) {
   var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
 
   if (imgExts.includes(ext)) {
-    body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>图片加载失败，请刷新页面后重试</p>\'">';
+    var img = new Image();
+    img.className = 'cp-preview-image';
+    img.alt = fileName;
+    img.onload = function() { body.innerHTML = ''; body.appendChild(img); };
+    img.onerror = function() { body.innerHTML = '<p style="color:#999;text-align:center;padding:40px 0;">图片加载失败，请刷新页面后重试</p>'; };
+    img.src = previewUrl;
   } else if (vidExts.includes(ext)) {
-    body.innerHTML = '<video src="' + previewUrl + '" controls autoplay class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>视频加载失败，请刷新页面后重试</p>\'">您的浏览器不支持视频播放</video>';
+    var video = document.createElement('video');
+    video.src = previewUrl;
+    video.controls = true;
+    video.autoplay = true;
+    video.className = 'cp-preview-video';
+    video.onloadeddata = function() { body.innerHTML = ''; body.appendChild(video); };
+    video.onerror = function() { body.innerHTML = '<p style="color:#999;text-align:center;padding:40px 0;">视频加载失败，请刷新页面后重试</p>'; };
+    video.textContent = '您的浏览器不支持视频播放';
+    video.load();
   } else {
     body.innerHTML = '<p style="color:#999;">不支持预览该文件类型</p>';
   }

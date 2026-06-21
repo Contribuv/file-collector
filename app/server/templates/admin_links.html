@@ -12,7 +12,7 @@
           <h3 class="links-header-title">收集链接</h3>
           <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
         </div>
-        <a href="{{ url_for('admin_link_new') }}" class="btn btn-primary btn-create-link">＋ 创建收集链接</a>
+        <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary">＋ 创建收集链接</a>
       </div>
       <div class="table-wrap">
         {% if links %}
@@ -80,7 +80,7 @@
                 {% set need_reset = '1' if link['_is_legacy'] else '0' %}
                 {% set share_pass_text = link['share_passcode_plain'] if link['_has_share_passcode'] else '' %}
                 {% set share_need_reset = '1' if link['_is_share_legacy'] else '0' %}
-                <button class="btn btn-sm btn-outline btn-more-link" title="更多操作"
+                <button class="btn btn-sm btn-outline btn-more" title="更多操作"
                   onclick="showLinkPopover(this)"
                   data-link-id="{{ link['id'] }}"
                   data-title="{{ link['title']|e }}"
@@ -201,28 +201,10 @@
   white-space: nowrap;
 }
 
-.btn-create-link {
-  flex-shrink: 0;
-  padding: 8px 18px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 8px;
-}
 
 /* 更多按钮 */
-.btn-more-link {
-  background: transparent;
-  color: var(--c-primary);
-  border: 1px solid var(--c-primary);
-  font-size: 0.8rem;
-  padding: 3px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.btn-more-link:hover { background: var(--c-primary-light); }
-.btn-more-link.active { background: var(--c-primary); color: #fff; }
+/* .btn-more-link 已统一为全局 .btn-more */
+
 
 /* PC端 /admin/links 表格 */
 .admin-links-table { table-layout: auto; }
@@ -244,7 +226,6 @@
   }
   .links-header-left { width: 100%; }
   .links-header-title { font-size: 1.05rem; }
-  .btn-create-link { width: 100%; text-align: center; }
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
@@ -415,42 +396,11 @@
   .lp-action-row .lp-action-btn svg { width: 14px; height: 14px; margin-right: 2px !important; }
 }
 
-/* 模态弹窗（删除确认等） */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1200; padding: 20px;
-}
-.modal-content {
-  background: #fff; border-radius: 12px; max-width: 400px; width: 100%;
-  overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  display: flex; flex-direction: column;
-}
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid var(--c-border, #e5e7eb);
-}
-.modal-header h3 { margin: 0; font-size: 1.1rem; color: var(--c-text, #1a1d28); }
-.modal-body {
-  padding: 20px; overflow-y: auto; flex: 1; min-height: 0;
-}
-.modal-body p { line-height: 1.8; margin: 0; color: var(--c-text, #1a1d28); }
-.modal-footer {
-  padding: 16px 20px; border-top: 1px solid var(--c-border, #e5e7eb);
-  text-align: right; flex-shrink: 0;
-  display: flex; gap: 8px; justify-content: flex-end;
-}
+/* modal 已提取到全局 style.css */
 .btn-danger { background: #dc2626; color: #fff; border: none; }
 .btn-danger:hover { background: #b91c1c; }
 
-@media (max-width: 640px) {
-  .modal-overlay { padding: 10px; }
-  .modal-content { border-radius: 8px; max-width: calc(100vw - 20px); }
-  .modal-body { padding: 16px; }
-  .modal-header { padding: 12px 16px; }
-  .modal-footer { padding: 12px 16px; }
-}
+/* modal 移动端规则已提取到全局 style.css */
 </style>
 
 <script>

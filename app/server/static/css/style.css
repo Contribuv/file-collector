@@ -669,8 +669,8 @@ tbody tr:active { background: #f7f8fa; }
 }
 .sidebar-nav {
   display: flex;
-  background: var(--c-white);
   border-radius: var(--radius);
+  background: var(--c-white);
   margin-bottom: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -706,7 +706,6 @@ tbody tr:active { background: #f7f8fa; }
 .sidebar-nav a.active::after { background: var(--c-primary); }
 
 @media (max-width: 480px) {
-  .sidebar-nav { border-radius: var(--radius-sm); }
   .sidebar-nav a { font-size: .75rem; padding: 10px 4px; }
   .sidebar-nav a::after { left: 10px; right: 10px; }
 }
@@ -1128,7 +1127,6 @@ tbody tr:active { background: #f7f8fa; }
   .btn { font-size: .82rem;/*  padding: 7px 14px; */ }
   .btn-sm { font-size: .75rem; padding: 4px 12px; }
   thead th, tbody td { padding: 8px 10px; font-size: .78rem; }
-  .sidebar-nav { border-radius: var(--radius-sm); }
   .toggle-header { padding: 10px 14px; font-size: .84rem; }
   .toggle-body { padding: 12px; }
   .error-code { font-size: 3rem; }

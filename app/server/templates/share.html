@@ -8,6 +8,67 @@
   <title>{{ task_title|default('文件分享') }} - {{ share_page_title or site_title }}</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/share.css') }}">
+  <style>
+    /* 批量选择 */
+    .cp-sel-col { width: 36px; text-align: center; }
+    .cp-sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #3b82f6; margin: 0; }
+    .cp-card-check { flex-shrink: 0; width: 22px; display: flex; align-items: center; justify-content: center; }
+    .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
+    .cp-batch-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid #e4e6eb;
+      box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+      padding: 10px var(--cp-pad);
+      display: none; align-items: center; justify-content: center;
+      gap: 10px; z-index: 200;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+    .cp-batch-bar.on { display: flex; }
+    .cp-batch-info { font-size: .82rem; font-weight: 500; color: #1a1d28; white-space: nowrap; }
+    .cp-batch-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 14px; border-radius: 4px; border: 1px solid;
+      font-size: .78rem; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all .12s; white-space: nowrap;
+    }
+    .cp-batch-btn-dl {
+      background: #3b82f6; color: #fff; border-color: #3b82f6;
+    }
+    .cp-batch-btn-dl:hover { background: #2563eb; }
+    .cp-batch-btn-cancel {
+      background: #fff; color: #6b7280; border-color: #d1d5db;
+    }
+    .cp-batch-btn-cancel:hover { background: #f5f6f8; }
+    /* 批量下载等待浮窗 */
+    .cp-loading-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center;
+      animation: cpLoFadeIn .2s ease;
+    }
+    @keyframes cpLoFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .cp-loading-card {
+      background: #fff; border-radius: 12px; padding: 32px 40px;
+      text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      max-width: 320px; width: 90%;
+    }
+    .cp-loading-spinner {
+      width: 40px; height: 40px; margin: 0 auto 16px;
+      border: 3px solid #e4e6eb; border-top-color: #3b82f6;
+      border-radius: 50%; animation: cpLoSpin .6s linear infinite;
+    }
+    @keyframes cpLoSpin { to { transform: rotate(360deg); } }
+    .cp-loading-text { font-size: .95rem; font-weight: 600; color: #1a1d28; margin-bottom: 6px; }
+    .cp-loading-sub { font-size: .78rem; color: #9ca3af; }
+    @media (max-width: 768px) {
+      .cp-batch-bar { gap: 8px; padding: 8px var(--cp-pad);
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+      .cp-batch-info { font-size: .76rem; }
+      .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
+      .cp-card-check { align-self: center; }
+      .cp-loading-card { padding: 24px 28px; }
+    }
+  </style>
 </head>
 <body>
 
@@ -88,11 +149,27 @@
   {% endif %}
 </div>
 
+{# ---------- 批量操作栏 ---------- #}
+<div class="cp-batch-bar" id="batch-bar">
+  <span class="cp-batch-info" id="batch-info">已选 0 个文件</span>
+  <button class="cp-batch-btn cp-batch-btn-dl" id="batch-dl-btn" onclick="batchDownload()">批量下载</button>
+  <button class="cp-batch-btn cp-batch-btn-cancel" onclick="clearSelection()">取消选择</button>
+</div>
+
 <div class="collect-page-footer">
   {% if share_footer_text %}{{ share_footer_text }}{% elif collect_footer_text %}{{ collect_footer_text }}{% else %}Powered by File Collector{% endif %}
 </div>
 
 <div class="cp-toast" id="toast"></div>
+
+{# ---------- 批量下载等待浮窗 ---------- #}
+<div class="cp-loading-overlay" id="loading-overlay" style="display:none;">
+  <div class="cp-loading-card">
+    <div class="cp-loading-spinner"></div>
+    <div class="cp-loading-text" id="loading-text">正在打包文件，请稍候...</div>
+    <div class="cp-loading-sub" id="loading-sub">文件较多时可能需要一些时间</div>
+  </div>
+</div>
 
 {# ---------- Preview Modal ---------- #}
 <div class="cp-modal" id="preview-modal" style="display:none;">
@@ -205,7 +282,7 @@ function getFileIcon(ext) {
     pdf: '#ef4444', image: '#8b5cf6', video: '#f59e0b', audio: '#10b981',
     word: '#3b82f6', excel: '#10b981', ppt: '#f97316', archive: '#6366f1', fpk: '#287dfa', default: '#9ca3af'
   };
-  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','ico'];
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','ico','heic','heif'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv','flv','wmv'];
   var audExts = ['mp3','wav','flac','aac','m4a'];
   var docExts = ['doc','docx'], xlsExts = ['xls','xlsx','csv'], pptExts = ['ppt','pptx'];
@@ -227,19 +304,23 @@ function getFileIcon(ext) {
 var _allRecords = [];
 var _uploaderList = [];  // [{name, files}]
 
-function buildFileRow(r, ext, fi, canPreview, isTable) {
+function buildFileRow(r, ext, fi, canPreview, isTable, selClass, selSuffix) {
+  var rid = parseInt(r.id, 10);
+  var checked = _selectedIds.has(rid) ? ' checked' : '';
+  var selHtml = '<input type="checkbox" class="cp-sel-check ' + selClass + '" value="' + rid + '"' + checked + ' onchange="toggleSelect(' + rid + ',this.checked,1)">';
   if (isTable) {
     var iconHtml = fi.isImg
       ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
       : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></td>';
     return '<tr>' +
+      '<td class="cp-sel-col">' + selHtml + '</td>' +
       iconHtml +
       '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
       '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
       '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>' +
       '<td class="cp-file-act">' +
-        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ')" style="margin-right:8px;">预览</button>' : '') +
-        '<button class="cp-act-download-txt" onclick="downloadFile(' + parseInt(r.id, 10) + ')">下载</button>' +
+        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ')" style="margin-right:8px;">预览</button>' : '') +
+        '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
       '</td>' +
       '</tr>';
   } else {
@@ -247,13 +328,14 @@ function buildFileRow(r, ext, fi, canPreview, isTable) {
       ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
       : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
     return '<div class="cp-card-item">' +
+      '<div class="cp-card-check">' + selHtml + '</div>' +
       cardIconHtml +
       '<div class="cp-card-info">' +
         '<div class="cp-card-row-top">' +
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
           '<div class="cp-card-actions">' +
-            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ')" style="margin-right:8px;">预览</button>' : '') +
-            '<button class="cp-act-download-txt" onclick="downloadFile(' + parseInt(r.id, 10) + ')">下载</button>' +
+            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ')" style="margin-right:8px;">预览</button>' : '') +
+            '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
           '</div>' +
         '</div>' +
         '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
@@ -265,10 +347,12 @@ function buildFileRow(r, ext, fi, canPreview, isTable) {
 /* --- Flat list (requireUploader = false) --- */
 function renderFlatList(records) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
-  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
 
+  var selSuffix = '_f';
   var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+    '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>' +
     '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
     '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
     '<th class="cp-th-act">操作</th>' +
@@ -280,8 +364,8 @@ function renderFlatList(records) {
     var ext = r.original_name.split('.').pop().toLowerCase();
     var fi = getFileIcon(ext);
     var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
-    tableHtml += buildFileRow(r, ext, fi, canPreview, true);
-    cardHtml += buildFileRow(r, ext, fi, canPreview, false);
+    tableHtml += buildFileRow(r, ext, fi, canPreview, true, 'sel-d' + selSuffix, selSuffix);
+    cardHtml += buildFileRow(r, ext, fi, canPreview, false, 'sel-m' + selSuffix, selSuffix);
   }
 
   tableHtml += '</tbody></table></div>';
@@ -292,13 +376,14 @@ function renderFlatList(records) {
 /* ==== Accordion: 上传者分组折叠 ==== */
 function buildAccordionGroups() {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
-  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
 
   var html = '';
   for (var gi = 0; gi < _uploaderList.length; gi++) {
     var group = _uploaderList[gi];
     var files = group.files;
+    var selSuffix = '_a' + gi;
 
     // Header
     html += '<div class="cp-accordion-group' + (gi === 0 ? ' open' : '') + '">';
@@ -312,6 +397,7 @@ function buildAccordionGroups() {
     // Body: desktop table
     html += '<div class="cp-accordion-body">';
     html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+      '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>' +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
       '<th class="cp-th-act">操作</th>' +
@@ -321,7 +407,7 @@ function buildAccordionGroups() {
       var ext = r.original_name.split('.').pop().toLowerCase();
       var ficon = getFileIcon(ext);
       var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
-      html += buildFileRow(r, ext, ficon, canPreview, true);
+      html += buildFileRow(r, ext, ficon, canPreview, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
 
@@ -332,7 +418,7 @@ function buildAccordionGroups() {
       var ext2 = rr.original_name.split('.').pop().toLowerCase();
       var ficon2 = getFileIcon(ext2);
       var canPrev2 = jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2);
-      html += buildFileRow(rr, ext2, ficon2, canPrev2, false);
+      html += buildFileRow(rr, ext2, ficon2, canPrev2, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
 
@@ -380,6 +466,7 @@ async function loadHistory() {
       wrap.innerHTML = renderFlatList(_allRecords);
     }
 
+    updateBatchBar();
   } catch(e) {
     var wrap = document.getElementById('history-wrap');
     if (wrap) wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
@@ -416,7 +503,7 @@ function previewFile(recordId) {
     return;
   }
 
-  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
 
   var modal = document.getElementById('preview-modal');
@@ -525,6 +612,103 @@ function downloadFile(recordId) {
 })();
 
 {% if verified %}loadHistory();{% endif %}
+
+/* ========== 批量选择 ========== */
+var _selectedIds = new Set();
+
+function toggleSelectAll(checked, cls) {
+  var cbs = document.querySelectorAll('.sel-' + cls);
+  for (var i = 0; i < cbs.length; i++) {
+    cbs[i].checked = checked;
+    var v = parseInt(cbs[i].value, 10);
+    if (checked) { _selectedIds.add(v); } else { _selectedIds.delete(v); }
+  }
+  updateBatchBar();
+}
+
+function toggleSelect(recordId, checked) {
+  if (checked) { _selectedIds.add(recordId); } else { _selectedIds.delete(recordId); }
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  var bar = document.getElementById('batch-bar');
+  var info = document.getElementById('batch-info');
+  if (!bar || !info) return;
+  if (_selectedIds.size > 0) {
+    bar.classList.add('on');
+    info.textContent = '已选 ' + _selectedIds.size + ' 个文件';
+    document.body.style.paddingBottom = (bar.offsetHeight + 20) + 'px';
+  } else {
+    bar.classList.remove('on');
+    info.textContent = '已选 0 个文件';
+    document.body.style.paddingBottom = '';
+  }
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  var allCbs = document.querySelectorAll('.cp-sel-check');
+  for (var i = 0; i < allCbs.length; i++) {
+    allCbs[i].checked = false;
+  }
+  updateBatchBar();
+}
+
+async function batchDownload() {
+  var ids = Array.from(_selectedIds);
+  if (ids.length === 0) return;
+  // 显示等待浮窗
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/share/' + linkId + '/batch_download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ record_ids: ids })
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      return;
+    }
+    // 文件已打包完成，更新浮窗文字为传输中
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    // 从响应头读取服务器指定的文件名（优先 RFC 5987 UTF-8 编码）
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = 'batch_download.zip';
+    if (disposition) {
+      // 优先取 filename*=UTF-8''... 并 decodeURIComponent
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    var blob = await res.blob();
+    if (overlay) overlay.style.display = 'none';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 500);
+    showToast('开始下载 ' + ids.length + ' 个文件');
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误，请重试');
+  }
+}
 </script>
 </body>
 </html>

@@ -32,13 +32,14 @@ from pathlib import Path
 
 from flask import (
     Flask, request, render_template, redirect, url_for,
-    session, jsonify, flash, send_from_directory, abort, make_response
+    session, jsonify, flash, send_from_directory, send_file, abort, make_response, after_this_request
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import bleach
 import mimetypes
+import zipfile
 import hmac
 import hashlib
 # smtplib / email 延迟导入（仅邮件功能需要，启动时跳过 ~50ms）
@@ -68,6 +69,14 @@ _ESSENTIAL_MIMETYPES = {
 }
 for _ext, _mime in _ESSENTIAL_MIMETYPES.items():
     mimetypes.add_type(_mime, _ext)
+
+# HEIC 支持（可选依赖，打包时可能不包含）
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIC_SUPPORT = True
+except ImportError:
+    HEIC_SUPPORT = False
 
 
 # ============================================================
@@ -263,6 +272,23 @@ DEFAULT_MAX_FILE_SIZE_GB = 1
 DEFAULT_MAX_FILES = 10
 DEFAULT_ADMIN_USER = 'admin'
 DEFAULT_ADMIN_PASS = 'admin123'
+
+# 批量下载限制：总文件大小上限（字节），超过则提示分批下载
+MAX_BATCH_DOWNLOAD_SIZE = 500 * 1024 * 1024  # 500MB
+
+# 已压缩格式扩展名，批量打包时跳过重新压缩（ZIP_STORED）
+SKIP_COMPRESS_EXTENSIONS = {
+    # 图片
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp',
+    # 视频
+    '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v', '.3gp',
+    # 音频
+    '.mp3', '.aac', '.ogg', '.wma', '.m4a', '.opus', '.flac', '.wav',
+    # 压缩包
+    '.zip', '.7z', '.rar', '.gz', '.bz2', '.xz', '.tar',
+    # 文档（Office 新版格式本身是 zip 包）
+    '.pdf', '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp',
+}
 
 # ============================================================
 # 数据库初始化
@@ -960,7 +986,7 @@ def init_db():
             'allow_registration': '0',
             'default_invite_expire_days': '7',
             'default_link_expire_days': '30',
-            'links_per_page': '10',
+            'links_per_page': '50',
             'smtp_host': '',
             'smtp_port': '587',
             'smtp_username': '',
@@ -1186,6 +1212,12 @@ def format_file_size(size_bytes):
         size_bytes /= 1024
     return f"{size_bytes:.1f} TB"
 
+
+def _get_zip_compress_type(filename, skip_set=SKIP_COMPRESS_EXTENSIONS):
+    """根据扩展名决定 ZIP 压缩方式，已压缩格式跳过重复压缩"""
+    ext = os.path.splitext(filename)[1].lower()
+    return zipfile.ZIP_STORED if ext in skip_set else zipfile.ZIP_DEFLATED
+
 def _get_client_ip():
     """获取客户端真实IP
     
@@ -1410,6 +1442,13 @@ def _check_download_rate_limit():
     client_ip = _get_client_ip()
     if not rate_limit(f'dl_{client_ip}', max_attempts=10, window_seconds=60):
         return False, '下载过于频繁，请稍后再试'
+    return True, ''
+
+def _check_preview_rate_limit():
+    """IP 级别预览速率限制（放宽阈值，视频 Range 请求较多）"""
+    client_ip = _get_client_ip()
+    if not rate_limit(f'pv_{client_ip}', max_attempts=100, window_seconds=60):
+        return False, '预览请求过于频繁，请稍后再试'
     return True, ''
 
 def _check_public_link_token(link_id, link, for_share=False):
@@ -2195,6 +2234,27 @@ def _safe_download(stored_path, original_name):
         as_attachment=True
     )
 
+def _serve_heic_as_jpeg(stored_path):
+    """将 HEIC 文件转换为 JPEG 并返回 bytesio"""
+    if not HEIC_SUPPORT:
+        return None
+    
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(stored_path)
+        buf = io.BytesIO()
+        # 转换 RGB（去掉 alpha 通道，JPEG 不支持）
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        img.save(buf, format='JPEG', quality=92)
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+# ============================================================
+
 def create_upload_dir(link_id, uploader_name=''):
     """为链接创建上传目录（用户隔离：UPLOAD_BASE/<username>/<folder_name>/）
     如果提供了 uploader_name，则在其下创建子文件夹：<...>/<folder_name>/<uploader_name>/"""
@@ -2846,7 +2906,7 @@ def share_get_records(link_id):
 
 @app.route('/share/<link_id>/preview/<int:record_id>', methods=['GET'])
 def share_preview_record(link_id, record_id):
-    """预览分享页的文件（内联显示）"""
+    """预览分享页的文件（内联显示；支持 HEIC 转 JPEG）"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return '链接格式无效', 400
     conn = get_db()
@@ -2864,7 +2924,7 @@ def share_preview_record(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
-    ok, err = _check_download_rate_limit()
+    ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
         return err, 429
@@ -2894,16 +2954,23 @@ def share_preview_record(link_id, record_id):
         abort(404)
 
     ext = os.path.splitext(record['original_name'])[1].lower()
-    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'}
     _IMAGE_MIME = {
         '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
         '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-        '.svg': 'image/svg+xml'
+        '.svg': 'image/svg+xml', '.heic': 'image/heic', '.heif': 'image/heif'
     }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
 
     if ext in image_exts:
+        if ext in ('.heic', '.heif') and HEIC_SUPPORT:
+            buf = _serve_heic_as_jpeg(real_path)
+            if buf:
+                resp = make_response(buf.read())
+                resp.headers['Content-Type'] = 'image/jpeg'
+                resp.headers['Cache-Control'] = 'public, max-age=3600'
+                return resp
         return send_from_directory(directory, filename, mimetype=_IMAGE_MIME.get(ext, 'application/octet-stream'), as_attachment=False)
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
@@ -2911,6 +2978,9 @@ def share_preview_record(link_id, record_id):
         return send_from_directory(directory, filename, as_attachment=False)
     else:
         return send_from_directory(directory, filename, as_attachment=True)
+
+
+
 
 
 @app.route('/share/<link_id>/download/<int:record_id>', methods=['GET'])
@@ -2979,7 +3049,7 @@ def share_preview_file(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
-    ok, err = _check_download_rate_limit()
+    ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
         return err, 429
@@ -3082,6 +3152,103 @@ def share_jit_view(link_id, record_id):
         file_url=file_url,
         download_url=download_url)
 
+@app.route('/share/<link_id>/batch_download', methods=['POST'])
+def share_batch_download(link_id):
+    """分享页批量下载：将所选文件打包为 zip 返回"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_share_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    data = request.get_json(silent=True) or {}
+    record_ids = data.get('record_ids', [])
+    if not record_ids or not isinstance(record_ids, list):
+        return jsonify({'success': False, 'message': '请提供要下载的记录ID列表'}), 400
+
+    # 限制每次最多下载 50 个文件
+    record_ids = record_ids[:50]
+
+    records = conn.execute(
+        "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE id IN ({}) AND link_id = ?".format(
+            ','.join('?' * len(record_ids))),
+        record_ids + [link_id_db]
+    ).fetchall()
+    conn.close()
+
+    if not records:
+        return jsonify({'success': False, 'message': '未找到可下载的文件'}), 404
+
+    import io, zipfile, tempfile
+
+    # 获取链接标题，用于 zip 文件名和内部文件夹
+    link_title = (link['title'] or '').strip()
+    safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title) if link_title else link_id
+    zip_filename = f'{safe_title}.zip'
+
+    # 使用临时文件，避免大文件撑爆内存
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    tmp_path = tmp.name
+    try:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            used_names = {}
+            for rec in records:
+                stored_path = rec['stored_path']
+                if not os.path.isfile(stored_path):
+                    continue
+                original_name = rec['original_name']
+                arcname = f"{safe_title}/{original_name}"
+                if arcname in used_names:
+                    used_names[arcname] += 1
+                    base, ext = os.path.splitext(arcname)
+                    arcname = f"{base}({used_names[arcname]}){ext}"
+                else:
+                    used_names[arcname] = 0
+                # 智能压缩：已压缩格式只存储不重新压缩
+                compress_type = _get_zip_compress_type(original_name)
+                zf.write(stored_path, arcname=arcname, compress_type=compress_type)
+
+        tmp.close()
+
+        @after_this_request
+        def cleanup_share_zip(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            tmp_path,
+            download_name=zip_filename,
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"share批量下载打包失败: {e}")
+        try:
+            tmp.close()
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '文件打包失败，请稍后重试'}), 500
+
 @app.route('/share/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def share_delete_record(link_id, record_id):
     """分享页不允许删除文件"""
@@ -3149,7 +3316,7 @@ def get_upload_records(link_id):
 
 @app.route('/collect/<link_id>/preview/<int:record_id>', methods=['GET'])
 def preview_record(link_id, record_id):
-    """预览上传的文件（内联显示）"""
+    """预览上传的文件（内联显示；支持 HEIC 转 JPEG）"""
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
@@ -3164,6 +3331,11 @@ def preview_record(link_id, record_id):
     if not is_verified(link_id, link):
         conn.close()
         return '请先验证通行证', 403
+
+    ok, err = _check_preview_rate_limit()
+    if not ok:
+        conn.close()
+        return err, 429
 
     ok, err = _check_public_link_token(link_id, link, for_share=False)
     if not ok:
@@ -3194,16 +3366,23 @@ def preview_record(link_id, record_id):
         abort(404)
 
     ext = os.path.splitext(record['original_name'])[1].lower()
-    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
+    image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'}
     _IMAGE_MIME = {
         '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
         '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-        '.svg': 'image/svg+xml'
+        '.svg': 'image/svg+xml', '.heic': 'image/heic', '.heif': 'image/heif'
     }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
 
     if ext in image_exts:
+        if ext in ('.heic', '.heif') and HEIC_SUPPORT:
+            buf = _serve_heic_as_jpeg(real_path)
+            if buf:
+                resp = make_response(buf.read())
+                resp.headers['Content-Type'] = 'image/jpeg'
+                resp.headers['Cache-Control'] = 'public, max-age=3600'
+                return resp
         return send_from_directory(directory, filename, mimetype=_IMAGE_MIME.get(ext, 'application/octet-stream'), as_attachment=False)
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
@@ -3279,7 +3458,7 @@ def collect_preview_file(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
-    ok, err = _check_download_rate_limit()
+    ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
         return err, 429
@@ -3348,7 +3527,7 @@ def collect_jit_view(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
-    ok, err = _check_download_rate_limit()
+    ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
         return err, 429
@@ -3435,6 +3614,85 @@ def delete_upload_record(link_id, record_id):
     conn.close()
 
     return jsonify({'success': True, 'message': '已删除'})
+
+@app.route('/collect/<link_id>/batch_delete', methods=['POST'])
+def batch_delete_records(link_id):
+    """批量删除上传记录及文件"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    if not link['allow_delete']:
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
+
+    data = request.get_json(silent=True) or {}
+    record_ids = data.get('record_ids', [])
+    if not record_ids or not isinstance(record_ids, list):
+        return jsonify({'success': False, 'message': '请提供要删除的记录ID列表'}), 400
+
+    # 限制每次最多删除 100 条
+    record_ids = record_ids[:100]
+
+    uploader_name = session.get(f'uploader_name_{link_id_db}', '').strip()
+    require_uploader = bool(link['require_uploader'])
+
+    deleted = 0
+    skipped = 0
+    for rid in record_ids:
+        try:
+            rid = int(rid)
+        except (ValueError, TypeError):
+            skipped += 1
+            continue
+
+        record = conn.execute(
+            "SELECT id, stored_path, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
+            (rid, link_id_db)
+        ).fetchone()
+
+        if not record:
+            skipped += 1
+            continue
+
+        # require_uploader 模式下只允许删除自己的文件
+        if require_uploader and uploader_name:
+            rec_uploader = (record['uploader_name'] or '').strip()
+            if rec_uploader and rec_uploader != uploader_name:
+                skipped += 1
+                continue
+
+        try:
+            _safe_delete(record['stored_path'])
+        except Exception:
+            pass
+
+        conn.execute("DELETE FROM upload_records WHERE id = ?", (rid,))
+        deleted += 1
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'success': True,
+        'message': f'成功删除 {deleted} 个文件' + (f'，跳过 {skipped} 个' if skipped else ''),
+        'deleted': deleted,
+        'skipped': skipped
+    })
 
 @app.route('/collect/<link_id>/upload', methods=['POST'])
 def upload_file(link_id):
@@ -4905,7 +5163,7 @@ def user_settings():
             flash('个人默认链接有效期已保存')
 
         elif action == 'links_per_page':
-            raw = request.form.get('links_per_page_val', '10')
+            raw = request.form.get('links_per_page_val', '50')
             try:
                 _v = float(raw)
                 if _v != int(_v):
@@ -4920,7 +5178,7 @@ def user_settings():
             flash('收集链接显示数量已保存')
 
         elif action == 'records_per_page':
-            raw = request.form.get('records_per_page_val', '10')
+            raw = request.form.get('records_per_page_val', '50')
             try:
                 _v = float(raw)
                 if _v != int(_v):
@@ -5014,8 +5272,8 @@ def user_settings():
         'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
         'passcode_ttl_minutes': get_user_setting(user_id, 'passcode_ttl_minutes', '120'),
         'default_link_expire_days': get_user_setting(user_id, 'default_link_expire_days', '30'),
-        'links_per_page': get_user_setting(user_id, 'links_per_page', '10'),
-        'records_per_page': get_user_setting(user_id, 'records_per_page', '10'),
+        'links_per_page': get_user_setting(user_id, 'links_per_page', '50'),
+        'records_per_page': get_user_setting(user_id, 'records_per_page', '50'),
         'public_url': get_user_setting(user_id, 'public_url', get_setting('public_url', '')),
     }
     user = get_user_by_id(user_id)
@@ -5105,7 +5363,7 @@ def admin_links():
     is_admin = session.get('is_admin', False)
     
     # 获取每页显示数量
-    per_page = int(get_user_setting(user_id, 'links_per_page', '10'))
+    per_page = int(get_user_setting(user_id, 'links_per_page', '50'))
     try:
         page = int(request.args.get('page', '1'))
         if page < 1:
@@ -5167,7 +5425,8 @@ def admin_links():
 
     return render_template('admin_links.html', links=processed_links,
                            public_url=get_user_setting(user_id, 'public_url', get_setting('public_url', '')),
-                           page=page, total_pages=total_pages, total=total)
+                           page=page, total_pages=total_pages, total=total,
+                           per_page=per_page)
 
 @app.route('/admin/links/new')
 @login_required
@@ -5666,7 +5925,7 @@ def admin_records():
         page = 1
     user_id = session.get('user_id')
     is_admin = session.get('is_admin', False)
-    per_page = int(get_user_setting(user_id, 'records_per_page', '10'))
+    per_page = int(get_user_setting(user_id, 'records_per_page', '50'))
     link_filter = request.args.get('link_id', '').strip()
 
     # 验证权限（非管理员只能看自己的链接）
@@ -5739,7 +5998,8 @@ def admin_records():
         page=page,
         total_pages=total_pages,
         total_count=count,
-        link_filter=link_filter)
+        link_filter=link_filter,
+        per_page=per_page)
 
 @app.route('/admin/records/<int:record_id>/download')
 @login_required
@@ -5764,6 +6024,39 @@ def admin_download_record(record_id):
 
     _log_download(record_id, 'admin')
     return _safe_download(record['stored_path'], record['original_name'])
+
+@app.route('/admin/records/<int:record_id>/preview-img')
+@login_required
+def admin_preview_image(record_id):
+    """预览图片（HEIC 自动转为 JPEG 显示）"""
+    if not _check_record_ownership(record_id):
+        return '无权访问', 403
+    conn = get_db()
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
+        (record_id,)
+    ).fetchone()
+    conn.close()
+    if not record:
+        return '文件不存在', 404
+    
+    ext = os.path.splitext(record['original_name'])[1].lower()
+    
+    if ext in ('.heic', '.heif'):
+        if not HEIC_SUPPORT:
+            return '服务端不支持 HEIC 预览，请安装 pillow-heif', 501
+        buf = _serve_heic_as_jpeg(record['stored_path'])
+        if not buf:
+            return 'HEIC 转换失败', 500
+        resp = make_response(buf.read())
+        resp.headers['Content-Type'] = 'image/jpeg'
+        resp.headers['Cache-Control'] = 'public, max-age=3600'
+        return resp
+    
+    # 普通图片直接返回
+    return _safe_download(record['stored_path'], record['original_name'])
+
+# ============================================================
 
 @app.route('/admin/records/<int:record_id>/download-logs')
 @login_required
@@ -6081,7 +6374,7 @@ def admin_preview_record(record_id):
 
 @app.route('/admin/records/batch-delete', methods=['POST'])
 @login_required
-def batch_delete_records():
+def admin_batch_delete_records():
     """批量删除记录"""
     ids = request.form.getlist('ids[]')
     if not ids:
@@ -6116,6 +6409,150 @@ def batch_delete_records():
 
     flash(f'已删除 {deleted} 条记录')
     return redirect(url_for('admin_records'))
+
+@app.route('/admin/records/batch-download', methods=['POST'])
+@login_required
+def batch_download_records():
+    """批量打包下载选中记录"""
+    ids = request.form.getlist('ids[]')
+    if not ids:
+        return '未选择任何记录', 400
+
+    is_admin = session.get('is_admin', False)
+    user_id = session.get('user_id')
+    conn = get_db()
+
+    records = []
+    for rid in ids:
+        try:
+            if not is_admin:
+                row = conn.execute(
+                    """SELECT r.stored_path, r.original_name, r.link_id, r.uploader_name, r.file_size
+                       FROM upload_records r
+                       INNER JOIN links l ON r.link_id = l.id
+                       WHERE r.id = ? AND l.user_id = ?""",
+                    (rid, user_id)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT stored_path, original_name, link_id, uploader_name, file_size FROM upload_records WHERE id = ?",
+                    (rid,)
+                ).fetchone()
+            if row:
+                records.append({
+                    'stored_path': row['stored_path'],
+                    'original_name': row['original_name'],
+                    'link_id': row['link_id'],
+                    'uploader_name': row['uploader_name'],
+                    'file_size': row['file_size'],
+                })
+        except Exception:
+            pass
+    conn.close()
+
+    if not records:
+        return '没有可下载的记录', 400
+
+    upload_base = os.path.realpath(get_upload_base())
+
+    # 创建临时 ZIP 文件
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    tmp_path = tmp.name
+
+    try:
+        # 跟踪 ZIP 内已用路径，防止同名覆盖
+        used_names = {}
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for r in records:
+                stored_path = r['stored_path']
+                original_name = r['original_name']
+                uploader_name = r['uploader_name'] or ''
+                link_id = r['link_id']
+
+                # 路径遍历安全检查
+                real_path = os.path.realpath(stored_path)
+                if not (real_path.startswith(upload_base + os.sep) or real_path == upload_base):
+                    logger.warning(f"批量下载路径遍历拦截: {stored_path}")
+                    continue
+                if not os.path.isfile(real_path):
+                    continue
+
+                # 获取链接标题作为顶层文件夹
+                link = get_link_by_id(link_id)
+                link_title = link.get('title', '') or link_id if link else link_id
+                safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title.strip())
+
+                # 构建 ZIP 内路径：链接标题 / [上传者 /] 文件名
+                if uploader_name:
+                    safe_uploader = re.sub(r'[<>:"/\\|?*]', '_', uploader_name.strip())
+                    arcname = f"{safe_title}/{safe_uploader}/{original_name}"
+                else:
+                    arcname = f"{safe_title}/{original_name}"
+
+                # 处理重名
+                if arcname in used_names:
+                    used_names[arcname] += 1
+                    base, ext = os.path.splitext(arcname)
+                    arcname = f"{base}({used_names[arcname]}){ext}"
+                else:
+                    used_names[arcname] = 0
+
+                # 智能压缩：已压缩格式只存储不重新压缩
+                compress_type = _get_zip_compress_type(original_name)
+                zf.write(real_path, arcname=arcname, compress_type=compress_type)
+
+        tmp.close()
+
+        @after_this_request
+        def cleanup_zip(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            tmp_path,
+            download_name='文件收集_批量下载.zip',
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"批量下载失败: {e}\n{traceback.format_exc()}")
+        try:
+            tmp.close()
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        return '打包下载失败，请重试', 500
+
+@app.route('/admin/ajax/set-per-page', methods=['POST'])
+@login_required
+def ajax_set_per_page():
+    """AJAX 保存分页设置"""
+    if not validate_csrf():
+        return jsonify({'ok': False, 'error': '安全验证失败'}), 403
+    key = request.form.get('key', '').strip()
+    raw = request.form.get('value', '').strip()
+    user_id = session.get('user_id')
+
+    if key not in ('links_per_page', 'records_per_page'):
+        return jsonify({'ok': False, 'error': '无效的设置项'}), 400
+
+    try:
+        _v = float(raw)
+        if _v != int(_v):
+            raise ValueError
+        val = int(_v)
+        max_val = 100 if key == 'links_per_page' else 200
+        if val < 5 or val > max_val:
+            raise ValueError
+    except ValueError:
+        return jsonify({'ok': False, 'error': f'请输入 5-{200 if key == "records_per_page" else 100} 的整数'}), 400
+
+    set_user_setting(user_id, key, str(val))
+    return jsonify({'ok': True})
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @admin_required
@@ -6315,7 +6752,7 @@ def admin_settings():
             flash('默认链接有效期已保存')
 
         elif action == 'links_per_page':
-            raw = request.form.get('links_per_page_val', '10')
+            raw = request.form.get('links_per_page_val', '50')
             try:
                 _v = float(raw)
                 if _v != int(_v):
@@ -6330,7 +6767,7 @@ def admin_settings():
             flash('收集链接显示数量已保存')
 
         elif action == 'records_per_page':
-            raw = request.form.get('records_per_page_val', '10')
+            raw = request.form.get('records_per_page_val', '50')
             try:
                 _v = float(raw)
                 if _v != int(_v):
@@ -6415,7 +6852,7 @@ def admin_settings():
 
         elif action == 'pagination':
             # 收集链接分页 + 上传记录分页
-            raw_links = request.form.get('links_per_page_val', '10')
+            raw_links = request.form.get('links_per_page_val', '50')
             try:
                 _v = float(raw_links)
                 if _v != int(_v):
@@ -6427,7 +6864,7 @@ def admin_settings():
                 flash(str(e) if '必须' in str(e) else '每页数量格式错误')
                 return redirect(url_for('admin_settings'))
             set_setting('links_per_page', str(val_l))
-            raw_records = request.form.get('records_per_page_val', '10')
+            raw_records = request.form.get('records_per_page_val', '50')
             try:
                 _v2 = float(raw_records)
                 if _v2 != int(_v2):
@@ -6507,8 +6944,8 @@ def admin_settings():
         'allow_registration': get_setting('allow_registration', '0'),
         'default_invite_expire_days': get_setting('default_invite_expire_days', '7'),
         'default_link_expire_days': get_setting('default_link_expire_days', '30'),
-        'links_per_page': get_setting('links_per_page', '10'),
-        'records_per_page': get_user_setting(session.get('user_id'), 'records_per_page', '10'),
+        'links_per_page': get_setting('links_per_page', '50'),
+        'records_per_page': get_user_setting(session.get('user_id'), 'records_per_page', '50'),
         'smtp_host': get_setting('smtp_host', ''),
         'smtp_port': get_setting('smtp_port', '587'),
         'smtp_username': get_setting('smtp_username', ''),

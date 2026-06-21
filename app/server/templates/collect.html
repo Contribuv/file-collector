@@ -8,6 +8,45 @@
   <title>{{ task_title|default('文件收集') }} - {{ site_title }}</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
+  <style>
+    /* 批量选择 —— 参考 share 批量下载样式，红色删除主题 */
+    .cp-sel-col { width: 36px; text-align: center; }
+    .cp-sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; margin: 0; }
+    .cp-card-check { flex-shrink: 0; width: 22px; display: flex; align-items: center; justify-content: center; }
+    .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
+    .cp-batch-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid #e4e6eb;
+      box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+      padding: 10px var(--cp-pad);
+      display: none; align-items: center; justify-content: center;
+      gap: 10px; z-index: 200;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+    .cp-batch-bar.on { display: flex; }
+    .cp-batch-info { font-size: .82rem; font-weight: 500; color: #1a1d28; white-space: nowrap; }
+    .cp-batch-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 14px; border-radius: 4px; border: 1px solid;
+      font-size: .78rem; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all .12s; white-space: nowrap;
+    }
+    .cp-batch-btn-del {
+      background: #dc2626; color: #fff; border-color: #dc2626;
+    }
+    .cp-batch-btn-del:hover { background: #b91c1c; }
+    .cp-batch-btn-cancel {
+      background: #fff; color: #6b7280; border-color: #d1d5db;
+    }
+    .cp-batch-btn-cancel:hover { background: #f5f6f8; }
+    @media (max-width: 768px) {
+      .cp-batch-bar { gap: 8px; padding: 8px var(--cp-pad);
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+      .cp-batch-info { font-size: .76rem; }
+      .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
+      .cp-card-check { align-self: center; }
+    }
+  </style>
 </head>
 <body>
 
@@ -151,6 +190,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         已上传文件清单
       </h2>
+
     </div>
     <div class="cp-card-body cp-card-body--flush">
       <div id="history-wrap">
@@ -163,6 +203,15 @@
   </div>
   {% endif %}
 </div>
+
+{# ---------- 批量操作栏 ---------- #}
+{% if allow_delete %}
+<div class="cp-batch-bar" id="batch-bar">
+  <span class="cp-batch-info" id="batch-info">已选 0 个文件</span>
+  <button class="cp-batch-btn cp-batch-btn-del" id="batch-del-btn" onclick="batchDelete()">批量删除</button>
+  <button class="cp-batch-btn cp-batch-btn-cancel" onclick="clearSelection()">取消选择</button>
+</div>
+{% endif %}
 
 <div class="collect-page-footer">
   {% if collect_footer_text %}{{ collect_footer_text }}{% else %}Powered by File Collector{% endif %}
@@ -947,8 +996,12 @@ async function loadHistory() {
     var canDelete = allowDelete && (data.allow_delete === true);
     var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
 
+    // 每次刷新历史时清除批量选择状态
+    clearSelection();
+
     // --- Desktop table ---
     var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+      (canDelete ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
       (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
@@ -967,6 +1020,7 @@ async function loadHistory() {
         ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
         : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></td>';
       tableHtml += '<tr>' +
+        (canDelete ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + r.id + '" onchange="toggleSelect(' + r.id + ',this.checked)"></td>' : '') +
         iconHtml +
         '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
         '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
@@ -994,6 +1048,7 @@ async function loadHistory() {
         ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
         : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
       cardHtml += '<div class="cp-card-item">' +
+        (canDelete ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '" onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
         cardIconHtml +
         '<div class="cp-card-info">' +
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
@@ -1035,6 +1090,61 @@ async function deleteRecord(recordId) {
     if (data.success) { showToast('已删除'); loadHistory(); }
     else { showToast(data.message || '删除失败'); }
   } catch(e) { showToast('网络错误'); }
+}
+
+/* ========== Batch Delete ========== */
+var _selectedIds = new Set();
+function toggleSelect(id, checked) {
+  if (checked) { _selectedIds.add(id); } else { _selectedIds.delete(id); }
+  updateBatchBar();
+  // 同步全选复选框
+  var all = document.querySelectorAll('.cp-sel-check');
+  var selAll = document.querySelector('thead .cp-sel-check');
+  if (selAll) {
+    var total = 0;
+    all.forEach(function(c, i) { if (i > 0 && !c.closest('thead')) total++; });
+    selAll.checked = total > 0 && _selectedIds.size === total;
+  }
+}
+function toggleSelectAll(checked) {
+  _selectedIds.clear();
+  document.querySelectorAll('.cp-sel-check').forEach(function(c) {
+    if (c.closest('thead')) return;
+    c.checked = checked;
+    if (checked) _selectedIds.add(parseInt(c.value, 10));
+  });
+  updateBatchBar();
+}
+function updateBatchBar() {
+  var bar = document.getElementById('batch-bar');
+  var info = document.getElementById('batch-info');
+  if (!bar) return;
+  var n = _selectedIds.size;
+  bar.classList.toggle('on', n > 0);
+  if (info) info.textContent = '已选 ' + n + ' 个文件';
+}
+function clearSelection() {
+  _selectedIds.clear();
+  document.querySelectorAll('.cp-sel-check').forEach(function(c) { c.checked = false; });
+  updateBatchBar();
+}
+async function batchDelete() {
+  if (_selectedIds.size === 0) return;
+  if (!confirm('确定删除选中的 ' + _selectedIds.size + ' 个文件？此操作不可恢复。')) return;
+  var ids = Array.from(_selectedIds);
+  var btn = document.getElementById('batch-del-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '删除中...'; }
+  try {
+    var res = await fetch('/collect/' + linkId + '/batch_delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ record_ids: ids })
+    });
+    var data = await res.json();
+    showToast(data.message || (data.success ? '删除成功' : '删除失败'));
+    if (data.success) { _selectedIds.clear(); loadHistory(); }
+    else if (btn) { btn.disabled = false; btn.textContent = '批量删除'; }
+  } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
 }
 
 /* ========== Preview helpers ========== */

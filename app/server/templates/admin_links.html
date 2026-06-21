@@ -111,7 +111,7 @@
         {% endif %}
       </div>
       {% if total_pages > 1 %}
-      <div class="card-footer">
+      <div class="card-footer" style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
         <div class="pagination">
           {% if page > 1 %}
           <a href="{{ url_for('admin_links', page=page-1) }}" class="btn btn-sm">上一页</a>
@@ -121,8 +121,20 @@
           <a href="{{ url_for('admin_links', page=page+1) }}" class="btn btn-sm">下一页</a>
           {% endif %}
         </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:.8rem;color:#999;">每页显示</label>
+          <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
+                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+          <span style="font-size:.78rem;color:#aaa;">条</span>
+        </div>
       </div>
-      {% endif %}
+      {% else %}
+      <div class="card-footer" style="padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <label style="font-size:.8rem;color:#999;">每页显示</label>
+        <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
+               style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+        <span style="font-size:.78rem;color:#aaa;">条</span>
+      </div>{% endif %}
     </div>
   </div>
 </div>
@@ -638,5 +650,43 @@ function confirmDeleteLink() {
   _deleteLinkId = null;
   document.getElementById('delete-confirm-modal').style.display = 'none';
 }
+
+// 每页数量自动保存
+(function() {
+  var input = document.getElementById('per-page-input');
+  if (!input) return;
+  var currentVal = parseInt(input.value) || 50;
+  var timer = null;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      var raw = input.value.trim();
+      var val = parseInt(raw);
+      if (!raw || isNaN(val)) { input.style.outline='2px solid #ef4444'; return; }
+      if (val < 5) { alert('最少每页显示 5 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val > 100) { alert('最多每页显示 100 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val === currentVal) { input.style.outline=''; return; }
+      input.style.outline='';
+      var fd = new FormData();
+      fd.append('key', 'links_per_page');
+      fd.append('value', String(val));
+      var csrf = document.querySelector('input[name="csrf_token"]');
+      if (csrf) fd.append('csrf_token', csrf.value);
+      fetch('/admin/ajax/set-per-page', {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            currentVal = val;
+            window.location.reload(true);
+          } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+          }
+        }).catch(function(e) {
+          alert('请求失败: ' + e.message);
+        });
+    }, 800);
+  });
+})();
 </script>
 {% endblock %}

@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
   <style>
     /* 批量选择 —— 参考 share 批量下载样式，红色删除主题 */
-    .cp-sel-col { width: 36px; text-align: center; }
-    .cp-sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; margin: 0; }
+    .cp-sel-col { width: 36px; text-align: center; vertical-align: middle; }
+    .cp-sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; margin: 0; vertical-align: middle; }
     .cp-card-check { flex-shrink: 0; width: 22px; display: flex; align-items: center; justify-content: center; }
     .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
     .cp-batch-bar {
@@ -230,7 +230,6 @@
     <div class="cp-modal-body" id="preview-body"><div class="cp-preview-loading">加载中...</div></div>
     <div class="cp-modal-footer">
       <button class="cp-btn cp-btn-outline" onclick="closePreview()">关闭</button>
-      <button class="cp-btn cp-btn-primary" id="preview-download-btn">下载文件</button>
     </div>
   </div>
 </div>
@@ -1034,8 +1033,6 @@ async function loadHistory() {
           if (canPreviewExt(ext)) {
             tableHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
           }
-          var dlParamsT = getTokenParam();
-          tableHtml += '<a class="cp-act-download-txt" data-dl="1" href="/collect/' + linkId + '/download/' + r.id + (dlParamsT ? '?' + dlParamsT : '') + '" style="margin-right:8px;">下载</a>';
         }
         if (canDelete) {
           tableHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
@@ -1060,8 +1057,6 @@ async function loadHistory() {
           if (canPreviewExt(ext)) {
             cardHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
           }
-          var dlParamsC = getTokenParam();
-          cardHtml += '<a class="cp-act-download-txt" data-dl="1" href="/collect/' + linkId + '/download/' + r.id + (dlParamsC ? '?' + dlParamsC : '') + '" style="margin-right:8px;">下载</a>';
         }
         if (canDelete) {
           cardHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
@@ -1173,7 +1168,6 @@ function previewFile(recordId, fileName) {
   var modal = document.getElementById('preview-modal');
   var title = document.getElementById('preview-title');
   var body = document.getElementById('preview-body');
-  var downloadBtn = document.getElementById('preview-download-btn');
 
   title.textContent = fileName;
   body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
@@ -1182,15 +1176,13 @@ function previewFile(recordId, fileName) {
 
   var tp = getTokenParam();
   var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
-  var dlUrl = '/collect/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
-  downloadBtn.onclick = function() { window.open(dlUrl, '_blank'); };
 
   if (imgExts.includes(ext)) {
     body.innerHTML = '<img src="' + previewUrl + '" alt="' + escapeHtml(fileName) + '" class="cp-preview-image" onerror="this.onerror=null;this.src=\'\';document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>图片加载失败，请刷新页面后重试</p>\'">';
   } else if (vidExts.includes(ext)) {
     body.innerHTML = '<video src="' + previewUrl + '" controls autoplay class="cp-preview-video" onerror="this.onerror=null;document.getElementById(\'preview-body\').innerHTML=\'<p style=color:#999>视频加载失败，请刷新页面后重试</p>\'">您的浏览器不支持视频播放</video>';
   } else {
-    body.innerHTML = '<p style="color:#999;">不支持预览该文件类型，请下载查看</p>';
+    body.innerHTML = '<p style="color:#999;">不支持预览该文件类型</p>';
   }
 }
 

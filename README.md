@@ -1,4 +1,4 @@
-# 文件收集器 (File Collector)  即将使用Go-lang重构
+# 文件收集器 (File Collector) 
 
 <p align="center">
   <img src="logo.png" alt="文件收集器" width="200">

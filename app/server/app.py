@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.20"
+VERSION = "2.2.21"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1881,14 +1881,23 @@ def cleanup_orphan_records(conn=None):
             except Exception:
                 pass
 
+# 孤儿记录清理缓存：避免每次请求都扫文件系统（NAS/HDD 下尤其耗时）
+_orphan_cleanup_cache = {}  # {link_id: timestamp}
+
 def cleanup_orphan_records_for_link(conn, link_id):
-    """清理指定链接的孤儿记录（批量版）"""
+    """清理指定链接的孤儿记录（批量版），60秒内不重复扫描"""
+    now = time.time()
+    last = _orphan_cleanup_cache.get(link_id, 0)
+    if now - last < 60:
+        return 0  # 60 秒内已清理过，跳过文件系统扫描
+    
     try:
         records = conn.execute(
             "SELECT id, stored_path FROM upload_records WHERE link_id = ?",
             (link_id,)
         ).fetchall()
         if not records:
+            _orphan_cleanup_cache[link_id] = now
             return 0
         
         upload_base = get_upload_base()
@@ -1905,8 +1914,17 @@ def cleanup_orphan_records_for_link(conn, link_id):
             placeholders = ','.join(['?' for _ in orphan_ids])
             conn.execute(f"DELETE FROM upload_records WHERE id IN ({placeholders})", orphan_ids)
             conn.commit()
+        
+        _orphan_cleanup_cache[link_id] = now
+        # 定期清理过期缓存，防止内存泄漏
+        cutoff = now - 3600
+        stale = [k for k, v in _orphan_cleanup_cache.items() if v < cutoff]
+        for k in stale:
+            _orphan_cleanup_cache.pop(k, None)
+        
         return len(orphan_ids)
     except Exception as e:
+        _orphan_cleanup_cache[link_id] = now
         logger.error(f"清理链接 {link_id} 孤儿记录失败: {e}")
         return 0
 
@@ -2475,7 +2493,7 @@ def collect_page(link_id):
         csrf_token=csrf_token,
         dl_token=dl_token,
         dl_token_expires=dl_token_expires,
-        blocked_extensions=sorted(list(get_blocked_extensions())))
+        blocked_extensions=sorted(list(get_blocked_extensions())), upload_batch_limit=50)
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):

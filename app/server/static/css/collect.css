@@ -309,6 +309,14 @@ body {
 .cp-drop.full h3 { display: none; }
 .cp-drop.full .cp-drop-text { display: none !important; }
 
+/* 单次批量上传提示：始终显示 */
+.cp-drop-batch-hint {
+  font-size: .78rem;
+  color: #b0b0b0;
+  margin-bottom: 4px;
+}
+.cp-drop.full .cp-drop-batch-hint { display: none; }
+
 /* ---------- File Pending List ---------- */
 .cp-files { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
 .cp-file {
@@ -614,91 +622,9 @@ body {
 }
 
 /* ============================================================
-   PREVIEW MODAL — 浮窗预览（图片/视频）
+   GLightbox 自定义覆盖（保持与项目风格一致）
    ============================================================ */
-.cp-modal {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-modal-mask {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.65);
-}
-.cp-modal-content {
-  position: relative;
-  background: #fff;
-  border-radius: 5px;
-  width: 92%;
-  max-width: 800px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 10px 36px rgba(0,0,0,.2);
-}
-.cp-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e4e6eb;
-  flex-shrink: 0;
-  background: #fafbfc;
-}
-.cp-modal-title {
-  font-size: .84rem;
-  font-weight: 600;
-  color: #1a1d28;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  margin-right: 8px;
-}
-.cp-modal-close {
-  width: 24px; height: 24px;
-  border: none; background: #f0f2f5;
-  border-radius: 50%;
-  font-size: 1rem; color: #6b7280;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-}
-.cp-modal-close:hover { background: #e4e6eb; color: #1a1d28; }
-.cp-modal-body {
-  flex: 1;
-  padding: 10px;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-}
-.cp-preview-loading { color: #6b7280; font-size: .82rem; }
-.cp-preview-image {
-  max-width: 100%;
-  max-height: calc(90vh - 100px);
-  object-fit: contain;
-  border-radius: 3px;
-}
-.cp-preview-video {
-  max-width: 100%;
-  max-height: calc(90vh - 100px);
-  border-radius: 3px;
-  background: #000;
-}
-.cp-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-  padding: 8px 12px;
-  border-top: 1px solid #e4e6eb;
-  flex-shrink: 0;
-}
+/* GLightbox 的 z-index 很高，确保不与其他元素冲突 */
 
 /* ============================================================
    RESPONSIVE — 移动端卡片列表
@@ -754,12 +680,6 @@ body {
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-table tbody td { padding: 6px 8px; }
   .cp-modal-card { max-width: 92%; padding: 24px 18px 20px; }
-  .cp-modal-content { width: 96%; max-width: 96%; border-radius: 4px; }
-  .cp-modal-header { padding: 6px 10px; }
-  .cp-modal-title { font-size: .78rem; }
-  .cp-modal-body { padding: 8px; min-height: 100px; }
-  .cp-modal-footer { padding: 6px 10px; }
-  .cp-modal-footer .cp-btn { font-size: .72rem; padding: 5px 10px; }
 }
 
 

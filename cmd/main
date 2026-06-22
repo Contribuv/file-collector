@@ -55,17 +55,8 @@ start() {
     log "=== START ==="
 
     # ---- 第1步：Python ----
-    log "[1/7] 查找 Python 3.12..."
-    PYTHON_BIN=""
-    for p in "/var/apps/python312/target/bin/python3" \
-             "/var/apps/python312/target/bin/python" \
-             "/var/apps/python312/bin/python3"; do
-        [ -x "$p" ] && { PYTHON_BIN="$p"; log "  找到: $p"; break; }
-    done
-    [ -z "$PYTHON_BIN" ] && {
-        export PATH="/var/apps/python312/target/bin:$PATH"
-        PYTHON_BIN="$(command -v python3 2>/dev/null)"
-    }
+    log "[1/7] 查找 Python 3..."
+    PYTHON_BIN="$(command -v python3 2>/dev/null)"
     [ -z "$PYTHON_BIN" ] && { log "FATAL: 找不到 python3!"; exit 1; }
     log "  Python: $($PYTHON_BIN --version 2>&1)"
 
@@ -177,7 +168,7 @@ start() {
                     gunicorn==21.2.0 \
                     bleach==6.1.0 \
                     tinycss2==1.5.1 \
-                    pillow-heif==1.4.0 \
+                    pillow-heif==1.0.0 \
                     >> "$DEBUG_LOG" 2>&1; then
                     log "  离线安装成功（零网络依赖）"
                     INSTALL_SUCCESS=1
@@ -212,14 +203,14 @@ start() {
                 # pillow-heif（强制用预编译 wheel）
                 log "  [2/2] 安装 pillow-heif（强制 wheel）..."
                 if pip install $PIP_OPTS --only-binary=pillow-heif --prefer-binary \
-                    pillow-heif==1.4.0 \
+                    pillow-heif==1.0.0 \
                     >> "$DEBUG_LOG" 2>&1; then
                     log "  [2/2] pillow-heif wheel 安装成功"
                 else
                     log "  [2/2] WARN: pillow-heif 无匹配 wheel，尝试源码编译..."
                     log "    如安装失败，HEIC/HEIF 图片预览将不可用（不影响其他功能）"
                     pip install $PIP_OPTS \
-                        pillow-heif==1.4.0 \
+                        pillow-heif==1.0.0 \
                         >> "$DEBUG_LOG" 2>&1 || {
                         log "  WARN: pillow-heif 安装失败，跳过（HEIC 预览不可用，其他功能正常）"
                         log "    应用将正常启动，仅 HEIC/HEIF 图片无法在线预览。"

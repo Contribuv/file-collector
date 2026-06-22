@@ -325,6 +325,7 @@ body {
 .cp-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 .cp-table thead th {
   background: #fafbfc;
@@ -556,91 +557,8 @@ body {
 }
 
 /* ============================================================
-   PREVIEW MODAL
+   GLightbox 自定义覆盖
    ============================================================ */
-.cp-modal {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-modal-mask {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.65);
-}
-.cp-modal-content {
-  position: relative;
-  background: #fff;
-  border-radius: 5px;
-  width: 92%;
-  max-width: 800px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 10px 36px rgba(0,0,0,.2);
-}
-.cp-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e4e6eb;
-  flex-shrink: 0;
-  background: #fafbfc;
-}
-.cp-modal-title {
-  font-size: .84rem;
-  font-weight: 600;
-  color: #1a1d28;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  margin-right: 8px;
-}
-.cp-modal-close {
-  width: 24px; height: 24px;
-  border: none; background: #f0f2f5;
-  border-radius: 50%;
-  font-size: 1rem; color: #6b7280;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-}
-.cp-modal-close:hover { background: #e4e6eb; color: #1a1d28; }
-.cp-modal-body {
-  flex: 1;
-  padding: 10px;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-}
-.cp-preview-loading { color: #6b7280; font-size: .82rem; }
-.cp-preview-image {
-  max-width: 100%;
-  max-height: calc(90vh - 100px);
-  object-fit: contain;
-  border-radius: 3px;
-}
-.cp-preview-video {
-  max-width: 100%;
-  max-height: calc(90vh - 100px);
-  border-radius: 3px;
-  background: #000;
-}
-.cp-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-  padding: 8px 12px;
-  border-top: 1px solid #e4e6eb;
-  flex-shrink: 0;
-}
 
 /* ============================================================
    RESPONSIVE

@@ -20,7 +20,6 @@
   <header class="header">
     <div class="header-inner">
       <a href="{{ url_for('admin_dashboard') }}" class="header-brand">
-        <img src="{{ url_for('static', filename='img/up.png') }}" alt="" style="display:none">
         {{ config_title|default('文件收集器') }}
       </a>
       {% if session.user_id %}

@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.2.20-blue" alt="version">
-  <img src="https://img.shields.io/badge/python-3.12-green" alt="python">
+  <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="license">
@@ -145,7 +145,7 @@ file-collector/
 | 数据库 | SQLite（WAL 模式 + 外键约束） |
 | 密码哈希 | Werkzeug Security |
 | 生产部署 | Gunicorn（fnOS 内） |
-| Python | 3.12+ |
+| Python | 3.11+ |
 
 ---
 
@@ -267,6 +267,12 @@ GET /api/status
 ---
 
 ## 更新日志
+
+### v2.2.21
+- **适配飞牛系统自带 Python 3.11**：移除 `install_dep_apps = python312` 依赖，直接使用系统 `python3`
+- **离线 wheel 全面 cp311 编译**：`markupsafe`/`pillow`/`pillow-heif` 全部换为 cp311 manylinux，保持零网络依赖安装
+- `cmd/main` 简化 Python 查找逻辑，不再硬编码 python312 路径
+- 更新 README Python 版本标识为 3.11+
 
 ### v2.2.20
 - **离线 wheel 打包**：内置 x86_64 + aarch64 双架构预编译 wheel，安装零网络依赖，2 秒完成（原在线安装需 5+ 分钟）

@@ -9,11 +9,21 @@
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
+
   <style>
-    /* collect 页面批量操作主色：红色（删除） */
-    :root { --batch-accent: #dc2626; }
-  </style>
-  </style>
+  /* 自定义灯箱样式 */
+  #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
+  #custom-lightbox .lb-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); }
+  #custom-lightbox .lb-close { position:absolute; top:12px; right:18px; z-index:10; font-size:40px; color:#fff; background:none; border:none; cursor:pointer; line-height:1; padding:0 8px; opacity:0.8; }
+  #custom-lightbox .lb-close:hover { opacity:1; }
+  #custom-lightbox .lb-prev, #custom-lightbox .lb-next { position:absolute; top:50%; transform:translateY(-50%); z-index:10; font-size:44px; color:#fff; background:rgba(255,255,255,0.12); border:none; cursor:pointer; padding:8px 14px; border-radius:6px; line-height:1; }
+  #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
+  #custom-lightbox .lb-prev { left:16px; }
+  #custom-lightbox .lb-next { right:16px; }
+  #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; }
+  #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
+  #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
+</style>
 </head>
 <body>
 
@@ -23,7 +33,6 @@
 
 <div class="cp-topbar">
   <div class="cp-topbar-inner">
-    <img class="cp-topbar-logo" src="{{ url_for('static', filename='img/up.png') }}" alt="" style="display:none">
     <span>{{ site_title }}</span>
   </div>
 </div>
@@ -122,6 +131,7 @@
         <h3>点击选择文件或拖拽到此处</h3>
         <span class="cp-drop-text" style="display:none;">点击或拖拽上传文件</span>
         <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
+        <p class="cp-drop-batch-hint">单次最多上传 {{ upload_batch_limit }} 个文件</p>
         <p class="cp-hint-resume">
           <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
@@ -187,20 +197,7 @@
 
 <div class="cp-toast" id="toast"></div>
 
-{# ---------- Preview Modal（浮窗预览：图片/视频等） ---------- #}
-<div class="cp-modal" id="preview-modal" style="display:none;">
-  <div class="cp-modal-mask" onclick="closePreview()"></div>
-  <div class="cp-modal-content">
-    <div class="cp-modal-header">
-      <span class="cp-modal-title" id="preview-title"></span>
-      <button class="cp-modal-close" onclick="closePreview()">&times;</button>
-    </div>
-    <div class="cp-modal-body" id="preview-body"><div class="cp-preview-loading">加载中...</div></div>
-    <div class="cp-modal-footer">
-      <button class="cp-btn cp-btn-outline" onclick="closePreview()">关闭</button>
-    </div>
-  </div>
-</div>
+{# ---------- 自定义灯箱（JS 动态创建） ---------- #}
 
 {% if verified and require_uploader and not uploader_name %}
 {# ---------- Uploader Modal ---------- #}
@@ -428,9 +425,17 @@ async function logoutUploader() {
 /* ========== File Selection ========== */
 let selectedFiles = [];
 const MAX_FILES = {{ max_files }};
+const BATCH_LIMIT = {{ upload_batch_limit }};
 const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
 const BLOCKED_EXTENSIONS = {{ blocked_extensions|tojson }};
 let totalUploaded = 0;
+/* 批量上传总进度跟踪：累计已完成字节数 & 所有文件总大小 */
+var _batchTotalBytesCompleted = 0;
+var _batchTotalBytes = 0;
+
+/* 图片灯箱导航：可预览图片列表 & 当前索引 */
+var _previewableImages = [];
+var _previewIndex = -1;
 
 /* 检查文件类型是否被禁止 */
 function isBlockedFile(name) {
@@ -479,6 +484,13 @@ function updateRemainingDisplay() {
 function handleFiles(files) {
   var totalUsed = totalUploaded + selectedFiles.length;
   if (MAX_FILES > 0 && totalUsed >= MAX_FILES) { showToast('已上传满 ' + MAX_FILES + ' 个文件'); document.getElementById('file-input').value = ''; return; }
+  // 单次批量上限检查
+  if (selectedFiles.length >= BATCH_LIMIT) { showToast('单次最多选择 ' + BATCH_LIMIT + ' 个文件'); document.getElementById('file-input').value = ''; return; }
+  var batchRemaining = BATCH_LIMIT - selectedFiles.length;
+  var effLimit = Math.min(MAX_FILES > 0 ? MAX_FILES - totalUsed : files.length, batchRemaining);
+  if (files.length > effLimit) {
+    showToast('单次最多上传 ' + BATCH_LIMIT + ' 个，已自动截断（当前已选 ' + selectedFiles.length + ' 个）');
+  }
   var canAdd = MAX_FILES > 0 ? MAX_FILES - totalUsed : files.length;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
@@ -670,9 +682,11 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
           var delta = bytesUploaded - _lastBytesUploaded;
           _lastBytesUploaded = bytesUploaded;
           if (delta > 0) recordSpeed(delta);
-          var pct = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
+          // 按批量总进度计算，而非单文件进度，避免大小文件混合时进度条反复横跳
+          var totalDone = _batchTotalBytesCompleted + bytesUploaded;
+          var pct = _batchTotalBytes > 0 ? Math.round((totalDone / _batchTotalBytes) * 100) : 0;
           // 设置插值目标，进度条由 rAF 引擎平滑驱动
-          _spSetTarget(bytesUploaded, bytesTotal);
+          _spSetTarget(totalDone, _batchTotalBytes);
           // 百分比文字直接显示真实值
           if (progressText) progressText.innerHTML = '<span>上传 ' + (fileIdx + 1) + '/' + totalFiles + '</span><span>' + pct + '%</span>';
           // EMA 平滑速度显示
@@ -794,8 +808,10 @@ async function startUpload() {
   var resultDiv = document.getElementById('upload-result');
   progressWrap.classList.add('on'); resultDiv.classList.remove('on'); resultDiv.innerHTML = '';
 
-  uploadStartTime = Date.now(); var successCount = 0, failCount = 0, regularDone = 0;
+  uploadStartTime = Date.now(); var successCount = 0, failCount = 0;
   failedChunkedFiles = [];
+  _batchTotalBytesCompleted = 0;
+  _batchTotalBytes = selectedFiles.reduce(function(s, f) { return s + f.size; }, 0);
   resetSpeedTracker();
   stopSmoothProgress(); _spStartPredict();  // 启动平滑插值引擎
 
@@ -808,6 +824,7 @@ async function startUpload() {
     if (f.size > TUS_CHUNK_SIZE) {
       try {
         await uploadFileWithTus(f, i, selectedFiles.length);
+        _batchTotalBytesCompleted += f.size;
         successCount++;
         resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
       } catch(e) {
@@ -838,11 +855,10 @@ async function startUpload() {
           if (!e.lengthComputable) return;
           var delta = e.loaded - _lastLoaded; _lastLoaded = e.loaded;
           if (delta > 0) recordSpeed(delta);
-          var done = e.loaded + regularDone;
-          var totalSize = selectedFiles.reduce(function(s,ff){ return s+ff.size; }, 0);
-          var pct = Math.round((done / totalSize) * 100);
+          var done = e.loaded + _batchTotalBytesCompleted;
+          var pct = Math.round((done / _batchTotalBytes) * 100);
           // 设置插值目标，进度条由 rAF 引擎平滑驱动
-          _spSetTarget(done, totalSize);
+          _spSetTarget(done, _batchTotalBytes);
           // 百分比文字直接显示真实值
           progressText.innerHTML = '<span>上传 ' + (i+1) + '/' + selectedFiles.length + '</span><span>' + pct + '%</span>';
           var rawSpeed = getSpeed();
@@ -858,7 +874,7 @@ async function startUpload() {
             if (xhr.status !== 200 || !data.success) {
               failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(data.message || '服务器错误') + '</div>';
             } else if (data.results && data.results[0] && data.results[0].success) {
-              regularDone += f.size; successCount++;
+              _batchTotalBytesCompleted += f.size; successCount++;
               resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
             } else { failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml((data.results && data.results[0] && data.results[0].message) || '上传失败') + '</div>'; }
           } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 响应异常</div>'; }
@@ -949,6 +965,112 @@ function getFileIcon(ext) {
 }
 
 /* ========== History ========== */
+var _cacheData = null;  // 缓存最近一次 records 数据，resize 时无需重新请求
+
+function isMobileView() { return window.innerWidth <= 768; }
+
+function renderHistoryFromData(data) {
+  var wrap = document.getElementById('history-wrap');
+  if (!wrap) return;
+
+  var canDelete = allowDelete && (data.allow_delete === true);
+  var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
+
+  // 每次渲染时重新构建可预览列表
+  _previewableImages = [];
+  var imgExtsNav = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  for (var n = 0; n < data.records.length; n++) {
+    var rn = data.records[n];
+    var extNav = rn.original_name.split('.').pop().toLowerCase();
+    if (imgExtsNav.indexOf(extNav) >= 0) {
+      _previewableImages.push({id: rn.id, name: rn.original_name});
+    }
+  }
+
+  var mobile = isMobileView();
+  var html = '';
+
+  if (mobile) {
+    // --- 移动端：仅构建卡片列表 ---
+    html = '<div class="cp-card-list">' +
+      (canDelete ? '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选 / 取消全选</span></label></div>' : '');
+
+    for (var j = 0; j < data.records.length; j++) {
+      var r = data.records[j];
+      var ext = r.original_name.split('.').pop().toLowerCase();
+      var fi = getFileIcon(ext);
+      var cardIconHtml = fi.isImg
+        ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
+        : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
+      html += '<div class="cp-card-item">' +
+        (canDelete ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
+        cardIconHtml +
+        '<div class="cp-card-info">' +
+          '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
+          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
+        '</div>';
+      if (canDelete || canPreviewDownload) {
+        html += '<div class="cp-card-actions">';
+        if (canPreviewDownload) {
+          if (canPreviewExt(ext)) {
+            html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
+          }
+        }
+        if (canDelete) {
+          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  } else {
+    // --- 桌面端：仅构建表格 ---
+    html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+      (canDelete ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
+      '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
+      (canDelete || canPreviewDownload ? '<th class="cp-th-act">操作</th>' : '') +
+      '</tr></thead><tbody>';
+
+    for (var k = 0; k < data.records.length; k++) {
+      var rd = data.records[k];
+      var extD = rd.original_name.split('.').pop().toLowerCase();
+      var fiD = getFileIcon(extD);
+      var iconHtml = fiD.isImg
+        ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
+        : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fiD.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fiD.icon + '</svg></td>';
+      html += '<tr>' +
+        (canDelete ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
+        iconHtml +
+        '<td class="cp-file-name" title="' + escapeHtml(rd.original_name) + '">' + escapeHtml(rd.original_name) + '</td>' +
+        '<td class="cp-file-size">' + escapeHtml(rd.file_size_display) + '</td>' +
+        '<td class="cp-file-time">' + escapeHtml(fmtTime(rd.uploaded_at)) + '</td>';
+      if (requireUploader) {
+        html += '<td class="cp-file-uploader">' + escapeHtml(rd.uploader_name || '——') + '</td>';
+      }
+      if (canDelete || canPreviewDownload) {
+        html += '<td class="cp-file-act">';
+        if (canPreviewDownload) {
+          if (canPreviewExt(extD)) {
+            html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
+          }
+        }
+        if (canDelete) {
+          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + rd.id + ')">删除</button>';
+        }
+        html += '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  wrap.innerHTML = html;
+  updateBatchBar();
+}
+
 async function loadHistory() {
   try {
     var res = await fetch('/collect/' + linkId + '/records');
@@ -957,87 +1079,13 @@ async function loadHistory() {
     updateRemainingDisplay();
     var wrap = document.getElementById('history-wrap');
     if (!data.records || data.records.length === 0) {
+      _cacheData = null;
       wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
       return;
     }
-    var canDelete = allowDelete && (data.allow_delete === true);
-    var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
-
-    // 每次刷新历史时清除批量选择状态
-    clearSelection();
-
-    // --- Desktop table ---
-    var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
-      (canDelete ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
-      '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
-      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
-      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
-      (canDelete || canPreviewDownload ? '<th class="cp-th-act">操作</th>' : '') +
-      '</tr></thead><tbody>';
-
-    // --- Mobile card list ---
-    var cardHtml = '<div class="cp-card-list">';
-
-    for (var j = 0; j < data.records.length; j++) {
-      var r = data.records[j];
-      var ext = r.original_name.split('.').pop().toLowerCase();
-      var fi = getFileIcon(ext);
-
-      var iconHtml = fi.isImg
-        ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
-        : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></td>';
-      tableHtml += '<tr>' +
-        (canDelete ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + r.id + '" onchange="toggleSelect(' + r.id + ',this.checked)"></td>' : '') +
-        iconHtml +
-        '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
-        '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
-        '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>';
-      if (requireUploader) {
-        tableHtml += '<td class="cp-file-uploader">' + escapeHtml(r.uploader_name || '——') + '</td>';
-      }
-      if (canDelete || canPreviewDownload) {
-        tableHtml += '<td class="cp-file-act">';
-        if (canPreviewDownload) {
-          if (canPreviewExt(ext)) {
-            tableHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
-          }
-        }
-        if (canDelete) {
-          tableHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
-        }
-        tableHtml += '</td>';
-      }
-      tableHtml += '</tr>';
-
-      var cardIconHtml = fi.isImg
-        ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
-        : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
-      cardHtml += '<div class="cp-card-item">' +
-        (canDelete ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '" onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
-        cardIconHtml +
-        '<div class="cp-card-info">' +
-          '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
-          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
-        '</div>';
-      if (canDelete || canPreviewDownload) {
-        cardHtml += '<div class="cp-card-actions">';
-        if (canPreviewDownload) {
-          if (canPreviewExt(ext)) {
-            cardHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
-          }
-        }
-        if (canDelete) {
-          cardHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
-        }
-        cardHtml += '</div>';
-      }
-      cardHtml += '</div>';
-    }
-
-    tableHtml += '</tbody></table></div>';
-    cardHtml += '</div>';
-
-    wrap.innerHTML = tableHtml + cardHtml;
+    _cacheData = data;
+    clearSelection();  // 新数据加载时清空选择
+    renderHistoryFromData(data);
 
   } catch(e) {
     var wrap = document.getElementById('history-wrap');
@@ -1060,22 +1108,27 @@ var _selectedIds = new Set();
 function toggleSelect(id, checked) {
   if (checked) { _selectedIds.add(id); } else { _selectedIds.delete(id); }
   updateBatchBar();
-  // 同步全选复选框
-  var all = document.querySelectorAll('.cp-sel-check');
+  // 同步全选复选框（表头 + 移动端顶栏）
+  var allCbs = document.querySelectorAll('.cp-sel-check');
   var selAll = document.querySelector('thead .cp-sel-check');
-  if (selAll) {
-    var total = 0;
-    all.forEach(function(c, i) { if (i > 0 && !c.closest('thead')) total++; });
-    selAll.checked = total > 0 && _selectedIds.size === total;
-  }
+  var totalRows = 0;
+  allCbs.forEach(function(c) { if (!c.closest('thead') && !c.classList.contains('cp-sel-check-bar')) totalRows++; });
+  if (selAll) selAll.checked = totalRows > 0 && _selectedIds.size >= totalRows;
+  var barCb = document.querySelector('.cp-sel-check-bar');
+  if (barCb) barCb.checked = totalRows > 0 && _selectedIds.size >= totalRows;
 }
 function toggleSelectAll(checked) {
   _selectedIds.clear();
   document.querySelectorAll('.cp-sel-check').forEach(function(c) {
-    if (c.closest('thead')) return;
+    if (c.closest('thead') || c.classList.contains('cp-sel-check-bar')) return;
     c.checked = checked;
     if (checked) _selectedIds.add(parseInt(c.value, 10));
   });
+  // 同步表头 + 顶栏 checkbox
+  var hdrCb = document.querySelector('thead .cp-sel-check');
+  if (hdrCb) hdrCb.checked = checked;
+  var barCb = document.querySelector('.cp-sel-check-bar');
+  if (barCb) barCb.checked = checked;
   updateBatchBar();
 }
 function updateBatchBar() {
@@ -1089,6 +1142,8 @@ function updateBatchBar() {
 function clearSelection() {
   _selectedIds.clear();
   document.querySelectorAll('.cp-sel-check').forEach(function(c) { c.checked = false; });
+  var barCb = document.querySelector('.cp-sel-check-bar');
+  if (barCb) barCb.checked = false;
   updateBatchBar();
 }
 async function batchDelete() {
@@ -1115,64 +1170,126 @@ function canPreviewExt(ext) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
   var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
-  return jitExts.includes(ext) || imgExts.includes(ext) || vidExts.includes(ext);
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+  return jitExts.includes(ext) || imgExts.includes(ext) || vidExts.includes(ext) || audExts.includes(ext);
 }
 
-/* ========== Preview & Download ========== */
+
+/* ========== 自定义灯箱（图片/视频浮窗预览） ========== */
+var _lbItems = [];
+var _lbIndex = -1;
+
+function openLightbox(items, startIdx) {
+  _lbItems = items;
+  _lbIndex = startIdx;
+  // 创建灯箱 DOM
+  var lb = document.getElementById('custom-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'custom-lightbox';
+    lb.innerHTML = '<div class="lb-backdrop"></div>' +
+      '<button class="lb-close" title="关闭">&times;</button>' +
+      '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
+      '<button class="lb-next" title="下一个">&rsaquo;</button>' +
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video></div>';
+    document.body.appendChild(lb);
+    lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-prev').addEventListener('click', function(){ navLightbox(-1); });
+    lb.querySelector('.lb-next').addEventListener('click', function(){ navLightbox(1); });
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('custom-lightbox') || document.getElementById('custom-lightbox').style.display === 'none') return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navLightbox(-1);
+      if (e.key === 'ArrowRight') navLightbox(1);
+    });
+  }
+  renderLightbox();
+  lb.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  var lb = document.getElementById('custom-lightbox');
+  if (lb) lb.style.display = 'none';
+  document.body.style.overflow = '';
+  var vid = document.getElementById('lb-video');
+  if (vid) { vid.pause(); vid.removeAttribute('src'); }
+}
+
+function navLightbox(dir) {
+  var newIdx = _lbIndex + dir;
+  if (newIdx < 0 || newIdx >= _lbItems.length) return;
+  _lbIndex = newIdx;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  var item = _lbItems[_lbIndex];
+  var img = document.getElementById('lb-img');
+  var vid = document.getElementById('lb-video');
+  if (item.type === 'video') {
+    img.style.display = 'none';
+    vid.style.display = 'block';
+    vid.querySelector('source') && vid.querySelector('source').remove();
+    var src = document.createElement('source');
+    src.src = item.href;
+    src.type = 'video/mp4';
+    vid.appendChild(src);
+    vid.load();
+    vid.play();
+  } else {
+    vid.style.display = 'none';
+    vid.pause();
+    vid.removeAttribute('src');
+    img.style.display = 'block';
+    img.src = item.href;
+  }
+  // 更新导航按钮可见性
+  var prevBtn = document.querySelector('#custom-lightbox .lb-prev');
+  var nextBtn = document.querySelector('#custom-lightbox .lb-next');
+  if (prevBtn) prevBtn.style.display = _lbIndex > 0 ? 'block' : 'none';
+  if (nextBtn) nextBtn.style.display = _lbIndex < _lbItems.length - 1 ? 'block' : 'none';
+}
+
 function previewFile(recordId, fileName) {
   var ext = fileName.split('.').pop().toLowerCase();
   // Office / PDF / MD → 新窗口 JIT Viewer
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','mp3','wav','flac','aac','m4a'];
   if (jitExts.includes(ext)) {
     var tpJ = getTokenParam();
     window.open('/collect/' + linkId + '/view/' + recordId + (tpJ ? '?' + tpJ : ''), '_blank');
     return;
   }
 
-  // 图片 / 视频 → 浮窗预览
-  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
-  var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
-
-  var modal = document.getElementById('preview-modal');
-  var title = document.getElementById('preview-title');
-  var body = document.getElementById('preview-body');
-
-  title.textContent = fileName;
-  body.innerHTML = '<div class="cp-preview-loading">加载中...</div>';
-  modal.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-
   var tp = getTokenParam();
   var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
+  var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
 
-  if (imgExts.includes(ext)) {
-    var img = new Image();
-    img.className = 'cp-preview-image';
-    img.alt = fileName;
-    img.onload = function() { body.innerHTML = ''; body.appendChild(img); };
-    img.onerror = function() { body.innerHTML = '<p style="color:#999;text-align:center;padding:40px 0;">图片加载失败，请刷新页面后重试</p>'; };
-    img.src = previewUrl;
-  } else if (vidExts.includes(ext)) {
-    var video = document.createElement('video');
-    video.src = previewUrl;
-    video.controls = true;
-    video.autoplay = true;
-    video.className = 'cp-preview-video';
-    video.onloadeddata = function() { body.innerHTML = ''; body.appendChild(video); };
-    video.onerror = function() { body.innerHTML = '<p style="color:#999;text-align:center;padding:40px 0;">视频加载失败，请刷新页面后重试</p>'; };
-    video.textContent = '您的浏览器不支持视频播放';
-    video.load();
-  } else {
-    body.innerHTML = '<p style="color:#999;">不支持预览该文件类型</p>';
+  // 构建灯箱元素列表：当前文件 + 所有可预览图片（导航用）
+  var elements = [];
+  var startIdx = -1;
+  for (var i = 0; i < _previewableImages.length; i++) {
+    var item = _previewableImages[i];
+    var itemExt = item.name.split('.').pop().toLowerCase();
+    var itemUrl = '/collect/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
+    var el = { href: itemUrl, title: item.name, type: 'image' };
+    if (vidExts.includes(itemExt)) { el.type = 'video'; }
+    if (item.id == recordId) startIdx = i;
+    elements.push(el);
   }
+
+  // 如果当前文件不在可预览列表中（比如视频），只展示当前文件
+  if (elements.length === 0 || startIdx < 0) {
+    var el = { href: previewUrl, title: fileName, type: 'image' };
+    if (vidExts.includes(ext)) { el.type = 'video'; }
+    elements = [el];
+    startIdx = 0;
+  }
+
+  openLightbox(elements, startIdx);
 }
 
-function closePreview() {
-  var video = document.querySelector('#preview-modal video');
-  if (video) video.pause();
-  document.getElementById('preview-modal').style.display = 'none';
-  document.body.style.overflow = '';
-}
 
 (function() {
   try {
@@ -1258,6 +1375,14 @@ if (_dlToken) {
 })();
 
 {% if verified %}loadHistory();{% endif %}
+// 屏幕旋转/窗口缩放时自动切换表格/卡片视图
+var _resizeDebounce = null;
+window.addEventListener('resize', function(){
+  if (_resizeDebounce) clearTimeout(_resizeDebounce);
+  _resizeDebounce = setTimeout(function(){
+    if (_cacheData) renderHistoryFromData(_cacheData);
+  }, 300);
+});
 </script>
 </body>
 </html>

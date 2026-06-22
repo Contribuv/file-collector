@@ -170,6 +170,33 @@
                 <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
               </div>
             </div>
+            <div class="form-group">
+              <label class="form-label" for="upload_batch_limit">单次最多上传个数</label>
+              <input type="number" id="upload_batch_limit" name="upload_batch_limit" class="form-input form-input-sm"
+                     value="{{ defaults.upload_batch_limit or '30' }}" min="5" max="100" step="1">
+              <div class="form-hint">用户每次批量上传的文件数上限，默认 30 个，范围 5-100</div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="passcode_ttl_minutes">通行证缓存有效期（分钟）</label>
+                <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input form-input-sm"
+                       value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
+                <div class="form-hint">验证后浏览器缓存有效期，默认 120 分钟</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_link_expire_days">链接最大有效期（天）</label>
+                <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
+                       value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
+                <div class="form-hint">创建链接时有效期上限（天/小时/分钟均受此换算约束），当前 {{ defaults.default_link_expire_days }} 天</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="blocked_extensions_input">禁止上传文件类型</label>
+              <input type="text" id="blocked_extensions_input" name="blocked_extensions_input" class="form-input form-input-sm"
+                     value="{{ defaults.blocked_extensions or '' }}"
+                     placeholder="例：.exe .php .sh .bat">
+              <div class="form-hint">{% if not defaults.blocked_extensions %}默认禁用：.exe .php .sh .bat ...{% else %}当前：{{ defaults.blocked_extensions }}{% endif %}</div>
+            </div>
             <button type="submit" name="action" value="defaults" class="btn btn-primary btn-sm">保存</button>
           </form>
         </div>
@@ -188,31 +215,6 @@
               <div class="form-hint">{% if custom_upload_path %}当前：<strong>{{ custom_upload_path }}</strong>{% else %}留空使用默认路径，自定义路径需要在应用中心添加权限并重启此应用。{% endif %}</div>
             </div>
             <button type="submit" name="action" value="upload_path" class="btn btn-primary btn-sm">保存</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- 有效期设置（合并：通行证有效期 + 默认链接有效期） -->
-      <div class="card card-compact">
-        <div class="card-header"><h3>有效期设置</h3></div>
-        <div class="card-body">
-          <form method="POST" action="{{ url_for('admin_settings') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="passcode_ttl_minutes">通行证缓存有效期（分钟）</label>
-                <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input form-input-sm"
-                       value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
-                <div class="form-hint">验证后浏览器缓存有效期，默认 120 分钟</div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="default_link_expire_days">链接最大有效期（天）</label>
-                <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
-                       value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
-                <div class="form-hint">创建链接时有效期上限（天/小时/分钟均受此换算约束），当前 {{ defaults.default_link_expire_days }} 天</div>
-              </div>
-            </div>
-            <button type="submit" name="action" value="expiry_settings" class="btn btn-primary btn-sm">保存</button>
           </form>
         </div>
       </div>
@@ -269,29 +271,12 @@
         </div>
       </div>
 
-      <!-- 禁止上传文件类型 -->
-      <div class="card card-compact">
-        <div class="card-header"><h3>禁止上传文件类型</h3></div>
-        <div class="card-body">
-          <form method="POST" action="{{ url_for('admin_settings') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-group">
-              <input type="text" id="blocked_extensions_input" name="blocked_extensions_input" class="form-input form-input-sm"
-                     value="{{ defaults.blocked_extensions or '' }}"
-                     placeholder="例：.exe .php .sh .bat">
-              <div class="form-hint">{% if not defaults.blocked_extensions %}默认禁用：.exe .php .sh .bat ...{% else %}当前：{{ defaults.blocked_extensions }}{% endif %}</div>
-            </div>
-            <button type="submit" name="action" value="blocked_extensions" class="btn btn-primary btn-sm">保存</button>
-          </form>
-        </div>
-      </div>
-
       <!-- 数据库管理 -->
       <div class="card card-compact">
         <div class="card-header"><h3>数据库管理</h3></div>
         <div class="card-body">
           <!-- 路径迁移提示 -->
-          <div class="db-section" style="margin-bottom:12px;">
+          <div class="db-section">
             <div class="db-section-icon" style="background:#e8f0fe;">
               <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </div>
@@ -326,8 +311,8 @@
               <div class="db-section-body">
                 <div class="db-section-title">恢复数据库</div>
                 <div class="db-section-desc">导入 .db 备份文件，恢复前会自动备份当前数据库</div>
-                <input type="file" id="db_file" name="db_file" class="form-input form-input-sm" accept=".db" required style="width:100%;margin-top:8px;box-sizing:border-box;">
-                <button type="submit" class="btn btn-danger btn-sm" style="margin-top:6px;">确认导入</button>
+                <input type="file" id="db_file" name="db_file" class="form-input form-input-sm" accept=".db" required style="width:100%;margin-top:10px;margin-bottom:10px;box-sizing:border-box;">
+                <button type="submit" class="btn btn-danger btn-sm" style="margin-top:0;">确认导入</button>
               </div>
             </div>
           </form>
@@ -417,6 +402,10 @@
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  margin-bottom: 20px;
+}
+.db-section:last-child {
+  margin-bottom: 0;
 }
 .db-section-icon {
   width: 40px;
@@ -430,23 +419,23 @@
 .db-section-body {
   flex: 1;
   min-width: 0;
-  margin: 3px 0;
+  margin: 2px 0;
 }
 .db-section-title {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--c-text);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 .db-section-desc {
-  font-size: 0.72rem;
+  font-size: 0.73rem;
   color: var(--c-text-soft);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .db-divider {
   height: 1px;
   background: var(--c-border);
-  margin-bottom: 10px;
+  margin: 6px 0 18px;
 }
 .db-restore-row {
   display: flex;
@@ -525,7 +514,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 (function() {
   // 实时拦截：整数输入框禁止输入小数点
-  ['default_max_files', 'passcode_ttl_minutes', 'default_link_expire_days', 'links_per_page_val', 'records_per_page_val'].forEach(function(id) {
+  ['default_max_files', 'passcode_ttl_minutes', 'default_link_expire_days', 'links_per_page_val', 'records_per_page_val', 'upload_batch_limit'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', function() {
@@ -543,6 +532,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
       var mf = document.getElementById('default_max_files');
       var ms = document.getElementById('default_max_size');
+      var bl = document.getElementById('upload_batch_limit');
       if (mf && mf.value !== '') {
         var v = parseInt(mf.value, 10);
         if (isNaN(v) || String(v) !== mf.value.trim() || v < 0) {
@@ -559,27 +549,27 @@ document.addEventListener('DOMContentLoaded', function() {
           return false;
         }
       }
-    });
-  }
-
-  // 有效期设置表单提交验证（含通行证有效期 + 默认链接有效期）
-  var expiryBtn = document.querySelector('button[value="expiry_settings"]');
-  if (expiryBtn) {
-    var expiryForm = expiryBtn.closest('form');
-    expiryForm.addEventListener('submit', function(e) {
-      var el1 = document.getElementById('passcode_ttl_minutes');
-      if (el1 && el1.value !== '') {
-        var v1 = parseInt(el1.value, 10);
-        if (isNaN(v1) || String(v1) !== el1.value.trim() || v1 < 1 || v1 > 43200) {
+      if (bl && bl.value !== '') {
+        var v3 = parseInt(bl.value, 10);
+        if (isNaN(v3) || String(v3) !== bl.value.trim() || v3 < 5 || v3 > 100) {
+          e.preventDefault();
+          alert('单次上传个数必须是 5-100 的整数');
+          return false;
+        }
+      }
+      var pttl = document.getElementById('passcode_ttl_minutes');
+      if (pttl && pttl.value !== '') {
+        var v4 = parseInt(pttl.value, 10);
+        if (isNaN(v4) || String(v4) !== pttl.value.trim() || v4 < 1 || v4 > 43200) {
           e.preventDefault();
           alert('通行证有效期必须是 1-43200 的整数（分钟）');
           return false;
         }
       }
-      var el2 = document.getElementById('default_link_expire_days');
-      if (el2 && el2.value !== '') {
-        var v2 = parseInt(el2.value, 10);
-        if (isNaN(v2) || String(v2) !== el2.value.trim() || v2 < 1 || v2 > 3650) {
+      var led = document.getElementById('default_link_expire_days');
+      if (led && led.value !== '') {
+        var v5 = parseInt(led.value, 10);
+        if (isNaN(v5) || String(v5) !== led.value.trim() || v5 < 1 || v5 > 3650) {
           e.preventDefault();
           alert('链接有效期天数必须是 1-3650 的整数');
           return false;

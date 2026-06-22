@@ -16,6 +16,29 @@
 }
 .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
 
+/* 全选顶栏（桌面表头补充 + 移动端卡片列表共用） */
+.cp-sel-top-bar {
+  display: flex; align-items: center; padding: 6px 14px;
+  margin-bottom: 4px; border-bottom: 1px solid #eef0f2;
+}
+.cp-sel-top-bar label {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: .82rem; font-weight: 500;
+  color: #555; user-select: none;
+}
+.cp-sel-top-bar .cp-sel-check { width: 15px; height: 15px; }
+/* 分组模式-全局全选顶栏 */
+.cp-global-sel-bar {
+  display: flex; align-items: center; padding: 8px 14px;
+  margin-bottom: 8px; background: #f8f9fb;
+  border-radius: 6px; border: 1px solid #eef0f2;
+}
+.cp-global-sel-bar label {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: .83rem; font-weight: 500;
+  color: #333; user-select: none;
+}
+
 .cp-batch-bar {
   position: fixed; bottom: 0; left: 0; right: 0;
   background: #fff; border-top: 1px solid #e4e6eb;

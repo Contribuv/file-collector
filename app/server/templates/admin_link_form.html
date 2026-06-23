@@ -139,16 +139,38 @@
 
           <!-- 上传者开关 -->
           <div id="uploader-section" style="padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
+            {% if not edit_link %}
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:4px;font-size:.74rem;color:#92400e;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              <span style="flex:1;">此设置创建后将<strong style="color:#b45309;">不可修改</strong>，请谨慎选择</span>
+            </div>
+            {% endif %}
             <div class="form-group" style="margin:0;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                 <input type="checkbox" id="require_uploader" name="require_uploader" value="1"
-                       {{ 'checked' if edit_link and edit_link.get('require_uploader') else '' }}>
-                <span class="switch-track">
+                       {{ 'checked' if edit_link and edit_link.get('require_uploader') else '' }}
+                       {% if edit_link %}disabled{% endif %}>
+                <span class="switch-track" {% if edit_link %}style="opacity:0.5;"{% endif %}>
                   <span class="switch-thumb"></span>
                 </span>
-                <span>上传者</span>
+                <span>上传者分组</span>
+                {% if edit_link %}
+                <span style="font-size:.75rem;color:#9ca3af;margin-left:auto;">创建后不可修改</span>
+                {% endif %}
               </label>
-              <div class="form-hint" style="margin:6px 0 0;">开启后，上传者需填写昵称身份，上传的文件将按上传者分文件夹存放（中文最多8字，英文/数字/符号最多20字）</div>
+              <div class="form-hint" style="margin:6px 0 0;">
+                {% if edit_link %}
+                {% if edit_link.get('require_uploader') %}
+                已开启：上传者需填写昵称身份，上传的文件将按上传者分文件夹存放
+                {% else %}
+                已关闭：不区分上传者身份
+                {% endif %}
+                {% else %}
+                开启后，上传者需填写昵称身份，上传的文件将按上传者分文件夹存放（中文最多8字，英文/数字/符号最多20字）
+                {% endif %}
+              </div>
             </div>
           </div>
 

@@ -273,9 +273,10 @@ function getFileIcon(ext) {
 
 /* ========== History ========== */
 var _allRecords = [];
-var _uploaderList = [];  // [{name, files}]
+var _uploaderList = [];  // [{name, files, totalCount}]
 var _cacheRequireUploader = false;  // 缓存是否需要上传者分组，供 resize 重渲染
 var _cachePagination = null;  // 缓存分页信息，供 resize 重渲染
+var _uploaderStats = {};  // 缓存上传者统计（总文件数）
 var _currentPerPage = parseInt(localStorage.getItem('cp_pp_share_' + linkId)) || 20;
 
 /* 图片灯箱导航：可预览图片列表 & 当前索引 */
@@ -392,7 +393,8 @@ function buildAccordionGroups(isMobile) {
     html += '<svg class="cp-accordion-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>';
     html += '<svg class="cp-accordion-usericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     html += '<span class="cp-accordion-name">' + escapeHtml(group.name) + '</span>';
-    html += '<span class="cp-accordion-count">' + files.length + ' 个文件</span>';
+    var totalCount = group.totalCount || files.length;
+    html += '<span class="cp-accordion-count">共' + totalCount + ' 个文件</span>';
     html += '<button class="cp-accordion-dl-btn" onclick="downloadGroup(event,' + gi + ')" title="打包下载此上传者的所有文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11Z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg></button>';
     html += '</div>';
 
@@ -527,6 +529,9 @@ async function loadHistory(page) {
       }
     }
 
+    // 缓存上传者统计信息
+    _uploaderStats = data.uploader_stats || {};
+    
     if (_cacheRequireUploader) {
       // Group by uploader_name into ordered array
       var groupMap = {};
@@ -539,7 +544,8 @@ async function loadHistory(page) {
       _uploaderList = [];
       for (var j = 0; j < groupOrder.length; j++) {
         var gn = groupOrder[j];
-        _uploaderList.push({ name: gn, files: groupMap[gn] });
+        var totalCount = _uploaderStats[gn] || groupMap[gn].length;
+        _uploaderList.push({ name: gn, files: groupMap[gn], totalCount: totalCount });
       }
     }
 
@@ -1025,6 +1031,10 @@ async function batchDownload() {
       URL.revokeObjectURL(a.href);
     }, 500);
     showToast('开始下载 ' + ids.length + ' 个文件');
+    // 隐藏批量下载栏并清除选择
+    var batchBar = document.getElementById('batch-bar');
+    if (batchBar) batchBar.style.display = 'none';
+    clearSelection();
   } catch(e) {
     if (overlay) overlay.style.display = 'none';
     showToast('网络错误，请重试');

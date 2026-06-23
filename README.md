@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.27-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.28-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,14 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.2.28
+- `/admin/links` 页面新增「批量创建」按钮，并排显示在「创建收集链接」按钮右侧
+- **批量创建功能**：支持下载 CSV 模板、批量导入多个收集链接
+- CSV 模板新增字段：分享页描述、自定义收集链接、自定义分享链接、启用分享页、分享页通行证
+- CSV 下载修复：添加 UTF-8 BOM 头，解决中文乱码问题
+- 全站字体统一：`collect.css`、`share.css` 与 `admin` 后台字体保持一致（`-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif`）
+- 批量创建页面新增演示数据行（含启用分享页和不启用分享页两种示例）
 
 ### v2.2.27
 - 设置页新增独立「免责声明」卡片，置于页面顶部

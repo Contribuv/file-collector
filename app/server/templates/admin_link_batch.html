@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}批量创建收集链接{% endblock %}
+
+{% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <h3>批量创建收集链接</h3>
+        <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
+      </div>
+      <div class="card-body" style="max-width:600px;margin:0 auto;padding:32px 24px;">
+        <div style="padding-bottom:24px;border-bottom:1px solid #e5e7eb;margin-bottom:24px;">
+          <h4 style="font-size:1rem;margin-bottom:16px;color:#333;">1. 下载模板</h4>
+          <p style="font-size:.875rem;color:#666;margin-bottom:16px;line-height:1.6;">
+            点击下方按钮下载Excel模板文件，填写收集链接信息后再上传导入。
+          </p>
+          <a href="{{ url_for('download_link_template') }}" class="btn btn-primary" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            下载模板文件
+          </a>
+          <div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:.8rem;color:#166534;">
+            <strong>提示：</strong>模板中包含一条演示数据（第一行），导入时不会被实际创建，请放心填写。
+          </div>
+        </div>
+
+        <div>
+          <h4 style="font-size:1rem;margin-bottom:16px;color:#333;">2. 上传导入</h4>
+          <p style="font-size:.875rem;color:#666;margin-bottom:16px;line-height:1.6;">
+            填写完模板后，点击下方区域上传Excel文件进行批量创建。
+          </p>
+          <div id="batch-upload-dropzone" style="border:2px dashed #d1d5db;border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:#f9fafb;transition:all .2s;"
+               onclick="document.getElementById('batch-file-input').click()"
+               ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
+               ondragleave="this.style.borderColor='#d1d5db';this.style.background='#f9fafb'"
+               ondrop="event.preventDefault();this.style.borderColor='#d1d5db';this.style.background='#f9fafb';handleBatchDrop(event)">
+            <input type="file" id="batch-file-input" style="display:none;" accept=".csv" onchange="handleBatchFileSelect(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40" style="margin:0 auto 12px;color:#9ca3af;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <p style="color:#6b7280;font-size:.9rem;">点击或拖拽文件到此处</p>
+            <p style="color:#9ca3af;font-size:.8rem;margin-top:6px;">支持 .csv 格式（可用Excel打开编辑）</p>
+          </div>
+
+          <div style="margin-top:16px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.8rem;color:#92400e;">
+            <strong>重要说明：</strong>
+            <ul style="margin:8px 0 0 20px;padding:0;list-style:disc;">
+              <li>模板中为空的单元格将使用系统默认值</li>
+              <li>通行证列为空表示不设置通行证（无需验证即可访问）</li>
+              <li>请确保Excel文件编码正确，建议使用UTF-8格式</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="batch-upload-result" style="display:none;margin-top:24px;">
+          <div id="batch-upload-success" style="display:none;padding:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#22c55e;flex-shrink:0;">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="16 10 10 16 8 14"/>
+              </svg>
+              <div>
+                <p style="font-weight:600;color:#166534;margin:0;font-size:.95rem;">导入成功</p>
+                <p id="batch-success-text" style="font-size:.82rem;color:#15803d;margin:4px 0 0;line-height:1.5;"></p>
+                <a href="{{ url_for('admin_links') }}" style="display:inline-block;margin-top:10px;font-size:.85rem;color:#3b82f6;text-decoration:none;">
+                  → 返回收集链接列表
+                </a>
+              </div>
+            </div>
+          </div>
+          <div id="batch-upload-error" style="display:none;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#ef4444;flex-shrink:0;">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              <div>
+                <p style="font-weight:600;color:#991b1b;margin:0;font-size:.95rem;">导入失败</p>
+                <p id="batch-error-text" style="font-size:.82rem;color:#b91c1c;margin:4px 0 0;line-height:1.5;"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function handleBatchDrop(event) {
+  var files = event.dataTransfer.files;
+  if (files.length > 0) {
+    processBatchFile(files[0]);
+  }
+}
+
+function handleBatchFileSelect(input) {
+  if (input.files.length > 0) {
+    processBatchFile(input.files[0]);
+  }
+}
+
+function processBatchFile(file) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'csv') {
+    showBatchError('请选择CSV文件（.csv格式），可用Excel打开编辑');
+    return;
+  }
+
+  document.getElementById('batch-upload-result').style.display = 'none';
+
+  var formData = new FormData();
+  formData.append('file', file);
+  formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '{{ url_for('batch_import_links') }}');
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var result = JSON.parse(xhr.responseText);
+      if (result.success) {
+        showBatchSuccess(result.message);
+      } else {
+        showBatchError(result.message);
+      }
+    } else {
+      showBatchError('导入失败，请重试');
+    }
+  };
+  xhr.onerror = function() {
+    showBatchError('网络错误，请重试');
+  };
+  xhr.send(formData);
+}
+
+function showBatchSuccess(message) {
+  document.getElementById('batch-upload-result').style.display = 'block';
+  document.getElementById('batch-upload-success').style.display = 'block';
+  document.getElementById('batch-upload-error').style.display = 'none';
+  document.getElementById('batch-success-text').textContent = message;
+}
+
+function showBatchError(message) {
+  document.getElementById('batch-upload-result').style.display = 'block';
+  document.getElementById('batch-upload-error').style.display = 'block';
+  document.getElementById('batch-upload-success').style.display = 'none';
+  document.getElementById('batch-error-text').textContent = message;
+}
+</script>
+{% endblock %}

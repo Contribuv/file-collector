@@ -20,7 +20,7 @@ html {
   overflow-y: scroll;
 }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
   color: #1a1d28;
   background: #f0f2f5;
   line-height: 1.4;
@@ -178,7 +178,7 @@ body {
 }
 .cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
-.cp-card-body { padding: 10px 12px; }
+.cp-card-body { padding: 12px; }
 .cp-card-body--flush { padding: 0; }
 
 /* ---------- Passcode ---------- */
@@ -269,14 +269,19 @@ body {
 
 /* 文件总数胶囊 */
 .cp-file-count {
-  font-size: .75rem;
-  font-weight: 500;
-  color: #3b82f6;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
-  padding: 2px 12px;
-  white-space: nowrap;
+    font-size: .75rem;
+    font-weight: 500;
+    color: #444a4e;
+    /* background: #eff6ff; */
+    /* border: 1px solid #6f6f6f69; */
+    border-radius: 6px;
+    padding: 2px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* 清空按钮微调 */
+.cp-del-all-btn {
   flex-shrink: 0;
 }
 
@@ -284,7 +289,7 @@ body {
 .cp-drop {
   border: 2px dashed #d1d5db;
   border-radius: 12px;
-  padding: 20px 20px;
+  padding: 18px 20px;
   text-align: center;
   cursor: pointer;
   background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
@@ -340,7 +345,7 @@ body {
   font-weight: 500;
   color: #374151;
 }
-.cp-drop p { font-size: .72rem; color: #9ca3af; }
+.cp-drop p { font-size: .72rem; color: #9ca3af; margin: 0; }
 
 /* 配额已满：禁用状态 */
 .cp-drop.full {
@@ -370,21 +375,6 @@ body {
 .cp-drop.full h3 { display: none; }
 .cp-drop.full .cp-drop-text { display: none !important; }
 
-/* 单次批量上传提示 */
-.cp-drop-batch-hint {
-  display: inline-block;
-  font-size: .78rem;
-  color: #e67e22;
-  background: #fef5e7;
-  border: 1px solid #fad7a0;
-  border-radius: 6px;
-  padding: 4px 14px;
-  margin-top: 8px;
-  margin-bottom: 0;
-  font-weight: 500;
-}
-.cp-drop.full .cp-drop-batch-hint { display: none; }
-
 /* 紧凑态：选择文件后收缩为一行 */
 .cp-drop-compact-text {
   display: none;
@@ -394,6 +384,7 @@ body {
 }
 .cp-drop.compact {
   padding: 8px 16px;
+  margin-bottom: 8px;
   cursor: pointer;
   border: 1px dashed #c9cdd4;
   background: #f8fafc;
@@ -401,7 +392,6 @@ body {
 .cp-drop.compact .cp-drop-icon { display: none; }
 .cp-drop.compact h3 { display: none; }
 .cp-drop.compact .cp-drop-text { display: none; }
-.cp-drop.compact .cp-drop-batch-hint { display: none; }
 .cp-drop.compact .cp-hint-resume { display: none; }
 .cp-drop.compact .cp-drop-full-hint { display: none; }
 .cp-drop.compact .cp-drop-compact-text { display: block; }
@@ -434,21 +424,68 @@ body {
 .cp-hint-resume.expanded .cp-hint-short { display: none; }
 
 /* ---------- File Pending List ---------- */
-.cp-files { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
+.cp-files { display: flex; flex-direction: column; gap: 3px; }
 .cp-file {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 8px;
   background: #f8f9fb; border-radius: 3px;
   border: 1px solid #e4e6eb;
+  transition: all .15s;
+  position: relative;
+  overflow: hidden;
 }
-.cp-file-info { flex: 1; min-width: 0; }
+.cp-file--uploading {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+.cp-file--success {
+  background: #ecfdf5;
+  border-color: #86efac;
+}
+.cp-file--error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.cp-file-progress-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.15) 100%);
+  transition: width .2s ease-out;
+  z-index: 0;
+  box-shadow: inset 0 0 8px rgba(59, 130, 246, 0.1);
+}
+.cp-file-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .cp-file-name { font-size: .8rem; font-weight: 500; color: #1a1d28; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-file-size { font-size: .7rem; color: #6b7280; }
+.cp-file-speed {
+  font-size: .7rem;
+  color: #3b82f6;
+  font-weight: 500;
+  min-width: 70px;
+  text-align: right;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.cp-file-progress-text {
+  font-size: .75rem;
+  color: #2563eb;
+  font-weight: 600;
+  min-width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
 .cp-file-del {
   width: 24px; height: 24px; border: none; background: none;
   font-size: 1rem; color: #9ca3af;
   cursor: pointer; flex-shrink: 0; border-radius: 3px;
   display: flex; align-items: center; justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 .cp-file-del:hover { background: #fee2e2; color: #ef4444; }
 
@@ -457,7 +494,6 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-bottom: 8px; padding-bottom: 8px;
   border-bottom: 1px solid #f0f2f5;
-  margin-top: 8px;
 }
 .cp-count { font-size: .75rem; color: #6b7280; }
 .cp-btns { display: flex; gap: 5px; }
@@ -524,17 +560,12 @@ body {
 .cp-act-preview-txt:active,
 .cp-act-download-txt:active { background: #dbeafe; }
 
-/* ---------- Progress ---------- */
-.cp-progress { margin-top: 8px; display: none; }
-.cp-progress.on { display: block; }
-.cp-progress-label { display: flex; justify-content: space-between; font-size: .7rem; color: #6b7280; margin-bottom: 3px; }
-.cp-bar { height: 3px; background: #e4e6eb; border-radius: 2px; overflow: hidden; }
-.cp-bar-fill { height: 100%; width: 0; background: #3b82f6; border-radius: 2px; transition: width .5s ease-out; }
-.cp-speed { margin-top: 2px; font-size: .7rem; color: #6b7280; }
+
 
 /* ---------- Result ---------- */
-.cp-result { margin-top: 8px; display: none; flex-direction: column; gap: 2px; }
+.cp-result { margin-top: 8px; display: none; flex-direction: column; gap: 6px; }
 .cp-result.on { display: flex; }
+.cp-result-inner { display: flex; flex-direction: column; gap: 2px; }
 .cp-result-item {
   padding: 5px 8px; font-size: .74rem; border-radius: 3px;
   display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap;
@@ -562,6 +593,39 @@ body {
   flex-wrap: wrap;
 }
 .cp-result-summary span { flex: 1; min-width: 0; }
+
+.cp-result-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 3px 8px;
+  font-size: .7rem;
+  font-weight: 500;
+  border-radius: 3px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  align-self: flex-end;
+  transition: all .12s;
+}
+.cp-result-clear:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+.cp-result-clear:active {
+  background: #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .cp-result-clear {
+    width: 100%;
+    padding: 5px 10px;
+    font-size: .72rem;
+  }
+}
 
 /* ============================================================
    FILE TABLE — Desktop 文件管理器列表

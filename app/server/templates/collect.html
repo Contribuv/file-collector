@@ -133,7 +133,6 @@
         <span class="cp-drop-text">点击或拖拽上传文件</span>
         <span class="cp-drop-compact-text">+ 继续添加文件</span>
         <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
-        <p class="cp-drop-batch-hint">⚠ 单次最多上传 {{ upload_batch_limit }} 个文件</p>
         <p class="cp-hint-resume">
           <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
@@ -150,26 +149,29 @@
         </div>
       </div>
       <div class="cp-limit-info" id="limit-info" style="display:none"></div>
-      <div class="cp-progress" id="progress-wrap">
-        <div class="cp-progress-label" id="progress-text"></div>
-        <div class="cp-bar"><div class="cp-bar-fill" id="progress-bar"></div></div>
-        <div class="cp-speed" id="speed-text"></div>
-      </div>
-
       <div class="cp-files" id="file-list"></div>
 
-      <div class="cp-result" id="upload-result"></div>
+      <div class="cp-result" id="upload-result">
+        <div class="cp-result-inner" id="result-inner"></div>
+        <button class="cp-result-clear" id="result-clear-btn" style="display:none" onclick="clearResultList()">清除列表</button>
+      </div>
     </div>
   </div>
 
   {# ---------- 已上传文件清单 ---------- #}
-  <div class="cp-card">
+  <div class="cp-card" id="history-card">
     <div class="cp-card-head">
       <h2>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         已上传文件清单
       </h2>
-      <span class="cp-file-count" id="file-total-count">共 0 个文件</span>
+      <span class="cp-file-count" id="file-total-count">上传 0 个文件</span>
+      {% if allow_delete %}
+      <button class="cp-btn cp-btn-danger cp-btn-sm cp-del-all-btn" id="del-all-btn" onclick="deleteAllRecords()" title="清空所有已上传文件">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        清空文件
+      </button>
+      {% endif %}
     </div>
     <div class="cp-card-body cp-card-body--flush">
       <div id="history-wrap">
@@ -452,9 +454,6 @@ const BATCH_LIMIT = _C.batchLimit;
 const MAX_FILE_SIZE = Math.round(_C.maxFileSizeGb * 1024 * 1024 * 1024);
 const BLOCKED_EXTENSIONS = _C.blockedExtensions;
 let totalUploaded = 0;
-/* 批量上传总进度跟踪：累计已完成字节数 & 所有文件总大小 */
-var _batchTotalBytesCompleted = 0;
-var _batchTotalBytes = 0;
 
 /* 图片灯箱导航：可预览图片列表 & 当前索引 */
 var _previewableImages = [];
@@ -551,15 +550,99 @@ function renderFileList() {
   dz.classList.toggle('compact', !isFull);
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
   list.innerHTML = selectedFiles.map(function(f, i){
-    return '<div class="cp-file">' +
+    var status = f._uploadStatus || '';
+    var progress = f._uploadProgress || 0;
+    var speed = f._uploadSpeed || 0;
+    // 使用文件名+大小作为唯一标识，避免索引变化导致的问题
+    var fileKey = f.name + '_' + f.size;
+    // 格式化速度显示
+    var speedText = speed > 0 ? formatSize(speed) + '/s' : '';
+    return '<div class="cp-file cp-file--' + status + '" data-file-key="' + escapeHtml(fileKey) + '">' +
+      '<div class="cp-file-progress-bg" style="width:' + progress + '%"></div>' +
       '<div class="cp-file-info"><div class="cp-file-name">' + escapeHtml(f.name) + '</div><div class="cp-file-size">' + formatSize(f.size) + '</div></div>' +
+      '<span class="cp-file-speed">' + (status === 'uploading' ? speedText : '') + '</span>' +
+      '<span class="cp-file-progress-text">' + (status === 'uploading' ? progress + '%' : '') + '</span>' +
       '<button class="cp-file-del" onclick="removeFile(' + i + ')" title="移除">&times;</button></div>';
   }).join('');
   updateRemainingDisplay();
 }
 
-function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
+function removeFile(i) {
+  var file = selectedFiles[i];
+  if (!file) return;
+  
+  // 停止正在进行的 Tus 上传
+  if (_activeTusUploads && _activeTusUploads.length > 0) {
+    for (var j = _activeTusUploads.length - 1; j >= 0; j--) {
+      var upload = _activeTusUploads[j];
+      if (upload._file === file) {
+        try {
+          upload.abort();
+          _activeTusUploads.splice(j, 1);
+        } catch(e) {}
+      }
+    }
+  }
+  
+  // 停止正在进行的 XHR 上传
+  if (file._xhr) {
+    try {
+      file._xhr.abort();
+    } catch(e) {}
+  }
+  
+  // 从待上传列表中移除
+  selectedFiles.splice(i, 1);
+  renderFileList();
+}
 function clearFiles() { selectedFiles = []; document.getElementById('limit-info').style.display = 'none'; renderFileList(); }
+function clearResultList() {
+  var resultDiv = document.getElementById('upload-result');
+  var resultInner = document.getElementById('result-inner');
+  var clearBtn = document.getElementById('result-clear-btn');
+  resultInner.innerHTML = '';
+  clearBtn.style.display = 'none';
+  resultDiv.classList.remove('on');
+}
+
+function showResultClearBtn() {
+  var clearBtn = document.getElementById('result-clear-btn');
+  if (clearBtn) {
+    clearBtn.style.display = 'block';
+  }
+}
+
+function getFileKey(file) {
+  return file.name + '_' + file.size;
+}
+
+function updateFileProgress(file, progress, speed) {
+  // 使用文件的唯一标识来查找对应的文件元素
+  var fileKey = getFileKey(file);
+  var fileEl = document.querySelector('.cp-file[data-file-key="' + escapeHtml(fileKey) + '"]');
+  if (fileEl) {
+    var progressBg = fileEl.querySelector('.cp-file-progress-bg');
+    var progressText = fileEl.querySelector('.cp-file-progress-text');
+    var speedEl = fileEl.querySelector('.cp-file-speed');
+    if (progressBg) progressBg.style.width = progress + '%';
+    if (progressText) progressText.textContent = progress + '%';
+    // 使用文件独立的速度值
+    var fileSpeed = file._uploadSpeed || 0;
+    if (speedEl && fileSpeed > 0) speedEl.textContent = formatSize(fileSpeed) + '/s';
+  }
+}
+
+function setFileStatus(file, status) {
+  var fileKey = getFileKey(file);
+  var fileEl = document.querySelector('.cp-file[data-file-key="' + escapeHtml(fileKey) + '"]');
+  if (fileEl) {
+    fileEl.className = 'cp-file cp-file--' + status;
+    if (status !== 'uploading') {
+      var progressText = fileEl.querySelector('.cp-file-progress-text');
+      if (progressText) progressText.textContent = '';
+    }
+  }
+}
 
 /* 单个文件上传成功后：从待传列表中移除，刷新已上传历史 */
 function _onFileSuccess(f) {
@@ -582,116 +665,37 @@ const TUS_CHUNK_SIZE = 5 * 1024 * 1024;  // 5MB per PATCH
 let isUploadPaused = false;
 let failedChunkedFiles = [];
 let uploadStartTime = 0;
-let _speedSamples = [];
-let _lastSpeedValue = 0;
-let _smoothSpeed = 0;   // EMA 平滑速度
 let _activeTusUploads = [];  // 当前活动的 Tus Upload 实例（用于暂停/取消）
 
-function recordSpeed(bytes) {
+/* ----- 速度跟踪（基于真实字节增量/真实时间间隔的滚动窗口）----- */
+/* 原算法把所有采样字节求和除以(末样本-首样本)时间，对突发式采样(TUS每5MB一报)
+   严重高估速度。新算法：每个样本记录累计字节与时间，速度=窗口内增量字节/窗口耗时。 */
+let _speedSamples = [];     // [{t, c}] t=时间戳 c=该时刻累计已传字节
+let _lastSpeedValue = 0;    // 最近一次计算的速度（无新样本时回退用）
+let _smoothSpeed = 0;       // EMA 平滑后用于显示的速度
+
+function recordSpeed(cumulativeBytes) {
   var now = Date.now();
-  _speedSamples.push({t: now, b: bytes});
+  _speedSamples.push({t: now, c: cumulativeBytes});
+  // 保留最近 3 秒内的样本
   var cutoff = now - 3000;
-  while (_speedSamples.length > 0 && _speedSamples[0].t < cutoff) _speedSamples.shift();
+  while (_speedSamples.length > 1 && _speedSamples[1].t < cutoff) _speedSamples.shift();
 }
 function getSpeed() {
   if (_speedSamples.length < 2) return _lastSpeedValue;
-  var total = 0, first = _speedSamples[0].t, last = _speedSamples[_speedSamples.length - 1].t;
-  for (var i = 0; i < _speedSamples.length; i++) total += _speedSamples[i].b;
-  var elapsed = (last - first) / 1000;
-  return elapsed > 0.05 ? _lastSpeedValue = total / elapsed : _lastSpeedValue;
+  var first = _speedSamples[0], last = _speedSamples[_speedSamples.length - 1];
+  var elapsed = (last.t - first.t) / 1000;
+  if (elapsed < 0.15) return _lastSpeedValue;       // 时间太短不计算，避免抖动
+  var deltaBytes = last.c - first.c;
+  if (deltaBytes <= 0) return _lastSpeedValue;
+  return _lastSpeedValue = deltaBytes / elapsed;
 }
 function resetSpeedTracker() { _speedSamples = []; _lastSpeedValue = 0; _smoothSpeed = 0; }
-
-/* ========== 平滑进度插值引擎 ========== */
-/* 原理：真实 onProgress 每数秒才触发一次（TUS 每 5MB 一次），
-   用 requestAnimationFrame 在两次真实回调之间持续补帧，
-   让进度条以 60fps 丝滑流动，而非台阶式跳跃 */
-var _spTarget = 0;       // 目标百分比（真实回调设的值）
-var _spCurrent = 0;      // 当前显示的百分比（插值）
-var _spRafId = null;     // rAF 句柄
-var _spLastBytes = 0;    // 上次真实回调的 bytes
-var _spLastTime = 0;     // 上次真实回调的时间
-var _spBytesTotal = 0;   // 当前文件总大小
-
-function _spTick() {
-  var diff = _spTarget - _spCurrent;
-  if (Math.abs(diff) < 0.04) {
-    _spCurrent = _spTarget;
-    _spRafId = null;
-    return;
-  }
-  // 向目标平滑靠近（每帧移动剩余距离的 8%，ease-out 曲线）
-  _spCurrent += diff * 0.08;
-  var bar = document.getElementById('progress-bar');
-  if (bar) bar.style.width = _spCurrent + '%';
-  _spRafId = requestAnimationFrame(_spTick);
-}
-
-/* 真实进度回调调用此函数，设置目标值 */
-function _spSetTarget(bytesUploaded, bytesTotal) {
-  var now = Date.now();
-  var newTarget = bytesTotal > 0 ? Math.min(99.99, (bytesUploaded / bytesTotal) * 100) : 0;
-  // 目标大幅下降（多文件切换时 100%→0%）：瞬间归位，不做动画
-  if (newTarget < _spTarget - 50) {
-    _spCurrent = newTarget;
-    _spTarget = newTarget;
-    var bar = document.getElementById('progress-bar');
-    if (bar) bar.style.width = newTarget + '%';
-    _spBytesTotal = bytesTotal;
-    _spLastBytes = bytesUploaded;
-    _spLastTime = now;
-    return;
-  }
-  _spBytesTotal = bytesTotal;
-  _spLastBytes = bytesUploaded;
-  _spLastTime = now;
-  _spTarget = newTarget;
-  if (_spRafId === null) {
-    _spRafId = requestAnimationFrame(_spTick);
-  }
-}
-
-/* 根据预测速度，估算当前时刻的进度（用于两次真实回调之间的最后一帧对齐） */
-function _spPredict() {
-  if (_spLastTime === 0 || _spBytesTotal === 0) return;
-  var elapsed = (Date.now() - _spLastTime) / 1000;
-  if (elapsed < 0.05) return;
-  var speed = getSpeed();
-  if (speed > 0) {
-    var predictedBytes = _spLastBytes + speed * elapsed;
-    var predictedPct = Math.min(99.99, (predictedBytes / _spBytesTotal) * 100);
-    _spTarget = Math.max(_spTarget, predictedPct);
-  }
-}
-
-/* 定时用速度预测修正目标（每 500ms 一次） */
-var _spPredictTimer = null;
-function _spStartPredict() {
-  if (_spPredictTimer !== null) return;
-  _spPredictTimer = setInterval(_spPredict, 500);
-}
-function _spStopPredict() {
-  if (_spPredictTimer !== null) { clearInterval(_spPredictTimer); _spPredictTimer = null; }
-}
-
-/* 重置/停止插值引擎 */
-function stopSmoothProgress() {
-  if (_spRafId !== null) { cancelAnimationFrame(_spRafId); _spRafId = null; }
-  _spStopPredict();
-  _spTarget = 0;
-  _spCurrent = 0;
-  _spLastBytes = 0;
-  _spLastTime = 0;
-  _spBytesTotal = 0;
-}
 
 /* Tus 上传核心函数：使用 tus-js-client 实现断点续传 */
 function uploadFileWithTus(file, fileIdx, totalFiles) {
   var csrfToken = _C.csrfToken;
-  var progressText = document.getElementById('progress-text');
-  var progressBar = document.getElementById('progress-bar');
-  var speedText = document.getElementById('speed-text');
-  var _lastBytesUploaded = 0;
+  var _lastBytesUploaded = -1;   // -1 表示尚未收到首次回调（用于跳过续传偏移造成的假速度）
 
   return new Promise(function(resolve, reject) {
     var retried404 = false;
@@ -728,23 +732,25 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
           return true;
         },
         onProgress: function(bytesUploaded, bytesTotal) {
-          var delta = bytesUploaded - _lastBytesUploaded;
+          // 首次回调（尤其续传时）bytesUploaded 直接是已传偏移，不能当作"瞬间增量"记录速度
+          if (_lastBytesUploaded < 0) resetSpeedTracker();  // 新文件开始，清空跨文件残留样本
           _lastBytesUploaded = bytesUploaded;
-          if (delta > 0) recordSpeed(delta);
-          // 按批量总进度计算，而非单文件进度，避免大小文件混合时进度条反复横跳
-          var totalDone = _batchTotalBytesCompleted + bytesUploaded;
-          var pct = _batchTotalBytes > 0 ? Math.round((totalDone / _batchTotalBytes) * 100) : 0;
-          // 设置插值目标，进度条由 rAF 引擎平滑驱动
-          _spSetTarget(totalDone, _batchTotalBytes);
-          // 百分比文字直接显示真实值
-          if (progressText) progressText.innerHTML = '<span>上传 ' + (fileIdx + 1) + '/' + totalFiles + '</span><span>' + pct + '%</span>';
-          // EMA 平滑速度显示
+          recordSpeed(bytesUploaded);   // 记录累计字节（getSpeed 用增量/耗时算）
+          // 按当前文件的单文件进度更新对应文件的进度条
+          var pct = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
+          // EMA 平滑速度显示（仅用真实样本，不做预测）
           var rawSpeed = getSpeed();
           if (rawSpeed > 0) {
-            if (_smoothSpeed <= 0) _smoothSpeed = rawSpeed;
-            else _smoothSpeed = _smoothSpeed * 0.65 + rawSpeed * 0.35;
-            if (speedText) speedText.innerHTML = formatSize(Math.round(_smoothSpeed)) + '/s';
+            // 使用文件独立的速度值
+            if (!file._smoothSpeed || file._smoothSpeed <= 0) {
+              file._smoothSpeed = rawSpeed;
+            } else {
+              file._smoothSpeed = file._smoothSpeed * 0.7 + rawSpeed * 0.3;
+            }
+            file._uploadSpeed = file._smoothSpeed;
           }
+          // 更新进度条和速度显示
+          updateFileProgress(file, pct, file._uploadSpeed);
         },
         onSuccess: function() {
           var idx = _activeTusUploads.indexOf(upload);
@@ -797,6 +803,7 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
       };
 
       upload = new tus.Upload(file, options);
+      upload._file = file;  // 将文件对象关联到 upload 实例，便于后续取消
       _activeTusUploads.push(upload);
 
       if (skipResume) {
@@ -853,42 +860,55 @@ async function startUpload() {
   isUploadPaused = false;
   var btn = document.getElementById('upload-btn'); btn.disabled = true; btn.textContent = '上传中...';
 
-  var progressWrap = document.getElementById('progress-wrap'), progressBar = document.getElementById('progress-bar');
-  var progressText = document.getElementById('progress-text'), speedText = document.getElementById('speed-text');
   var resultDiv = document.getElementById('upload-result');
-  progressWrap.classList.add('on'); resultDiv.classList.remove('on'); resultDiv.innerHTML = '';
+  var resultInner = document.getElementById('result-inner');
+  resultDiv.classList.remove('on');
+  // 清空内部内容，保留清除按钮
+  resultInner.innerHTML = '';
 
   uploadStartTime = Date.now(); var successCount = 0, failCount = 0;
   failedChunkedFiles = [];
-  _batchTotalBytesCompleted = 0;
-  _batchTotalBytes = selectedFiles.reduce(function(s, f) { return s + f.size; }, 0);
   resetSpeedTracker();
-  stopSmoothProgress(); _spStartPredict();  // 启动平滑插值引擎
 
   // 快照待上传列表，逐个上传完成后从 pending 列表移除并刷新历史
   var filesToUpload = selectedFiles.slice();
 
   for (var i = 0; i < filesToUpload.length; i++) {
-    if (isUploadPaused) { resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>'; break; }
+    if (isUploadPaused) { resultInner.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>'; break; }
     var f = filesToUpload[i];
+    
+    // 设置文件状态为上传中
+    var localIdx = selectedFiles.indexOf(f);
+    if (localIdx >= 0) {
+      f._uploadStatus = 'uploading';
+      f._uploadProgress = 0;
+      renderFileList();
+    }
 
     if (f.size > TUS_CHUNK_SIZE) {
       try {
         await uploadFileWithTus(f, i, filesToUpload.length);
-        _batchTotalBytesCompleted += f.size;
         successCount++;
-        resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
-        _onFileSuccess(f);
+        resultInner.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
+        // 显示成功状态后延迟移除
+        setFileStatus(f, 'success');
+        // 使用闭包捕获当前文件，避免循环变量引用问题
+        (function(file) {
+          setTimeout(function() {
+            _onFileSuccess(file);
+          }, 800);
+        })(f);
       } catch(e) {
         failCount++;
+        setFileStatus(f, 'error');
         // 永久错误（文件名冲突、禁止类型等）不进重试队列，只显示错误信息
         if (e.permanent) {
-          resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' +
+          resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' +
             escapeHtml(e.message || '上传失败') + '</div>';
         } else {
           var fid = 'fail_' + failedChunkedFiles.length;
           failedChunkedFiles.push({id: fid, file: f, name: f.name});
-          resultDiv.innerHTML += '<div class="cp-result-item cp-result-err" id="' + fid + '">' +
+          resultInner.innerHTML += '<div class="cp-result-item cp-result-err" id="' + fid + '">' +
             escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') +
             ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button></div>';
         }
@@ -898,58 +918,75 @@ async function startUpload() {
 
     var formData = new FormData(); formData.append('file', f);
     try {
-      var _lastLoaded = 0;
+      var _lastLoaded = -1;
       var _uploadOk = false;
       await new Promise(function(resolve){
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/collect/' + linkId + '/upload');
         xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); xhr.timeout = 0;
+        f._xhr = xhr;  // 将 xhr 对象关联到文件对象，便于后续取消
         xhr.upload.onprogress = function(e){
           if (!e.lengthComputable) return;
-          var delta = e.loaded - _lastLoaded; _lastLoaded = e.loaded;
-          if (delta > 0) recordSpeed(delta);
-          var done = e.loaded + _batchTotalBytesCompleted;
-          var pct = Math.round((done / _batchTotalBytes) * 100);
-          // 设置插值目标，进度条由 rAF 引擎平滑驱动
-          _spSetTarget(done, _batchTotalBytes);
-          // 百分比文字直接显示真实值
-          progressText.innerHTML = '<span>上传 ' + (i+1) + '/' + filesToUpload.length + '</span><span>' + pct + '%</span>';
+          if (_lastLoaded < 0) { _lastLoaded = 0; resetSpeedTracker(); }
+          _lastLoaded = e.loaded;
+          recordSpeed(e.loaded);                         // 记录累计字节
+          // 按当前文件的单文件进度更新对应文件的进度条
+          var pct = Math.round((e.loaded / e.total) * 100);
+          // EMA 平滑速度显示
           var rawSpeed = getSpeed();
           if (rawSpeed > 0) {
-            if (_smoothSpeed <= 0) _smoothSpeed = rawSpeed;
-            else _smoothSpeed = _smoothSpeed * 0.65 + rawSpeed * 0.35;
-            speedText.innerHTML = formatSize(Math.round(_smoothSpeed)) + '/s';
+            // 使用文件独立的速度值
+            if (!f._smoothSpeed || f._smoothSpeed <= 0) {
+              f._smoothSpeed = rawSpeed;
+            } else {
+              f._smoothSpeed = f._smoothSpeed * 0.7 + rawSpeed * 0.3;
+            }
+            f._uploadSpeed = f._smoothSpeed;
           }
+          // 更新进度条和速度显示
+          updateFileProgress(f, pct, f._uploadSpeed);
         };
         xhr.onload = function(){
           try {
             var data = JSON.parse(xhr.responseText);
             if (xhr.status !== 200 || !data.success) {
-              failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(data.message || '服务器错误') + '</div>';
+              failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(data.message || '服务器错误') + '</div>';
+              setFileStatus(f, 'error');
             } else if (data.results && data.results[0] && data.results[0].success) {
               _uploadOk = true;
-              _batchTotalBytesCompleted += f.size; successCount++;
-              resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
-            } else { failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml((data.results && data.results[0] && data.results[0].message) || '上传失败') + '</div>'; }
-          } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 响应异常</div>'; }
+              successCount++;
+              resultInner.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
+              // 显示成功状态
+              setFileStatus(f, 'success');
+            } else { failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml((data.results && data.results[0] && data.results[0].message) || '上传失败') + '</div>'; setFileStatus(f, 'error'); }
+          } catch(e){ failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 响应异常</div>'; setFileStatus(f, 'error'); }
           resolve();
         };
-        xhr.onerror = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 网络错误</div>'; resolve(); };
-        xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 超时</div>'; resolve(); };
+        xhr.onerror = function(){ failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 网络错误</div>'; setFileStatus(f, 'error'); resolve(); };
+        xhr.ontimeout = function(){ failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 超时</div>'; setFileStatus(f, 'error'); resolve(); };
         xhr.send(formData);
       });
-      if (_uploadOk) _onFileSuccess(f);
-    } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') + '</div>'; }
+      if (_uploadOk) {
+        // 延迟移除成功文件
+        // 使用闭包捕获当前文件，避免循环变量引用问题
+        (function(file) {
+          setTimeout(function() {
+            _onFileSuccess(file);
+          }, 800);
+        })(f);
+      }
+    } catch(e){ failCount++; resultInner.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') + '</div>'; setFileStatus(f, 'error'); }
   }
 
-  stopSmoothProgress();  // 停止插值引擎
-  progressBar.style.width = '100%';
-  progressText.innerHTML = '<span>完成</span><span>成功 ' + successCount + ' / 失败 ' + failCount + '</span>';
-  speedText.innerHTML = '';
   resultDiv.classList.add('on');
   renderRetrySummary(resultDiv);
+  showResultClearBtn();
   btn.disabled = false; btn.textContent = '开始上传';
-  selectedFiles = []; renderFileList();
+  // 清理失败的文件（保留成功上传的状态显示后再清空）
+  setTimeout(function() {
+    selectedFiles = [];
+    renderFileList();
+  }, 1000);
   loadHistory();
 }
 
@@ -966,16 +1003,28 @@ async function retryFailedFile(fid) {
   var item = failedChunkedFiles.find(function(x){ return x.id === fid; }); if (!item) return;
   var el = document.getElementById(fid); if (!el) return;
   el.innerHTML = escapeHtml(item.file.name) + ' - 重试中…'; el.className = 'cp-result-item cp-result-retrying';
+  // 设置文件重试状态
+  setFileStatus(item.file, 'uploading');
   try {
     // Tus 客户端会自动从 localStorage 中恢复之前的上传进度（断点续传）
     await uploadFileWithTus(item.file, 0, 1);
     el.innerHTML = escapeHtml(item.file.name) + ' - 上传成功 ✓'; el.className = 'cp-result-item cp-result-ok';
     failedChunkedFiles = failedChunkedFiles.filter(function(x){ return x.id !== fid; });
+    // 显示成功状态后移除
+    setFileStatus(item.file, 'success');
+    setTimeout(function() {
+      var idx = selectedFiles.indexOf(item.file);
+      if (idx >= 0) {
+        selectedFiles.splice(idx, 1);
+        renderFileList();
+      }
+    }, 500);
     renderRetrySummary(document.getElementById('upload-result'));
     loadHistory();
   } catch(e) {
     el.innerHTML = escapeHtml(item.file.name) + ' - ' + escapeHtml(e.message || '上传失败') + ' <button class="cp-btn-retry" onclick="retryFailedFile(\'' + fid + '\')">重试 ▸</button>';
     el.className = 'cp-result-item cp-result-err';
+    setFileStatus(item.file, 'error');
   }
 }
 
@@ -1019,6 +1068,12 @@ function isMobileView() { return window.innerWidth <= 768; }
 function renderHistoryFromData(data) {
   var wrap = document.getElementById('history-wrap');
   if (!wrap) return;
+
+  // 没有文件时不渲染任何内容（包括全选栏）
+  if (!data.records || data.records.length === 0) {
+    wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
+    return;
+  }
 
   var canDelete = allowDelete && (data.allow_delete === true);
   var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
@@ -1071,9 +1126,7 @@ function renderHistoryFromData(data) {
       html += '</div>';
     }
     html += '</div>';
-    if (canDelete) {
-      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>';
-    }
+    // 移动端已有顶部全选栏，不再渲染底部全选栏
   } else {
     // --- 桌面端：仅构建表格 ---
     html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
@@ -1155,11 +1208,6 @@ async function loadHistory(page) {
     _cacheData = data;
     updateRemainingDisplay();
     document.getElementById('file-total-count').textContent = '共 ' + totalUploaded + ' 个文件';
-    var wrap = document.getElementById('history-wrap');
-    if (!data.records || data.records.length === 0) {
-      wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
-      return;
-    }
     clearSelection();
     renderHistoryFromData(data);
   } catch(e) {
@@ -1255,6 +1303,23 @@ async function batchDelete() {
     if (data.success) { _selectedIds.clear(); loadHistory(); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
     else if (btn) { btn.disabled = false; btn.textContent = '批量删除'; }
   } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
+}
+
+async function deleteAllRecords() {
+  if (!confirm('确定清空所有文件？此操作不可恢复。')) return;
+  var btn = document.getElementById('del-all-btn');
+  var origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '清空中...'; }
+  try {
+    var res = await fetch('/collect/' + linkId + '/delete_all', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    var data = await res.json();
+    showToast(data.message || (data.success ? '清空成功' : '清空失败'));
+    if (data.success) { _selectedIds.clear(); loadHistory(); }
+    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+  } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } }
 }
 
 /* ========== Preview helpers ========== */

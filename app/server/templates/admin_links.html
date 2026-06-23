@@ -12,7 +12,10 @@
           <h3 class="links-header-title">收集链接</h3>
           <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
         </div>
-        <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary">＋ 创建收集链接</a>
+        <div class="links-header-right">
+          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary">＋ 创建收集链接</a>
+          <a href="{{ url_for('admin_link_batch') }}" class="btn btn-sm btn-primary">＋ 批量创建</a>
+        </div>
       </div>
       <div class="table-wrap">
         {% if links %}
@@ -201,6 +204,11 @@
   white-space: nowrap;
 }
 
+.links-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* 更多按钮 */
 /* .btn-more-link 已统一为全局 .btn-more */
@@ -225,7 +233,8 @@
   }
   .links-header-title { font-size: 1rem; }
   .links-header-stats { font-size: .7rem; }
-  .links-header .btn { font-size: .78rem; padding: 6px 12px; white-space: nowrap; }
+  .links-header-right { gap: 6px; }
+  .links-header-right .btn { font-size: .76rem; padding: 5px 10px; white-space: nowrap; }
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.27"
+VERSION = "2.2.28"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -3101,6 +3101,13 @@ def share_get_records(link_id):
         "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
         (link_id, per_page, offset)
     ).fetchall()
+    
+    # 获取上传者统计（每个上传者的总文件数）
+    uploader_stats = conn.execute(
+        "SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE link_id = ? GROUP BY uploader_name",
+        (link_id,)
+    ).fetchall()
+    uploader_stats_dict = {row['uploader_name'] or '未署名': row['count'] for row in uploader_stats}
     conn.close()
 
     total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
@@ -3112,7 +3119,8 @@ def share_get_records(link_id):
         'total_pages': total_pages,
         'page': page,
         'per_page': per_page,
-        'records': [dict(r) for r in records]
+        'records': [dict(r) for r in records],
+        'uploader_stats': uploader_stats_dict
     })
 
 @app.route('/share/<link_id>/preview/<int:record_id>', methods=['GET'])
@@ -4327,6 +4335,66 @@ def batch_delete_records(link_id):
             pass
 
         conn.execute("DELETE FROM upload_records WHERE id = ?", (rid,))
+        deleted += 1
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'success': True,
+        'message': f'成功删除 {deleted} 个文件' + (f'，跳过 {skipped} 个' if skipped else ''),
+        'deleted': deleted,
+        'skipped': skipped
+    })
+
+@app.route('/collect/<link_id>/delete_all', methods=['POST'])
+def delete_all_records(link_id):
+    """删除该链接下所有上传记录及文件"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    if not link['allow_delete']:
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
+
+    uploader_name = session.get(f'uploader_name_{link_id_db}', '').strip()
+    require_uploader = bool(link['require_uploader'])
+
+    records = conn.execute(
+        "SELECT id, stored_path, uploader_name FROM upload_records WHERE link_id = ?",
+        (link_id_db,)
+    ).fetchall()
+
+    deleted = 0
+    skipped = 0
+    for record in records:
+        if require_uploader and uploader_name:
+            rec_uploader = (record['uploader_name'] or '').strip()
+            if rec_uploader and rec_uploader != uploader_name:
+                skipped += 1
+                continue
+
+        try:
+            _safe_delete(record['stored_path'])
+        except Exception:
+            pass
+
+        conn.execute("DELETE FROM upload_records WHERE id = ?", (record['id'],))
         deleted += 1
 
     conn.commit()
@@ -6090,7 +6158,270 @@ def admin_links():
     return render_template('admin_links.html', links=processed_links,
                            public_url=get_user_setting(user_id, 'public_url', get_setting('public_url', '')),
                            page=page, total_pages=total_pages, total=total,
-                           per_page=per_page)
+                           per_page=per_page,
+                           csrf_token=generate_csrf_token())
+
+@app.route('/admin/links/batch')
+@login_required
+def admin_link_batch():
+    """批量创建收集链接页面"""
+    return render_template('admin_link_batch.html', csrf_token=session.get('csrf_token', ''))
+
+
+@app.route('/admin/links/template/download')
+@login_required
+def download_link_template():
+    """下载批量创建收集链接的CSV模板"""
+    import csv
+    from io import StringIO
+    
+    # CSV字段定义
+    headers = [
+        '收集名称*',          # title - 必填
+        '描述',               # description - 可选
+        '通行证',             # passcode - 空表示无需验证
+        '最大文件数量',       # max_files - 空表示默认值(0=不限制)
+        '单文件上限(GB)',     # max_file_size_gb - 空表示默认值
+        '有效期(天)',         # expire_days - 空表示永不过期
+        '允许删除',           # allow_delete - 空或"否"表示否，"是"表示是
+        '显示预览按钮',       # allow_preview_download - 空或"否"表示否，"是"表示是
+        '上传者分组',         # require_uploader - 空或"否"表示否，"是"表示是
+        '自定义收集链接',     # collect_slug - 可选，自定义收集页链接ID
+        '启用分享页',         # share_enabled - 空或"否"表示否，"是"表示是
+        '分享页描述',         # share_description - 分享页描述（可选）
+        '分享页通行证',       # share_passcode - 空表示无需验证（启用分享页后生效）
+        '自定义分享链接'      # share_slug - 可选，自定义分享页链接ID
+    ]
+    
+    # 演示数据（不会被导入）
+    demo_data = [
+        [
+            '示例收集链接（此行不会导入）',
+            '这是一个演示数据，用于展示如何填写模板',
+            '123456',
+            '50',
+            '2',
+            '7',
+            '是',
+            '是',
+            '否',
+            'my-collect-link',
+            '是',
+            '这是分享页的描述信息',
+            '654321',
+            'my-share-link'
+        ],
+        [
+            '示例收集链接2（此行不会导入）',
+            '不启用分享页的示例',
+            '',
+            '',
+            '',
+            '',
+            '否',
+            '否',
+            '否',
+            '',
+            '否',
+            '',
+            '',
+            ''
+        ]
+    ]
+    
+    # 使用 StringIO 写入CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    for row in demo_data:
+        writer.writerow(row)
+    
+    output.seek(0)
+    # 添加 UTF-8 BOM 确保Excel正确识别中文
+    csv_content = '\ufeff' + output.getvalue()
+    response = make_response(csv_content)
+    response.headers['Content-Disposition'] = 'attachment; filename=collect_links_template.csv'
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    return response
+
+@app.route('/admin/links/batch/import', methods=['POST'])
+@login_required
+def batch_import_links():
+    """批量导入收集链接"""
+    import csv
+    from io import StringIO
+    
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'})
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': '请选择要上传的文件'})
+    
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'message': '请选择要上传的文件'})
+    
+    ext = file.filename.split('.').pop().lower()
+    if ext not in ('csv', 'xlsx', 'xls'):
+        return jsonify({'success': False, 'message': '不支持的文件格式，请使用CSV或Excel文件'})
+    
+    try:
+        # 读取CSV内容
+        content = file.read().decode('utf-8-sig')
+        reader = csv.reader(StringIO(content))
+        
+        rows = list(reader)
+        if len(rows) < 2:
+            return jsonify({'success': False, 'message': '文件内容为空或只有表头'})
+        
+        headers = rows[0]
+        data_rows = rows[1:]
+        
+        created_count = 0
+        skipped_count = 0
+        error_messages = []
+        
+        user_id = session.get('user_id')
+        
+        for row_idx, row in enumerate(data_rows):
+            row_num = row_idx + 2  # 行号（从2开始，1是表头）
+            
+            # 跳过演示数据行
+            if row and len(row) > 0 and '不会导入' in str(row[0]):
+                skipped_count += 1
+                continue
+            
+            # 验证必填字段
+            if len(row) < 1 or not row[0] or not str(row[0]).strip():
+                error_messages.append(f'第{row_num}行：收集名称不能为空')
+                continue
+            
+            try:
+                # 解析字段
+                title = str(row[0]).strip() if len(row) > 0 else ''
+                description = str(row[1]).strip() if len(row) > 1 else ''
+                passcode = str(row[2]).strip() if len(row) > 2 else ''
+                max_files = str(row[3]).strip() if len(row) > 3 else ''
+                max_file_size_gb = str(row[4]).strip() if len(row) > 4 else ''
+                expire_days = str(row[5]).strip() if len(row) > 5 else ''
+                allow_delete = str(row[6]).strip() if len(row) > 6 else ''
+                allow_preview_download = str(row[7]).strip() if len(row) > 7 else ''
+                require_uploader = str(row[8]).strip() if len(row) > 8 else ''
+                collect_slug = str(row[9]).strip() if len(row) > 9 else ''
+                share_enabled = str(row[10]).strip() if len(row) > 10 else ''
+                share_description = str(row[11]).strip() if len(row) > 11 else ''
+                share_passcode = str(row[12]).strip() if len(row) > 12 else ''
+                share_slug = str(row[13]).strip() if len(row) > 13 else ''
+                
+                # 转换字段类型
+                max_files = int(max_files) if max_files else DEFAULT_MAX_FILES
+                max_file_size_gb = float(max_file_size_gb) if max_file_size_gb else DEFAULT_MAX_FILE_SIZE_GB
+                allow_delete = 1 if allow_delete in ('是', '1', 'true', 'True') else 0
+                allow_preview_download = 1 if allow_preview_download in ('是', '1', 'true', 'True') else 0
+                require_uploader = 1 if require_uploader in ('是', '1', 'true', 'True') else 0
+                share_enabled = 1 if share_enabled in ('是', '1', 'true', 'True') else 0
+                
+                # 验证数字范围
+                if max_files < 0:
+                    raise ValueError('最大文件数量不能为负数')
+                if max_file_size_gb < 0.01 or max_file_size_gb > 64:
+                    raise ValueError('单文件上限必须在 0.01-64 GB 之间')
+                
+                # 计算有效期
+                _max_expire_days = int(get_user_setting(user_id, 'default_link_expire_days', '30'))
+                expires_at = None
+                if expire_days:
+                    expires_at, err = _parse_expire_input(expire_days, '天', _max_expire_days)
+                    if err:
+                        raise ValueError(f'有效期错误: {err}')
+                
+                # 生成链接ID
+                link_id = generate_link_id()
+                
+                # 生成文件夹名
+                folder_name = re.sub(r'[<>:"/\\|?*]', '_', title.strip())
+                folder_name = folder_name.strip().lstrip('.')
+                if not folder_name:
+                    folder_name = link_id
+                
+                # 检查文件夹重名
+                user_folder = get_user_folder(user_id)
+                if user_folder:
+                    base_name = folder_name
+                    counter = 1
+                    while os.path.exists(os.path.join(user_folder, folder_name)):
+                        counter += 1
+                        folder_name = f"{base_name}_{counter}"
+                
+                # 处理通行证
+                if passcode:
+                    passcode_hash = generate_password_hash(passcode)
+                    passcode_plain = passcode
+                    passcode_empty = 0
+                else:
+                    passcode_hash = generate_password_hash('')
+                    passcode_plain = ''
+                    passcode_empty = 1
+                
+                # 处理分享页通行证
+                if share_passcode:
+                    share_passcode_hash = generate_password_hash(share_passcode)
+                    share_passcode_plain = share_passcode
+                    share_passcode_empty = 0
+                else:
+                    share_passcode_hash = generate_password_hash('')
+                    share_passcode_plain = ''
+                    share_passcode_empty = 1
+                
+                # 创建数据库记录
+                conn = get_db()
+                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                conn.execute('''
+                    INSERT INTO links (
+                        id, user_id, title, description, passcode, passcode_plain, passcode_empty,
+                        max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
+                        require_uploader, collect_slug, share_enabled, share_description, 
+                        share_passcode, share_passcode_plain, share_passcode_empty, share_slug,
+                        status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                ''', (
+                    link_id, user_id, title, description, passcode_hash, passcode_plain, passcode_empty,
+                    max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
+                    require_uploader, collect_slug, share_enabled, share_description,
+                    share_passcode_hash, share_passcode_plain, share_passcode_empty, share_slug,
+                    now_str, now_str
+                ))
+                conn.commit()
+                conn.close()
+                
+                # 创建文件夹
+                link_folder = get_link_folder(link_id, user_id)
+                os.makedirs(link_folder, exist_ok=True)
+                
+                created_count += 1
+                
+            except ValueError as e:
+                error_messages.append(f'第{row_num}行：{str(e)}')
+            except Exception as e:
+                logger.error(f'批量导入第{row_num}行失败: {e}\n{traceback.format_exc()}')
+                error_messages.append(f'第{row_num}行：创建失败')
+        
+        # 构建结果消息
+        message = f'成功创建 {created_count} 个收集链接'
+        if skipped_count > 0:
+            message += f'，跳过 {skipped_count} 行演示数据'
+        if error_messages:
+            message += f'，{len(error_messages)} 行失败'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'details': error_messages if error_messages else None
+        })
+        
+    except Exception as e:
+        logger.error(f'批量导入失败: {e}\n{traceback.format_exc()}')
+        return jsonify({'success': False, 'message': f'导入失败：{str(e)}'})
 
 @app.route('/admin/links/new')
 @login_required

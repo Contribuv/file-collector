@@ -19,7 +19,7 @@ html {
   overflow-y: scroll;
 }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
   color: #1a1d28;
   background: #f0f2f5;
   line-height: 1.4;
@@ -367,7 +367,6 @@ body {
 .cp-th-name { flex: 1; }
 .cp-th-size { width: 80px; }
 .cp-th-time { width: 150px; }
-.cp-th-uploader { width: 100px; }
 .cp-th-act { text-align: right !important; }
 
 .cp-file-icon { width: 40px; text-align: center; }

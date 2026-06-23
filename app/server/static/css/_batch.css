@@ -41,13 +41,21 @@
   color: #333; user-select: none; flex-shrink: 0;
 }
 .cp-global-sel-bar-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 14px; border-radius: 4px;
-  border: 1px solid var(--batch-accent, #3b82f6);
-  background: #fff; color: var(--batch-accent, #3b82f6);
-  font-size: .78rem; font-weight: 500; cursor: pointer;
-  font-family: inherit; transition: all .12s; white-space: nowrap;
-  flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid #91959c70;
+    background: #fff;
+    color: #6e7f9a;
+    font-size: .78rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .12s;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .cp-global-sel-bar-btn:hover {
   background: var(--batch-accent, #3b82f6); color: #fff;

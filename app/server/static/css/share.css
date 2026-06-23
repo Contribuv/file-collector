@@ -265,16 +265,17 @@ body {
 
 /* 文件总数胶囊 */
 .cp-file-count {
-  font-size: .75rem;
-  font-weight: 500;
-  color: #3b82f6;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 20px;
-  padding: 2px 12px;
-  white-space: nowrap;
-  flex-shrink: 0;
+    font-size: .75rem;
+    font-weight: 500;
+    color: #10111299;
+    background: #ffffff;
+    border: 1px solid #71849c6b;
+    border-radius: 3px;
+    padding: 2px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
+
 
 /* ---------- Buttons ---------- */
 .cp-btn {
@@ -367,7 +368,7 @@ body {
 .cp-th-size { width: 80px; }
 .cp-th-time { width: 150px; }
 .cp-th-uploader { width: 100px; }
-.cp-th-act { text-align: right; }
+.cp-th-act { text-align: right !important; }
 
 .cp-file-icon { width: 40px; text-align: center; }
 .cp-file-icon svg { width: 18px; height: 18px; vertical-align: middle; flex-shrink: 0; }
@@ -381,7 +382,7 @@ body {
 .cp-file-time { font-size: .74rem; color: #6b7280; white-space: nowrap; }
 .cp-file-uploader { font-size: .74rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cp-file-act {
-  text-align: left;
+  text-align: right;
   white-space: nowrap;
 }
 

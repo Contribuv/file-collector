@@ -23,6 +23,7 @@
   #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; }
   #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
   #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
+  #custom-lightbox .lb-content audio { width:min(480px, 80vw); }
 </style>
 </head>
 <body>
@@ -130,8 +131,9 @@
         </div>
         <h3>点击选择文件或拖拽到此处</h3>
         <span class="cp-drop-text">点击或拖拽上传文件</span>
+        <span class="cp-drop-compact-text">+ 继续添加文件</span>
         <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
-        <p class="cp-drop-batch-hint">单次最多上传 {{ upload_batch_limit }} 个文件</p>
+        <p class="cp-drop-batch-hint">⚠ 单次最多上传 {{ upload_batch_limit }} 个文件</p>
         <p class="cp-hint-resume">
           <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
@@ -140,8 +142,6 @@
       </div>
       <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)">
 
-      <div class="cp-files" id="file-list"></div>
-
       <div class="cp-actions" id="upload-actions" style="display:none">
         <span class="cp-count" id="upload-count">已选择 0 个文件</span>
         <div class="cp-btns">
@@ -149,6 +149,8 @@
           <button class="cp-btn cp-btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
         </div>
       </div>
+
+      <div class="cp-files" id="file-list"></div>
 
       <div class="cp-progress" id="progress-wrap">
         <div class="cp-progress-label" id="progress-text"></div>
@@ -167,7 +169,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         已上传文件清单
       </h2>
-
+      <span class="cp-file-count" id="file-total-count">共 0 个文件</span>
     </div>
     <div class="cp-card-body cp-card-body--flush">
       <div id="history-wrap">
@@ -507,8 +509,11 @@ function handleFiles(files) {
 function renderFileList() {
   var list = document.getElementById('file-list');
   var actions = document.getElementById('upload-actions');
-  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; updateRemainingDisplay(); return; }
+  var dz = document.getElementById('dropzone');
+  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; dz.classList.remove('compact'); updateRemainingDisplay(); return; }
   actions.style.display = 'flex';
+  var isFull = dz.classList.contains('full');
+  dz.classList.toggle('compact', !isFull);
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
   list.innerHTML = selectedFiles.map(function(f, i){
     return '<div class="cp-file">' +
@@ -520,6 +525,15 @@ function renderFileList() {
 
 function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
 function clearFiles() { selectedFiles = []; renderFileList(); }
+
+/* 单个文件上传成功后：从待传列表中移除，刷新已上传历史 */
+function _onFileSuccess(f) {
+  totalUploaded++;
+  var idx = selectedFiles.indexOf(f);
+  if (idx >= 0) selectedFiles.splice(idx, 1);
+  renderFileList();
+  loadHistory();
+}
 
 var dropzone = document.getElementById('dropzone');
 if (dropzone) {
@@ -815,18 +829,20 @@ async function startUpload() {
   resetSpeedTracker();
   stopSmoothProgress(); _spStartPredict();  // 启动平滑插值引擎
 
+  // 快照待上传列表，逐个上传完成后从 pending 列表移除并刷新历史
+  var filesToUpload = selectedFiles.slice();
 
-
-  for (var i = 0; i < selectedFiles.length; i++) {
+  for (var i = 0; i < filesToUpload.length; i++) {
     if (isUploadPaused) { resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">上传已暂停</div>'; break; }
-    var f = selectedFiles[i];
+    var f = filesToUpload[i];
 
     if (f.size > TUS_CHUNK_SIZE) {
       try {
-        await uploadFileWithTus(f, i, selectedFiles.length);
+        await uploadFileWithTus(f, i, filesToUpload.length);
         _batchTotalBytesCompleted += f.size;
         successCount++;
         resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
+        _onFileSuccess(f);
       } catch(e) {
         failCount++;
         // 永久错误（文件名冲突、禁止类型等）不进重试队列，只显示错误信息
@@ -847,6 +863,7 @@ async function startUpload() {
     var formData = new FormData(); formData.append('file', f);
     try {
       var _lastLoaded = 0;
+      var _uploadOk = false;
       await new Promise(function(resolve){
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/collect/' + linkId + '/upload');
@@ -860,7 +877,7 @@ async function startUpload() {
           // 设置插值目标，进度条由 rAF 引擎平滑驱动
           _spSetTarget(done, _batchTotalBytes);
           // 百分比文字直接显示真实值
-          progressText.innerHTML = '<span>上传 ' + (i+1) + '/' + selectedFiles.length + '</span><span>' + pct + '%</span>';
+          progressText.innerHTML = '<span>上传 ' + (i+1) + '/' + filesToUpload.length + '</span><span>' + pct + '%</span>';
           var rawSpeed = getSpeed();
           if (rawSpeed > 0) {
             if (_smoothSpeed <= 0) _smoothSpeed = rawSpeed;
@@ -874,6 +891,7 @@ async function startUpload() {
             if (xhr.status !== 200 || !data.success) {
               failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(data.message || '服务器错误') + '</div>';
             } else if (data.results && data.results[0] && data.results[0].success) {
+              _uploadOk = true;
               _batchTotalBytesCompleted += f.size; successCount++;
               resultDiv.innerHTML += '<div class="cp-result-item cp-result-ok">' + escapeHtml(f.name) + ' - 上传成功</div>';
             } else { failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml((data.results && data.results[0] && data.results[0].message) || '上传失败') + '</div>'; }
@@ -884,6 +902,7 @@ async function startUpload() {
         xhr.ontimeout = function(){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - 超时</div>'; resolve(); };
         xhr.send(formData);
       });
+      if (_uploadOk) _onFileSuccess(f);
     } catch(e){ failCount++; resultDiv.innerHTML += '<div class="cp-result-item cp-result-err">' + escapeHtml(f.name) + ' - ' + escapeHtml(e.message || '上传失败') + '</div>'; }
   }
 
@@ -931,37 +950,28 @@ async function retryAllFailed() {
 
 /* ========== File Icons ========== */
 function getFileIcon(ext) {
-  var icons = {
-    pdf: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>',
-    image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
-    video: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
-    audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
-    word: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
-    excel: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
-    ppt: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="9" y2="9"/>',
-    archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
-    default: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>'
-  };
-  var colors = {
-    pdf: '#ef4444', image: '#8b5cf6', video: '#f59e0b', audio: '#10b981',
-    word: '#3b82f6', excel: '#10b981', ppt: '#f97316', archive: '#6366f1', default: '#9ca3af'
-  };
   var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','ico'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv','flv','wmv'];
   var audExts = ['mp3','wav','flac','aac','m4a'];
   var docExts = ['doc','docx'], xlsExts = ['xls','xlsx','csv'], pptExts = ['ppt','pptx'];
-  var arcExts = ['zip','rar','7z','tar','gz'];
+  var arcExts = ['zip','rar','7z','tar','gz','bz2','xz'];
+  var codeExts = ['py','js','ts','jsx','tsx','java','c','cpp','h','hpp','cs','go','rs','rb','php','swift','kt','scala','lua','r','sql','sh','bat','ps1','dart','vue','svelte','css','scss','less','html','htm'];
+  var txtExts = ['txt','log','md','rtf','readme','license'];
+  var cfgExts = ['json','yaml','yml','toml','ini','cfg','conf','xml','env','properties','editorconfig','gitignore'];
 
-  if (ext === 'pdf') return {icon: icons.pdf, color: colors.pdf};
-  if (ext === 'fpk') return {isImg: true};
-  if (imgExts.includes(ext)) return {icon: icons.image, color: colors.image};
-  if (vidExts.includes(ext)) return {icon: icons.video, color: colors.video};
-  if (audExts.includes(ext)) return {icon: icons.audio, color: colors.audio};
-  if (docExts.includes(ext)) return {icon: icons.word, color: colors.word};
-  if (xlsExts.includes(ext)) return {icon: icons.excel, color: colors.excel};
-  if (pptExts.includes(ext)) return {icon: icons.ppt, color: colors.ppt};
-  if (arcExts.includes(ext)) return {icon: icons.archive, color: colors.archive};
-  return {icon: icons.default, color: colors.default};
+  if (ext === 'pdf') return {iconUrl: '/static/img/pdf.svg'};
+  if (ext === 'fpk') return {iconUrl: '/static/img/fpk.svg'};
+  if (imgExts.includes(ext)) return {iconUrl: '/static/img/image.svg'};
+  if (vidExts.includes(ext)) return {iconUrl: '/static/img/video.svg'};
+  if (audExts.includes(ext)) return {iconUrl: '/static/img/audio.svg'};
+  if (docExts.includes(ext)) return {iconUrl: '/static/img/word.svg'};
+  if (xlsExts.includes(ext)) return {iconUrl: '/static/img/excel.svg'};
+  if (pptExts.includes(ext)) return {iconUrl: '/static/img/ppt.svg'};
+  if (arcExts.includes(ext)) return {iconUrl: '/static/img/archive.svg'};
+  if (codeExts.includes(ext)) return {iconUrl: '/static/img/code.svg'};
+  if (txtExts.includes(ext)) return {iconUrl: '/static/img/txt.svg'};
+  if (cfgExts.includes(ext)) return {iconUrl: '/static/img/config.svg'};
+  return {iconUrl: '/static/img/file.svg'};
 }
 
 /* ========== History ========== */
@@ -976,13 +986,15 @@ function renderHistoryFromData(data) {
   var canDelete = allowDelete && (data.allow_delete === true);
   var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
 
-  // 每次渲染时重新构建可预览列表
+  // 每次渲染时重新构建可预览列表（图片、视频、音频）
   _previewableImages = [];
   var imgExtsNav = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExtsNav = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsNav = ['mp3','wav','flac','aac','m4a'];
   for (var n = 0; n < data.records.length; n++) {
     var rn = data.records[n];
     var extNav = rn.original_name.split('.').pop().toLowerCase();
-    if (imgExtsNav.indexOf(extNav) >= 0) {
+    if (imgExtsNav.indexOf(extNav) >= 0 || vidExtsNav.indexOf(extNav) >= 0 || audExtsNav.indexOf(extNav) >= 0) {
       _previewableImages.push({id: rn.id, name: rn.original_name});
     }
   }
@@ -999,9 +1011,7 @@ function renderHistoryFromData(data) {
       var r = data.records[j];
       var ext = r.original_name.split('.').pop().toLowerCase();
       var fi = getFileIcon(ext);
-      var cardIconHtml = fi.isImg
-        ? '<div class="cp-card-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></div>'
-        : '<div class="cp-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fi.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fi.icon + '</svg></div>';
+      var cardIconHtml = '<div class="cp-card-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></div>';
       html += '<div class="cp-card-item">' +
         (canDelete ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
         cardIconHtml +
@@ -1038,9 +1048,7 @@ function renderHistoryFromData(data) {
       var rd = data.records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var iconHtml = fiD.isImg
-        ? '<td class="cp-file-icon"><img src="/static/img/fpk.svg" width="18" height="18" style="vertical-align:middle"></td>'
-        : '<td class="cp-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + fiD.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + fiD.icon + '</svg></td>';
+      var iconHtml = '<td class="cp-file-icon"><img src="' + fiD.iconUrl + '" width="18" height="18" style="vertical-align:middle"></td>';
       html += '<tr>' +
         (canDelete ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
         iconHtml +
@@ -1067,26 +1075,45 @@ function renderHistoryFromData(data) {
     html += '</tbody></table></div>';
   }
 
+  // 分页控件
+  var totalPages = data.total_pages || 1;
+  var curPage = data.page || 1;
+  if (totalPages > 1 || data.total_uploaded > 20) {
+    html += '<div class="pagination">';
+    if (curPage > 1) {
+      html += '<button class="page-btn" onclick="loadHistory(' + (curPage - 1) + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+    } else {
+      html += '<button class="page-btn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+    }
+    html += '<span class="page-info">第 ' + curPage + '/' + totalPages + ' 页，共 ' + data.total_uploaded + ' 个文件</span>';
+    if (curPage < totalPages) {
+      html += '<button class="page-btn" onclick="loadHistory(' + (curPage + 1) + ')">下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+    } else {
+      html += '<button class="page-btn" disabled>下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+    }
+    html += '</div>';
+  }
+
   wrap.innerHTML = html;
   updateBatchBar();
 }
 
-async function loadHistory() {
+async function loadHistory(page) {
+  page = page || 1;
   try {
-    var res = await fetch('/collect/' + linkId + '/records');
+    var res = await fetch('/collect/' + linkId + '/records?page=' + page + '&per_page=20');
     var data = await res.json();
     totalUploaded = data.total_uploaded || 0;
+    _cacheData = data;
     updateRemainingDisplay();
+    document.getElementById('file-total-count').textContent = '共 ' + totalUploaded + ' 个文件';
     var wrap = document.getElementById('history-wrap');
     if (!data.records || data.records.length === 0) {
-      _cacheData = null;
       wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
       return;
     }
-    _cacheData = data;
-    clearSelection();  // 新数据加载时清空选择
+    clearSelection();
     renderHistoryFromData(data);
-
   } catch(e) {
     var wrap = document.getElementById('history-wrap');
     if (wrap) wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
@@ -1160,14 +1187,14 @@ async function batchDelete() {
     });
     var data = await res.json();
     showToast(data.message || (data.success ? '删除成功' : '删除失败'));
-    if (data.success) { _selectedIds.clear(); loadHistory(); }
+    if (data.success) { _selectedIds.clear(); loadHistory(); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
     else if (btn) { btn.disabled = false; btn.textContent = '批量删除'; }
   } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
 }
 
 /* ========== Preview helpers ========== */
 function canPreviewExt(ext) {
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown'];
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExts = ['mp3','wav','flac','aac','m4a'];
@@ -1191,7 +1218,7 @@ function openLightbox(items, startIdx) {
       '<button class="lb-close" title="关闭">&times;</button>' +
       '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
       '<button class="lb-next" title="下一个">&rsaquo;</button>' +
-      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video></div>';
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><audio id="lb-audio" controls></audio></div>';
     document.body.appendChild(lb);
     lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
     lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
@@ -1215,6 +1242,8 @@ function closeLightbox() {
   document.body.style.overflow = '';
   var vid = document.getElementById('lb-video');
   if (vid) { vid.pause(); vid.removeAttribute('src'); }
+  var aud = document.getElementById('lb-audio');
+  if (aud) { aud.pause(); aud.removeAttribute('src'); }
 }
 
 function navLightbox(dir) {
@@ -1228,8 +1257,13 @@ function renderLightbox() {
   var item = _lbItems[_lbIndex];
   var img = document.getElementById('lb-img');
   var vid = document.getElementById('lb-video');
+  var aud = document.getElementById('lb-audio');
+  var titleEl = document.getElementById('lb-title');
+  // 先全部隐藏
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  if (aud) aud.style.display = 'none';
   if (item.type === 'video') {
-    img.style.display = 'none';
     vid.style.display = 'block';
     vid.querySelector('source') && vid.querySelector('source').remove();
     var src = document.createElement('source');
@@ -1238,10 +1272,21 @@ function renderLightbox() {
     vid.appendChild(src);
     vid.load();
     vid.play();
+  } else if (item.type === 'audio') {
+    if (aud) {
+      aud.style.display = 'block';
+      aud.querySelector('source') && aud.querySelector('source').remove();
+      var aSrc = document.createElement('source');
+      aSrc.src = item.href;
+      aSrc.type = 'audio/mpeg';
+      aud.appendChild(aSrc);
+      aud.load();
+      aud.play();
+    }
   } else {
-    vid.style.display = 'none';
     vid.pause();
     vid.removeAttribute('src');
+    if (aud) { aud.pause(); aud.removeAttribute('src'); }
     img.style.display = 'block';
     img.src = item.href;
   }
@@ -1255,7 +1300,7 @@ function renderLightbox() {
 function previewFile(recordId, fileName) {
   var ext = fileName.split('.').pop().toLowerCase();
   // Office / PDF / MD → 新窗口 JIT Viewer
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','mp3','wav','flac','aac','m4a'];
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   if (jitExts.includes(ext)) {
     var tpJ = getTokenParam();
     window.open('/collect/' + linkId + '/view/' + recordId + (tpJ ? '?' + tpJ : ''), '_blank');
@@ -1265,6 +1310,7 @@ function previewFile(recordId, fileName) {
   var tp = getTokenParam();
   var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
 
   // 构建灯箱元素列表：当前文件 + 所有可预览图片（导航用）
   var elements = [];
@@ -1275,14 +1321,16 @@ function previewFile(recordId, fileName) {
     var itemUrl = '/collect/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
     var el = { href: itemUrl, title: item.name, type: 'image' };
     if (vidExts.includes(itemExt)) { el.type = 'video'; }
+    if (audExts.includes(itemExt)) { el.type = 'audio'; }
     if (item.id == recordId) startIdx = i;
     elements.push(el);
   }
 
-  // 如果当前文件不在可预览列表中（比如视频），只展示当前文件
+  // 如果当前文件不在可预览列表中（比如视频/音频），只展示当前文件
   if (elements.length === 0 || startIdx < 0) {
     var el = { href: previewUrl, title: fileName, type: 'image' };
     if (vidExts.includes(ext)) { el.type = 'video'; }
+    if (audExts.includes(ext)) { el.type = 'audio'; }
     elements = [el];
     startIdx = 0;
   }

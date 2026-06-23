@@ -267,11 +267,24 @@ body {
 .cp-badge-uploader:active { background: #e2e8f0; }
 .cp-badge-uploader:hover { background: #e2e8f0; }
 
+/* 文件总数胶囊 */
+.cp-file-count {
+  font-size: .75rem;
+  font-weight: 500;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ---------- Dropzone ---------- */
 .cp-drop {
   border: 2px dashed #d1d5db;
   border-radius: 12px;
-  padding: 36px 20px;
+  padding: 20px 20px;
   text-align: center;
   cursor: pointer;
   background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
@@ -359,12 +372,48 @@ body {
 
 /* 单次批量上传提示 */
 .cp-drop-batch-hint {
-  font-size: .75rem;
-  color: #b0b0b0;
-  margin-top: 6px;
+  display: inline-block;
+  font-size: .78rem;
+  color: #e67e22;
+  background: #fef5e7;
+  border: 1px solid #fad7a0;
+  border-radius: 6px;
+  padding: 4px 14px;
+  margin-top: 8px;
   margin-bottom: 0;
+  font-weight: 500;
 }
 .cp-drop.full .cp-drop-batch-hint { display: none; }
+
+/* 紧凑态：选择文件后收缩为一行 */
+.cp-drop-compact-text {
+  display: none;
+  font-size: .82rem;
+  color: #3b82f6;
+  font-weight: 500;
+}
+.cp-drop.compact {
+  padding: 8px 16px;
+  cursor: pointer;
+  border: 1px dashed #c9cdd4;
+  background: #f8fafc;
+}
+.cp-drop.compact .cp-drop-icon { display: none; }
+.cp-drop.compact h3 { display: none; }
+.cp-drop.compact .cp-drop-text { display: none; }
+.cp-drop.compact .cp-drop-batch-hint { display: none; }
+.cp-drop.compact .cp-hint-resume { display: none; }
+.cp-drop.compact .cp-drop-full-hint { display: none; }
+.cp-drop.compact .cp-drop-compact-text { display: block; }
+/* compact 下屏蔽掉放大/光晕等交互效果 */
+.cp-drop.compact:hover { border-color: #93c5fd; background: #eff6ff; transform: none; box-shadow: none; }
+.cp-drop.compact::before { opacity: 0; }
+/* 配额满时 compact 不生效，full 主导 */
+.cp-drop.full.compact {
+  padding: 36px 20px;
+  cursor: not-allowed;
+}
+.cp-drop.full.compact .cp-drop-compact-text { display: none; }
 
 /* 断点续传提示行 */
 .cp-hint-resume {
@@ -406,8 +455,9 @@ body {
 /* ---------- Actions Bar ---------- */
 .cp-actions {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; margin-top: 8px; padding-top: 8px;
-  border-top: 1px solid #f0f2f5;
+  gap: 8px; margin-bottom: 8px; padding-bottom: 8px;
+  border-bottom: 1px solid #f0f2f5;
+  margin-top: 8px;
 }
 .cp-count { font-size: .75rem; color: #6b7280; }
 .cp-btns { display: flex; gap: 5px; }
@@ -621,6 +671,58 @@ body {
 .cp-empty svg { width: 32px; height: 32px; color: #d0d5dd; margin-bottom: 6px; }
 .cp-empty p:first-child { font-weight: 500; color: #6b7280; margin-bottom: 1px; }
 
+/* ---------- Pagination ---------- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0 4px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+.pagination .page-info {
+  font-size: .78rem;
+  color: #9ca3af;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.pagination .page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 18px;
+  font-size: .8rem;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all .18s;
+  user-select: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.pagination .page-btn:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 1px 4px rgba(37,99,235,.12);
+}
+.pagination .page-btn:active:not(:disabled) {
+  transform: scale(.97);
+}
+.pagination .page-btn:disabled {
+  opacity: .35;
+  cursor: default;
+  box-shadow: none;
+}
+.pagination .page-btn svg {
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+}
+
 /* ---------- Uploader Modal ---------- */
 .cp-modal-overlay {
   position: fixed;
@@ -718,6 +820,9 @@ body {
   .cp-meta-tile { padding: 8px 10px; }
   .cp-meta-tile-label { font-size: .62rem; }
   .cp-meta-tile-value { font-size: .82rem; }
+
+  .pagination .page-btn { padding: 6px 14px; font-size: .76rem; }
+  .pagination .page-info { font-size: .74rem; }
 }
 
 @media (max-width: 480px) {
@@ -733,6 +838,7 @@ body {
   .cp-meta-tile-value { font-size: .75rem; }
   .cp-card-head { padding: 8px 12px; }
   .cp-card-head h2 { font-size: .8rem; }
+  .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
   .cp-card-body { /*padding: 10px 12px; */}
   .cp-drop {
     padding: 22px 14px;
@@ -745,12 +851,17 @@ body {
   .cp-drop .cp-hint-resume .cp-hint-toggle { display: none; }
   .cp-drop .cp-hint-resume .cp-hint-short { display: block; }
   .cp-drop .cp-hint-resume { margin-top: 6px; }
+  .cp-drop.compact { padding: 8px 12px; }
   .cp-actions { flex-direction: column; align-items: stretch; }
   .cp-btns { width: 100%; }
   .cp-btns .cp-btn { flex: 1; }
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-table tbody td { padding: 6px 8px; }
   .cp-modal-card { max-width: 92%; padding: 24px 18px 20px; }
+
+  .pagination { gap: 6px; padding: 10px 0 2px; }
+  .pagination .page-btn { padding: 5px 10px; font-size: .73rem; border-radius: 6px; }
+  .pagination .page-info { font-size: .7rem; padding: 0 4px; }
 }
 
 

@@ -263,6 +263,19 @@ body {
 }
 .cp-badge-uploader:active { background: #e0f2fe; }
 
+/* 文件总数胶囊 */
+.cp-file-count {
+  font-size: .75rem;
+  font-weight: 500;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ---------- Buttons ---------- */
 .cp-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -531,7 +544,7 @@ body {
   color: #9ca3af;
   background: #f0f2f5;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 /* Collapsible body */
@@ -560,6 +573,55 @@ body {
    GLightbox 自定义覆盖
    ============================================================ */
 
+/* ---------- Pagination ---------- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 0 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pagination .page-info {
+  font-size: .78rem;
+  color: #9ca3af;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.pagination .page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 16px;
+  font-size: .78rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  color: #475569;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.pagination .page-btn:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+.pagination .page-btn:active:not(:disabled) {
+  transform: scale(.97);
+}
+.pagination .page-btn:disabled {
+  opacity: .35;
+  cursor: default;
+  box-shadow: none;
+}
+.pagination .page-btn svg {
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+}
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */
@@ -574,6 +636,8 @@ body {
   .cp-meta-tile { padding: 8px 10px; }
   .cp-meta-tile-label { font-size: .62rem; }
   .cp-meta-tile-value { font-size: .82rem; }
+  .pagination .page-btn { padding: 6px 14px; font-size: .76rem; }
+  .pagination .page-info { font-size: .74rem; }
 }
 
 @media (max-width: 480px) {
@@ -590,6 +654,7 @@ body {
   .cp-card-head { padding: 8px 12px; gap: 6px; }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-head .cp-badge { font-size: .64rem; padding: 1px 6px; }
+  .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
   .cp-card-body {/*  padding: 10px 12px;*/ }
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-card-item { align-items: center; gap: 6px; }
@@ -607,4 +672,7 @@ body {
   .cp-accordion-name { font-size: .82rem; }
   .cp-accordion-count { font-size: .66rem; }
   .cp-accordion-body .cp-card-list .cp-card-item { padding: 6px 10px 6px 16px; }
+  .pagination { gap: 6px; padding: 10px 0 2px; }
+  .pagination .page-btn { padding: 5px 10px; font-size: .73rem; border-radius: 6px; }
+  .pagination .page-info { font-size: .7rem; padding: 0 4px; }
 }

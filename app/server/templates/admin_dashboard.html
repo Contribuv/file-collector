@@ -53,7 +53,7 @@
                   data-time="{{ r['uploaded_at'] }}"
                   data-uploader="{{ r['uploader_name'] or '' }}"
                   data-require-uploader="{{ r['require_uploader']|string|lower }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -83,7 +83,7 @@
                 data-time="{{ r['uploaded_at'] }}"
                 data-uploader="{{ r['uploader_name'] or '' }}"
                 data-require-uploader="{{ r['require_uploader']|string|lower }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','txt','md','log','json','xml','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','html','htm','mp3','wav'] else '0' }}">操作</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
             </div>
           </div>
         </div>
@@ -220,6 +220,7 @@
   #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; }
   #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
   #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
+  #custom-lightbox .lb-content audio { width:min(480px, 80vw); }
 </style>
 {% endblock %}
 {% block scripts %}
@@ -231,15 +232,17 @@ var currentOverlay = null;
 /* 图片灯箱导航 */
 var _previewableAdminImages = [];
 
-// 页面加载时扫描 DOM 收集可预览图片列表
+// 页面加载时扫描 DOM 收集可预览媒体列表（图片、视频、音频）
 (function initPreviewNav() {
   var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
   var buttons = document.querySelectorAll('[data-previewable="1"]');
   buttons.forEach(function(btn) {
     var name = btn.getAttribute('data-filename');
     if (!name) return;
     var ext = name.split('.').pop().toLowerCase();
-    if (imgExts.indexOf(ext) >= 0) {
+    if (imgExts.indexOf(ext) >= 0 || vidExts.indexOf(ext) >= 0 || audExts.indexOf(ext) >= 0) {
       _previewableAdminImages.push({
         id: btn.getAttribute('data-record-id'),
         name: name
@@ -372,7 +375,7 @@ function openLightbox(items, startIdx) {
       '<button class="lb-close" title="关闭">&times;</button>' +
       '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
       '<button class="lb-next" title="下一个">&rsaquo;</button>' +
-      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video></div>';
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><audio id="lb-audio" controls></audio></div>';
     document.body.appendChild(lb);
     lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
     lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
@@ -396,6 +399,8 @@ function closeLightbox() {
   document.body.style.overflow = '';
   var vid = document.getElementById('lb-video');
   if (vid) { vid.pause(); vid.innerHTML = ''; vid.removeAttribute('src'); }
+  var aud = document.getElementById('lb-audio');
+  if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
 }
 
 function navLightbox(dir) {
@@ -409,8 +414,12 @@ function renderLightbox() {
   var item = _lbItems[_lbIndex];
   var img = document.getElementById('lb-img');
   var vid = document.getElementById('lb-video');
+  var aud = document.getElementById('lb-audio');
+  // 先全部隐藏
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  if (aud) aud.style.display = 'none';
   if (item.type === 'video') {
-    img.style.display = 'none';
     vid.style.display = 'block';
     vid.innerHTML = '';
     var src = document.createElement('source');
@@ -418,11 +427,21 @@ function renderLightbox() {
     vid.appendChild(src);
     vid.load();
     vid.play();
+  } else if (item.type === 'audio') {
+    if (aud) {
+      aud.style.display = 'block';
+      aud.innerHTML = '';
+      var aSrc = document.createElement('source');
+      aSrc.src = item.href;
+      aud.appendChild(aSrc);
+      aud.load();
+      aud.play();
+    }
   } else {
-    vid.style.display = 'none';
     vid.pause();
     vid.innerHTML = '';
     vid.removeAttribute('src');
+    if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
     img.style.display = 'block';
     img.src = item.href;
   }
@@ -435,13 +454,14 @@ function renderLightbox() {
 function previewFile(recordId, fileName) {
   var ext = fileName.split('.').pop().toLowerCase();
 
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','md','markdown','txt','csv','ofd','dxf','html','htm','js','css','json','xml','log','mp3','wav'];
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   if (jitExts.includes(ext)) {
     window.open('/admin/records/' + recordId + '/view', '_blank');
     return;
   }
 
   var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
 
   var elements = [];
   var startIdx = -1;
@@ -451,6 +471,7 @@ function previewFile(recordId, fileName) {
     var itemUrl = '/admin/records/' + item.id + '/preview-img';
     var el = { href: itemUrl, title: item.name, type: 'image' };
     if (vidExts.includes(itemExt)) { el.type = 'video'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (audExts.includes(itemExt)) { el.type = 'audio'; el.href = '/admin/records/' + item.id + '/preview_file'; }
     if (item.id == recordId) startIdx = i;
     elements.push(el);
   }
@@ -460,6 +481,7 @@ function previewFile(recordId, fileName) {
     var url = '/admin/records/' + recordId + (isImg ? '/preview-img' : '/preview_file');
     var el = { href: url, title: fileName, type: 'image' };
     if (vidExts.includes(ext)) { el.type = 'video'; }
+    if (audExts.includes(ext)) { el.type = 'audio'; }
     elements = [el];
     startIdx = 0;
   }

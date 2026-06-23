@@ -29,14 +29,34 @@
 .cp-sel-top-bar .cp-sel-check { width: 15px; height: 15px; }
 /* 分组模式-全局全选顶栏 */
 .cp-global-sel-bar {
-  display: flex; align-items: center; padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px;
   margin-bottom: 8px; background: #f8f9fb;
   border-radius: 6px; border: 1px solid #eef0f2;
+  gap: 10px; flex-wrap: wrap;
 }
 .cp-global-sel-bar label {
   display: inline-flex; align-items: center; gap: 6px;
   cursor: pointer; font-size: .83rem; font-weight: 500;
-  color: #333; user-select: none;
+  color: #333; user-select: none; flex-shrink: 0;
+}
+.cp-global-sel-bar-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 14px; border-radius: 4px;
+  border: 1px solid var(--batch-accent, #3b82f6);
+  background: #fff; color: var(--batch-accent, #3b82f6);
+  font-size: .78rem; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all .12s; white-space: nowrap;
+  flex-shrink: 0;
+}
+.cp-global-sel-bar-btn:hover {
+  background: var(--batch-accent, #3b82f6); color: #fff;
+}
+.cp-global-sel-bar-btn:active {
+  filter: brightness(.88);
+}
+.cp-global-sel-bar-btn:disabled {
+  opacity: .5; pointer-events: none;
 }
 
 .cp-batch-bar {
@@ -89,4 +109,7 @@
   .cp-batch-info { font-size: .76rem; }
   .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
   .cp-card-check { align-self: center; }
+  .cp-global-sel-bar { padding: 6px 10px; gap: 6px; }
+  .cp-global-sel-bar label { font-size: .78rem; }
+  .cp-global-sel-bar-btn { font-size: .72rem; padding: 4px 10px; }
 }

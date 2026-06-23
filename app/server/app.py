@@ -1042,6 +1042,15 @@ def set_user_setting(user_id, key, value):
     conn.commit()
     conn.close()
 
+def get_upload_batch_limit(user_id=None):
+    """获取单次上传个数限制，优先用户级设置，回退全局设置，默认 30"""
+    batch = get_user_setting(user_id, 'upload_batch_limit', '30') if user_id else get_setting('upload_batch_limit', '30')
+    try:
+        batch = int(batch)
+    except (ValueError, TypeError):
+        batch = 30
+    return max(1, min(batch, 100))
+
 # 初始化
 init_db()
 refresh_upload_base()  # 从数据库恢复自定义上传路径（如果有）
@@ -2271,6 +2280,168 @@ def _serve_heic_as_jpeg(stored_path):
     except Exception:
         return None
 
+
+# ========== TXT 阅读器工具函数 ==========
+
+_TXT_CHAPTER_CACHE = {}  # {filepath: (mtime, chapters, encoding)}
+
+def _detect_txt_encoding(filepath, sample_size=4096):
+    """检测文本文件编码，返回编码名称"""
+    with open(filepath, 'rb') as f:
+        raw = f.read(sample_size)
+    if not raw:
+        return 'utf-8'
+    # BOM 检测
+    if raw.startswith(b'\xef\xbb\xbf'):
+        return 'utf-8-sig'
+    if raw.startswith(b'\xff\xfe'):
+        return 'utf-16-le'
+    if raw.startswith(b'\xfe\xff'):
+        return 'utf-16-be'
+    # 尝试 UTF-8
+    try:
+        raw.decode('utf-8')
+        return 'utf-8'
+    except UnicodeDecodeError:
+        pass
+    # 尝试 GBK（中文 Windows 常用）
+    try:
+        raw.decode('gbk')
+        return 'gbk'
+    except UnicodeDecodeError:
+        pass
+    # 尝试 GB2312
+    try:
+        raw.decode('gb2312')
+        return 'gb2312'
+    except UnicodeDecodeError:
+        pass
+    # 尝试 UTF-16
+    try:
+        raw.decode('utf-16')
+        return 'utf-16'
+    except UnicodeDecodeError:
+        pass
+    # 最后尝试 latin-1（兜底，不会失败）
+    return 'latin-1'
+
+
+_CHAPTER_PATTERNS = [
+    re.compile(r'^[第序][\s]*[0-9零一二三四五六七八九十百千万]+[\s]*[章节卷部篇集]'),
+    re.compile(r'^[卷][\s]*[0-9零一二三四五六七八九十百千万]+'),
+    re.compile(r'^Chapter\s+\d+', re.IGNORECASE),
+    re.compile(r'^(序言|前言|楔子|后记|尾声|番外|终章|大结局)'),
+    re.compile(r'^[第][\s]*[0-9零一二三四五六七八九十百千万]+[\s]*(节|回|幕)'),
+]
+
+
+def _scan_txt_chapters(filepath):
+    """扫描 TXT 文件章节，返回 (chapters, encoding)
+    
+    使用缓存：如文件未修改则复用上次结果。
+    chapters 格式: [{'title': '第一章 xxx', 'offset': 1234}, ...]
+    """
+    mtime = os.path.getmtime(filepath)
+    if filepath in _TXT_CHAPTER_CACHE:
+        cached_mtime, cached_chapters, cached_encoding = _TXT_CHAPTER_CACHE[filepath]
+        if cached_mtime == mtime:
+            return cached_chapters, cached_encoding
+
+    encoding = _detect_txt_encoding(filepath)
+    chapters = []
+    offset = 0
+    max_scan = 50 * 1024 * 1024  # 最多扫描 50MB
+
+    try:
+        with open(filepath, 'rb') as f:
+            # 跳过 BOM
+            first_bytes = f.read(4)
+            if first_bytes.startswith(b'\xef\xbb\xbf'):
+                offset = 3
+            elif first_bytes.startswith(b'\xff\xfe') or first_bytes.startswith(b'\xfe\xff'):
+                offset = 2
+            f.seek(0)
+
+            leftover = b''
+            line_count = 0
+            while offset < max_scan:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                data = leftover + chunk
+                if b'\n' not in data:
+                    leftover = data
+                    continue
+                # 按行分割，最后一段不完整的留到下次
+                *lines, leftover = data.split(b'\n')
+                for line in lines:
+                    line_count += 1
+                    try:
+                        text = line.decode(encoding, errors='replace').strip()
+                    except Exception:
+                        text = line.decode('latin-1', errors='replace').strip()
+                    if not text:
+                        continue
+                    for pat in _CHAPTER_PATTERNS:
+                        if pat.match(text):
+                            chapters.append({
+                                'title': text[:80],
+                                'offset': offset
+                            })
+                            break
+                    # 只扫描前 5 万行找章节（小说通常前几万行就有所有章节标题）
+                    if line_count > 50000 and len(chapters) > 0:
+                        break
+                offset += len(data) - len(leftover)
+                if line_count > 50000 and len(chapters) > 0:
+                    break
+    except Exception:
+        pass
+
+    # 去重：相邻相同标题合并
+    seen = set()
+    unique_chapters = []
+    for ch in chapters:
+        key = ch['title'].lower()
+        if key not in seen:
+            seen.add(key)
+            unique_chapters.append(ch)
+
+    _TXT_CHAPTER_CACHE[filepath] = (mtime, unique_chapters, encoding)
+    # 限制缓存大小
+    if len(_TXT_CHAPTER_CACHE) > 200:
+        oldest = next(iter(_TXT_CHAPTER_CACHE))
+        del _TXT_CHAPTER_CACHE[oldest]
+
+    return unique_chapters, encoding
+
+
+def _read_txt_chunk(filepath, offset, size, encoding=None):
+    """读取 TXT 文件指定偏移的文本块，返回解码后的文本"""
+    if encoding is None:
+        encoding = _detect_txt_encoding(filepath)
+    file_size = os.path.getsize(filepath)
+    with open(filepath, 'rb') as f:
+        # 如果不是从 0 开始，向前多读一点找到最近的换行符，保证从完整行开始
+        if offset > 0:
+            f.seek(max(0, offset - 256))
+            prefix = f.read(min(256, offset))
+            # 找最后一个换行符
+            last_nl = prefix.rfind(b'\n')
+            if last_nl >= 0:
+                offset = max(0, offset - 256) + last_nl + 1
+            else:
+                offset = max(0, offset - 256)
+        f.seek(offset)
+        raw = f.read(size)
+    text = raw.decode(encoding, errors='replace')
+    # 如果带 BOM 且从开头读，去掉 BOM 字符
+    if offset == 0 and encoding == 'utf-8-sig' and text.startswith('\ufeff'):
+        text = text[1:]
+        encoding = 'utf-8'
+    return text, file_size
+
+
 # ============================================================
 
 def create_upload_dir(link_id, uploader_name=''):
@@ -2493,7 +2664,7 @@ def collect_page(link_id):
         csrf_token=csrf_token,
         dl_token=dl_token,
         dl_token_expires=dl_token_expires,
-        blocked_extensions=sorted(list(get_blocked_extensions())), upload_batch_limit=50)
+        blocked_extensions=sorted(list(get_blocked_extensions())), upload_batch_limit=get_upload_batch_limit(link.get('user_id')))
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
@@ -2887,7 +3058,7 @@ def api_download_token(link_id):
 
 @app.route('/share/<link_id>/records', methods=['GET'])
 def share_get_records(link_id):
-    """获取分享页文件列表"""
+    """获取分享页文件列表（支持分页）"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return jsonify({'success': False, 'message': '链接格式无效'}), 400
     conn = get_db()
@@ -2909,16 +3080,38 @@ def share_get_records(link_id):
     # 清理孤儿记录（文件已被删除的数据库记录）
     cleanup_orphan_records_for_link(conn, link_id)
 
-    records = conn.execute(
-        "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
-        (link_id,)
-    ).fetchall()
     require_uploader = bool(dict(link).get('require_uploader', 0))
+
+    # 分页参数
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+    except (ValueError, TypeError):
+        page = 1
+        per_page = 20
+    page = max(1, page)
+    per_page = max(5, min(per_page, 100))
+    offset = (page - 1) * per_page
+
+    total_uploaded = conn.execute(
+        "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+    ).fetchone()[0]
+
+    records = conn.execute(
+        "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+        (link_id, per_page, offset)
+    ).fetchall()
     conn.close()
+
+    total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
 
     return jsonify({
         'success': True,
         'require_uploader': require_uploader,
+        'total_uploaded': total_uploaded,
+        'total_pages': total_pages,
+        'page': page,
+        'per_page': per_page,
         'records': [dict(r) for r in records]
     })
 
@@ -3159,6 +3352,22 @@ def share_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
+    # 大 TXT 文件（≥500KB）走专用阅读器
+    ext = record['original_name'].split('.')[-1].lower()
+    file_size = os.path.getsize(real_path)
+    if ext == 'txt' and file_size >= 500 * 1024:
+        jit_token = request.args.get('token', '')
+        jit_expires = request.args.get('expires', '')
+        token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+        txt_info_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_info/' + str(record_id) + token_params
+        txt_chunk_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_chunk/' + str(record_id) + token_params
+        download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
+        return render_template('txt_reader.html',
+            filename=record['original_name'],
+            txt_info_url=txt_info_url,
+            txt_chunk_url=txt_chunk_url,
+            download_url=download_url)
+
     # 传递令牌给 JIT SDK 内部请求（公开链接需要）
     jit_token = request.args.get('token', '')
     jit_expires = request.args.get('expires', '')
@@ -3169,6 +3378,196 @@ def share_jit_view(link_id, record_id):
         filename=record['original_name'],
         file_url=file_url,
         download_url=download_url)
+
+
+@app.route('/share/<link_id>/txt_info/<int:record_id>', methods=['GET'])
+def share_txt_info(link_id, record_id):
+    """返回 TXT 文件章节目录和编码信息"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'error': '链接格式无效'}), 400
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'error': '链接不存在或已失效'}), 404
+    link_id = link['id']
+    if not is_share_verified(link_id, link):
+        conn.close()
+        return jsonify({'error': '请先验证通行证'}), 403
+    ok, err = _check_preview_rate_limit()
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 429
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 401
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    chapters, encoding = _scan_txt_chapters(real_path)
+    total_size = os.path.getsize(real_path)
+    return jsonify({
+        'chapters': chapters,
+        'encoding': encoding,
+        'total_size': total_size
+    })
+
+
+@app.route('/share/<link_id>/txt_chunk/<int:record_id>', methods=['GET'])
+def share_txt_chunk(link_id, record_id):
+    """返回 TXT 文件的文本块（分页用）"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'error': '链接格式无效'}), 400
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'error': '链接不存在或已失效'}), 404
+    link_id = link['id']
+    if not is_share_verified(link_id, link):
+        conn.close()
+        return jsonify({'error': '请先验证通行证'}), 403
+    ok, err = _check_preview_rate_limit()
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 429
+    ok, err = _check_public_link_token(link_id, link, for_share=True)
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 401
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    try:
+        offset = int(request.args.get('offset', 0))
+        size = min(int(request.args.get('size', 65536)), 524288)
+    except (ValueError, TypeError):
+        return jsonify({'error': '参数无效'}), 400
+    text, file_size = _read_txt_chunk(real_path, offset, size)
+    return jsonify({
+        'text': text,
+        'offset': offset,
+        'size': len(text.encode('utf-8')),
+        'total_size': file_size,
+        'has_more': (offset + size) < file_size
+    })
+
+
+@app.route('/share/<link_id>/download_all', methods=['POST'])
+def share_download_all(link_id):
+    """分享页一键下载所有文件"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_share_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    # 查询该链接下所有文件（最多 200 个）
+    records = conn.execute(
+        "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE link_id = ? ORDER BY uploaded_at ASC LIMIT 200",
+        (link_id_db,)
+    ).fetchall()
+    conn.close()
+
+    if not records:
+        return jsonify({'success': False, 'message': '没有可下载的文件'}), 404
+
+    import io, zipfile, tempfile
+
+    link_title = (link['title'] or '').strip()
+    safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title) if link_title else link_id
+    zip_filename = f'{safe_title}.zip'
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    tmp_path = tmp.name
+    try:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            used_names = {}
+            for rec in records:
+                stored_path = rec['stored_path']
+                if not os.path.isfile(stored_path):
+                    continue
+                original_name = rec['original_name']
+                arcname = f"{safe_title}/{original_name}"
+                if arcname in used_names:
+                    used_names[arcname] += 1
+                    base, ext = os.path.splitext(arcname)
+                    arcname = f"{base}({used_names[arcname]}){ext}"
+                else:
+                    used_names[arcname] = 0
+                compress_type = _get_zip_compress_type(original_name)
+                zf.write(stored_path, arcname=arcname, compress_type=compress_type)
+
+        tmp.close()
+
+        @after_this_request
+        def cleanup_download_all_zip(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            tmp_path,
+            download_name=zip_filename,
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"share一键下载打包失败: {e}")
+        try:
+            tmp.close()
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '文件打包失败，请稍后重试'}), 500
+
 
 @app.route('/share/<link_id>/batch_download', methods=['POST'])
 def share_batch_download(link_id):
@@ -3276,7 +3675,7 @@ def share_delete_record(link_id, record_id):
 
 @app.route('/collect/<link_id>/records', methods=['GET'])
 def get_upload_records(link_id):
-    """获取上传历史记录"""
+    """获取上传历史记录（支持分页）"""
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
@@ -3299,14 +3698,25 @@ def get_upload_records(link_id):
     require_uploader = bool(dict(link).get('require_uploader', 0))
     uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
 
+    # 分页参数
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+    except (ValueError, TypeError):
+        page = 1
+        per_page = 20
+    page = max(1, page)
+    per_page = max(5, min(per_page, 100))
+    offset = (page - 1) * per_page
+
     if require_uploader and uploader_name:
         # 上传者已设置身份 → 只看自己上传的文件
         total_uploaded = conn.execute(
             "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?", (link_id, uploader_name)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT 50",
-            (link_id, uploader_name)
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            (link_id, uploader_name, per_page, offset)
         ).fetchall()
     elif require_uploader:
         # 开启了上传者但未设置身份 → 什么也看不到
@@ -3317,10 +3727,12 @@ def get_upload_records(link_id):
             "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT 50",
-            (link_id,)
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            (link_id, per_page, offset)
         ).fetchall()
     conn.close()
+
+    total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
 
     return jsonify({
         'success': True,
@@ -3329,6 +3741,9 @@ def get_upload_records(link_id):
         'max_files': link['max_files'],
         'total_uploaded': total_uploaded,
         'require_uploader': require_uploader,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': total_pages,
         'records': [dict(r) for r in records]
     })
 
@@ -3576,6 +3991,22 @@ def collect_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
+    # 大 TXT 文件（≥500KB）走专用阅读器
+    ext = record['original_name'].split('.')[-1].lower()
+    file_size = os.path.getsize(real_path)
+    if ext == 'txt' and file_size >= 500 * 1024:
+        jit_token = request.args.get('token', '')
+        jit_expires = request.args.get('expires', '')
+        token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+        txt_info_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_info/' + str(record_id) + token_params
+        txt_chunk_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_chunk/' + str(record_id) + token_params
+        download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
+        return render_template('txt_reader.html',
+            filename=record['original_name'],
+            txt_info_url=txt_info_url,
+            txt_chunk_url=txt_chunk_url,
+            download_url=download_url)
+
     # 传递令牌给 JIT SDK 内部请求（公开链接需要）
     jit_token = request.args.get('token', '')
     jit_expires = request.args.get('expires', '')
@@ -3586,6 +4017,111 @@ def collect_jit_view(link_id, record_id):
         filename=record['original_name'],
         file_url=file_url,
         download_url=download_url)
+
+
+@app.route('/collect/<link_id>/txt_info/<int:record_id>', methods=['GET'])
+def collect_txt_info(link_id, record_id):
+    """返回 TXT 文件章节目录和编码信息"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'error': '链接不存在或已失效'}), 404
+    link_id = link['id']
+    if not is_verified(link_id, link):
+        conn.close()
+        return jsonify({'error': '请先验证通行证'}), 403
+    ok, err = _check_preview_rate_limit()
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 429
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 401
+    if not link['allow_preview_download']:
+        conn.close()
+        return jsonify({'error': '预览功能未开启'}), 403
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    chapters, encoding = _scan_txt_chapters(real_path)
+    total_size = os.path.getsize(real_path)
+    return jsonify({
+        'chapters': chapters,
+        'encoding': encoding,
+        'total_size': total_size
+    })
+
+
+@app.route('/collect/<link_id>/txt_chunk/<int:record_id>', methods=['GET'])
+def collect_txt_chunk(link_id, record_id):
+    """返回 TXT 文件的文本块（分页用）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'error': '链接不存在或已失效'}), 404
+    link_id = link['id']
+    if not is_verified(link_id, link):
+        conn.close()
+        return jsonify({'error': '请先验证通行证'}), 403
+    ok, err = _check_preview_rate_limit()
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 429
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 401
+    if not link['allow_preview_download']:
+        conn.close()
+        return jsonify({'error': '预览功能未开启'}), 403
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    try:
+        offset = int(request.args.get('offset', 0))
+        size = min(int(request.args.get('size', 65536)), 524288)
+    except (ValueError, TypeError):
+        return jsonify({'error': '参数无效'}), 400
+    text, file_size = _read_txt_chunk(real_path, offset, size)
+    return jsonify({
+        'text': text,
+        'offset': offset,
+        'size': len(text.encode('utf-8')),
+        'total_size': file_size,
+        'has_more': (offset + size) < file_size
+    })
+
 
 @app.route('/collect/<link_id>/delete_record/<int:record_id>', methods=['POST'])
 def delete_upload_record(link_id, record_id):
@@ -3718,11 +4254,6 @@ def upload_file(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
-    # 上传频率限制
-    client_ip = _get_client_ip()
-    if not rate_limit(f'upload_{link_id}_{client_ip}', max_attempts=30, window_seconds=60):
-        return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
-
     conn = None
     try:
         conn = get_db()
@@ -3732,6 +4263,16 @@ def upload_file(link_id):
 
         if not link:
             return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+        # 上传频率限制：基于链接 max_files 动态计算（最少 30，不超过 200）
+        client_ip = _get_client_ip()
+        link_max_files = link['max_files']
+        if link_max_files > 0:
+            rate_limit_max = max(30, min(link_max_files * 3, 200))
+        else:
+            rate_limit_max = 200
+        if not rate_limit(f'upload_{link_id}_{client_ip}', max_attempts=rate_limit_max, window_seconds=60):
+            return jsonify({'success': False, 'message': '上传过于频繁，请稍后再试'}), 429
 
         # 统一使用数据库规范 ID（支持自定义 slug 访问）
         link_id = link['id']
@@ -4098,6 +4639,16 @@ def tus_create(link_id):
     try:
         # 检查数量限制
         max_files = link['max_files']
+
+        # 上传频率限制：基于链接 max_files 动态计算
+        client_ip = _get_client_ip()
+        if max_files > 0:
+            tus_rate_limit_max = max(30, min(max_files * 3, 200))
+        else:
+            tus_rate_limit_max = 200
+        if not rate_limit(f'tus_create_{link_id}_{client_ip}', max_attempts=tus_rate_limit_max, window_seconds=60):
+            return _tus_error(429, '上传过于频繁，请稍后再试')
+
         if max_files > 0:
             if link['require_uploader']:
                 current_count = conn.execute(
@@ -6298,12 +6849,94 @@ def admin_jit_view(record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
+    # 大 TXT 文件（≥500KB）走专用阅读器
+    ext = record['original_name'].split('.')[-1].lower()
+    file_size = os.path.getsize(real_path)
+    if ext == 'txt' and file_size >= 500 * 1024:
+        txt_info_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_info'
+        txt_chunk_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_chunk'
+        download_url = '/admin/records/' + str(record_id) + '/download'
+        return render_template('txt_reader.html',
+            filename=record['original_name'],
+            txt_info_url=txt_info_url,
+            txt_chunk_url=txt_chunk_url,
+            download_url=download_url)
+
     file_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/preview_file'
     download_url = '/admin/records/' + str(record_id) + '/download'
     return render_template('jit_preview.html',
         filename=record['original_name'],
         file_url=file_url,
         download_url=download_url)
+
+
+@app.route('/admin/records/<int:record_id>/txt_info')
+@login_required
+def admin_txt_info(record_id):
+    """返回 TXT 文件章节目录和编码信息（管理后台）"""
+    if not _check_record_ownership(record_id):
+        abort(403)
+    conn = get_db()
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
+        (record_id,)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    chapters, encoding = _scan_txt_chapters(real_path)
+    total_size = os.path.getsize(real_path)
+    return jsonify({
+        'chapters': chapters,
+        'encoding': encoding,
+        'total_size': total_size
+    })
+
+
+@app.route('/admin/records/<int:record_id>/txt_chunk')
+@login_required
+def admin_txt_chunk(record_id):
+    """返回 TXT 文件的文本块（分页用，管理后台）"""
+    if not _check_record_ownership(record_id):
+        abort(403)
+    conn = get_db()
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
+        (record_id,)
+    ).fetchone()
+    if not record:
+        conn.close()
+        return jsonify({'error': '文件不存在'}), 404
+    conn.close()
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        abort(403)
+    if not os.path.isfile(real_path):
+        abort(404)
+    try:
+        offset = int(request.args.get('offset', 0))
+        size = min(int(request.args.get('size', 65536)), 524288)
+    except (ValueError, TypeError):
+        return jsonify({'error': '参数无效'}), 400
+    text, file_size = _read_txt_chunk(real_path, offset, size)
+    return jsonify({
+        'text': text,
+        'offset': offset,
+        'size': len(text.encode('utf-8')),
+        'total_size': file_size,
+        'has_more': (offset + size) < file_size
+    })
+
 
 @app.route('/admin/records/<int:record_id>/delete', methods=['POST'])
 @login_required
@@ -6653,6 +7286,7 @@ def admin_settings():
         elif action == 'defaults':
             max_files = request.form.get('default_max_files', str(DEFAULT_MAX_FILES))
             max_size = request.form.get('default_max_size', str(DEFAULT_MAX_FILE_SIZE_GB))
+            upload_batch = request.form.get('upload_batch_limit', '30')
 
             try:
                 _mf = float(max_files)
@@ -6660,16 +7294,20 @@ def admin_settings():
                     raise ValueError('默认最大文件数必须为整数')
                 max_files = int(_mf)
                 max_size = round(float(max_size), 6)
+                upload_batch = int(upload_batch)
+                if upload_batch < 5 or upload_batch > 100:
+                    raise ValueError('单次上传个数必须在 5-100 之间')
                 if max_files < 0:
                     raise ValueError('默认最大文件数不能为负数')
                 if max_size < 0.01 or max_size > 64:
                     raise ValueError('单文件上限必须在 0.01-64 GB 之间')
             except ValueError as e:
-                flash(str(e) if '必须' in str(e) else '默认值格式错误')
+                flash(str(e) if '必须' in str(e) or '必须在' in str(e) else '默认值格式错误')
                 return redirect(url_for('admin_settings'))
 
             set_setting('max_files', str(max_files))
             set_setting('max_file_size_gb', str(max_size))
+            set_setting('upload_batch_limit', str(upload_batch))
             flash('设置已保存')
 
         elif action == 'site_title':
@@ -6956,6 +7594,7 @@ def admin_settings():
     defaults = {
         'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
+        'upload_batch_limit': get_setting('upload_batch_limit', '30'),
         'site_title': get_setting('site_title', '文件收集器'),
         'login_tip': get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
         'collect_footer_text': get_setting('collect_footer_text', ''),

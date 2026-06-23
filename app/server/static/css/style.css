@@ -368,7 +368,7 @@ a:active { opacity: .6; }
 .card-compact { margin-bottom: 10px; }
 .card-compact .card-header { padding: 10px 14px; }
 .card-compact .card-header h3 { font-size: 0.88rem; }
-.card-compact .card-body { padding: 12px 14px; }
+.card-compact .card-body { padding: 11px 14px; }
 .card-compact .form-group { margin-bottom: 10px; }
 .card-compact .form-label { font-size: 0.75rem; margin-bottom: 4px; }
 .card-compact .form-hint { font-size: 0.68rem; margin-top: 2px; }

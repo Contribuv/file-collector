@@ -4,13 +4,17 @@
         "items": [
             {
                 "type": "tips",
-                "helpText": "<strong>欢迎使用文件收集器</strong><br><br>创建收集链接，分享给他人即可接收文件。<br><br>点击下一步继续。"
+                "helpText": "<strong>欢迎使用文件收集器</strong><br><br>基于 Flask + SQLite 的多用户文件收集与分享系统。<br><br>【核心功能】<br>• 创建收集链接，分享给他人即可接收文件<br>• 大文件 TUS 断点续传上传，网络中断不丢进度<br>• Office（Word/Excel/PPT）在线预览，无需下载<br>• 图片、PDF、视频、文本等多格式预览<br>• 多用户体系（管理员/普通用户，邀请码注册）<br>• 通行证保护 + 有效期控制<br>• 数据库一键备份与恢复<br>• 支持 x86 / ARM 平台<br><br>点击下一步设置管理员账号和端口。"
             }
         ]
     },
     {
         "stepTitle": "管理员与端口",
         "items": [
+            {
+                "type": "tips",
+                "helpText": "请设置管理员账号和监听端口。<br><br>管理员账号用于登录后台，创建收集链接、管理用户。<br>监听端口默认为 5557，如有冲突可自定义（需未被占用）。"
+            },
             {
                 "type": "text",
                 "field": "wizard_admin_user",

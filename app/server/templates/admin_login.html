@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="auth-page">
-  <div class="auth-card">
+  <div class="auth-card{% if not no_permission %} auth-split{% endif %}">
     {% if no_permission %}
     <div class="auth-no-perm">
       <div class="auth-no-perm-icon">!</div>
@@ -14,38 +14,46 @@
       <p class="auth-no-perm-sub">管理后台仅对管理员开放，请联系管理员获取权限</p>
     </div>
     <div style="text-align:center; margin-bottom:20px;">
-      <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary">退出登录</a>
+      <a href="{{ url_for('admin_logout') }}" class="btn btn-outline-danger">退出登录</a>
     </div>
     {% else %}
-    <div class="auth-logo">
-      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+    <div class="auth-brand">
+      <div class="auth-logo">
+        <img src="{{ url_for('static', filename='img/logo_192.png') }}" alt="">
+      </div>
+      <h1>{{ config_title|default('文件收集器') }}</h1>
+      <p class="auth-subtitle">登录以继续使用</p>
     </div>
-    <h1>{{ config_title|default('文件收集器') }}</h1>
-    <p class="auth-subtitle">登录以继续使用</p>
+    <div class="auth-form">
+      <form method="POST" action="{{ url_for('admin_login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group">
+          <label class="form-label" for="username">用户名</label>
+          <input type="text" id="username" name="username" class="form-input" placeholder="请输入用户名" required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">密码</label>
+          <div class="password-field">
+            <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码" required>
+            <button type="button" class="password-toggle" id="pwdToggle" title="显示密码" aria-label="显示密码">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">登录</button>
+      </form>
 
-    <form method="POST" action="{{ url_for('admin_login') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="form-group">
-        <label class="form-label" for="username">用户名</label>
-        <input type="text" id="username" name="username" class="form-input" placeholder="请输入用户名" required autofocus>
+      <div class="auth-extra">
+        <a href="{{ url_for('forgot_password') }}">忘记密码？</a>
+        {% if allow_registration %}
+        &nbsp;|&nbsp;<a href="{{ url_for('register') }}">立即注册</a>
+        {% endif %}
       </div>
-      <div class="form-group">
-        <label class="form-label" for="password">密码</label>
-        <input type="password" id="password" name="password" class="form-input" placeholder="请输入密码" required>
-      </div>
-      <button type="submit" class="btn btn-primary btn-block">登录</button>
-    </form>
 
-    <div class="auth-extra">
-      <a href="{{ url_for('forgot_password') }}">忘记密码？</a>
-      {% if allow_registration %}
-      &nbsp;|&nbsp;<a href="{{ url_for('register') }}">立即注册</a>
+      {% if login_tip %}
+      <div class="auth-tip">{{ login_tip }}</div>
       {% endif %}
     </div>
-
-    {% if login_tip %}
-    <div class="auth-tip">{{ login_tip }}</div>
-    {% endif %}
     {% endif %}
   </div>
 </div>
@@ -53,15 +61,6 @@
 
 {% block styles %}
 <style>
-.auth-logo { text-align: center; margin-bottom: 20px; }
-.auth-logo img { width: 48px; height: 48px; border-radius: 10px; }
-.auth-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
-.auth-subtitle { color: #86868b; margin-bottom: 28px; }
-.auth-extra {
-  margin-top: 18px; text-align: center; font-size: .85rem; color: #86868b;
-}
-.auth-extra a { color: var(--c-primary); font-weight: 500; }
-.auth-extra a:hover { text-decoration: underline; }
 .auth-tip {
   background: #fef9f0; border: 1px solid #f5e6c8; color: #8b6914;
   padding: 10px 14px; border-radius: 8px; margin-top: 16px; font-size: .85rem;
@@ -79,4 +78,39 @@
 </style>
 {% endblock %}
 
-{% block scripts %}{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  /* 密码可见性切换 */
+  var pwd = document.getElementById('password');
+  var btn = document.getElementById('pwdToggle');
+  if (pwd && btn) {
+    var eyeOpen = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var eyeClosed = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    btn.addEventListener('click', function(){
+      if (pwd.type === 'password') {
+        pwd.type = 'text';
+        btn.innerHTML = eyeClosed;
+        btn.setAttribute('aria-label', '隐藏密码');
+        btn.setAttribute('title', '隐藏密码');
+      } else {
+        pwd.type = 'password';
+        btn.innerHTML = eyeOpen;
+        btn.setAttribute('aria-label', '显示密码');
+        btn.setAttribute('title', '显示密码');
+      }
+    });
+  }
+
+  /* 登录按钮 loading */
+  var form = document.querySelector('.auth-card form');
+  var loginBtn = document.getElementById('loginBtn');
+  if (form && loginBtn) {
+    form.addEventListener('submit', function(){
+      loginBtn.classList.add('btn-loading');
+      loginBtn.textContent = '登录中...';
+    });
+  }
+})();
+</script>
+{% endblock %}

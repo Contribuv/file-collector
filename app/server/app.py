@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.21"
+VERSION = "2.2.24"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2074,7 +2074,7 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-    csp = "default-src 'self' blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com blob:; worker-src 'self' blob:"
+    csp = "default-src 'self' blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://github.com blob:; worker-src 'self' blob:"
     response.headers['Content-Security-Policy'] = csp
     return response
 
@@ -4893,6 +4893,7 @@ def admin_login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['is_admin'] = user['is_admin'] == 1
+            session['nickname'] = (user.get('nickname') or '').strip()
             session.permanent = True
             
             # 更新最后登录时间
@@ -5275,6 +5276,9 @@ def user_settings():
                 conn.execute(updates_sql, updates_params)
                 conn.commit()
                 conn.close()
+                
+                if new_nickname and not new_pass:
+                    session['nickname'] = new_nickname
                 
                 if new_pass:
                     flash('密码修改成功，请重新登录')
@@ -6620,6 +6624,8 @@ def admin_settings():
                 conn2.execute(updates_sql, updates_params)
                 conn2.commit()
                 conn2.close()
+                if new_nickname and session.get('user_id'):
+                    session['nickname'] = new_nickname
                 if new_pass:
                     if len(new_pass) < 8:
                         flash('新密码至少8位，且需包含字母和数字')

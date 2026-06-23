@@ -269,29 +269,77 @@ body {
 
 /* ---------- Dropzone ---------- */
 .cp-drop {
-  border: 1px dashed #c8ccd4;
-  border-radius: 4px;
-  padding: 50px 14px;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 36px 20px;
   text-align: center;
   cursor: pointer;
-  background: #fafbfc;
-  transition: all .12s;
+  background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+  position: relative;
+  overflow: hidden;
 }
-.cp-drop:active, .cp-drop.dragover {
+/* 柔光光晕 */
+.cp-drop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(59,130,246,.04) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+.cp-drop:hover::before { opacity: 1; }
+.cp-drop:hover {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+}
+.cp-drop:active,
+.cp-drop.dragover {
   border-color: #3b82f6;
   background: #eff6ff;
+  transform: scale(1.01);
+  box-shadow: 0 0 0 4px rgba(59,130,246,.08);
 }
-.cp-drop h3 { font-size: .84rem; font-weight: 500; color: #1a1d28; margin-bottom: 1px; }
-.cp-drop p { font-size: .72rem; color: #6b7280; }
+.cp-drop.dragover::before { opacity: 1; }
+
+/* 上传图标 — 桌面端也显示 */
+.cp-drop-icon {
+  display: flex !important;
+  justify-content: center;
+  margin-bottom: 10px;
+  color: #93c5fd;
+  transition: color .25s, transform .25s;
+}
+.cp-drop:hover .cp-drop-icon { color: #3b82f6; }
+.cp-drop.dragover .cp-drop-icon { color: #2563eb; transform: translateY(-2px); }
+.cp-drop-icon svg { width: 40px; height: 40px; }
+
+.cp-drop h3 {
+  font-size: .9rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 2px;
+}
+.cp-drop .cp-drop-text {
+  display: none;
+  font-size: .88rem;
+  font-weight: 500;
+  color: #374151;
+}
+.cp-drop p { font-size: .72rem; color: #9ca3af; }
 
 /* 配额已满：禁用状态 */
 .cp-drop.full {
   background: #f3f4f6;
-  border-color: #d1d5db;
+  border-color: #e5e7eb;
   cursor: not-allowed;
   opacity: 0.55;
   pointer-events: none;
+  transform: none !important;
+  box-shadow: none !important;
 }
+.cp-drop.full::before { display: none; }
 .cp-drop.full h3,
 .cp-drop.full .cp-drop-text,
 .cp-drop.full .cp-drop-icon { opacity: 0.4; }
@@ -309,13 +357,32 @@ body {
 .cp-drop.full h3 { display: none; }
 .cp-drop.full .cp-drop-text { display: none !important; }
 
-/* 单次批量上传提示：始终显示 */
+/* 单次批量上传提示 */
 .cp-drop-batch-hint {
-  font-size: .78rem;
+  font-size: .75rem;
   color: #b0b0b0;
-  margin-bottom: 4px;
+  margin-top: 6px;
+  margin-bottom: 0;
 }
 .cp-drop.full .cp-drop-batch-hint { display: none; }
+
+/* 断点续传提示行 */
+.cp-hint-resume {
+  margin-top: 8px;
+  font-size: .72rem;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+.cp-hint-resume .cp-hint-toggle {
+  color: #3b82f6;
+  cursor: pointer;
+  margin-left: 2px;
+  user-select: none;
+  font-weight: 500;
+}
+.cp-hint-resume .cp-hint-full { display: none; }
+.cp-hint-resume.expanded .cp-hint-full { display: inline; }
+.cp-hint-resume.expanded .cp-hint-short { display: none; }
 
 /* ---------- File Pending List ---------- */
 .cp-files { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
@@ -667,13 +734,17 @@ body {
   .cp-card-head { padding: 8px 12px; }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-body { /*padding: 10px 12px; */}
-  .cp-drop { padding: 14px 12px; }
+  .cp-drop {
+    padding: 22px 14px;
+    border-radius: 10px;
+  }
+  .cp-drop-icon svg { width: 32px; height: 32px; }
   .cp-drop h3 { display: none; }
+  .cp-drop-text { display: block !important; font-size: .84rem; font-weight: 500; color: #374151; }
   .cp-drop .cp-hint-resume .cp-hint-full,
   .cp-drop .cp-hint-resume .cp-hint-toggle { display: none; }
-  .cp-drop .cp-drop-icon { display: flex !important; justify-content: center; margin-bottom: 6px; color: #3b82f6; }
-  .cp-drop .cp-drop-text { display: block !important; font-size: .84rem; font-weight: 500; color: #1a1d28; }
-  .cp-drop .cp-hint-resume { margin-top: 4px; }
+  .cp-drop .cp-hint-resume .cp-hint-short { display: block; }
+  .cp-drop .cp-hint-resume { margin-top: 6px; }
   .cp-actions { flex-direction: column; align-items: stretch; }
   .cp-btns { width: 100%; }
   .cp-btns .cp-btn { flex: 1; }

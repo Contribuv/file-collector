@@ -219,13 +219,13 @@
 /* 移动端 */
 @media (max-width: 640px) {
   .links-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px;
+    gap: 8px;
+    padding: 14px 16px;
+    flex-wrap: wrap;
   }
-  .links-header-left { width: 100%; }
-  .links-header-title { font-size: 1.05rem; }
+  .links-header-title { font-size: 1rem; }
+  .links-header-stats { font-size: .7rem; }
+  .links-header .btn { font-size: .78rem; padding: 6px 12px; white-space: nowrap; }
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
@@ -403,12 +403,22 @@
 /* modal 移动端规则已提取到全局 style.css */
 </style>
 
+<div id="pv" style="display:none;"
+     data-current-user-name="{{ session.get('nickname') or session.get('username', '用户') }}"
+     data-upload-logs-url="{{ url_for('admin_link_upload_logs', link_id='LID_PLACEHOLDER') }}"
+     data-public-url="{{ public_url }}"
+     data-toggle-link-url="{{ url_for('toggle_link', link_id='_ID_') }}"
+     data-delete-link-url="{{ url_for('delete_link', link_id='_ID_') }}"
+     data-edit-link-url="{{ url_for('admin_link_form', link_id='_ID_') }}"></div>
+
 <script>
+var _pd = document.getElementById('pv').dataset;
 var _lpBtn = null;
-var adminLinkUploadLogsUrl = {{ url_for('admin_link_upload_logs', link_id='LID_PLACEHOLDER')|tojson }};
+var _currentUserName = _pd.currentUserName;
+var adminLinkUploadLogsUrl = _pd.uploadLogsUrl;
 
 function getBaseUrl() {
-  var pu = {{ public_url|tojson }};
+  var pu = _pd.publicUrl;
   if (pu) {
     pu = String(pu).trim();
     if (pu && !pu.endsWith('/')) pu += '/';
@@ -522,9 +532,9 @@ function showLinkPopover(btn) {
   var svgToggle = isActive ? svgToggleStop : svgTogglePlay;
   var svgDelete = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
-  var toggleUrl = '{{ url_for("toggle_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
-  var deleteUrl = '{{ url_for("delete_link", link_id="_ID_") }}'.replace('_ID_', d.linkId);
-  var editUrl = '{{ url_for("admin_link_form", link_id="_ID_") }}'.replace('_ID_', d.linkId);
+  var toggleUrl = _pd.toggleLinkUrl.replace('_ID_', d.linkId);
+  var deleteUrl = _pd.deleteLinkUrl.replace('_ID_', d.linkId);
+  var editUrl = _pd.editLinkUrl.replace('_ID_', d.linkId);
 
   // 第一排：分享 & 收集
   var collectId = d.collectSlug || d.linkId;
@@ -567,13 +577,13 @@ function popoverCopyLink(type, linkId, passcode, isLegacy) {
     alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
     return;
   }
-  var actionHint = type === 'collect' ? '请通过此链接上传文件' : '请通过此链接提取文件';
+  var actionHint = type === 'collect' ? (_currentUserName + '，邀请您通过此链接上传文件') : (_currentUserName + '，通过此链接给您分享了文件');
   var text;
   if (passcode) {
     var passLabel = type === 'collect' ? '上传通行证' : '分享通行证';
-    text = url + '\n' + passLabel + '：' + passcode + '\n' + actionHint;
+    text = actionHint + '\n' + passLabel + '：' + passcode + '\n' + url;
   } else {
-    text = url + '\n\n' + actionHint;
+    text = actionHint + '\n' + url;
   }
   copyToClipboard(text);
 }

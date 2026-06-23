@@ -26,7 +26,8 @@
             <label class="form-label" for="description">描述</label>
             <textarea id="description" name="description" class="form-input"
                       style="min-height:80px;resize:vertical;"
-                      placeholder="轻量化运行，不支持富文本">{{ (edit_link['description'] or '')|e if edit_link else '' }}</textarea>
+                      placeholder="例：请上传项目A资料，和相关说明文档。">{{ (edit_link['description'] or '')|e if edit_link else '' }}</textarea>
+            <div class="form-hint">轻量化运行，支持HTML标签。</div>
           </div>
 
           <div class="form-group">
@@ -198,8 +199,8 @@
               <label class="form-label" for="share_description">分享页描述</label>
               <textarea id="share_description" name="share_description" class="form-input"
                         style="min-height:60px;resize:vertical;"
-                        placeholder="分享页独立描述，留空则使用上方收集描述">{{ (edit_link.get('share_description') or '')|e if edit_link else '' }}</textarea>
-              <div class="form-hint">仅显示在分享页，为空时自动使用收集页描述</div>
+                        placeholder="留空则使用上方收集描述。例：这是项目A资料，请下载。">{{ (edit_link.get('share_description') or '')|e if edit_link else '' }}</textarea>
+              <div class="form-hint">轻量化运行，支持HTML标签。仅显示在分享页，为空时自动使用收集页描述。</div>
             </div>
 
             <div class="form-group">

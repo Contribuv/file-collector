@@ -38,6 +38,14 @@ else
     export UPLOAD_BASE="/tmp/file-collector/uploads"
     export DATA_DIR="/tmp/file-collector/data"
 fi
+mkdir -p "$DATA_DIR" 2>/dev/null || true
+
+# 调试日志迁到共享数据目录（与 install.log / upgrade.log 同目录）
+DEBUG_LOG="${DATA_DIR}/debug.log"
+# 超过 512KB 则只保留尾部 256KB，防止无限增长
+if [ -f "$DEBUG_LOG" ] && [ "$(stat -c%s "$DEBUG_LOG" 2>/dev/null || echo 0)" -gt 524288 ]; then
+    tail -c 262144 "$DEBUG_LOG" > "${DEBUG_LOG}.tmp" 2>/dev/null && mv "${DEBUG_LOG}.tmp" "$DEBUG_LOG"
+fi
 
 # Gunicorn 日志迁到共享数据目录
 LOG_FILE="${DATA_DIR}/gunicorn.log"

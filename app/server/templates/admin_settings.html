@@ -319,6 +319,29 @@
         </div>
       </div>
 
+      <!-- Bug 反馈 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>反馈与建议</h3></div>
+        <div class="card-body">
+          <div class="feedback-section">
+            <div class="feedback-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.8" width="22" height="22">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="16" x2="15" y2="16"/>
+              </svg>
+            </div>
+            <div class="feedback-body">
+              <div class="feedback-title">有问题或建议？</div>
+              <div class="feedback-desc">前往 GitHub Issues 提交反馈，可查看自己和他人的反馈与建议。需有 GitHub 账号。</div>
+              <button id="feedback-btn" class="btn btn-outline btn-sm" onclick="openFeedback()" style="margin-top:8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:4px;vertical-align:-2px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                提交反馈到 GitHub Issues
+              </button>
+              <div id="feedback-error" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     <!-- 系统信息 -->
     <div class="card card-compact card-full-width">
       <div class="card-header"><h3>系统信息</h3></div>
@@ -442,6 +465,48 @@
   gap: 8px;
   align-items: center;
   margin-top: 8px;
+}
+
+/* 反馈卡片 */
+.feedback-section {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.feedback-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.feedback-body {
+  flex: 1;
+  min-width: 0;
+}
+.feedback-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-bottom: 3px;
+}
+.feedback-desc {
+  font-size: 0.73rem;
+  color: var(--c-text-soft);
+  line-height: 1.55;
+}
+.feedback-error-msg {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 0.75rem;
+  line-height: 1.55;
 }
 </style>
 
@@ -671,6 +736,36 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }).catch(function() {});
   }
+
+  // Bug 反馈：检测 GitHub 连通性后跳转
+  var FEEDBACK_URL = 'https://github.com/Contribuv/file-collector/issues';
+  window.openFeedback = function() {
+    var btn = document.getElementById('feedback-btn');
+    var errorDiv = document.getElementById('feedback-error');
+    if (!btn || !errorDiv) return;
+
+    btn.disabled = true;
+    btn.textContent = '检测网络中...';
+    errorDiv.style.display = 'none';
+
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 6000);
+
+    fetch('https://github.com', { mode: 'no-cors', signal: controller.signal })
+      .then(function() {
+        clearTimeout(timeoutId);
+        window.open(FEEDBACK_URL, '_blank', 'noopener,noreferrer');
+      })
+      .catch(function() {
+        clearTimeout(timeoutId);
+        errorDiv.style.display = 'block';
+        errorDiv.innerHTML = '<div class="feedback-error-msg">GitHub 网络不可达，<br>您的网络不支持访问 GitHub，请检查网络后重试。</div>';
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '提交反馈到 GitHub Issues';
+      });
+  };
 
   // 单文件上限 MB/GB 切换
   (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();

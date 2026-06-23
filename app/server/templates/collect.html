@@ -119,17 +119,17 @@
         选择文件
       </h2>
       {% if uploader_name %}<span id="uploader-badge" class="cp-badge cp-badge-uploader" onclick="logoutUploader()" title="点击退出身份">上传者：{{ uploader_name|e }}</span>{% endif %}
-      {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">有效期 {{ passcode_ttl_display }}</span>{% endif %}
+      {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body">
       <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <div class="cp-drop-icon" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+        <div class="cp-drop-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
         <h3>点击选择文件或拖拽到此处</h3>
-        <span class="cp-drop-text" style="display:none;">点击或拖拽上传文件</span>
+        <span class="cp-drop-text">点击或拖拽上传文件</span>
         <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
         <p class="cp-drop-batch-hint">单次最多上传 {{ upload_batch_limit }} 个文件</p>
         <p class="cp-hint-resume">

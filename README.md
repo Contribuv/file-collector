@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.24-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.25-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,12 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.2.25
+- 🎯 share 页新增 **一键下载所有** 按钮：全局选择栏右侧，点击打包全部文件为 zip 下载
+- 🖼️ 新增 13 个文件类型 **SVG 彩色图标**：archive/audio/code/config/excel/file/image/pdf/ppt/txt/video/word
+- 📄 新增 **txt_reader 纯文本在线预览**阅读器，支持行号显示
+- 🎨 collect/share 页 `cp-meta-grid` **彩色卡片视觉优化**：每种卡片带彩色图标左边框
 
 ### v2.2.24
 - 🎫 设置页新增 **GitHub Issues 反馈卡片**：前端检测连通性，网络不可达时友好提示

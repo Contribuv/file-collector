@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.26"
+VERSION = "2.2.27"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -3561,6 +3561,97 @@ def share_download_all(link_id):
 
     except Exception as e:
         logger.error(f"share一键下载打包失败: {e}")
+        try:
+            tmp.close()
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '文件打包失败，请稍后重试'}), 500
+
+
+@app.route('/share/<link_id>/download_group', methods=['POST'])
+def share_download_group(link_id):
+    """分享页按上传者打包下载"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_share_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    data = request.get_json(silent=True) or {}
+    uploader_name = (data.get('uploader_name') or '').strip()
+    if not uploader_name:
+        conn.close()
+        return jsonify({'success': False, 'message': '缺少上传者名称'}), 400
+
+    records = conn.execute(
+        "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at ASC",
+        (link_id_db, uploader_name)
+    ).fetchall()
+    conn.close()
+
+    if not records:
+        return jsonify({'success': False, 'message': '该上传者没有文件'}), 404
+
+    import io, zipfile, tempfile
+
+    safe_name = re.sub(r'[<>:"/\\|?*]', '_', uploader_name)
+    zip_filename = f'{safe_name}.zip'
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    tmp_path = tmp.name
+    try:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            used_names = {}
+            for rec in records:
+                stored_path = rec['stored_path']
+                if not os.path.isfile(stored_path):
+                    continue
+                original_name = rec['original_name']
+                arcname = f"{safe_name}/{original_name}"
+                if arcname in used_names:
+                    used_names[arcname] += 1
+                    base, ext = os.path.splitext(arcname)
+                    arcname = f"{base}({used_names[arcname]}){ext}"
+                else:
+                    used_names[arcname] = 0
+                compress_type = _get_zip_compress_type(original_name)
+                zf.write(stored_path, arcname=arcname, compress_type=compress_type)
+
+        tmp.close()
+
+        @after_this_request
+        def cleanup_download_group_zip(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            tmp_path,
+            download_name=zip_filename,
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"share按上传者打包失败: {e}")
         try:
             tmp.close()
             os.unlink(tmp_path)

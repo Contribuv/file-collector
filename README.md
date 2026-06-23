@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.26-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.27-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -307,29 +307,35 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.2.27
+- collect/share 页分页 UI 统一为 admin card-footer 浅灰底风格（分隔线 + 背景 + iOS 风格按钮）
+- 每页显示条数 localStorage 持久化，刷新/重进页面保持自定义设置
+- Jinja2 模板变量从 `<script>` 移入 `<script type="application/json">`，消除 117 个 JS 解析器误报错误
+- 清理 share.css / collect.css 4 个 CSS 空规则集
+
 ### v2.2.26
-- 🎯 share 页操作列（表头+按钮）统一右对齐
+- share 页操作列（表头+按钮）统一右对齐
 
 ### v2.2.25
-- 🎯 share 页新增 **一键下载所有** 按钮：全局选择栏右侧，点击打包全部文件为 zip 下载
-- 🖼️ 新增 13 个文件类型 **SVG 彩色图标**：archive/audio/code/config/excel/file/image/pdf/ppt/txt/video/word
-- 📄 新增 **txt_reader 纯文本在线预览**阅读器，支持行号显示
+- share 页新增 **一键下载所有** 按钮：全局选择栏右侧，点击打包全部文件为 zip 下载
+- 新增 13 个文件类型 **SVG 彩色图标**：archive/audio/code/config/excel/file/image/pdf/ppt/txt/video/word
+- 新增 **txt_reader 纯文本在线预览**阅读器，支持行号显示
 
 ### v2.2.24
-- 🎫 设置页新增 **GitHub Issues 反馈卡片**：前端检测连通性，网络不可达时友好提示
-- 🔧 CSP `connect-src` 白名单增加 `github.com`
-- 📱 `admin_links` 移动端 header 改为横向排版，更紧凑
-- 📝 创建/编辑链接页描述 placeholder 优化：
+- 设置页新增 **GitHub Issues 反馈卡片**：前端检测连通性，网络不可达时友好提示
+- CSP `connect-src` 白名单增加 `github.com`
+- `admin_links` 移动端 header 改为横向排版，更紧凑
+- 创建/编辑链接页描述 placeholder 优化：
   - 收集描述：`例：请上传项目A资料，和相关说明文档。`
   - 分享页描述：`留空则使用上方收集描述。例：这是项目A资料，请下载。`
   - 描述表单下方新增「轻量化运行，支持HTML标签」提示文字
-- 📋 复制链接文案全面升级：
+- 复制链接文案全面升级：
   - 复制文本引入**管理员昵称/账号动态显示**（优先昵称，回退账号，兜底"用户"）
   - 格式优化：描述语前置 → 密码 → 链接后置，微信分享阅读体验更自然
   - 收集页：`{昵称}，邀请您通过此链接上传文件`
   - 分享页：`{昵称}，通过此链接给您分享了文件`
-- 🧹 `admin_links` 脚本重构：Jinja2 模板变量全部移入 `data-*` 属性，消除 IDE lint 误报（8 个错误归零）
-- 🔐 登录时自动加载昵称到 session，修改昵称同步更新 session，确保复制文案始终最新
+- `admin_links` 脚本重构：Jinja2 模板变量全部移入 `data-*` 属性，消除 IDE lint 误报（8 个错误归零）
+- 登录时自动加载昵称到 session，修改昵称同步更新 session，确保复制文案始终最新
 
 ### v2.2.23
 - 登录/注册/忘记密码/重置密码页 UI 全面优化

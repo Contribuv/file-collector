@@ -27,6 +27,18 @@
   color: #555; user-select: none;
 }
 .cp-sel-top-bar .cp-sel-check { width: 15px; height: 15px; }
+/* 全选底栏（桌面表格下方 + 移动端卡片下方） */
+.cp-sel-bottom-bar {
+  align-items: center; padding: 6px 10px;
+  margin-top: 4px; border-top: 1px solid #eef0f2;
+}
+.cp-sel-bottom-spacer { width: 36px; flex-shrink: 0; }
+.cp-sel-bottom-bar label {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: .82rem; font-weight: 500;
+  color: #555; user-select: none;
+}
+.cp-sel-bottom-bar .cp-sel-check { width: 15px; height: 15px; }
 /* 分组模式-全局全选顶栏 */
 .cp-global-sel-bar {
   display: flex; align-items: center; justify-content: space-between;

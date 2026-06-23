@@ -156,12 +156,22 @@
 </div>
 
 {# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+{%- set _js_cfg = {
+    'linkId': link_id,
+    'requireUploader': require_uploader,
+    'dlToken': dl_token,
+    'dlExpires': dl_token_expires,
+    'verified': verified,
+    'publicUrl': public_url or ''
+} %}
 
+<script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
 <script>
-const linkId = {{ link_id|tojson }};
-var requireUploader = {{ require_uploader|tojson }};
-var _dlToken = {{ dl_token|tojson }};
-var _dlExpires = {{ dl_token_expires|tojson }};
+var _C = JSON.parse(document.getElementById('js-config').textContent);
+const linkId = _C.linkId;
+var requireUploader = _C.requireUploader;
+var _dlToken = _C.dlToken;
+var _dlExpires = _C.dlExpires;
 
 function getTokenParam() {
   if (!_dlToken) return '';
@@ -266,6 +276,7 @@ var _allRecords = [];
 var _uploaderList = [];  // [{name, files}]
 var _cacheRequireUploader = false;  // 缓存是否需要上传者分组，供 resize 重渲染
 var _cachePagination = null;  // 缓存分页信息，供 resize 重渲染
+var _currentPerPage = parseInt(localStorage.getItem('cp_pp_share_' + linkId)) || 20;
 
 /* 图片灯箱导航：可预览图片列表 & 当前索引 */
 var _previewableImages = [];
@@ -316,11 +327,16 @@ function renderFlatList(records, isMobile) {
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
 
   var selSuffix = '_f';
+  var hasRecords = records && records.length > 0;
   var html = '';
+  // 全局全选 + 全部打包下载（无论是否开启上传者）
+  if (hasRecords) {
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
+  }
 
   if (isMobile) {
     // ---- 仅移动端卡片列表 ----
-    html = '<div class="cp-card-list">' +
+    html += '<div class="cp-card-list">' +
       '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked,\'m' + selSuffix + '\')"> <span>全选 / 取消全选</span></label></div>';
     for (var j = 0; j < records.length; j++) {
       var rm = records[j];
@@ -332,7 +348,7 @@ function renderFlatList(records, isMobile) {
     html += '</div>';
   } else {
     // ---- 仅桌面表格 ----
-    html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+    html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
       '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>' +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
@@ -348,6 +364,10 @@ function renderFlatList(records, isMobile) {
     html += '</tbody></table></div>';
   }
 
+  // 底部全选（桌面端 + 移动端通用）
+  if (hasRecords) {
+    html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选 / 取消全选</span></label></div>';
+  }
   html += renderPagination();
   return html;
 }
@@ -360,7 +380,7 @@ function buildAccordionGroups(isMobile) {
 
   var html = '';
   // 全局全选（跨分组）
-  html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选所有文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
+  html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
   for (var gi = 0; gi < _uploaderList.length; gi++) {
     var group = _uploaderList[gi];
     var files = group.files;
@@ -373,6 +393,7 @@ function buildAccordionGroups(isMobile) {
     html += '<svg class="cp-accordion-usericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     html += '<span class="cp-accordion-name">' + escapeHtml(group.name) + '</span>';
     html += '<span class="cp-accordion-count">' + files.length + ' 个文件</span>';
+    html += '<button class="cp-accordion-dl-btn" onclick="downloadGroup(event,' + gi + ')" title="打包下载此上传者的所有文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11Z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg></button>';
     html += '</div>';
 
     html += '<div class="cp-accordion-body">';
@@ -411,6 +432,8 @@ function buildAccordionGroups(isMobile) {
     html += '</div>'; // .cp-accordion-group
   }
 
+  // 底部全选（桌面端 + 移动端通用）
+  html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选 / 取消全选</span></label></div>';
   html += renderPagination();
   return html;
 }
@@ -425,7 +448,8 @@ function renderPagination() {
   if (!_cachePagination) return '';
   var p = _cachePagination;
   if (p.totalPages <= 1 && p.totalUploaded <= 20) return '';
-  var html = '<div class="pagination">';
+  var html = '<div class="cp-pagination-footer">';
+  html += '<div class="pagination">';
   if (p.page > 1) {
     html += '<button class="page-btn" onclick="loadHistory(' + (p.page - 1) + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
   } else {
@@ -438,7 +462,22 @@ function renderPagination() {
     html += '<button class="page-btn" disabled>下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
   }
   html += '</div>';
+  html += '<div class="cp-per-page-wrap"><label class="cp-per-page-label">每页显示</label>';
+  html += '<input type="number" class="cp-per-page-input" value="' + _currentPerPage + '" min="5" max="100" step="1" onchange="onPerPageChange(this)">';
+  html += '<span class="cp-per-page-unit">条</span></div>';
+  html += '</div>';
   return html;
+}
+
+function onPerPageChange(input) {
+  var raw = input.value.trim();
+  var val = parseInt(raw);
+  if (!raw || isNaN(val) || val < 5) { val = 5; input.value = 5; }
+  if (val > 100) { val = 100; input.value = 100; }
+  if (val === _currentPerPage) return;
+  _currentPerPage = val;
+  localStorage.setItem('cp_pp_share_' + linkId, val);
+  loadHistory(1);
 }
 
 /* ==== Entry ==== */
@@ -458,7 +497,7 @@ function renderHistory() {
 async function loadHistory(page) {
   page = page || 1;
   try {
-    var res = await fetch('/share/' + linkId + '/records?page=' + page + '&per_page=20');
+    var res = await fetch('/share/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
     var data = await res.json();
     var wrap = document.getElementById('history-wrap');
     document.getElementById('file-total-count').textContent = '共 ' + (data.total_uploaded || 0) + ' 个文件';
@@ -684,7 +723,7 @@ function downloadFile(recordId) {
 
 (function() {
   try {
-    var publicUrl = {{ public_url|tojson }};
+    var publicUrl = _C.publicUrl;
     if (!publicUrl) publicUrl = window.location.origin;
     if (!publicUrl.endsWith('/')) publicUrl += '/';
     console.log('分享链接：' + (publicUrl + 'share/' + linkId));
@@ -749,7 +788,7 @@ function downloadFile(recordId) {
   }
 })();
 
-{% if verified %}loadHistory();{% endif %}
+if (_C.verified) { loadHistory(); }
 
 /* ========== 批量选择 ========== */
 var _selectedIds = new Set();
@@ -767,15 +806,18 @@ function toggleSelectAll(checked, cls) {
 function toggleSelect(recordId, checked) {
   if (checked) { _selectedIds.add(recordId); } else { _selectedIds.delete(recordId); }
   updateBatchBar();
-  // 同步全局全选 checkbox
+  // 同步全局全选 checkbox（顶部 bar + 底部 bar）
   var glCb = document.querySelector('.cp-sel-check-global-bar');
-  if (glCb) {
+  var bar2Cb = document.querySelector('.cp-sel-check-bar2');
+  if (glCb || bar2Cb) {
     var allCbs = document.querySelectorAll('.cp-sel-check');
     var totalFiles = 0;
     for (var i = 0; i < allCbs.length; i++) {
-      if (!allCbs[i].closest('thead') && !allCbs[i].classList.contains('cp-sel-check-global-bar') && !allCbs[i].classList.contains('cp-sel-check-bar')) totalFiles++;
+      if (!allCbs[i].closest('thead') && !allCbs[i].classList.contains('cp-sel-check-global-bar') && !allCbs[i].classList.contains('cp-sel-check-bar') && !allCbs[i].classList.contains('cp-sel-check-bar2')) totalFiles++;
     }
-    glCb.checked = totalFiles > 0 && _selectedIds.size >= totalFiles;
+    var allChecked = totalFiles > 0 && _selectedIds.size >= totalFiles;
+    if (glCb) glCb.checked = allChecked;
+    if (bar2Cb) bar2Cb.checked = allChecked;
   }
 }
 
@@ -806,12 +848,12 @@ function clearSelection() {
 function toggleSelectAllGlobal(checked) {
   _selectedIds.clear();
   document.querySelectorAll('.cp-sel-check').forEach(function(c) {
-    if (c.closest('thead') || c.classList.contains('cp-sel-check-global-bar') || c.classList.contains('cp-sel-check-bar')) return;
+    if (c.closest('thead') || c.classList.contains('cp-sel-check-global-bar') || c.classList.contains('cp-sel-check-bar') || c.classList.contains('cp-sel-check-bar2')) return;
     c.checked = checked;
     if (checked) _selectedIds.add(parseInt(c.value, 10));
   });
-  // 同步所有表头和顶栏 checkbox
-  document.querySelectorAll('thead .cp-sel-check, .cp-sel-check-bar, .cp-sel-check-global-bar').forEach(function(c) { c.checked = checked; });
+  // 同步所有表头、顶栏、底栏 checkbox
+  document.querySelectorAll('thead .cp-sel-check, .cp-sel-check-bar, .cp-sel-check-global-bar, .cp-sel-check-bar2').forEach(function(c) { c.checked = checked; });
   updateBatchBar();
 }
 
@@ -872,6 +914,65 @@ async function downloadAll(evt) {
     showToast('网络错误，请重试');
     btn.disabled = false;
     btn.innerHTML = originalHTML;
+  }
+}
+
+async function downloadGroup(evt, gi) {
+  evt.stopPropagation();
+  var btn = evt.currentTarget;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  var group = _uploaderList[gi];
+  if (!group) { btn.disabled = false; return; }
+  var uploaderName = group.name;
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/share/' + linkId + '/download_group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ uploader_name: uploaderName })
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      btn.disabled = false;
+      return;
+    }
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = uploaderName + '.zip';
+    if (disposition) {
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    var blob = await res.blob();
+    if (overlay) overlay.style.display = 'none';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 500);
+    showToast('开始下载 ' + uploaderName + ' 的文件');
+    btn.disabled = false;
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误，请重试');
+    btn.disabled = false;
   }
 }
 

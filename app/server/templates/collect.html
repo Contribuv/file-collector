@@ -149,14 +149,14 @@
           <button class="cp-btn cp-btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
         </div>
       </div>
-
-      <div class="cp-files" id="file-list"></div>
-
+      <div class="cp-limit-info" id="limit-info" style="display:none"></div>
       <div class="cp-progress" id="progress-wrap">
         <div class="cp-progress-label" id="progress-text"></div>
         <div class="cp-bar"><div class="cp-bar-fill" id="progress-bar"></div></div>
         <div class="cp-speed" id="speed-text"></div>
       </div>
+
+      <div class="cp-files" id="file-list"></div>
 
       <div class="cp-result" id="upload-result"></div>
     </div>
@@ -240,13 +240,34 @@
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/tus.min.js') }}" defer></script>
+
+{# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+{%- set _js_cfg = {
+    'linkId': link_id,
+    'allowDelete': allow_delete,
+    'allowPreviewDownload': allow_preview_download,
+    'requireUploader': require_uploader,
+    'dlToken': dl_token,
+    'dlExpires': dl_token_expires,
+    'maxFiles': max_files,
+    'batchLimit': upload_batch_limit,
+    'maxFileSizeGb': max_file_size_gb,
+    'blockedExtensions': blocked_extensions,
+    'verified': verified,
+    'publicUrl': public_url or '',
+    'csrfToken': csrf_token,
+    'tusEndpoint': url_for('tus_create', link_id=link_id)
+} %}
+
+<script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
 <script>
-const linkId = {{ link_id|tojson }};
-{% if allow_delete %}var allowDelete = true;{% else %}var allowDelete = false;{% endif %}
-{% if allow_preview_download %}var allowPreviewDownload = true;{% else %}var allowPreviewDownload = false;{% endif %}
-var requireUploader = {{ require_uploader|tojson }};
-var _dlToken = {{ dl_token|tojson }};
-var _dlExpires = {{ dl_token_expires|tojson }};
+var _C = JSON.parse(document.getElementById('js-config').textContent);
+const linkId = _C.linkId;
+var allowDelete = _C.allowDelete;
+var allowPreviewDownload = _C.allowPreviewDownload;
+var requireUploader = _C.requireUploader;
+var _dlToken = _C.dlToken;
+var _dlExpires = _C.dlExpires;
 
 function getTokenParam() {
   if (!_dlToken) return '';
@@ -426,10 +447,10 @@ async function logoutUploader() {
 
 /* ========== File Selection ========== */
 let selectedFiles = [];
-const MAX_FILES = {{ max_files }};
-const BATCH_LIMIT = {{ upload_batch_limit }};
-const MAX_FILE_SIZE = Math.round({{ max_file_size_gb }} * 1024 * 1024 * 1024);
-const BLOCKED_EXTENSIONS = {{ blocked_extensions|tojson }};
+const MAX_FILES = _C.maxFiles;
+const BATCH_LIMIT = _C.batchLimit;
+const MAX_FILE_SIZE = Math.round(_C.maxFileSizeGb * 1024 * 1024 * 1024);
+const BLOCKED_EXTENSIONS = _C.blockedExtensions;
 let totalUploaded = 0;
 /* 批量上传总进度跟踪：累计已完成字节数 & 所有文件总大小 */
 var _batchTotalBytesCompleted = 0;
@@ -479,30 +500,44 @@ function updateRemainingDisplay() {
     if (valEl) valEl.style.color = '#059669';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
   }
-  // 配额用尽时禁用上传区域
-  setUploadAreaDisabled(totalUploaded >= MAX_FILES);
+  // 配额用尽时禁用上传区域（含已选中未上传的）
+  setUploadAreaDisabled((totalUploaded + selectedFiles.length) >= MAX_FILES);
 }
 
 function handleFiles(files) {
   var totalUsed = totalUploaded + selectedFiles.length;
+  // 已达总数上限
   if (MAX_FILES > 0 && totalUsed >= MAX_FILES) { showToast('已上传满 ' + MAX_FILES + ' 个文件'); document.getElementById('file-input').value = ''; return; }
-  // 单次批量上限检查
+  // 已达单次批量上限
   if (selectedFiles.length >= BATCH_LIMIT) { showToast('单次最多选择 ' + BATCH_LIMIT + ' 个文件'); document.getElementById('file-input').value = ''; return; }
+  // 计算实际可添加数量
   var batchRemaining = BATCH_LIMIT - selectedFiles.length;
-  var effLimit = Math.min(MAX_FILES > 0 ? MAX_FILES - totalUsed : files.length, batchRemaining);
+  var totalRemaining = MAX_FILES > 0 ? MAX_FILES - totalUsed : batchRemaining;
+  var effLimit = Math.min(totalRemaining, batchRemaining);
+  // 预检提示：持久显示在上传框内，直到点击开始上传
+  var limitInfo = document.getElementById('limit-info');
   if (files.length > effLimit) {
-    showToast('单次最多上传 ' + BATCH_LIMIT + ' 个，已自动截断（当前已选 ' + selectedFiles.length + ' 个）');
+    if (totalRemaining < batchRemaining) {
+      limitInfo.textContent = '已选中 ' + effLimit + ' 个，已从 ' + files.length + ' 个中自动截取前 ' + effLimit + ' 个';
+    } else {
+      limitInfo.textContent = '单次最多 ' + BATCH_LIMIT + ' 个，已从 ' + files.length + ' 个中自动截取前 ' + effLimit + ' 个';
+    }
+    limitInfo.style.display = 'block';
+  } else {
+    limitInfo.style.display = 'none';
   }
-  var canAdd = MAX_FILES > 0 ? MAX_FILES - totalUsed : files.length;
+  var added = 0;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
-    if (MAX_FILES > 0 && selectedFiles.length >= canAdd) { showToast('还可添加 ' + canAdd + ' 个'); break; }
+    if (added >= effLimit) break;
     if (isBlockedFile(f.name)) { showToast(f.name + ' 文件类型被禁止上传'); continue; }
     if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制'); continue; }
     if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
     selectedFiles.push(f);
+    added++;
   }
   renderFileList();
+  updateRemainingDisplay();
   document.getElementById('file-input').value = '';
 }
 
@@ -524,7 +559,7 @@ function renderFileList() {
 }
 
 function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
-function clearFiles() { selectedFiles = []; renderFileList(); }
+function clearFiles() { selectedFiles = []; document.getElementById('limit-info').style.display = 'none'; renderFileList(); }
 
 /* 单个文件上传成功后：从待传列表中移除，刷新已上传历史 */
 function _onFileSuccess(f) {
@@ -652,7 +687,7 @@ function stopSmoothProgress() {
 
 /* Tus 上传核心函数：使用 tus-js-client 实现断点续传 */
 function uploadFileWithTus(file, fileIdx, totalFiles) {
-  var csrfToken = '{{ csrf_token }}';
+  var csrfToken = _C.csrfToken;
   var progressText = document.getElementById('progress-text');
   var progressBar = document.getElementById('progress-bar');
   var speedText = document.getElementById('speed-text');
@@ -664,7 +699,7 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
 
     function startUpload(skipResume) {
       var options = {
-        endpoint: {{ url_for('tus_create', link_id=link_id)|tojson }},
+        endpoint: _C.tusEndpoint,
         chunkSize: TUS_CHUNK_SIZE,
         retryDelays: [0, 1000, 3000, 5000, 10000, 15000, 30000],
         metadata: {
@@ -784,14 +819,15 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
 
 async function startUpload() {
   if (selectedFiles.length === 0) return;
-  {% if require_uploader %}
-  // 检查是否已填写上传者身份（浮窗是否已关闭）
-  var modal = document.getElementById('uploader-modal');
-  if (modal && modal.style.display !== 'none') {
-    showToast('请先填写您的身份');
-    return;
+  document.getElementById('limit-info').style.display = 'none';
+  if (_C.requireUploader) {
+    // 检查是否已填写上传者身份（浮窗是否已关闭）
+    var modal = document.getElementById('uploader-modal');
+    if (modal && modal.style.display !== 'none') {
+      showToast('请先填写您的身份');
+      return;
+    }
   }
-  {% endif %}
   // 上传前配额预检：重新获取最新的已上传数量，在上传文件数据前就拦截超限
   if (MAX_FILES > 0) {
     try {
@@ -976,6 +1012,7 @@ function getFileIcon(ext) {
 
 /* ========== History ========== */
 var _cacheData = null;  // 缓存最近一次 records 数据，resize 时无需重新请求
+var _currentPerPage = parseInt(localStorage.getItem('cp_pp_collect_' + linkId)) || 20;
 
 function isMobileView() { return window.innerWidth <= 768; }
 
@@ -1005,7 +1042,7 @@ function renderHistoryFromData(data) {
   if (mobile) {
     // --- 移动端：仅构建卡片列表 ---
     html = '<div class="cp-card-list">' +
-      (canDelete ? '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选 / 取消全选</span></label></div>' : '');
+      (canDelete ? '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>' : '');
 
     for (var j = 0; j < data.records.length; j++) {
       var r = data.records[j];
@@ -1034,6 +1071,9 @@ function renderHistoryFromData(data) {
       html += '</div>';
     }
     html += '</div>';
+    if (canDelete) {
+      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>';
+    }
   } else {
     // --- 桌面端：仅构建表格 ---
     html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
@@ -1073,12 +1113,16 @@ function renderHistoryFromData(data) {
       html += '</tr>';
     }
     html += '</tbody></table></div>';
+    if (canDelete) {
+      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>';
+    }
   }
 
   // 分页控件
   var totalPages = data.total_pages || 1;
   var curPage = data.page || 1;
   if (totalPages > 1 || data.total_uploaded > 20) {
+    html += '<div class="cp-pagination-footer">';
     html += '<div class="pagination">';
     if (curPage > 1) {
       html += '<button class="page-btn" onclick="loadHistory(' + (curPage - 1) + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
@@ -1092,6 +1136,10 @@ function renderHistoryFromData(data) {
       html += '<button class="page-btn" disabled>下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
     }
     html += '</div>';
+    html += '<div class="cp-per-page-wrap"><label class="cp-per-page-label">每页显示</label>';
+    html += '<input type="number" class="cp-per-page-input" value="' + _currentPerPage + '" min="5" max="100" step="1" onchange="onPerPageChange(this)">';
+    html += '<span class="cp-per-page-unit">条</span></div>';
+    html += '</div>';
   }
 
   wrap.innerHTML = html;
@@ -1101,7 +1149,7 @@ function renderHistoryFromData(data) {
 async function loadHistory(page) {
   page = page || 1;
   try {
-    var res = await fetch('/collect/' + linkId + '/records?page=' + page + '&per_page=20');
+    var res = await fetch('/collect/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
     var data = await res.json();
     totalUploaded = data.total_uploaded || 0;
     _cacheData = data;
@@ -1118,6 +1166,17 @@ async function loadHistory(page) {
     var wrap = document.getElementById('history-wrap');
     if (wrap) wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
   }
+}
+
+function onPerPageChange(input) {
+  var raw = input.value.trim();
+  var val = parseInt(raw);
+  if (!raw || isNaN(val) || val < 5) { val = 5; input.value = 5; }
+  if (val > 100) { val = 100; input.value = 100; }
+  if (val === _currentPerPage) return;
+  _currentPerPage = val;
+  localStorage.setItem('cp_pp_collect_' + linkId, val);
+  loadHistory(1);
 }
 
 async function deleteRecord(recordId) {
@@ -1143,19 +1202,23 @@ function toggleSelect(id, checked) {
   if (selAll) selAll.checked = totalRows > 0 && _selectedIds.size >= totalRows;
   var barCb = document.querySelector('.cp-sel-check-bar');
   if (barCb) barCb.checked = totalRows > 0 && _selectedIds.size >= totalRows;
+  var bar2Cb = document.querySelector('.cp-sel-check-bar2');
+  if (bar2Cb) bar2Cb.checked = totalRows > 0 && _selectedIds.size >= totalRows;
 }
 function toggleSelectAll(checked) {
   _selectedIds.clear();
   document.querySelectorAll('.cp-sel-check').forEach(function(c) {
-    if (c.closest('thead') || c.classList.contains('cp-sel-check-bar')) return;
+    if (c.closest('thead') || c.classList.contains('cp-sel-check-bar') || c.classList.contains('cp-sel-check-bar2')) return;
     c.checked = checked;
     if (checked) _selectedIds.add(parseInt(c.value, 10));
   });
-  // 同步表头 + 顶栏 checkbox
+  // 同步表头 + 顶栏 + 底栏 checkbox
   var hdrCb = document.querySelector('thead .cp-sel-check');
   if (hdrCb) hdrCb.checked = checked;
   var barCb = document.querySelector('.cp-sel-check-bar');
   if (barCb) barCb.checked = checked;
+  var bar2Cb = document.querySelector('.cp-sel-check-bar2');
+  if (bar2Cb) bar2Cb.checked = checked;
   updateBatchBar();
 }
 function updateBatchBar() {
@@ -1171,6 +1234,8 @@ function clearSelection() {
   document.querySelectorAll('.cp-sel-check').forEach(function(c) { c.checked = false; });
   var barCb = document.querySelector('.cp-sel-check-bar');
   if (barCb) barCb.checked = false;
+  var bar2Cb = document.querySelector('.cp-sel-check-bar2');
+  if (bar2Cb) bar2Cb.checked = false;
   updateBatchBar();
 }
 async function batchDelete() {
@@ -1341,7 +1406,7 @@ function previewFile(recordId, fileName) {
 
 (function() {
   try {
-    var publicUrl = {{ public_url|tojson }};
+    var publicUrl = _C.publicUrl;
     if (!publicUrl) publicUrl = window.location.origin;
     if (!publicUrl.endsWith('/')) publicUrl += '/';
     console.log('收集链接：' + (publicUrl + 'collect/' + linkId));
@@ -1422,7 +1487,7 @@ if (_dlToken) {
   }
 })();
 
-{% if verified %}loadHistory();{% endif %}
+if (_C.verified) { loadHistory(); }
 // 屏幕旋转/窗口缩放时自动切换表格/卡片视图
 var _resizeDebounce = null;
 window.addEventListener('resize', function(){

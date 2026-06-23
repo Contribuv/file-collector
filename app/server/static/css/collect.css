@@ -462,6 +462,12 @@ body {
 .cp-count { font-size: .75rem; color: #6b7280; }
 .cp-btns { display: flex; gap: 5px; }
 
+.cp-limit-info {
+  padding: 8px 12px; margin-bottom: 8px;
+  border-radius: 6px; font-size: .8rem; color: #92400e;
+  background: #fffbeb; border: 1px solid #fcd34d;
+}
+
 /* ---------- Buttons ---------- */
 .cp-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -589,7 +595,7 @@ body {
 .cp-table tbody tr:hover { background: #fafbfc; }
 
 .cp-th-icon { width: 36px; text-align: center; }
-.cp-th-name { /* flex */ }
+.cp-th-name { flex: 1; }
 .cp-th-size { width: 80px; }
 .cp-th-time { width: 150px; }
 .cp-th-uploader { width: 100px; }
@@ -677,10 +683,56 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 14px 0 4px;
   flex-wrap: wrap;
-  margin-bottom: 15px;
 }
+
+/* 仿 admin card-footer：浅灰背景 + 顶部分隔线 */
+.cp-pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin: 12px 0 15px;
+  border-top: .5px solid var(--c-border, #e5e7eb);
+  background: #fafbfc;
+  border-radius: 0 0 8px 8px;
+}
+
+/* 每页条数 —— 仿 admin 内联风格 */
+.cp-per-page-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cp-per-page-label {
+  font-size: .8rem;
+  color: #999;
+}
+.cp-per-page-input {
+  width: 56px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: .85rem;
+  text-align: center;
+  font-family: inherit;
+  color: #374151;
+  background: #fff;
+  transition: border-color .15s;
+}
+.cp-per-page-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+.cp-per-page-unit {
+  font-size: .78rem;
+  color: #aaa;
+}
+
+/* 分页按钮 —— 仿 iOS btn-sm 风格 */
 .pagination .page-info {
   font-size: .78rem;
   color: #9ca3af;
@@ -691,32 +743,32 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 7px 18px;
-  font-size: .8rem;
+  padding: 5px 14px;
+  font-size: .78rem;
   font-weight: 500;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
-  color: #374151;
+  font-family: inherit;
   cursor: pointer;
-  transition: all .18s;
-  user-select: none;
+  color: var(--c-text, #374151);
+  background: #f0f0f5;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  -webkit-tap-highlight-color: transparent;
+  transition: all .15s;
+  user-select: none;
 }
 .pagination .page-btn:hover:not(:disabled) {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
-  box-shadow: 0 1px 4px rgba(37,99,235,.12);
+  background: #e4e4ec;
+  color: var(--c-primary, #2563eb);
 }
 .pagination .page-btn:active:not(:disabled) {
-  transform: scale(.97);
+  transform: scale(.96);
+  opacity: .8;
 }
 .pagination .page-btn:disabled {
-  opacity: .35;
+  opacity: .4;
   cursor: default;
-  box-shadow: none;
+  pointer-events: none;
 }
 .pagination .page-btn svg {
   width: 14px; height: 14px;
@@ -821,8 +873,12 @@ body {
   .cp-meta-tile-label { font-size: .62rem; }
   .cp-meta-tile-value { font-size: .82rem; }
 
-  .pagination .page-btn { padding: 6px 14px; font-size: .76rem; }
+  .pagination .page-btn { padding: 5px 12px; font-size: .76rem; }
   .pagination .page-info { font-size: .74rem; }
+  .cp-pagination-footer { gap: 10px; padding: 10px 12px; }
+  .cp-per-page-input { width: 48px; font-size: .8rem; }
+  .cp-per-page-label { font-size: .74rem; }
+  .cp-per-page-unit { font-size: .72rem; }
 }
 
 @media (max-width: 480px) {
@@ -839,7 +895,7 @@ body {
   .cp-card-head { padding: 8px 12px; }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
-  .cp-card-body { /*padding: 10px 12px; */}
+  .cp-card-body { padding: 10px 12px; }
   .cp-drop {
     padding: 22px 14px;
     border-radius: 10px;
@@ -859,9 +915,13 @@ body {
   .cp-table tbody td { padding: 6px 8px; }
   .cp-modal-card { max-width: 92%; padding: 24px 18px 20px; }
 
-  .pagination { gap: 6px; padding: 10px 0 2px; }
-  .pagination .page-btn { padding: 5px 10px; font-size: .73rem; border-radius: 6px; }
+  .pagination { gap: 6px; }
+  .pagination .page-btn { padding: 5px 10px; font-size: .73rem; }
   .pagination .page-info { font-size: .7rem; padding: 0 4px; }
+  .cp-pagination-footer { gap: 6px; padding: 8px 8px; }
+  .cp-per-page-input { width: 44px; padding: 4px 6px; font-size: .76rem; }
+  .cp-per-page-label { font-size: .7rem; }
+  .cp-per-page-unit { font-size: .68rem; }
 }
 
 

@@ -308,6 +308,7 @@ GET /api/status
 ## 📋 更新日志
 
 ### v2.2.27
+- 设置页新增独立「免责声明」卡片，置于页面顶部
 - collect/share 页分页 UI 统一为 admin card-footer 浅灰底风格（分隔线 + 背景 + iOS 风格按钮）
 - 每页显示条数 localStorage 持久化，刷新/重进页面保持自定义设置
 - Jinja2 模板变量从 `<script>` 移入 `<script type="application/json">`，消除 117 个 JS 解析器误报错误

@@ -13,8 +13,22 @@
           <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
         </div>
         <div class="links-header-right">
-          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary">＋ 创建收集链接</a>
-          <a href="{{ url_for('admin_link_batch') }}" class="btn btn-sm btn-primary">＋ 批量创建</a>
+          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary btn-create" id="btn-create">＋ 创建收集链接</a>
+          <a href="{{ url_for('admin_link_batch') }}" class="btn btn-sm btn-primary btn-batch-create" id="btn-batch-create">＋ 批量创建</a>
+          {% if creators %}
+          <select id="creator-filter" class="links-filter-select" onchange="applyFilter()">
+            <option value="" {% if not creator_filter %}selected{% endif %}>全部创建人</option>
+            {% for creator in creators %}
+            <option value="{{ creator['id'] }}" {% if creator_filter == creator['id']|string %}selected{% endif %}>
+              {{ creator['nickname'] or creator['username'] }}
+            </option>
+            {% endfor %}
+          </select>
+          {% endif %}
+          <button class="btn btn-sm btn-outline btn-batch-toggle" onclick="toggleBatchMode()" title="批量操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            批量操作
+          </button>
         </div>
       </div>
       <div class="table-wrap">
@@ -22,17 +36,20 @@
         <table class="admin-table admin-links-table">
           <thead>
             <tr>
+              <th class="col-sel col-sel-hide"><input type="checkbox" class="sel-check sel-check-all" onchange="toggleSelectAll(this.checked)"></th>
               <th class="col-title">收集名称</th>
               <th class="col-share">分享</th>
               <th class="col-hide-mobile col-limit">限制</th>
               <th class="col-status">状态</th>
+              <th class="col-hide-mobile col-creator">创建人</th>
               <th class="col-hide-mobile col-time">创建</th>
               <th class="col-act">操作</th>
             </tr>
           </thead>
           <tbody>
             {% for link in links %}
-            <tr>
+            <tr data-link-id="{{ link['id'] }}" data-link-title="{{ link['title']|e }}">
+              <td class="col-sel col-sel-hide"><input type="checkbox" class="sel-check sel-check-row" value="{{ link['id'] }}"></td>
               <td class="col-title">{{ link['title'] }}</td>
               <td class="col-share">
                 {% if link['share_enabled'] and link['status'] == 'active' %}
@@ -77,6 +94,7 @@
                 </span>
                 {% endif %}
               </td>
+              <td class="col-hide-mobile col-creator" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['creator_name'] or '未知用户' }}</td>
               <td class="col-hide-mobile col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
               <td class="col-act">
                 {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
@@ -167,6 +185,38 @@
     </div>
   </div>
 </div>
+
+{# --- 批量删除确认模态框 --- #}
+<div class="modal-overlay" id="batch-delete-modal" style="display:none;">
+  <div class="modal-content" style="max-width:420px;">
+    <div class="modal-header">
+      <h3 style="color:#dc2626;display:flex;align-items:center;gap:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <path d="M12 9v4"/>
+          <path d="M12 17h.01"/>
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        </svg>
+        批量删除确认
+      </h3>
+    </div>
+    <div class="modal-body">
+      <p id="batch-delete-text" style="margin:0 0 12px;line-height:1.6;font-weight:500;">确定要删除选中的链接吗？</p>
+      <p style="margin:0;line-height:1.6;color:#666;font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。</p>
+      <div id="batch-delete-list" style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:6px;max-height:120px;overflow-y:auto;font-size:.82rem;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeBatchDeleteModal()">取消</button>
+      <button class="btn btn-sm btn-danger" id="batch-delete-btn" onclick="executeBatchDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+{# --- 批量操作栏 --- #}
+<div class="batch-bar" id="batch-bar" style="display:none;">
+  <span class="batch-info" id="batch-info">已选择 0 个链接</span>
+  <button class="btn btn-sm btn-danger" onclick="showBatchDeleteModal()">批量删除</button>
+  <button class="btn btn-sm btn-outline" onclick="clearSelection()">取消选择</button>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -181,6 +231,32 @@
   padding: 20px 24px;
   border-bottom: 1px solid var(--c-border, #e8ecf1);
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.links-header::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: rgba(59,130,246,.06);
+  top: -100px;
+  right: -80px;
+  pointer-events: none;
+}
+
+.links-header::after {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(139,92,246,.05);
+  bottom: -50px;
+  left: -40px;
+  pointer-events: none;
 }
 
 .links-header-left {
@@ -210,6 +286,52 @@
   gap: 8px;
 }
 
+.links-header-right .btn-create { order: 1; }
+.links-header-right .btn-batch-create { order: 2; }
+.links-header-right .links-filter-select { order: 0; }
+.links-header-right .btn-batch-toggle { order: 0; }
+
+/* 筛选下拉框 */
+.links-filter-select {
+  padding: 5px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: .82rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* 批量操作按钮 */
+.btn-batch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 勾选列 */
+.col-sel { width: 36px; text-align: center; }
+.col-sel-hide { display: none; }
+.sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; }
+
+/* 批量操作栏 */
+.batch-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e4e6eb;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 200;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.batch-info { font-size: .85rem; font-weight: 500; color: #1a1d28; }
+
 /* 更多按钮 */
 /* .btn-more-link 已统一为全局 .btn-more */
 
@@ -220,6 +342,7 @@
 .admin-links-table .col-title { width: auto; min-width: 0; }
 .admin-links-table .col-share { white-space: nowrap; width: 1px; }
 .admin-links-table .col-status { white-space: nowrap; text-align: left; width: 1px; }
+.admin-links-table .col-creator { white-space: nowrap; width: 1px; }
 .admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
 .admin-links-table th.col-act { padding-right: 26px; }
 .admin-links-table th { font-weight: 600; color: var(--c-text-soft, #6b7280); }
@@ -227,14 +350,42 @@
 /* 移动端 */
 @media (max-width: 640px) {
   .links-header {
-    gap: 8px;
-    padding: 14px 16px;
     flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
   }
-  .links-header-title { font-size: 1rem; }
-  .links-header-stats { font-size: .7rem; }
-  .links-header-right { gap: 6px; }
-  .links-header-right .btn { font-size: .76rem; padding: 5px 10px; white-space: nowrap; }
+  .links-header-left {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .links-header-title { 
+    font-size: .95rem; 
+    margin: 0;
+  }
+  .links-header-stats { 
+    font-size: .68rem; 
+    color: #8896a4;
+  }
+  .links-header-right { 
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    align-items: center;
+  }
+  .links-header-right .btn { 
+    font-size: .74rem; 
+    padding: 5px 10px; 
+    white-space: nowrap;
+  }
+  .links-filter-select { 
+    font-size: .74rem; 
+    padding: 2px 8px;
+    height: 27px;
+  }
+  
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
@@ -244,6 +395,9 @@
   .col-share span svg, .col-status span svg { width: 11px; height: 11px; }
   .col-act { white-space: nowrap; text-align: right; width: 1px; }
   .admin-links-table th.col-act { padding-right: 22px; }
+  .batch-bar { gap: 8px; padding: 8px 12px; }
+  .batch-info { font-size: .78rem; }
+  .batch-bar .btn { font-size: .74rem; padding: 5px 10px; }
 }
 
 /* 浮窗遮罩 */
@@ -425,6 +579,156 @@ var _pd = document.getElementById('pv').dataset;
 var _lpBtn = null;
 var _currentUserName = _pd.currentUserName;
 var adminLinkUploadLogsUrl = _pd.uploadLogsUrl;
+var _isBatchMode = false;
+var _selectedIds = new Set();
+
+/* ==================== 筛选功能 ==================== */
+
+function applyFilter() {
+  var creatorFilter = document.getElementById('creator-filter');
+  if (creatorFilter) {
+    var creator = creatorFilter.value;
+    var url = new URL(window.location.href);
+    if (creator) {
+      url.searchParams.set('creator', creator);
+    } else {
+      url.searchParams.delete('creator');
+    }
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+  }
+}
+
+/* ==================== 批量操作 ==================== */
+
+function toggleBatchMode() {
+  _isBatchMode = !_isBatchMode;
+  var btn = document.querySelector('.btn-batch-toggle');
+  var selCols = document.querySelectorAll('.col-sel-hide');
+  var batchBar = document.getElementById('batch-bar');
+  
+  if (_isBatchMode) {
+    btn.classList.add('active');
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> 退出批量';
+    selCols.forEach(function(el) { 
+      if (el.tagName === 'TH') {
+        el.style.display = 'table-cell';
+      } else {
+        el.style.display = 'table-cell';
+      }
+    });
+    batchBar.style.display = 'flex';
+  } else {
+    btn.classList.remove('active');
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作';
+    selCols.forEach(function(el) { el.style.display = 'none'; });
+    batchBar.style.display = 'none';
+    clearSelection();
+  }
+}
+
+function toggleSelectAll(checked) {
+  var rowChecks = document.querySelectorAll('.sel-check-row');
+  rowChecks.forEach(function(cb) {
+    cb.checked = checked;
+    if (checked) {
+      _selectedIds.add(cb.value);
+    } else {
+      _selectedIds.delete(cb.value);
+    }
+  });
+  updateBatchInfo();
+}
+
+function updateBatchInfo() {
+  var info = document.getElementById('batch-info');
+  info.textContent = '已选择 ' + _selectedIds.size + ' 个链接';
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  var allChecks = document.querySelectorAll('.sel-check');
+  allChecks.forEach(function(cb) { cb.checked = false; });
+  updateBatchInfo();
+}
+
+// 行勾选事件监听
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('sel-check-row')) {
+    if (e.target.checked) {
+      _selectedIds.add(e.target.value);
+    } else {
+      _selectedIds.delete(e.target.value);
+    }
+    updateBatchInfo();
+    // 更新全选框状态
+    var rowChecks = document.querySelectorAll('.sel-check-row');
+    var allChecked = rowChecks.length > 0 && rowChecks.length === _selectedIds.size;
+    document.querySelector('.sel-check-all').checked = allChecked;
+  }
+});
+
+/* ==================== 批量删除 ==================== */
+
+function showBatchDeleteModal() {
+  if (_selectedIds.size === 0) {
+    showToast('请先选择要删除的链接');
+    return;
+  }
+  var modal = document.getElementById('batch-delete-modal');
+  var listEl = document.getElementById('batch-delete-list');
+  var textEl = document.getElementById('batch-delete-text');
+  
+  textEl.textContent = '确定要删除选中的 ' + _selectedIds.size + ' 个链接吗？';
+  
+  // 显示选中的链接名称列表
+  var names = [];
+  _selectedIds.forEach(function(id) {
+    var row = document.querySelector('tr[data-link-id="' + id + '"]');
+    if (row) {
+      names.push(row.getAttribute('data-link-title'));
+    }
+  });
+  listEl.innerHTML = names.map(function(n) { return '<div style="padding:2px 0;">• ' + escapeHtml(n) + '</div>'; }).join('');
+  
+  modal.style.display = 'flex';
+}
+
+function closeBatchDeleteModal() {
+  document.getElementById('batch-delete-modal').style.display = 'none';
+}
+
+function executeBatchDelete() {
+  var btn = document.getElementById('batch-delete-btn');
+  btn.disabled = true;
+  btn.textContent = '删除中...';
+  
+  var csrf = document.querySelector('input[name="csrf_token"]').value;
+  
+  fetch('/admin/links/batch_delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrf
+    },
+    body: 'link_ids=' + Array.from(_selectedIds).join(',')
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    closeBatchDeleteModal();
+    showToast(data.message || (data.success ? '删除成功' : '删除失败'));
+    if (data.success) {
+      window.location.reload();
+    }
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    showToast('网络错误');
+  });
+}
 
 function getBaseUrl() {
   var pu = _pd.publicUrl;

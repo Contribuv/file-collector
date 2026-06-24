@@ -123,18 +123,23 @@
       {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body">
-      <div class="cp-drop" id="dropzone" onclick="document.getElementById('file-input').click()">
-        <div class="cp-drop-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+      <div class="cp-drop" id="dropzone">
+        <div class="cp-drop-zone">
+          <svg class="cp-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
+          <div class="cp-drop-text-wrap">
+            <h3>拖拽文件到此处上传</h3>
+            <p>或点击选择文件</p>
+          </div>
         </div>
-        <h3>点击选择文件或拖拽到此处</h3>
-        <span class="cp-drop-text">点击或拖拽上传文件</span>
+        <div class="cp-drop-tags">
+          <span class="cp-drop-tag">支持断点续传</span>
+          <span class="cp-drop-tag">单次上限 {{ upload_batch_limit }} 个</span>
+        </div>
         <span class="cp-drop-compact-text">+ 继续添加文件</span>
         <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
         <p class="cp-hint-resume">
-          <span class="cp-hint-short">支持断点续传</span>
           <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
           <span class="cp-hint-toggle" onclick="var p=this.closest('.cp-hint-resume');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'收起 ▴':'展开 ▾';event.stopPropagation()">展开 ▾</span>
         </p>
@@ -144,16 +149,20 @@
       <div class="cp-actions" id="upload-actions" style="display:none">
         <span class="cp-count" id="upload-count">已选择 0 个文件</span>
         <div class="cp-btns">
-          <button class="cp-btn" onclick="clearFiles()">清空</button>
-          <button class="cp-btn cp-btn-primary" onclick="startUpload()" id="upload-btn">开始上传</button>
+          <button class="cp-btn" onclick="handleClearClick()">清空</button>
+          <button class="cp-btn cp-btn-primary" onclick="handleUploadClick()" id="upload-btn">开始上传</button>
+          <button class="cp-btn cp-btn-warning" onclick="toggleUploadPause()" id="pause-btn" style="display:none">暂停上传</button>
         </div>
       </div>
       <div class="cp-limit-info" id="limit-info" style="display:none"></div>
       <div class="cp-files" id="file-list"></div>
 
       <div class="cp-result" id="upload-result">
+        <button class="cp-btn cp-btn-danger cp-btn-sm cp-result-clear" id="result-clear-btn" style="display:none" onclick="clearResultList()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+          清除列表
+        </button>
         <div class="cp-result-inner" id="result-inner"></div>
-        <button class="cp-result-clear" id="result-clear-btn" style="display:none" onclick="clearResultList()">清除列表</button>
       </div>
     </div>
   </div>
@@ -167,10 +176,16 @@
       </h2>
       <span class="cp-file-count" id="file-total-count">上传 0 个文件</span>
       {% if allow_delete %}
-      <button class="cp-btn cp-btn-danger cp-btn-sm cp-del-all-btn" id="del-all-btn" onclick="deleteAllRecords()" title="清空所有已上传文件">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        清空文件
-      </button>
+      <div class="cp-card-actions">
+        <button class="cp-btn cp-btn-outline cp-btn-sm cp-batch-toggle" id="batch-toggle-btn" onclick="toggleBatchMode()" title="批量操作">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          批量操作
+        </button>
+        <button class="cp-btn cp-btn-danger cp-btn-sm cp-del-all-btn" id="del-all-btn" onclick="deleteAllRecords()" title="清空所有已上传文件">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          清空文件
+        </button>
+      </div>
       {% endif %}
     </div>
     <div class="cp-card-body cp-card-body--flush">
@@ -202,6 +217,26 @@
 <div class="cp-toast" id="toast"></div>
 
 {# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+
+{# ---------- 确认对话框 ---------- #}
+<div class="cp-modal-overlay" id="confirm-modal" style="display:none">
+  <div class="cp-modal-card">
+    <div class="cp-confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+        <path d="M10 11v6"></path>
+        <path d="M14 11v6"></path>
+      </svg>
+    </div>
+    <h3 class="cp-confirm-title" id="confirm-title">确认操作</h3>
+    <p class="cp-confirm-desc" id="confirm-desc">确定要执行此操作吗？</p>
+    <div class="cp-confirm-actions">
+      <button class="cp-btn cp-btn-outline cp-btn-sm" onclick="hideConfirmModal()">取消</button>
+      <button class="cp-btn cp-btn-danger cp-btn-sm" id="confirm-ok-btn" onclick="confirmModalOk()">确认</button>
+    </div>
+  </div>
+</div>
 
 {% if verified and require_uploader and not uploader_name %}
 {# ---------- Uploader Modal ---------- #}
@@ -302,6 +337,41 @@ function showToast(msg, d) {
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._timeout);
   t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
+}
+
+// 确认对话框相关变量
+var _confirmCallback = null;
+
+function showConfirmModal(title, desc, callback) {
+  var modal = document.getElementById('confirm-modal');
+  var titleEl = document.getElementById('confirm-title');
+  var descEl = document.getElementById('confirm-desc');
+  
+  if (titleEl) titleEl.textContent = title || '确认操作';
+  if (descEl) descEl.textContent = desc || '确定要执行此操作吗？';
+  
+  _confirmCallback = callback;
+  
+  if (modal) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function hideConfirmModal() {
+  var modal = document.getElementById('confirm-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  _confirmCallback = null;
+}
+
+function confirmModalOk() {
+  if (typeof _confirmCallback === 'function') {
+    _confirmCallback();
+  }
+  hideConfirmModal();
 }
 
 function escapeHtml(str) {
@@ -469,7 +539,16 @@ function isBlockedFile(name) {
 function setUploadAreaDisabled(disabled) {
   var dz = document.getElementById('dropzone');
   var fi = document.getElementById('file-input');
-  if (dz) dz.classList.toggle('full', disabled);
+  if (dz) {
+    dz.classList.toggle('full', disabled);
+    // 达到上传上限时显示灰色禁用状态，不隐藏上传区域
+    // 上传中时才隐藏上传区域
+    if (isUploading) {
+      dz.style.display = 'none';
+    } else {
+      dz.style.display = '';
+    }
+  }
   if (fi) fi.disabled = disabled;
 }
 
@@ -544,10 +623,33 @@ function renderFileList() {
   var list = document.getElementById('file-list');
   var actions = document.getElementById('upload-actions');
   var dz = document.getElementById('dropzone');
-  if (selectedFiles.length === 0) { list.innerHTML = ''; actions.style.display = 'none'; dz.classList.remove('compact'); updateRemainingDisplay(); return; }
+  
+  // 获取标题和副标题元素（安全检查）
+  var dropH3 = dz ? dz.querySelector('h3') : null;
+  var dropP = dz ? dz.querySelector('.cp-drop-text-wrap p') : null;
+  
+  if (selectedFiles.length === 0) {
+    list.innerHTML = ''; 
+    actions.style.display = 'none'; 
+    if (dz) {
+      dz.classList.remove('compact'); 
+      dz.style.display = ''; // 恢复显示
+      // 恢复原始文案
+      if (dropH3) dropH3.textContent = '拖拽文件到此处上传';
+      if (dropP) dropP.textContent = '或点击选择文件';
+    }
+    updateRemainingDisplay(); 
+    return; 
+  }
+  
   actions.style.display = 'flex';
-  var isFull = dz.classList.contains('full');
-  dz.classList.toggle('compact', !isFull);
+  // 上传中时保持上传区域隐藏
+  if (dz && !isUploading) {
+    dz.style.display = ''; // 确保显示
+    var isFull = dz.classList.contains('full');
+    dz.classList.toggle('compact', !isFull);
+  }
+  
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
   list.innerHTML = selectedFiles.map(function(f, i){
     var status = f._uploadStatus || '';
@@ -657,15 +759,99 @@ var dropzone = document.getElementById('dropzone');
 if (dropzone) {
   ['dragenter','dragover'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.add('dragover'); }); });
   ['dragleave','drop'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.remove('dragover'); }); });
-  dropzone.addEventListener('drop', function(e){ handleFiles(e.dataTransfer.files); });
+  dropzone.addEventListener('drop', function(e){ 
+    if (isUploading) return;
+    handleFiles(e.dataTransfer.files); 
+  });
+  dropzone.addEventListener('click', function(e){
+    if (isUploading) {
+      showToast('正在上传中，请等待完成');
+      return;
+    }
+    document.getElementById('file-input').click();
+  });
 }
 
 /* ========== Tus Upload (断点续传) ========== */
 const TUS_CHUNK_SIZE = 5 * 1024 * 1024;  // 5MB per PATCH
 let isUploadPaused = false;
+let isUploading = false;
 let failedChunkedFiles = [];
 let uploadStartTime = 0;
 let _activeTusUploads = [];  // 当前活动的 Tus Upload 实例（用于暂停/取消）
+
+function handleUploadClick() {
+  if (isUploading) {
+    // 正在上传中，不允许重复点击
+    if (isUploadPaused) {
+      // 如果已暂停，点击上传按钮等同于继续上传
+      toggleUploadPause();
+    }
+    // 如果未暂停，忽略点击
+    return;
+  }
+  startUpload();
+}
+
+function handleClearClick() {
+  if (isUploading) {
+    // 上传中：取消上传并清空
+    if (confirm('确定要取消上传并清空所有文件吗？已上传的分片将被丢弃。')) {
+      // 暂停上传
+      isUploadPaused = true;
+      // 取消所有活动上传
+      _activeTusUploads.forEach(function(upload) {
+        if (upload && typeof upload.abort === 'function') {
+          upload.abort();
+        }
+      });
+      _activeTusUploads = [];
+      // 清空文件列表
+      selectedFiles = [];
+      document.getElementById('limit-info').style.display = 'none';
+      renderFileList();
+      // 重置状态
+      isUploading = false;
+      var btn = document.getElementById('upload-btn'); btn.disabled = false; btn.textContent = '开始上传';
+      var pauseBtn = document.getElementById('pause-btn'); pauseBtn.style.display = 'none';
+      setUploadAreaDisabled(false);
+      showToast('上传已取消');
+    }
+  } else {
+    // 非上传中：直接清空列表
+    selectedFiles = [];
+    document.getElementById('limit-info').style.display = 'none';
+    renderFileList();
+  }
+}
+
+function toggleUploadPause() {
+  var btn = document.getElementById('pause-btn');
+  var uploadBtn = document.getElementById('upload-btn');
+  
+  if (isUploadPaused) {
+    // 继续上传
+    isUploadPaused = false;
+    btn.textContent = '暂停上传';
+    uploadBtn.textContent = '上传中...';
+    uploadBtn.disabled = true;
+    // 重新开始上传剩余文件
+    startUpload();
+  } else {
+    // 暂停上传
+    isUploadPaused = true;
+    btn.textContent = '继续上传';
+    uploadBtn.textContent = '已暂停';
+    uploadBtn.disabled = true;
+    // 取消所有活动的 Tus 上传
+    _activeTusUploads.forEach(function(upload) {
+      if (upload && typeof upload.abort === 'function') {
+        upload.abort();
+      }
+    });
+    _activeTusUploads = [];
+  }
+}
 
 /* ----- 速度跟踪（基于真实字节增量/真实时间间隔的滚动窗口）----- */
 /* 原算法把所有采样字节求和除以(末样本-首样本)时间，对突发式采样(TUS每5MB一报)
@@ -673,6 +859,8 @@ let _activeTusUploads = [];  // 当前活动的 Tus Upload 实例（用于暂停
 let _speedSamples = [];     // [{t, c}] t=时间戳 c=该时刻累计已传字节
 let _lastSpeedValue = 0;    // 最近一次计算的速度（无新样本时回退用）
 let _smoothSpeed = 0;       // EMA 平滑后用于显示的速度
+let _speedStartTime = 0;    // 当前文件上传开始时间（用于初始速度预估）
+let _speedStartBytes = 0;   // 当前文件上传开始时的字节数
 
 function recordSpeed(cumulativeBytes) {
   var now = Date.now();
@@ -682,7 +870,20 @@ function recordSpeed(cumulativeBytes) {
   while (_speedSamples.length > 1 && _speedSamples[1].t < cutoff) _speedSamples.shift();
 }
 function getSpeed() {
-  if (_speedSamples.length < 2) return _lastSpeedValue;
+  if (_speedSamples.length < 2) {
+    // 如果样本不足，尝试用全局时间计算初始速度
+    if (_speedStartTime > 0 && _speedStartBytes >= 0) {
+      var elapsed = (Date.now() - _speedStartTime) / 1000;
+      if (elapsed >= 0.5 && _speedSamples.length >= 1) {
+        var latest = _speedSamples[_speedSamples.length - 1];
+        var delta = latest.c - _speedStartBytes;
+        if (delta > 0) {
+          return delta / elapsed;
+        }
+      }
+    }
+    return _lastSpeedValue;
+  }
   var first = _speedSamples[0], last = _speedSamples[_speedSamples.length - 1];
   var elapsed = (last.t - first.t) / 1000;
   if (elapsed < 0.15) return _lastSpeedValue;       // 时间太短不计算，避免抖动
@@ -690,7 +891,20 @@ function getSpeed() {
   if (deltaBytes <= 0) return _lastSpeedValue;
   return _lastSpeedValue = deltaBytes / elapsed;
 }
-function resetSpeedTracker() { _speedSamples = []; _lastSpeedValue = 0; _smoothSpeed = 0; }
+function resetSpeedTracker() { 
+  _speedSamples = []; 
+  _lastSpeedValue = 0; 
+  _smoothSpeed = 0; 
+  _speedStartTime = Date.now();
+  _speedStartBytes = 0;
+}
+function resetSpeedTrackerForNewFile(startBytes) {
+  _speedSamples = []; 
+  _lastSpeedValue = 0; 
+  _smoothSpeed = 0; 
+  _speedStartTime = Date.now();
+  _speedStartBytes = startBytes || 0;
+}
 
 /* Tus 上传核心函数：使用 tus-js-client 实现断点续传 */
 function uploadFileWithTus(file, fileIdx, totalFiles) {
@@ -733,22 +947,25 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
         },
         onProgress: function(bytesUploaded, bytesTotal) {
           // 首次回调（尤其续传时）bytesUploaded 直接是已传偏移，不能当作"瞬间增量"记录速度
-          if (_lastBytesUploaded < 0) resetSpeedTracker();  // 新文件开始，清空跨文件残留样本
+          if (_lastBytesUploaded < 0) {
+            // 新文件开始，用当前已传字节作为起点初始化速度跟踪
+            resetSpeedTrackerForNewFile(bytesUploaded);
+          }
           _lastBytesUploaded = bytesUploaded;
           recordSpeed(bytesUploaded);   // 记录累计字节（getSpeed 用增量/耗时算）
           // 按当前文件的单文件进度更新对应文件的进度条
           var pct = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
           // EMA 平滑速度显示（仅用真实样本，不做预测）
           var rawSpeed = getSpeed();
-          if (rawSpeed > 0) {
-            // 使用文件独立的速度值
-            if (!file._smoothSpeed || file._smoothSpeed <= 0) {
-              file._smoothSpeed = rawSpeed;
-            } else {
-              file._smoothSpeed = file._smoothSpeed * 0.7 + rawSpeed * 0.3;
-            }
-            file._uploadSpeed = file._smoothSpeed;
+          // 更新速度显示（即使速度为0也要更新，保持显示一致性）
+          if (!file._smoothSpeed || file._smoothSpeed <= 0) {
+            // 初始化速度：如果有真实速度用真实速度，否则预估一个合理值
+            file._smoothSpeed = rawSpeed > 0 ? rawSpeed : (1024 * 1024); // 默认1MB/s
+          } else {
+            // 使用更平滑的系数
+            file._smoothSpeed = file._smoothSpeed * 0.85 + (rawSpeed > 0 ? rawSpeed : file._smoothSpeed) * 0.15;
           }
+          file._uploadSpeed = file._smoothSpeed;
           // 更新进度条和速度显示
           updateFileProgress(file, pct, file._uploadSpeed);
         },
@@ -858,7 +1075,12 @@ async function startUpload() {
     }
   }
   isUploadPaused = false;
+  isUploading = true;
   var btn = document.getElementById('upload-btn'); btn.disabled = true; btn.textContent = '上传中...';
+  var pauseBtn = document.getElementById('pause-btn'); pauseBtn.style.display = 'inline-block'; pauseBtn.textContent = '暂停上传';
+  
+  // 上传过程中禁用上传区域，防止用户添加新文件
+  setUploadAreaDisabled(true);
 
   var resultDiv = document.getElementById('upload-result');
   var resultInner = document.getElementById('result-inner');
@@ -927,22 +1149,26 @@ async function startUpload() {
         f._xhr = xhr;  // 将 xhr 对象关联到文件对象，便于后续取消
         xhr.upload.onprogress = function(e){
           if (!e.lengthComputable) return;
-          if (_lastLoaded < 0) { _lastLoaded = 0; resetSpeedTracker(); }
+          if (_lastLoaded < 0) { 
+            _lastLoaded = 0; 
+            // 新文件开始，用当前已传字节作为起点初始化速度跟踪
+            resetSpeedTrackerForNewFile(0);
+          }
           _lastLoaded = e.loaded;
           recordSpeed(e.loaded);                         // 记录累计字节
           // 按当前文件的单文件进度更新对应文件的进度条
           var pct = Math.round((e.loaded / e.total) * 100);
           // EMA 平滑速度显示
           var rawSpeed = getSpeed();
-          if (rawSpeed > 0) {
-            // 使用文件独立的速度值
-            if (!f._smoothSpeed || f._smoothSpeed <= 0) {
-              f._smoothSpeed = rawSpeed;
-            } else {
-              f._smoothSpeed = f._smoothSpeed * 0.7 + rawSpeed * 0.3;
-            }
-            f._uploadSpeed = f._smoothSpeed;
+          // 更新速度显示（即使速度为0也要更新，保持显示一致性）
+          if (!f._smoothSpeed || f._smoothSpeed <= 0) {
+            // 初始化速度：如果有真实速度用真实速度，否则预估一个合理值
+            f._smoothSpeed = rawSpeed > 0 ? rawSpeed : (1024 * 1024); // 默认1MB/s
+          } else {
+            // 使用更平滑的系数
+            f._smoothSpeed = f._smoothSpeed * 0.85 + (rawSpeed > 0 ? rawSpeed : f._smoothSpeed) * 0.15;
           }
+          f._uploadSpeed = f._smoothSpeed;
           // 更新进度条和速度显示
           updateFileProgress(f, pct, f._uploadSpeed);
         };
@@ -982,6 +1208,14 @@ async function startUpload() {
   renderRetrySummary(resultDiv);
   showResultClearBtn();
   btn.disabled = false; btn.textContent = '开始上传';
+  
+  // 隐藏暂停按钮
+  var pauseBtn = document.getElementById('pause-btn'); pauseBtn.style.display = 'none';
+  
+  // 上传完成后恢复上传区域
+  isUploading = false;
+  setUploadAreaDisabled(false);
+  
   // 清理失败的文件（保留成功上传的状态显示后再清空）
   setTimeout(function() {
     selectedFiles = [];
@@ -1069,22 +1303,31 @@ function renderHistoryFromData(data) {
   var wrap = document.getElementById('history-wrap');
   if (!wrap) return;
 
+  // 过滤掉 .part 断点文件（用于显示，不影响断点续传）
+  var displayRecords = [];
+  if (data.records && data.records.length > 0) {
+    displayRecords = data.records.filter(function(r) {
+      return !r.original_name.toLowerCase().endsWith('.part');
+    });
+  }
+
   // 没有文件时不渲染任何内容（包括全选栏）
-  if (!data.records || data.records.length === 0) {
+  if (!displayRecords || displayRecords.length === 0) {
     wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
     return;
   }
 
   var canDelete = allowDelete && (data.allow_delete === true);
   var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
+  var showBatch = canDelete && _isBatchMode;  // 只有开启批量模式且允许删除时才显示复选框
 
   // 每次渲染时重新构建可预览列表（图片、视频、音频）
   _previewableImages = [];
   var imgExtsNav = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsNav = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsNav = ['mp3','wav','flac','aac','m4a'];
-  for (var n = 0; n < data.records.length; n++) {
-    var rn = data.records[n];
+  for (var n = 0; n < displayRecords.length; n++) {
+    var rn = displayRecords[n];
     var extNav = rn.original_name.split('.').pop().toLowerCase();
     if (imgExtsNav.indexOf(extNav) >= 0 || vidExtsNav.indexOf(extNav) >= 0 || audExtsNav.indexOf(extNav) >= 0) {
       _previewableImages.push({id: rn.id, name: rn.original_name});
@@ -1096,16 +1339,19 @@ function renderHistoryFromData(data) {
 
   if (mobile) {
     // --- 移动端：仅构建卡片列表 ---
-    html = '<div class="cp-card-list">' +
-      (canDelete ? '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>' : '');
+    html = '<div class="cp-card-list">';
+    // 批量模式下显示顶部全选栏
+    if (showBatch) {
+      html += '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
+    }
 
-    for (var j = 0; j < data.records.length; j++) {
-      var r = data.records[j];
+    for (var j = 0; j < displayRecords.length; j++) {
+      var r = displayRecords[j];
       var ext = r.original_name.split('.').pop().toLowerCase();
       var fi = getFileIcon(ext);
       var cardIconHtml = '<div class="cp-card-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></div>';
       html += '<div class="cp-card-item">' +
-        (canDelete ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
+        (showBatch ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
         cardIconHtml +
         '<div class="cp-card-info">' +
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
@@ -1126,24 +1372,27 @@ function renderHistoryFromData(data) {
       html += '</div>';
     }
     html += '</div>';
-    // 移动端已有顶部全选栏，不再渲染底部全选栏
+    // 批量模式下显示底部全选栏
+    if (showBatch) {
+      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
+    }
   } else {
     // --- 桌面端：仅构建表格 ---
     html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
-      (canDelete ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
+      (showBatch ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
       '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
       '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
       (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
       (canDelete || canPreviewDownload ? '<th class="cp-th-act">操作</th>' : '') +
       '</tr></thead><tbody>';
 
-    for (var k = 0; k < data.records.length; k++) {
-      var rd = data.records[k];
+    for (var k = 0; k < displayRecords.length; k++) {
+      var rd = displayRecords[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
       var iconHtml = '<td class="cp-file-icon"><img src="' + fiD.iconUrl + '" width="18" height="18" style="vertical-align:middle"></td>';
       html += '<tr>' +
-        (canDelete ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
+        (showBatch ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
         iconHtml +
         '<td class="cp-file-name" title="' + escapeHtml(rd.original_name) + '">' + escapeHtml(rd.original_name) + '</td>' +
         '<td class="cp-file-size">' + escapeHtml(rd.file_size_display) + '</td>' +
@@ -1166,8 +1415,8 @@ function renderHistoryFromData(data) {
       html += '</tr>';
     }
     html += '</tbody></table></div>';
-    if (canDelete) {
-      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页 / 取消全选</span></label></div>';
+    if (showBatch) {
+      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
     }
   }
 
@@ -1239,6 +1488,31 @@ async function deleteRecord(recordId) {
 
 /* ========== Batch Delete ========== */
 var _selectedIds = new Set();
+var _isBatchMode = false;  // 是否开启批量操作模式
+
+/* 切换批量操作模式 */
+function toggleBatchMode() {
+  _isBatchMode = !_isBatchMode;
+  var btn = document.getElementById('batch-toggle-btn');
+  var card = document.getElementById('history-card');
+  
+  if (_isBatchMode) {
+    // 开启批量模式
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> 退出批量';
+    card.classList.add('batch-mode');
+    // 重新渲染列表显示复选框
+    loadHistory(1);
+  } else {
+    // 退出批量模式
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作';
+    card.classList.remove('batch-mode');
+    // 清空选择
+    clearSelection();
+    // 重新渲染列表隐藏复选框
+    loadHistory(1);
+  }
+}
+
 function toggleSelect(id, checked) {
   if (checked) { _selectedIds.add(id); } else { _selectedIds.delete(id); }
   updateBatchBar();
@@ -1306,20 +1580,21 @@ async function batchDelete() {
 }
 
 async function deleteAllRecords() {
-  if (!confirm('确定清空所有文件？此操作不可恢复。')) return;
-  var btn = document.getElementById('del-all-btn');
-  var origHtml = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '清空中...'; }
-  try {
-    var res = await fetch('/collect/' + linkId + '/delete_all', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-    });
-    var data = await res.json();
-    showToast(data.message || (data.success ? '清空成功' : '清空失败'));
-    if (data.success) { _selectedIds.clear(); loadHistory(); }
-    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
-  } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } }
+  showConfirmModal('确认清空', '确定清空所有文件？此操作不可恢复。', async function() {
+    var btn = document.getElementById('del-all-btn');
+    var origHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '清空中...'; }
+    try {
+      var res = await fetch('/collect/' + linkId + '/delete_all', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+      });
+      var data = await res.json();
+      showToast(data.message || (data.success ? '清空成功' : '清空失败'));
+      if (data.success) { _selectedIds.clear(); loadHistory(); }
+      if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+    } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } }
+  });
 }
 
 /* ========== Preview helpers ========== */

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.28-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.2.29-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,11 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.2.29
+- `/admin/links` 页面头部新增渐变背景和装饰圆形，与登录页风格一致
+- 移动端按钮高度优化：`全部创建人`下拉框高度设为 27px
+- 移动端按钮布局优化：恢复与PC端一致的文字显示，flex自适应换行
 
 ### v2.2.28
 - `/admin/links` 页面新增「批量创建」按钮，并排显示在「创建收集链接」按钮右侧

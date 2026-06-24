@@ -172,7 +172,9 @@ body {
   justify-content: space-between;
   gap: 6px;
   background: #fafbfc;
+  flex-wrap: wrap;
 }
+.cp-card-head > * { flex-shrink: 0; }
 .cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
 .cp-card-body { padding: 10px 12px; }
@@ -716,10 +718,35 @@ body {
   .cp-meta-tile-icon { width: 30px; height: 30px; border-radius: 7px; }
   .cp-meta-tile-label { font-size: .6rem; }
   .cp-meta-tile-value { font-size: .78rem; }
-  .cp-card-head { padding: 8px 12px; gap: 6px; }
+  /* 移动端卡片头部排版优化 */
+  .cp-card-head { 
+    padding: 8px 12px; 
+    gap: 6px; 
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .cp-card-head .cp-uploader-view-header {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .cp-card-head .cp-file-count {
+    flex-shrink: 0;
+  }
+  .cp-card-head .cp-card-actions {
+    flex-shrink: 0;
+  }
+  /* 通行证badge单独放一排 */
+  .cp-card-head .cp-badge {
+    flex-basis: 100%;
+    order: 10;
+    margin-top: 4px;
+    font-size: .64rem; 
+    padding: 2px 8px;
+  }
   .cp-card-head h2 { font-size: .8rem; }
-  .cp-card-head .cp-badge { font-size: .64rem; padding: 1px 6px; }
   .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
+  .cp-card-head .cp-batch-toggle { font-size: .7rem; padding: 3px 8px; }
+  .cp-card-head .cp-batch-toggle svg { width: 11px; height: 11px; }
   .cp-card-body { padding: 10px 12px; }
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-card-item { align-items: center; gap: 6px; }
@@ -732,6 +759,8 @@ body {
   .cp-card-actions .cp-btn,
   .cp-card-actions .cp-act-preview-txt,
   .cp-card-actions .cp-act-download-txt { font-size: .7rem; padding: 4px 8px; }
+  /* 移动端隐藏全选顶栏（与批量操作按钮功能重复） */
+  .cp-sel-top-bar { display: none; }
 
   .cp-accordion-header { padding: 8px 10px; }
   .cp-accordion-name { font-size: .82rem; }
@@ -745,4 +774,173 @@ body {
   .cp-per-page-input { width: 44px; padding: 4px 6px; font-size: .76rem; }
   .cp-per-page-label { font-size: .7rem; }
   .cp-per-page-unit { font-size: .68rem; }
+}
+
+/* ============================================================
+   UPLOADER FOLDER VIEW — 上传者文件夹视图
+   ============================================================ */
+/* 返回按钮 */
+.cp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: .78rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  color: #3b82f6;
+  background: transparent;
+  border: 1px solid #dbeafe;
+  border-radius: 4px;
+  transition: all .12s;
+}
+.cp-back-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.cp-back-btn:active {
+  background: #dbeafe;
+}
+.cp-back-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 上传者文件夹列表 */
+.cp-uploader-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.cp-uploader-folder-item {
+  background: #fff;
+  border: 1px solid #e4e6eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all .12s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-uploader-folder-item:hover {
+  background: #f8fafc;
+  border-color: #bfdbfe;
+}
+.cp-uploader-folder-item:active {
+  background: #f0f5ff;
+}
+
+.cp-folder-icon-wrap {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cp-folder-icon {
+  width: 18px;
+  height: 18px;
+  color: #3b82f6;
+}
+
+.cp-folder-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cp-folder-name {
+  font-size: .82rem;
+  font-weight: 500;
+  color: #1a1d28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-folder-count {
+  font-size: .7rem;
+  color: #6b7280;
+}
+
+.cp-folder-arrow {
+  flex-shrink: 0;
+  color: #9ca3af;
+  transition: transform .15s;
+}
+.cp-uploader-folder-item:hover .cp-folder-arrow {
+  transform: translateX(2px);
+}
+
+/* 上传者文件夹视图标题 */
+.cp-uploader-view-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-uploader-view-title {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #1a1d28;
+}
+
+/* 在移动端调整文件夹网格 */
+@media (max-width: 768px) {
+  .cp-uploader-folder-list {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+    padding: 8px 0;
+  }
+  .cp-uploader-folder-item {
+    padding: 12px 8px;
+  }
+  .cp-folder-icon-wrap {
+    width: 38px;
+    height: 38px;
+  }
+  .cp-folder-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .cp-folder-name {
+    font-size: .74rem;
+  }
+  .cp-folder-count {
+    font-size: .62rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .cp-uploader-folder-list {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+  }
+  .cp-uploader-folder-item {
+    padding: 10px 6px;
+  }
+  .cp-folder-icon-wrap {
+    width: 34px;
+    height: 34px;
+  }
+  .cp-folder-icon {
+    width: 18px;
+    height: 18px;
+  }
+  .cp-folder-name {
+    font-size: .7rem;
+  }
+  .cp-back-btn {
+    padding: 4px 8px;
+    font-size: .74rem;
+  }
 }

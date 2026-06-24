@@ -175,7 +175,9 @@ body {
   justify-content: space-between;
   gap: 6px;
   background: #fafbfc;
+  flex-wrap: wrap;
 }
+.cp-card-head > * { flex-shrink: 0; }
 .cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
 .cp-card-body { padding: 12px; }
@@ -289,92 +291,121 @@ body {
 .cp-drop {
   border: 2px dashed #d1d5db;
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 16px 16px;
   text-align: center;
   cursor: pointer;
-  background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
-  transition: all .25s cubic-bezier(.4,0,.2,1);
+  background: #ffffff;
+  transition: all .2s ease;
   position: relative;
-  overflow: hidden;
 }
-/* 柔光光晕 */
-.cp-drop::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 40%, rgba(59,130,246,.04) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity .3s;
-  pointer-events: none;
-}
-.cp-drop:hover::before { opacity: 1; }
 .cp-drop:hover {
-  border-color: #93c5fd;
-  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  border-color: #3b82f6;
+  background: #f8fafc;
 }
 .cp-drop:active,
 .cp-drop.dragover {
   border-color: #3b82f6;
   background: #eff6ff;
-  transform: scale(1.01);
-  box-shadow: 0 0 0 4px rgba(59,130,246,.08);
+  border-style: solid;
 }
-.cp-drop.dragover::before { opacity: 1; }
 
-/* 上传图标 — 桌面端也显示 */
-.cp-drop-icon {
-  display: flex !important;
-  justify-content: center;
-  margin-bottom: 10px;
-  color: #93c5fd;
-  transition: color .25s, transform .25s;
+/* 上传区域 */
+.cp-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
-.cp-drop:hover .cp-drop-icon { color: #3b82f6; }
-.cp-drop.dragover .cp-drop-icon { color: #2563eb; transform: translateY(-2px); }
-.cp-drop-icon svg { width: 40px; height: 40px; }
+
+/* 上传图标 */
+.cp-drop-icon {
+  color: #9ca3af;
+  transition: all .2s ease;
+}
+.cp-drop:hover .cp-drop-icon {
+  color: #3b82f6;
+}
+.cp-drop.dragover .cp-drop-icon {
+  color: #3b82f6;
+  transform: scale(1.05);
+}
+
+/* 文字区域 */
+.cp-drop-text-wrap {
+  text-align: center;
+}
 
 .cp-drop h3 {
-  font-size: .9rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 2px;
-}
-.cp-drop .cp-drop-text {
-  display: none;
   font-size: .88rem;
   font-weight: 500;
   color: #374151;
+  margin: 0 0 2px 0;
 }
-.cp-drop p { font-size: .72rem; color: #9ca3af; margin: 0; }
+
+.cp-drop-text-wrap p {
+  font-size: .76rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 标签区域 */
+.cp-drop-tags {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cp-drop-tag {
+  font-size: .68rem;
+  color: #6b7280;
+  padding: 3px 8px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.cp-drop .cp-drop-text {
+  display: none;
+}
 
 /* 配额已满：禁用状态 */
 .cp-drop.full {
-  background: #f3f4f6;
-  border-color: #e5e7eb;
+  background: #f9fafb;
+  border-color: #d1d5db;
+  border-style: dashed;
   cursor: not-allowed;
-  opacity: 0.55;
   pointer-events: none;
   transform: none !important;
   box-shadow: none !important;
 }
 .cp-drop.full::before { display: none; }
-.cp-drop.full h3,
-.cp-drop.full .cp-drop-text,
-.cp-drop.full .cp-drop-icon { opacity: 0.4; }
-.cp-drop.full .cp-hint-resume { display: none; }
+.cp-drop.full:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+.cp-drop.full .cp-drop-zone { display: none; }  /* 隐藏上传图标和文字 */
+.cp-drop.full .cp-drop-tags { display: none; }  /* 隐藏标签 */
+.cp-drop.full .cp-drop-compact-text { display: none; }  /* 隐藏继续添加提示 */
+.cp-drop.full .cp-hint-resume { display: none; }  /* 隐藏断点续传提示 */
 
 /* 配额已满提示：默认隐藏，满额时显示 */
 .cp-drop-full-hint {
   display: none;
-  font-size: .84rem;
+  font-size: .88rem;
   font-weight: 500;
-  color: #9ca3af;
-  margin-bottom: 4px;
+  color: #6b7280;
+  text-align: center;
+  padding: 16px 0;
 }
 .cp-drop.full .cp-drop-full-hint { display: block; }
-.cp-drop.full h3 { display: none; }
-.cp-drop.full .cp-drop-text { display: none !important; }
 
+/* 单次上传数量提示 */
+.cp-drop-batch-hint {
+  font-size: .8rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
 /* 紧凑态：选择文件后收缩为一行 */
 .cp-drop-compact-text {
   display: none;
@@ -389,12 +420,14 @@ body {
   border: 1px dashed #c9cdd4;
   background: #f8fafc;
 }
-.cp-drop.compact .cp-drop-icon { display: none; }
-.cp-drop.compact h3 { display: none; }
-.cp-drop.compact .cp-drop-text { display: none; }
-.cp-drop.compact .cp-hint-resume { display: none; }
-.cp-drop.compact .cp-drop-full-hint { display: none; }
-.cp-drop.compact .cp-drop-compact-text { display: block; }
+.cp-drop.compact .cp-drop-icon { display: none !important; }
+.cp-drop.compact .cp-hint-resume { display: none !important; }
+.cp-drop.compact .cp-drop-full-hint { display: none !important; }
+.cp-drop.compact .cp-drop-batch-hint { display: none !important; }
+.cp-drop.compact .cp-drop-compact-text { display: block !important; }
+.cp-drop.compact .cp-drop-tags { display: none !important; }
+.cp-drop.compact h3 { display: none !important; }
+.cp-drop.compact .cp-drop-text-wrap p { display: none !important; }
 /* compact 下屏蔽掉放大/光晕等交互效果 */
 .cp-drop.compact:hover { border-color: #93c5fd; background: #eff6ff; transform: none; box-shadow: none; }
 .cp-drop.compact::before { opacity: 0; }
@@ -402,6 +435,8 @@ body {
 .cp-drop.full.compact {
   padding: 36px 20px;
   cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.55;
 }
 .cp-drop.full.compact .cp-drop-compact-text { display: none; }
 
@@ -451,10 +486,16 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.15) 100%);
-  transition: width .2s ease-out;
+  background: linear-gradient(90deg, #dbeafe 0%, #bfdbfe 30%, #93c5fd 60%, #bfdbfe 100%);
+  background-size: 200% 100%;
+  animation: cp-progress-shimmer 2s ease-in-out infinite;
+  transition: width .15s ease-out;
   z-index: 0;
-  box-shadow: inset 0 0 8px rgba(59, 130, 246, 0.1);
+  border-radius: inherit;
+}
+@keyframes cp-progress-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 .cp-file-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .cp-file-name { font-size: .8rem; font-weight: 500; color: #1a1d28; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -495,7 +536,7 @@ body {
   gap: 8px; margin-bottom: 8px; padding-bottom: 8px;
   border-bottom: 1px solid #f0f2f5;
 }
-.cp-count { font-size: .75rem; color: #6b7280; }
+.cp-count { font-size: .75rem; color: #2563eb; font-weight: 600; }
 .cp-btns { display: flex; gap: 5px; }
 
 .cp-limit-info {
@@ -520,7 +561,12 @@ body {
 .cp-btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 .cp-btn-primary:active { background: #2563eb; }
 .cp-btn-primary:disabled { opacity: .5; pointer-events: none; }
-.cp-btn-danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.cp-btn-danger { 
+  background: #fef2f2; 
+  color: #dc2626; 
+  border-color: #fecaca;
+  font-weight: 500;
+}
 .cp-btn-sm { padding: 3px 8px; font-size: .7rem; }
 .cp-btn-outline { background: #fff; border: 1px solid #d1d5db; color: #1a1d28; }
 
@@ -598,32 +644,17 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  margin-top: 8px;
-  padding: 3px 8px;
-  font-size: .7rem;
-  font-weight: 500;
-  border-radius: 3px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #6b7280;
-  cursor: pointer;
+  gap: 4px;
+  margin-bottom: 6px;
   align-self: flex-end;
-  transition: all .12s;
-}
-.cp-result-clear:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-.cp-result-clear:active {
-  background: #e5e7eb;
 }
 
 @media (max-width: 768px) {
   .cp-result-clear {
     width: 100%;
-    padding: 5px 10px;
-    font-size: .72rem;
+    padding: 7px 14px;
+    font-size: .78rem;
+    gap: 5px;
   }
 }
 
@@ -729,6 +760,7 @@ body {
   display: flex;
   align-items: center;
   padding-top: 1px;
+  gap: 12px;
 }
 
 /* ---------- Empty ---------- */
@@ -874,6 +906,37 @@ body {
 .cp-modal-card .cp-passcode-row { max-width: 100%; }
 .cp-modal-card .cp-passcode-msg { margin-top: 10px; }
 
+/* ---------- Confirm Dialog ---------- */
+.cp-confirm-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #fef2f2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cp-confirm-icon svg { width: 24px; height: 24px; }
+.cp-confirm-title {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #1a1d28;
+  margin-bottom: 8px;
+}
+.cp-confirm-desc {
+  font-size: .82rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.cp-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
 /* ---------- Toast ---------- */
 .cp-toast {
   position: fixed;
@@ -956,17 +1019,36 @@ body {
   .cp-meta-tile-icon { width: 26px; height: 26px; border-radius: 6px; }
   .cp-meta-tile-label { font-size: .58rem; }
   .cp-meta-tile-value { font-size: .75rem; }
-  .cp-card-head { padding: 8px 12px; }
+  /* 移动端卡片头部排版优化 */
+  .cp-card-head { 
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
+  .cp-card-head .cp-batch-toggle { font-size: .7rem; padding: 3px 8px; }
+  .cp-card-head .cp-batch-toggle svg { width: 11px; height: 11px; }
+  /* 移动端按钮布局优化 */
+  .cp-card-head .cp-card-actions {
+    gap: 10px;
+  }
+  .cp-card-head .cp-del-all-btn {
+    padding: 4px 12px;
+    font-weight: 500;
+  }
+  /* 移动端隐藏全选顶栏（与批量操作按钮功能重复） */
+  /* 已移除，现在移动端也显示全选栏 */
   .cp-card-body { padding: 10px 12px; }
   .cp-drop {
-    padding: 22px 14px;
-    border-radius: 10px;
+    padding: 20px 14px;
+    border-radius: 12px;
   }
-  .cp-drop-icon svg { width: 32px; height: 32px; }
-  .cp-drop h3 { display: none; }
-  .cp-drop-text { display: block !important; font-size: .84rem; font-weight: 500; color: #374151; }
+  .cp-drop-icon { width: 28px; height: 28px; }
+  .cp-drop h3 { font-size: .88rem; }
+  .cp-drop-text-wrap p { font-size: .78rem; }
+  .cp-drop-tags { gap: 6px; margin-top: 12px; }
+  .cp-drop-tag { font-size: .68rem; padding: 3px 8px; }
   .cp-drop .cp-hint-resume .cp-hint-full,
   .cp-drop .cp-hint-resume .cp-hint-toggle { display: none; }
   .cp-drop .cp-hint-resume .cp-hint-short { display: block; }
@@ -987,5 +1069,3 @@ body {
   .cp-per-page-label { font-size: .7rem; }
   .cp-per-page-unit { font-size: .68rem; }
 }
-
-

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.2.28"
+VERSION = "2.2.29"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1937,6 +1937,63 @@ def cleanup_orphan_records_for_link(conn, link_id):
         logger.error(f"清理链接 {link_id} 孤儿记录失败: {e}")
         return 0
 
+# .part 文件清理缓存（60秒内不重复扫描）
+_part_cleanup_cache = {}
+
+def cleanup_stale_part_files(conn, link_id):
+    """静默清理超过24小时的 .part 断点文件"""
+    now = time.time()
+    last = _part_cleanup_cache.get(link_id, 0)
+    if now - last < 60:
+        return 0  # 60 秒内已清理过，跳过
+    
+    try:
+        # 查询超过24小时的 .part 文件记录
+        stale_records = conn.execute(
+            "SELECT id, stored_path, original_name FROM upload_records WHERE link_id = ? AND original_name LIKE '%.part'",
+            (link_id,)
+        ).fetchall()
+        
+        if not stale_records:
+            _part_cleanup_cache[link_id] = now
+            return 0
+        
+        cutoff_time = datetime.fromtimestamp(now - 86400)  # 24小时前
+        stale_ids = []
+        
+        for r in stale_records:
+            uploaded_at = datetime.fromisoformat(r['uploaded_at']) if r['uploaded_at'] else None
+            if uploaded_at and uploaded_at < cutoff_time:
+                stale_ids.append(r['id'])
+                # 静默删除 .part 文件
+                try:
+                    if r['stored_path'] and os.path.exists(r['stored_path']):
+                        os.remove(r['stored_path'])
+                    part_file = r['stored_path'] + '.part'
+                    if os.path.exists(part_file):
+                        os.remove(part_file)
+                except Exception:
+                    pass  # 静默处理，不影响流程
+        
+        if stale_ids:
+            placeholders = ','.join(['?' for _ in stale_ids])
+            conn.execute(f"DELETE FROM upload_records WHERE id IN ({placeholders})", stale_ids)
+            conn.commit()
+        
+        _part_cleanup_cache[link_id] = now
+        
+        # 定期清理过期缓存
+        cutoff = now - 3600
+        stale = [k for k, v in _part_cleanup_cache.items() if v < cutoff]
+        for k in stale:
+            _part_cleanup_cache.pop(k, None)
+        
+        return len(stale_ids)
+    except Exception as e:
+        _part_cleanup_cache[link_id] = now
+        logger.error(f"清理链接 {link_id} 断点文件失败: {e}")
+        return 0
+
 def get_user_files(user_id):
     """获取用户的所有文件记录（包括直接放入文件夹的文件）"""
     conn = get_db()
@@ -3092,15 +3149,31 @@ def share_get_records(link_id):
     page = max(1, page)
     per_page = max(5, min(per_page, 100))
     offset = (page - 1) * per_page
+    
+    # 按上传者过滤
+    uploader_filter = request.args.get('uploader', '').strip()
 
-    total_uploaded = conn.execute(
-        "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-    ).fetchone()[0]
-
-    records = conn.execute(
-        "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
-        (link_id, per_page, offset)
-    ).fetchall()
+    # 根据是否有上传者过滤来构建查询
+    if uploader_filter:
+        # 按上传者过滤时，支持分页
+        total_uploaded = conn.execute(
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?",
+            (link_id, uploader_filter)
+        ).fetchone()[0]
+        records = conn.execute(
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            (link_id, uploader_filter, per_page, offset)
+        ).fetchall()
+        total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
+    else:
+        total_uploaded = conn.execute(
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+        ).fetchone()[0]
+        records = conn.execute(
+            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            (link_id, per_page, offset)
+        ).fetchall()
+        total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
     
     # 获取上传者统计（每个上传者的总文件数）
     uploader_stats = conn.execute(
@@ -3793,6 +3866,9 @@ def get_upload_records(link_id):
 
     # 清理孤儿记录（文件已被删除的数据库记录）
     cleanup_orphan_records_for_link(conn, link_id)
+
+    # 静默清理超过24小时的 .part 断点文件
+    cleanup_stale_part_files(conn, link_id)
 
     require_uploader = bool(dict(link).get('require_uploader', 0))
     uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
@@ -6090,9 +6166,12 @@ def admin_dashboard():
 @app.route('/admin/links')
 @login_required
 def admin_links():
-    """收集链接管理（支持分页）"""
+    """收集链接管理（支持分页和筛选）"""
     user_id = session.get('user_id')
     is_admin = session.get('is_admin', False)
+    
+    # 获取筛选参数（仅管理员可用）
+    creator_filter = request.args.get('creator', '')
     
     # 获取每页显示数量
     per_page = int(get_user_setting(user_id, 'links_per_page', '50'))
@@ -6110,18 +6189,40 @@ def admin_links():
                   "l.status, l.allow_delete, l.allow_preview_download, l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
                   "l.require_uploader, l.collect_slug, l.share_slug, "
                   "u.username, u.nickname")
+    
+    # 构建筛选条件（仅管理员可用）
+    creator_where = ""
+    if is_admin and creator_filter:
+        creator_where = " AND l.user_id = ?"
+    
+    # 获取所有创建人列表（仅管理员）
+    creators = []
     if is_admin:
-        total = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
+        creators = conn.execute(
+            "SELECT id, username, nickname FROM users ORDER BY nickname, username"
+        ).fetchall()
+    
+    if is_admin:
+        if creator_filter:
+            total = conn.execute(f"SELECT COUNT(*) FROM links l WHERE 1=1{creator_where}", (creator_filter,)).fetchone()[0]
+        else:
+            total = conn.execute("SELECT COUNT(*) FROM links l").fetchone()[0]
         total_pages = max(1, (total + per_page - 1) // per_page)
         page = min(page, total_pages)
         offset = (page - 1) * per_page
-        links = conn.execute(
-            f"SELECT {_link_cols} FROM links l LEFT JOIN users u ON l.user_id = u.id ORDER BY l.created_at DESC LIMIT ? OFFSET ?",
-            (per_page, offset)
-        ).fetchall()
+        if creator_filter:
+            links = conn.execute(
+                f"SELECT {_link_cols} FROM links l LEFT JOIN users u ON l.user_id = u.id WHERE 1=1{creator_where} ORDER BY l.created_at DESC LIMIT ? OFFSET ?",
+                (creator_filter, per_page, offset)
+            ).fetchall()
+        else:
+            links = conn.execute(
+                f"SELECT {_link_cols} FROM links l LEFT JOIN users u ON l.user_id = u.id ORDER BY l.created_at DESC LIMIT ? OFFSET ?",
+                (per_page, offset)
+            ).fetchall()
     else:
         total = conn.execute(
-            "SELECT COUNT(*) FROM links WHERE user_id = ?", (user_id,)
+            "SELECT COUNT(*) FROM links l WHERE l.user_id = ?", (user_id,)
         ).fetchone()[0]
         total_pages = max(1, (total + per_page - 1) // per_page)
         page = min(page, total_pages)
@@ -6159,6 +6260,8 @@ def admin_links():
                            public_url=get_user_setting(user_id, 'public_url', get_setting('public_url', '')),
                            page=page, total_pages=total_pages, total=total,
                            per_page=per_page,
+                           creators=creators,
+                           creator_filter=creator_filter,
                            csrf_token=generate_csrf_token())
 
 @app.route('/admin/links/batch')
@@ -6910,6 +7013,89 @@ def delete_link(link_id):
 
     flash(f'链接已删除，清理了 {deleted_count} 个文件及 {len(records)} 条上传记录' + ('，同时删除了整个文件夹' if folder_deleted else ''))
     return redirect(url_for('admin_links'))
+
+@app.route('/admin/links/batch_delete', methods=['POST'])
+@login_required
+def batch_delete_links():
+    """批量删除链接"""
+    user_id = session.get('user_id')
+    is_admin = session.get('is_admin', False)
+    
+    link_ids = request.form.get('link_ids', '')
+    if not link_ids:
+        return jsonify({'success': False, 'message': '未选择任何链接'})
+    
+    try:
+        ids = [int(x) for x in link_ids.split(',') if x.strip()]
+    except ValueError:
+        return jsonify({'success': False, 'message': '链接ID格式错误'})
+    
+    if not ids:
+        return jsonify({'success': False, 'message': '未选择任何链接'})
+    
+    conn = get_db()
+    deleted_count = 0
+    file_count = 0
+    record_count = 0
+    
+    for link_id in ids:
+        # 权限检查
+        if not is_admin:
+            link = conn.execute("SELECT user_id FROM links WHERE id = ?", (link_id,)).fetchone()
+            if not link or link['user_id'] != user_id:
+                continue
+        
+        # 查询所有关联的上传记录
+        records = conn.execute(
+            "SELECT id, stored_path FROM upload_records WHERE link_id = ?", (link_id,)
+        ).fetchall()
+        
+        # 删除磁盘上的文件
+        for r in records:
+            stored_path = r['stored_path']
+            if not stored_path:
+                continue
+            try:
+                if _safe_delete(stored_path):
+                    file_count += 1
+            except Exception:
+                pass
+        
+        # 获取链接目录路径
+        try:
+            base_dir = create_upload_dir(link_id, '')
+        except Exception:
+            base_dir = None
+        
+        # 删除数据库记录
+        record_ids = [r['id'] for r in records]
+        conn.execute("PRAGMA foreign_keys = OFF")
+        if record_ids:
+            placeholders = ','.join(['?' for _ in record_ids])
+            conn.execute(f"DELETE FROM download_logs WHERE record_id IN ({placeholders})", record_ids)
+        conn.execute("DELETE FROM upload_records WHERE link_id = ?", (link_id,))
+        conn.execute("DELETE FROM upload_logs WHERE link_id = ?", (link_id,))
+        conn.execute("DELETE FROM chunk_uploads WHERE link_id = ?", (link_id,))
+        conn.execute("DELETE FROM links WHERE id = ?", (link_id,))
+        conn.execute("PRAGMA foreign_keys = ON")
+        
+        record_count += len(records)
+        deleted_count += 1
+        
+        # 删除上传目录
+        if base_dir and base_dir != UPLOAD_BASE:
+            try:
+                _safe_delete_dir(base_dir)
+            except Exception:
+                pass
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': f'已删除 {deleted_count} 个链接，清理了 {file_count} 个文件及 {record_count} 条上传记录'
+    })
 
 @app.route('/admin/records')
 @login_required

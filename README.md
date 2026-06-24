@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.29-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.0-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,13 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.0
+- 移动端 `/admin/links` 页面 header 全新设计：单行 sticky 吸顶，滚动时始终可见
+- 移动端按钮重新排序：筛选 → 创建收集 → 更多菜单，创建按钮居中突出
+- 更多菜单（`≡`）收纳批量创建和批量操作，保持 header 简洁
+- 筛选创建人下拉宽度自适应，不再截断文字
+- 按钮圆角统一为 6px，与下方操作按钮风格一致
 
 ### v2.2.29
 - `/admin/links` 页面头部新增渐变背景和装饰圆形，与登录页风格一致

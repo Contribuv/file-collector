@@ -13,7 +13,7 @@
           <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
         </div>
         <div class="links-header-right">
-          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary btn-create" id="btn-create">＋ 创建收集链接</a>
+          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary btn-create" id="btn-create">＋ 创建收集</a>
           <a href="{{ url_for('admin_link_batch') }}" class="btn btn-sm btn-primary btn-batch-create" id="btn-batch-create">＋ 批量创建</a>
           {% if creators %}
           <select id="creator-filter" class="links-filter-select" onchange="applyFilter()">
@@ -29,6 +29,14 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             批量操作
           </button>
+          <button class="btn btn-sm btn-outline btn-header-more" onclick="toggleHeaderMore(event)" title="更多操作" aria-label="更多操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-more-menu" id="header-more-menu">
+            <a href="{{ url_for('admin_link_batch') }}" class="header-more-item">＋ 批量创建</a>
+            <button class="header-more-item" onclick="toggleBatchMode();closeHeaderMore();">＋ 批量操作</button>
+          </div>
+          <div class="header-more-overlay" id="header-more-overlay" onclick="closeHeaderMore()"></div>
         </div>
       </div>
       <div class="table-wrap">
@@ -291,6 +299,65 @@
 .links-header-right .links-filter-select { order: 0; }
 .links-header-right .btn-batch-toggle { order: 0; }
 
+/* 移动端更多菜单按钮 — 桌面端隐藏 */
+.btn-header-more {
+  display: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.btn-header-more svg { width: 18px; height: 18px; }
+
+/* 移动端更多菜单面板 */
+.header-more-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  margin-top: 4px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  min-width: 180px;
+  padding: 4px 0;
+  z-index: 1200;
+  animation: menuSlideIn 0.18s ease;
+}
+@keyframes menuSlideIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.header-more-menu.show { display: block; }
+
+.header-more-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--c-text, #1a1d28);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition: background 0.1s;
+}
+.header-more-item:hover { background: #f5f7fa; }
+
+/* 移动端更多菜单遮罩 */
+.header-more-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1199;
+  background: transparent;
+}
+
 /* 筛选下拉框 */
 .links-filter-select {
   padding: 5px 10px;
@@ -349,43 +416,92 @@
 
 /* 移动端 */
 @media (max-width: 640px) {
+  .links-card { overflow: visible; }
+
   .links-header {
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 12px 14px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    border-bottom: 1px solid #e8ecf1;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: visible;
   }
+  .links-header::before,
+  .links-header::after { display: none; }
+
   .links-header-left {
-    width: 100%;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+    flex-shrink: 1;
   }
-  .links-header-title { 
-    font-size: .95rem; 
+  .links-header-title {
+    font-size: .9rem;
     margin: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
-  .links-header-stats { 
-    font-size: .68rem; 
+  .links-header-stats {
+    font-size: .66rem;
     color: #8896a4;
-  }
-  .links-header-right { 
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    width: 100%;
-    align-items: center;
-  }
-  .links-header-right .btn { 
-    font-size: .74rem; 
-    padding: 5px 10px; 
     white-space: nowrap;
   }
-  .links-filter-select { 
-    font-size: .74rem; 
-    padding: 2px 8px;
-    height: 27px;
+  .links-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    position: relative;
   }
-  
+
+  /* 隐藏 PC 端的批量创建和批量操作按钮 */
+  .links-header-right .btn-batch-create,
+  .links-header-right .btn-batch-toggle { display: none; }
+
+  /* 筛选下拉 — 放外面，紧凑样式 */
+  .links-header-right .links-filter-select {
+    order: 0;
+    font-size: .72rem;
+    padding: 4px 22px 4px 8px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    appearance: auto;
+  }
+
+  /* 创建按钮 — 精致风 */
+  .links-header-right .btn-create {
+    order: 1;
+    font-size: .76rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    white-space: nowrap;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    box-shadow: 0 2px 6px rgba(59,130,246,.3);
+  }
+
+  /* 更多按钮 — 去边框，纯图标 */
+  .btn-header-more {
+    display: inline-flex;
+    order: 2;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: #6b7280;
+  }
+  .btn-header-more:hover { background: #f3f4f6; color: #374151; }
+  .btn-header-more svg { width: 18px; height: 18px; }
+
   .col-hide-mobile { display: none !important; }
   .admin-links-table { table-layout: auto; }
   .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
@@ -597,6 +713,27 @@ function applyFilter() {
     url.searchParams.delete('page');
     window.location.href = url.toString();
   }
+}
+
+/* 移动端更多菜单 */
+function toggleHeaderMore(e) {
+  e.stopPropagation();
+  var menu = document.getElementById('header-more-menu');
+  var overlay = document.getElementById('header-more-overlay');
+  var isOpen = menu.classList.contains('show');
+  if (isOpen) {
+    closeHeaderMore();
+  } else {
+    menu.classList.add('show');
+    if (overlay) overlay.style.display = 'block';
+  }
+}
+
+function closeHeaderMore() {
+  var menu = document.getElementById('header-more-menu');
+  var overlay = document.getElementById('header-more-overlay');
+  if (menu) menu.classList.remove('show');
+  if (overlay) overlay.style.display = 'none';
 }
 
 /* ==================== 批量操作 ==================== */

@@ -156,6 +156,30 @@ body {
 .cp-meta-tile--expire.danger .cp-meta-tile-value { color: #dc2626; }
 .cp-meta-tile--expire.forever .cp-meta-tile-value { color: #3b82f6; }
 
+/* ---------- Passcode indicator ---------- */
+.cp-passcode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: .78rem;
+  font-weight: 500;
+  color: #3b82f6;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .15s;
+}
+.cp-passcode-indicator:hover { background: #dbeafe; }
+.cp-passcode-indicator svg { flex-shrink: 0; width: 14px; height: 14px; }
+
 /* ---------- Card ---------- */
 .cp-card {
   background: #fff;
@@ -169,12 +193,28 @@ body {
   border-bottom: 1px solid #f0f2f5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 12px;
   background: #fafbfc;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  justify-content: space-between;
 }
-.cp-card-head > * { flex-shrink: 0; }
+.cp-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cp-card-head-left > * {
+  flex-shrink: 0;
+}
+.cp-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
 .cp-card-body { padding: 10px 12px; }
@@ -497,7 +537,7 @@ body {
 }
 
 /* ============================================================
-   ACCORDION — 上传者分组折叠
+   ACCORDION — 上传者登记折叠
    ============================================================ */
 .cp-accordion-group {
   border-bottom: 1px solid #e4e6eb;
@@ -721,32 +761,33 @@ body {
   /* 移动端卡片头部排版优化 */
   .cp-card-head { 
     padding: 8px 12px; 
-    gap: 6px; 
+    gap: 8px; 
     flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-start;
   }
-  .cp-card-head .cp-uploader-view-header {
+  .cp-card-head-left {
     flex: 1 1 auto;
     min-width: 0;
   }
-  .cp-card-head .cp-file-count {
-    flex-shrink: 0;
+  .cp-card-head-left > * {
+    flex-shrink: 1;
+    min-width: 0;
   }
-  .cp-card-head .cp-card-actions {
-    flex-shrink: 0;
+  .cp-uploader-view-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .82rem;
   }
-  /* 通行证badge单独放一排 */
-  .cp-card-head .cp-badge {
-    flex-basis: 100%;
-    order: 10;
-    margin-top: 4px;
-    font-size: .64rem; 
-    padding: 2px 8px;
+  .cp-card-head-right {
+    flex-shrink: 0;
+    margin-left: auto;
   }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
-  .cp-card-head .cp-batch-toggle { font-size: .7rem; padding: 3px 8px; }
-  .cp-card-head .cp-batch-toggle svg { width: 11px; height: 11px; }
+  .cp-card-head .cp-batch-toggle { font-size: .74rem !important; padding: 4px 8px !important; }
+  .cp-card-head .cp-batch-toggle svg { width: 12px; height: 12px; }
   .cp-card-body { padding: 10px 12px; }
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-card-item { align-items: center; gap: 6px; }
@@ -774,6 +815,8 @@ body {
   .cp-per-page-input { width: 44px; padding: 4px 6px; font-size: .76rem; }
   .cp-per-page-label { font-size: .7rem; }
   .cp-per-page-unit { font-size: .68rem; }
+
+  .cp-passcode-indicator { font-size: .72rem; padding: 5px 10px; }
 }
 
 /* ============================================================
@@ -790,22 +833,36 @@ body {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  color: #3b82f6;
+  color: #4b5563;
   background: transparent;
-  border: 1px solid #dbeafe;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
   transition: all .12s;
 }
 .cp-back-btn:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 .cp-back-btn:active {
-  background: #dbeafe;
+  background: #e5e7eb;
 }
 .cp-back-btn svg {
   width: 14px;
   height: 14px;
+}
+
+/* 批量操作按钮与返回按钮视觉统一 */
+.cp-batch-toggle {
+  padding: 5px 10px !important;
+  font-size: .78rem !important;
+  color: #4b5563 !important;
+  background: transparent !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 4px !important;
+}
+.cp-batch-toggle:hover {
+  background: #f3f4f6 !important;
+  border-color: #9ca3af !important;
 }
 
 /* 上传者文件夹列表 */

@@ -11,8 +11,11 @@
         <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
       </div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('edit_link', link_id=edit_link['id']) if edit_link else url_for('create_link') }}">
+        <form method="POST" action="{{ url_for('edit_link', link_id=edit_link['id']) if edit_link else url_for('create_link') }}" id="link-form" onsubmit="return validateForm()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+          <div class="form-columns" id="form-columns">
+            <div class="form-col form-col--left" id="form-col-left">
 
           <div class="form-group">
             <label class="form-label" for="title">收集名称 *</label>
@@ -30,20 +33,28 @@
             <div class="form-hint">轻量化运行，支持HTML标签。</div>
           </div>
 
+          {% if not edit_link %}
           <div class="form-group">
             <label class="form-label" for="collect_slug">自定义收集链接 (可选)</label>
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/collect/</span>
               <input type="text" id="collect_slug" name="collect_slug" class="form-input"
-                     value="{{ edit_link['collect_slug'] if edit_link and edit_link.get('collect_slug') else '' }}"
-                     placeholder="留空则使用系统生成ID"
+                     value="" placeholder="留空则使用系统生成ID"
                      minlength="3" maxlength="32"
                      pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
                      title="3-32位字母数字及-_，必须以字母或数字开头"
                      style="flex:1;">
             </div>
             <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+            <div style="margin-top:6px;padding:8px 10px;background:rgba(251,191,36,.08);border-radius:6px;font-size:.82rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>一旦设置将无法修改，请谨慎填写。</span>
+            </div>
           </div>
+          {% else %}
+          {# 编辑模式：保留原有的自定义链接，使用隐藏字段 #}
+          <input type="hidden" name="collect_slug" value="{{ edit_link.get('collect_slug', '') or '' }}">
+          {% endif %}
 
           <div class="form-row">
             <div class="form-group">
@@ -63,6 +74,7 @@
                   <option value="GB">GB</option>
                 </select>
               </div>
+              <div class="form-hint">点击右侧下拉框选择单位（MB/GB）</div>
               <input type="hidden" id="max_file_size_gb" name="max_file_size_gb"
                      value="{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}">
             </div>
@@ -81,6 +93,7 @@
                   <option value="分钟" {{ 'selected' if edit_link and edit_link.get('_expire_unit') == '分钟' else '' }}>分钟</option>
                 </select>
               </div>
+              <div class="form-hint">点击右侧下拉框选择单位（天/小时/分钟）</div>
             </div>
             <div class="form-group">
               <label class="form-label" for="expires_at_display">截止日期和时间 <span style="color:#dc2626;font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
@@ -93,126 +106,206 @@
           <input type="hidden" id="clear_expiry" name="clear_expiry" value="0">
 
           <div class="form-group" style="margin-top:4px;">
-            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="allow_delete" name="allow_delete" value="1"
-                     {{ 'checked' if edit_link and edit_link.get('allow_delete') else '' }}>
-              <span class="switch-track">
-                <span class="switch-thumb"></span>
-              </span>
-              <span>允许上传者删除已上传文件</span>
-            </label>
-          </div>
-
-          <div class="form-group" style="margin-top:4px;">
-            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="allow_preview_download" name="allow_preview_download" value="1"
-                     {{ 'checked' if edit_link and edit_link.get('allow_preview_download') else '' }}>
-              <span class="switch-track">
-                <span class="switch-thumb"></span>
-              </span>
-              <span>收集页显示预览按钮</span>
-            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:4px 20px;">
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="allow_delete" name="allow_delete" value="1"
+                       {{ 'checked' if edit_link and edit_link.get('allow_delete') else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>允许上传者删除已上传文件</span>
+              </label>
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="allow_preview_download" name="allow_preview_download" value="1"
+                       {{ 'checked' if edit_link and edit_link.get('allow_preview_download') else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>收集页显示预览按钮</span>
+              </label>
+            </div>
           </div>
 
           <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
 
           <!-- 通行证设置 -->
           <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">通行证设置</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="passcode">通行证</label>
-              <input type="password" id="passcode" name="passcode" class="form-input"
-                     autocomplete="off" placeholder="{{ '留空则保持原有通行证' if edit_link else '请输入通行证' }}">
-            </div>
-            <div class="form-group" style="align-self: flex-end;">
-              <label class="form-checkbox">
-                <input type="checkbox" id="empty_passcode" name="empty_passcode" value="1"
-                       onchange="togglePasscodeInput()"
-                       {{ 'checked' if edit_link and edit_link.get('passcode_empty', 0) == 1 else '' }}>
-                <i class="form-icon"></i> 空通行证（无需验证）
+          <div class="form-group">
+            <label class="form-label" {% if not edit_link %}style="color:#dc2626;"{% endif %}>收集页通行证 {% if not edit_link %}*{% endif %}</label>
+            <div class="passcode-radio-group" id="passcode-radio-group" style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;">
+              {% if edit_link %}
+              <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                <input type="radio" name="passcode_mode" value="keep" {% if edit_link.get('passcode_empty', 0) != 1 or edit_link.get('passcode_plain') %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
+                <div>
+                  <div style="font-size:.85rem;font-weight:500;">保持原有设置不变</div>
+                  {% if edit_link.get('passcode_empty', 0) == 1 %}
+                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
+                  {% elif edit_link.get('passcode_plain') %}
+                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：已设置通行证</div>
+                  {% else %}
+                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：无通行证</div>
+                  {% endif %}
+                </div>
+              </label>
+              <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+              {% endif %}
+              <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                <input type="radio" name="passcode_mode" value="set" {% if not edit_link %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
+                <div style="flex:1;">
+                  <div style="font-size:.85rem;font-weight:500;">需要通行证验证</div>
+                  <div id="passcode-input-wrap" style="margin-top:6px;{% if not edit_link %}{% else %}display:none;{% endif %}">
+                    <input type="password" id="passcode" name="passcode" class="form-input"
+                           autocomplete="off" placeholder="请输入通行证">
+                  </div>
+                </div>
+              </label>
+              <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+              <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                <input type="radio" name="passcode_mode" value="empty" {% if edit_link and edit_link.get('passcode_empty', 0) == 1 and not edit_link.get('passcode_plain') %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
+                <div>
+                  <div style="font-size:.85rem;font-weight:500;">空通行证（任何人可直接访问）</div>
+                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">无需输入密码即可进入收集页</div>
+                </div>
               </label>
             </div>
-          </div>
-          <div class="form-hint" id="passcode-hint" style="margin:2px 0 8px;">
-            {{ '留空则保持原有通行证不变' if edit_link else '设置后访问者需输入通行证才能进入；留空则无需验证' }}
+            <input type="hidden" id="empty_passcode" name="empty_passcode" value="0">
           </div>
 
           <!-- 上传者开关 -->
+          {% if not edit_link %}
           <div id="uploader-section" style="padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
-            {% if not edit_link %}
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:4px;font-size:.74rem;color:#92400e;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
               </svg>
               <span style="flex:1;">此设置创建后将<strong style="color:#b45309;">不可修改</strong>，请谨慎选择</span>
             </div>
-            {% endif %}
             <div class="form-group" style="margin:0;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                 <input type="checkbox" id="require_uploader" name="require_uploader" value="1"
-                       {{ 'checked' if edit_link and edit_link.get('require_uploader') else '' }}
-                       {% if edit_link %}disabled{% endif %}>
-                <span class="switch-track" {% if edit_link %}style="opacity:0.5;"{% endif %}>
+                       {{ 'checked' if edit_link and edit_link.get('require_uploader') else '' }}>
+                <span class="switch-track">
                   <span class="switch-thumb"></span>
                 </span>
-                <span>上传者分组</span>
-                {% if edit_link %}
-                <span style="font-size:.75rem;color:#9ca3af;margin-left:auto;">创建后不可修改</span>
-                {% endif %}
+                <span>上传者登记</span>
               </label>
               <div class="form-hint" style="margin:6px 0 0;">
-                {% if edit_link %}
-                {% if edit_link.get('require_uploader') %}
-                已开启：上传者需填写昵称身份，上传的文件将按上传者分文件夹存放
-                {% else %}
-                已关闭：不区分上传者身份
-                {% endif %}
-                {% else %}
                 开启后，上传者需填写昵称身份，上传的文件将按上传者分文件夹存放（中文最多8字，英文/数字/符号最多20字）
-                {% endif %}
               </div>
             </div>
           </div>
+          {% elif edit_link.get('require_uploader') %}
+          <input type="hidden" name="require_uploader" value="1">
+          <div id="uploader-section" style="padding:12px 16px;border:1px solid #86efac;border-radius:8px;margin-bottom:8px;background:#f0fdf4;">
+            <div class="form-group" style="margin:0;">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <div style="flex:1;">
+                  <div style="font-size:.85rem;font-weight:600;color:#15803d;">上传者登记 · 已开启</div>
+                  <div style="font-size:.72rem;color:#16a34a;margin-top:2px;">上传者需填写昵称身份，文件按上传者分文件夹存放</div>
+                </div>
+                <span style="font-size:.68rem;color:#9ca3af;white-space:nowrap;">创建时设定，不可修改</span>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <input type="hidden" name="require_uploader" value="0">
+          {% endif %}
 
           <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
 
           <!-- 分享页设置 -->
           <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">分享页设置</h4>
           <div class="form-group">
-            <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="share_enabled" name="share_enabled" value="1"
-                     onchange="toggleShareSection()"
-                     {{ 'checked' if edit_link and edit_link.get('share_enabled') else '' }}>
-              <span class="switch-track">
-                <span class="switch-thumb"></span>
-              </span>
-              <span>启用分享页</span>
-            </label>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="share_enabled" name="share_enabled" value="1"
+                       onchange="toggleShareSection()"
+                       {{ 'checked' if edit_link and edit_link.get('share_enabled') else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>启用分享页</span>
+              </label>
+              <button type="button" id="share-config-btn" class="btn btn-sm btn-outline"
+                      onclick="openShareModal()"
+                      style="{{ 'display:inline-flex;' if edit_link and edit_link.get('share_enabled') else 'display:none;' }}">配置分享页</button>
+            </div>
             <div class="form-hint">开启后，将生成独立的分享页面供他人查看和下载文件</div>
           </div>
 
-          <div id="share-section" style="{{ 'display:block;' if edit_link and edit_link.get('share_enabled') else 'display:none;' }}padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="share_passcode">分享页通行证</label>
-                <input type="password" id="share_passcode" name="share_passcode" class="form-input"
-                       autocomplete="off" placeholder="{{ '留空则保持原有分享通行证' if edit_link else '留空则复用收集页通行证' }}">
+          </div><!-- /form-col--left -->
+          </div><!-- /form-columns -->
+
+          <!-- 分享页配置浮窗 -->
+          <div id="share-modal-overlay" class="share-modal-overlay" style="display:none;" onclick="closeShareModalOnOverlay(event)">
+            <div class="share-modal-panel" onclick="event.stopPropagation()">
+              <div class="share-modal-header">
+                <h3>分享页设置</h3>
+                <button type="button" class="share-modal-close" onclick="closeShareModal()" aria-label="关闭">&times;</button>
               </div>
-              <div class="form-group" style="align-self: flex-end;">
-                <label class="form-checkbox">
-                <input type="checkbox" id="share_passcode_empty" name="share_passcode_empty" value="1"
-                       onchange="toggleSharePasscodeInput()"
-                       {{ 'checked' if edit_link and edit_link.get('share_passcode_empty') else '' }}>
-                  <i class="form-icon"></i> 空通行证（无需验证）
+              <div class="share-modal-body">
+          <div id="share-section">
+            <!-- 关闭收集页（仅保留分享页） -->
+            <div class="form-group">
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="collect_disabled" name="collect_disabled" value="1"
+                       {{ 'checked' if edit_link and not edit_link.get('collect_enabled', 1) else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>关闭收集页（仅保留分享页）</span>
+              </label>
+              <div class="form-hint">关闭后收集链接将不可访问，但分享页仍可正常使用</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" {% if not edit_link %}style="color:#dc2626;"{% endif %}>分享页通行证 {% if not edit_link %}*{% endif %}</label>
+              <div class="passcode-radio-group" id="share-passcode-radio-group" style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;">
+                {% if edit_link %}
+                <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                  <input type="radio" name="share_passcode_mode" value="keep" {% if edit_link.get('share_passcode_empty') or edit_link.get('share_passcode_plain') %}checked{% endif %} onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
+                  <div>
+                    <div style="font-size:.85rem;font-weight:500;">保持原有设置不变</div>
+                    {% if edit_link.get('share_passcode_empty') %}
+                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
+                    {% elif edit_link.get('share_passcode_plain') %}
+                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：已设置通行证</div>
+                    {% else %}
+                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：无通行证（复用收集页通行证）</div>
+                    {% endif %}
+                  </div>
+                </label>
+                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                {% endif %}
+                <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                  <input type="radio" name="share_passcode_mode" value="inherit" {% if not edit_link or (edit_link and not edit_link.get('share_passcode_empty') and not edit_link.get('share_passcode_plain')) %}checked{% endif %} onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
+                  <div>
+                    <div style="font-size:.85rem;font-weight:500;">复用收集页通行证</div>
+                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">使用收集页的通行证设置，如收集页为空通行证，分享页也将公开访问</div>
+                  </div>
+                </label>
+                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                  <input type="radio" name="share_passcode_mode" value="set" onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
+                  <div style="flex:1;">
+                    <div style="font-size:.85rem;font-weight:500;">需要通行证验证</div>
+                    <div id="share-passcode-input-wrap" style="margin-top:6px;display:none;">
+                      <input type="password" id="share_passcode" name="share_passcode" class="form-input"
+                             autocomplete="off" placeholder="请输入分享页通行证">
+                    </div>
+                  </div>
+                </label>
+                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
+                  <input type="radio" name="share_passcode_mode" value="empty" onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
+                  <div>
+                    <div style="font-size:.85rem;font-weight:500;">空通行证（任何人可直接访问）</div>
+                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">无需输入密码即可进入分享页</div>
+                  </div>
                 </label>
               </div>
-            </div>
-            <div class="form-hint" id="share-passcode-hint" style="margin:2px 0 0;color:#e67e22;">
-              {% if edit_link and edit_link.get('share_passcode') and edit_link['share_passcode']|string|length > 1 %}
-              留空则保持原有分享通行证不变
-              {% else %}
-              ⚠ 如不设置，将复用上方的收集页通行证
-              {% endif %}
+              <input type="hidden" id="share_passcode_empty" name="share_passcode_empty" value="0">
             </div>
 
             <hr style="border: none; border-top: 1px dashed #e5e7eb; margin: 14px 0;">
@@ -225,34 +318,43 @@
               <div class="form-hint">轻量化运行，支持HTML标签。仅显示在分享页，为空时自动使用收集页描述。</div>
             </div>
 
+            {% if not edit_link %}
             <div class="form-group">
               <label class="form-label" for="share_slug">自定义分享链接 (可选)</label>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:var(--c-text-muted);font-size:.85rem;white-space:nowrap;">/share/</span>
                 <input type="text" id="share_slug" name="share_slug" class="form-input"
-                       value="{{ edit_link['share_slug'] if edit_link and edit_link.get('share_slug') else '' }}"
-                       placeholder="留空则使用系统生成ID"
+                       value="" placeholder="留空则使用系统生成ID"
                        minlength="3" maxlength="32"
                        pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]*"
                        title="3-32位字母数字及-_，必须以字母或数字开头"
                        style="flex:1;">
               </div>
               <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
+              <div style="margin-top:6px;padding:8px 10px;background:rgba(251,191,36,.08);border-radius:6px;font-size:.82rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>一旦设置将无法修改，请谨慎填写。</span>
+              </div>
             </div>
+            {% else %}
+            {# 编辑模式：保留原有的自定义链接，使用隐藏字段 #}
+            <input type="hidden" name="share_slug" value="{{ edit_link.get('share_slug', '') or '' }}">
+            {% endif %}
 
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label" for="share_expire_days">分享页有效期 <span style="color:var(--c-text-muted);font-weight:400;">0或留空则永不过期，最长 {{ defaults.expire_days }} 天</span></label>
                 <div style="display:flex; gap:6px;">
                   <input type="number" id="share_expire_days" name="share_expire_days" class="form-input" style="flex:1;"
-                         value="{{ edit_link['_share_expire_days_value'] if edit_link and edit_link.get('_share_expire_days_value') else '' }}"
-                         placeholder="0或留空则永不过期" min="0" step="1" data-max-days="{{ defaults.expire_days }}">
+                       value="{{ edit_link['_share_expire_days_value'] if edit_link and edit_link.get('_share_expire_days_value') else defaults.expire_days }}"
+                       placeholder="0或留空则永不过期" min="0" step="1" data-max-days="{{ defaults.expire_days }}">
                   <select id="share_expire_unit" name="share_expire_unit" class="form-input" style="width:72px;flex:none;font-size:.85rem;">
                     <option value="天" {{ 'selected' if not edit_link or not edit_link.get('_share_expire_unit') or edit_link.get('_share_expire_unit') == '天' else '' }}>天</option>
                     <option value="小时" {{ 'selected' if edit_link and edit_link.get('_share_expire_unit') == '小时' else '' }}>小时</option>
                     <option value="分钟" {{ 'selected' if edit_link and edit_link.get('_share_expire_unit') == '分钟' else '' }}>分钟</option>
                   </select>
                 </div>
+                <div class="form-hint">点击右侧下拉框选择单位（天/小时/分钟）</div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="share_expires_at_display">分享页截止日期 <span style="color:#dc2626;font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
@@ -261,19 +363,14 @@
                        placeholder="根据有效期自动计算">
               </div>
             </div>
-
-            <div class="form-group" style="margin-top:4px;">
-              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                <input type="checkbox" id="collect_disabled" name="collect_disabled" value="1"
-                       {{ 'checked' if edit_link and not edit_link.get('collect_enabled', 1) else '' }}>
-                <span class="switch-track">
-                  <span class="switch-thumb"></span>
-                </span>
-                <span>关闭收集页（仅保留分享页）</span>
-              </label>
-              <div class="form-hint">关闭后收集链接将不可访问，但分享页仍可正常使用</div>
-            </div>
-          </div>
+          </div><!-- /share-section -->
+              </div><!-- /share-modal-body -->
+              <div class="share-modal-footer">
+                <button type="button" class="btn btn-sm btn-outline" onclick="closeShareModal()">取消</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="confirmShareModal()">确定</button>
+              </div>
+            </div><!-- /share-modal-panel -->
+          </div><!-- /share-modal-overlay -->
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;">
             <button type="submit" class="btn btn-sm btn-primary">{{ '保存修改' if edit_link else '创建收集链接' }}</button>
@@ -327,6 +424,93 @@
   background-color: #f3f4f6 !important;
   cursor: not-allowed;
 }
+
+/* 缩小文本输入框 */
+#link-form .form-input,
+#link-form .form-select,
+#link-form .form-textarea {
+  padding: 7px 10px;
+  font-size: .82rem;
+}
+#link-form .form-textarea { min-height: 56px; }
+
+/* ---- 表单列布局（始终单列） ---- */
+.form-columns { display: block; }
+.form-col { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
+.form-col * { max-width: 100%; }
+
+/* ---- 分享页浮窗 ---- */
+.share-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.share-modal-panel {
+  background: #fff;
+  border-radius: 0px 0px 0px 0px;
+  max-width: 540px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+}
+.share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e8e8ed;
+  flex-shrink: 0;
+}
+.share-modal-header h3 { font-size: 1rem; font-weight: 600; margin: 0; color: #1a1a2e; }
+.share-modal-close {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: #9ca3af; padding: 2px 6px; border-radius: 4px; line-height: 1;
+  transition: color .15s, background .15s;
+}
+.share-modal-close:hover { color: #374151; background: #f3f4f6; }
+.share-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.share-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e8e8ed;
+  flex-shrink: 0;
+}
+
+/* 移动端：底部上滑浮窗 */
+@media (max-width: 767px) {
+  .share-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .share-modal-panel {
+    max-width: 100%;
+    border-radius: 0px 0px 0px 0px;
+    max-height: 88vh;
+    animation: shareModalSlideUp .25s cubic-bezier(.22,.61,.36,1);
+  }
+  @keyframes shareModalSlideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .share-modal-body { padding: 12px 16px; }
+  .share-modal-header { padding: 12px 16px; }
+  .share-modal-footer { padding: 10px 16px; }
+}
 </style>
 
 <script>
@@ -376,52 +560,112 @@ function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
   unitEl.addEventListener('change', onUnitChange);
 }
 
-function togglePasscodeInput() {
-  var emptyPasscode = document.getElementById('empty_passcode').checked;
+function onPasscodeModeChange(skipFocus) {
+  var mode = document.querySelector('input[name="passcode_mode"]:checked');
+  if (!mode) return;
+  mode = mode.value;
+  var inputWrap = document.getElementById('passcode-input-wrap');
   var passcodeInput = document.getElementById('passcode');
-  if (emptyPasscode) {
-    passcodeInput.disabled = true;
-    passcodeInput.value = '';
-    passcodeInput.placeholder = '空通行证（无需验证）';
-    passcodeInput.style.opacity = '0.5';
-    passcodeInput.style.cursor = 'not-allowed';
-    var hint = document.getElementById('passcode-hint');
-    if (hint) hint.textContent = '开启后任何人无需通行证即可进入收集页';
-  } else {
-    passcodeInput.disabled = false;
-    passcodeInput.placeholder = '请输入通行证';
-    passcodeInput.style.opacity = '1';
-    passcodeInput.style.cursor = 'text';
-    var hint = document.getElementById('passcode-hint');
-    if (hint) hint.textContent = '设置后访问者需输入通行证才能进入；留空则无需验证';
+  var emptyHidden = document.getElementById('empty_passcode');
+  if (mode === 'set') {
+    if (inputWrap) inputWrap.style.display = '';
+    if (passcodeInput) { passcodeInput.disabled = false; if (!skipFocus) passcodeInput.focus(); }
+    if (emptyHidden) emptyHidden.value = '0';
+  } else if (mode === 'empty') {
+    if (inputWrap) inputWrap.style.display = 'none';
+    if (passcodeInput) { passcodeInput.disabled = true; passcodeInput.value = ''; }
+    if (emptyHidden) emptyHidden.value = '1';
+  } else { // keep
+    if (inputWrap) inputWrap.style.display = 'none';
+    if (passcodeInput) { passcodeInput.disabled = true; passcodeInput.value = ''; }
+    if (emptyHidden) emptyHidden.value = '0';
   }
 }
 
-function toggleShareSection() {
+function toggleShareSection(skipModal) {
   var enabled = document.getElementById('share_enabled').checked;
+  var configBtn = document.getElementById('share-config-btn');
   var section = document.getElementById('share-section');
-  section.style.display = enabled ? 'block' : 'none';
-  // 隐藏时 disable 内部字段，避免提交脏数据
-  var fields = section.querySelectorAll('input, textarea, select');
-  for (var i = 0; i < fields.length; i++) {
-    fields[i].disabled = !enabled;
+
+  if (enabled) {
+    // 显示配置按钮
+    if (configBtn) configBtn.style.display = 'inline-flex';
+    // 恢复字段之前保存的值
+    var fields = section.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].type === 'hidden') continue;
+      fields[i].disabled = false;
+      if (fields[i].dataset.savedValue !== undefined) {
+        fields[i].value = fields[i].dataset.savedValue;
+        delete fields[i].dataset.savedValue;
+      }
+    }
+    // 重新初始化分享页通行证和有效期显示
+    onSharePasscodeModeChange(true);
+    calcExpireDisplay('share_expire_days', 'share_expire_unit', 'share_expires_at_display');
+    // 自动弹出浮窗（页面初始化时跳过）
+    if (!skipModal) openShareModal();
+  } else {
+    // 隐藏配置按钮
+    if (configBtn) configBtn.style.display = 'none';
+    // 关闭浮窗（如果打开的）
+    closeShareModal();
+    // disable 内部字段，避免提交脏数据
+    var fields = section.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].type === 'hidden') continue;
+      fields[i].dataset.savedValue = fields[i].value;
+      fields[i].disabled = true;
+    }
   }
 }
 
-function toggleSharePasscodeInput() {
-  var empty = document.getElementById('share_passcode_empty').checked;
-  var input = document.getElementById('share_passcode');
-  if (empty) {
-    input.disabled = true;
-    input.value = '';
-    input.placeholder = '空通行证（无需验证）';
-    input.style.opacity = '0.5';
-    input.style.cursor = 'not-allowed';
-  } else {
-    input.disabled = false;
-    input.placeholder = '{{ "留空则保持原有分享通行证" if edit_link else "留空则复用收集页通行证" }}';
-    input.style.opacity = '1';
-    input.style.cursor = 'text';
+function openShareModal() {
+  var overlay = document.getElementById('share-modal-overlay');
+  if (overlay) { overlay.style.display = 'flex'; }
+}
+
+function closeShareModal() {
+  var overlay = document.getElementById('share-modal-overlay');
+  if (overlay) { overlay.style.display = 'none'; }
+}
+
+function closeShareModalOnOverlay(e) {
+  if (e.target === document.getElementById('share-modal-overlay')) {
+    closeShareModal();
+  }
+}
+
+function confirmShareModal() {
+  closeShareModal();
+}
+
+function onSharePasscodeModeChange(skipFocus) {
+  var mode = document.querySelector('input[name="share_passcode_mode"]:checked');
+  if (!mode) return;
+  mode = mode.value;
+  var inputWrap = document.getElementById('share-passcode-input-wrap');
+  var passcodeInput = document.getElementById('share_passcode');
+  var emptyHidden = document.getElementById('share_passcode_empty');
+  if (mode === 'set') {
+    // 需要通行证验证：显示输入框，empty=0
+    if (inputWrap) inputWrap.style.display = '';
+    if (passcodeInput) { passcodeInput.disabled = false; if (!skipFocus) passcodeInput.focus(); }
+    if (emptyHidden) emptyHidden.value = '0';
+  } else if (mode === 'empty') {
+    // 空通行证：隐藏输入框，empty=1（任何人可直接访问）
+    if (inputWrap) inputWrap.style.display = 'none';
+    if (passcodeInput) { passcodeInput.disabled = true; passcodeInput.value = ''; }
+    if (emptyHidden) emptyHidden.value = '1';
+  } else if (mode === 'inherit') {
+    // 复用收集页通行证：隐藏输入框，empty=0（触发后端fallback逻辑）
+    if (inputWrap) inputWrap.style.display = 'none';
+    if (passcodeInput) { passcodeInput.disabled = true; passcodeInput.value = ''; }
+    if (emptyHidden) emptyHidden.value = '0';
+  } else { // keep（编辑模式保持原有设置）
+    if (inputWrap) inputWrap.style.display = 'none';
+    if (passcodeInput) { passcodeInput.disabled = true; passcodeInput.value = ''; }
+    if (emptyHidden) emptyHidden.value = '0';
   }
 }
 
@@ -448,7 +692,7 @@ function calcExpireDisplay(daysId, unitId, displayId) {
   var maxDays = parseInt(daysEl.getAttribute('data-max-days')) || 30;
   var maxMinutes = maxDays * 1440;
   if (minutes > maxMinutes) {
-    displayEl.value = '⚠ 超出最大 ' + maxDays + ' 天限制';
+    displayEl.value = '超出最大 ' + maxDays + ' 天限制';
     daysEl.style.borderColor = '#dc2626';
     return;
   }
@@ -473,7 +717,30 @@ function bindExpireCalc(daysId, unitId, displayId) {
     daysEl.addEventListener('change', function() { calcExpireDisplay(daysId, unitId, displayId); });
   }
   if (unitEl) {
-    unitEl.addEventListener('change', function() { calcExpireDisplay(daysId, unitId, displayId); });
+    var prevUnit = unitEl.value;
+    unitEl.addEventListener('change', function() {
+      var newUnit = unitEl.value;
+      if (daysEl) {
+        var v = parseInt(daysEl.value) || 0;
+        if (v > 0 && prevUnit !== newUnit) {
+          // 先换算为分钟
+          var minutes;
+          if (prevUnit === '分钟') minutes = v;
+          else if (prevUnit === '小时') minutes = v * 60;
+          else minutes = v * 1440;
+          // 再换算为新单位
+          if (newUnit === '分钟') {
+            daysEl.value = Math.round(minutes);
+          } else if (newUnit === '小时') {
+            daysEl.value = Math.round(minutes / 60);
+          } else {
+            daysEl.value = Math.round(minutes / 1440);
+          }
+        }
+      }
+      prevUnit = newUnit;
+      calcExpireDisplay(daysId, unitId, displayId);
+    });
   }
 }
 
@@ -491,33 +758,14 @@ function clearExpiry() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  {% if edit_link %}
-  {% if edit_link.get('passcode_plain') %}
-  document.getElementById('passcode').placeholder = '留空则保持原有通行证';
-  {% else %}
-  document.getElementById('empty_passcode').checked = true;
-  {% endif %}
-  // 防御性：确保复选框与输入框状态一致
-  if (document.getElementById('empty_passcode').checked) {
-    togglePasscodeInput();
-  }
+  // 初始化通行证单选模式状态（skipFocus=true 避免页面自动滚动）
+  onPasscodeModeChange(true);
+  onSharePasscodeModeChange(true);
 
-  {% if edit_link.get('share_passcode_empty') %}
-  document.getElementById('share_passcode_empty').checked = true;
-  {% endif %}
-  // 防御性：确保分享通行证复选框与输入框状态一致
-  if (document.getElementById('share_passcode_empty').checked) {
-    toggleSharePasscodeInput();
-  }
-
-  var hasExpiry = {{ ((edit_link.get('expires_at') or edit_link.get('share_expires_at') or '')|tojson) }};
+  var hasExpiry = {% if edit_link and (edit_link.get('expires_at') or edit_link.get('share_expires_at')) %}true{% else %}false{% endif %};
   if (hasExpiry) {
     document.getElementById('clear-expiry-btn').style.display = '';
   }
-  {% endif %}
-
-  // 初始化分享页字段禁用状态（隐藏时禁用，防止提交脏数据）
-  toggleShareSection();
 
   // 绑定收集页有效期计算
   bindExpireCalc('expire_days', 'expire_unit', 'expires_at_display');
@@ -540,8 +788,145 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   {% endif %}
 
+  // 初始化分享页字段状态（skipModal=true 避免页面加载时自动弹出浮窗）
+  toggleShareSection(true);
+
   // 单文件上限 MB/GB 切换
-  initSizeUnitToggle('max_file_size_val', 'max_file_size_unit', 'max_file_size_gb', {{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }});
+  initSizeUnitToggle('max_file_size_val', 'max_file_size_unit', 'max_file_size_gb', parseFloat('{{ edit_link['max_file_size_gb'] if edit_link and edit_link.get('max_file_size_gb') is not none else defaults['max_file_size_gb'] }}'));
 });
+
+// 前端表单验证
+function validateForm() {
+  var title = document.getElementById('title');
+  if (title && !title.value.trim()) {
+    title.style.borderColor = '#dc2626';
+    title.focus();
+    showToast('请输入收集名称');
+    return false;
+  }
+  if (title) title.style.borderColor = '';
+
+  var maxFiles = document.getElementById('max_files');
+  if (maxFiles) {
+    var mf = parseInt(maxFiles.value);
+    if (isNaN(mf) || mf < 0) {
+      maxFiles.style.borderColor = '#dc2626';
+      maxFiles.focus();
+      showToast('最大文件数量必须为0或正整数');
+      return false;
+    }
+    maxFiles.style.borderColor = '';
+  }
+
+  var maxSizeGB = document.getElementById('max_file_size_gb');
+  if (maxSizeGB) {
+    var ms = parseFloat(maxSizeGB.value);
+    if (isNaN(ms) || ms < 0.01 || ms > 64) {
+      var maxSizeVal = document.getElementById('max_file_size_val');
+      if (maxSizeVal) { maxSizeVal.style.borderColor = '#dc2626'; }
+      showToast('单文件上限必须在 0.01-64 GB 之间');
+      return false;
+    }
+    var maxSizeVal = document.getElementById('max_file_size_val');
+    if (maxSizeVal) maxSizeVal.style.borderColor = '';
+  }
+
+  // 检查收集页有效期是否超出限制（红色状态）
+  var expireDays = document.getElementById('expire_days');
+  if (expireDays && (expireDays.style.borderColor === '#dc2626' || expireDays.style.borderColor === 'rgb(220, 38, 38)')) {
+    expireDays.focus();
+    showToast('收集页有效期超过了最大天数限制');
+    return false;
+  }
+  // 检查分享页有效期是否超出限制（红色状态）
+  var shareExpireDays = document.getElementById('share_expire_days');
+  if (shareExpireDays && (shareExpireDays.style.borderColor === '#dc2626' || shareExpireDays.style.borderColor === 'rgb(220, 38, 38)')) {
+    shareExpireDays.focus();
+    showToast('分享页有效期超过了最大天数限制');
+    return false;
+  }
+
+  // 通行证验证（创建时必须选择一种模式）
+  {% if not edit_link %}
+  var pcMode = document.querySelector('input[name="passcode_mode"]:checked');
+  if (!pcMode) {
+    showToast('请选择收集页通行证方式');
+    return false;
+  }
+  if (pcMode.value === 'set') {
+    var pcInput = document.getElementById('passcode');
+    if (pcInput && !pcInput.value.trim()) {
+      pcInput.style.borderColor = '#dc2626';
+      pcInput.focus();
+      showToast('请输入通行证密码');
+      return false;
+    }
+    if (pcInput) pcInput.style.borderColor = '';
+  }
+  // 分享页通行证验证
+  var shareEnabled = document.getElementById('share_enabled');
+  if (shareEnabled && shareEnabled.checked) {
+    var spMode = document.querySelector('input[name="share_passcode_mode"]:checked');
+    if (!spMode) {
+      showToast('请选择分享页通行证方式');
+      return false;
+    }
+    if (spMode.value === 'set') {
+      var spInput = document.getElementById('share_passcode');
+      if (spInput && !spInput.value.trim()) {
+        spInput.style.borderColor = '#dc2626';
+        spInput.focus();
+        showToast('请输入分享页通行证密码');
+        return false;
+      }
+      if (spInput) spInput.style.borderColor = '';
+    }
+  }
+  {% else %}
+  // 编辑时：如果选了"设置新通行证"但未输入密码
+  var pcMode = document.querySelector('input[name="passcode_mode"]:checked');
+  if (pcMode && pcMode.value === 'set') {
+    var pcInput = document.getElementById('passcode');
+    if (pcInput && !pcInput.value.trim()) {
+      pcInput.style.borderColor = '#dc2626';
+      pcInput.focus();
+      showToast('请输入通行证密码');
+      return false;
+    }
+    if (pcInput) pcInput.style.borderColor = '';
+  }
+  var spMode = document.querySelector('input[name="share_passcode_mode"]:checked');
+  if (spMode && spMode.value === 'set') {
+    var spInput = document.getElementById('share_passcode');
+    if (spInput && !spInput.value.trim()) {
+      spInput.style.borderColor = '#dc2626';
+      spInput.focus();
+      showToast('请输入分享页通行证密码');
+      return false;
+    }
+    if (spInput) spInput.style.borderColor = '';
+  }
+  {% endif %}
+
+  return true;
+}
+
+// 简易提示
+function showToast(msg) {
+  var existing = document.querySelector('.form-toast');
+  if (existing) existing.remove();
+  var t = document.createElement('div');
+  t.className = 'form-toast';
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:8px 20px;border-radius:6px;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:formToastIn .2s ease;';
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 2500);
+}
 </script>
+<style>
+@keyframes formToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+</style>
 {% endblock %}

@@ -128,14 +128,14 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.0"
+VERSION = "2.3.5"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
-app.config['TEMPLATES_AUTO_RELOAD'] = False  # 生产环境关闭，每次请求不再检查文件变更（节省 ~50ms/请求）
+app.config['TEMPLATES_AUTO_RELOAD'] = True  # 开发环境开启，修改模板后自动刷新
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24  # 静态资源缓存 1 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
@@ -326,7 +326,7 @@ def init_db():
             conn.commit()
             logger.info("已创建 users 表")
     except Exception as e:
-        print(f"数据库迁移错误(users): {e}")
+        logger.error(f"数据库迁移错误(users): {e}")
     
     # 2. 检查并创建 invite_codes 表（如果不存在）
     try:
@@ -349,7 +349,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(invite_codes): {e}")
+        logger.error(f"数据库迁移错误(invite_codes): {e}")
     
     # 3. 创建其他基础表（使用单独的CREATE TABLE语句，避免外键约束问题）
     try:
@@ -365,7 +365,7 @@ def init_db():
             conn.commit()
             logger.info("已创建 settings 表")
     except Exception as e:
-        print(f"数据库迁移错误(settings): {e}")
+        logger.error(f"数据库迁移错误(settings): {e}")
 
     try:
         # 3.2 创建 links 表（不使用外键约束，应用层处理关联）
@@ -395,7 +395,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_links_user_created ON links(user_id, created_at)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(links): {e}")
+        logger.error(f"数据库迁移错误(links): {e}")
 
     try:
         # 3.3 创建 upload_records 表（不使用外键约束，应用层处理关联）
@@ -425,7 +425,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_records_link_uploaded ON upload_records(link_id, uploaded_at)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(upload_records): {e}")
+        logger.error(f"数据库迁移错误(upload_records): {e}")
 
     try:
         # 3.3.1 创建 chunk_uploads 表（分片上传断点续传支持）
@@ -457,7 +457,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_chunk_uploads_status ON chunk_uploads(status)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(chunk_uploads): {e}")
+        logger.error(f"数据库迁移错误(chunk_uploads): {e}")
 
     try:
         # 3.3.2 创建 tus_uploads 表（Tus 协议断点续传）
@@ -489,7 +489,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tus_uploads_status ON tus_uploads(status)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(tus_uploads): {e}")
+        logger.error(f"数据库迁移错误(tus_uploads): {e}")
 
     # 数据库迁移 - 字段升级
     # 0. 检查并创建 verification_codes 表（如果不存在）
@@ -513,7 +513,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_vcodes_email ON verification_codes(email)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(verification_codes): {e}")
+        logger.error(f"数据库迁移错误(verification_codes): {e}")
 
     # 3.4 检查并创建 rate_limits 表（基于 SQLite 的频率限制，支持多 worker）
     try:
@@ -529,7 +529,7 @@ def init_db():
             conn.commit()
             logger.info("已创建 rate_limits 表")
     except Exception as e:
-        print(f"数据库迁移错误(rate_limits): {e}")
+        logger.error(f"数据库迁移错误(rate_limits): {e}")
 
     # 4. 检查并创建 user_settings 表（用户级设置）
     try:
@@ -550,7 +550,7 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id)")
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(user_settings): {e}")
+        logger.error(f"数据库迁移错误(user_settings): {e}")
 
     # 数据库迁移 - 字段升级（links/upload_records 等）
     # 1. 检查并迁移 links 表添加 user_id 字段
@@ -561,7 +561,7 @@ def init_db():
             conn.execute("ALTER TABLE links ADD COLUMN user_id TEXT DEFAULT ''")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(user_id links): {e}")
+        logger.error(f"数据库迁移错误(user_id links): {e}")
 
     # 2. 检查并迁移 upload_records 表添加 user_id 字段
     try:
@@ -571,7 +571,7 @@ def init_db():
             conn.execute("ALTER TABLE upload_records ADD COLUMN user_id TEXT DEFAULT ''")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(user_id upload_records): {e}")
+        logger.error(f"数据库迁移错误(user_id upload_records): {e}")
 
     # 3. 原有迁移保持不变
     try:
@@ -582,7 +582,7 @@ def init_db():
             conn.execute("UPDATE links SET max_file_size_gb = max_file_size_mb / 1024.0 WHERE max_file_size_mb IS NOT NULL AND max_file_size_gb = 1")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误: {e}")
+        logger.error(f"数据库迁移错误: {e}")
 
     try:
         cursor = conn.execute("PRAGMA table_info(upload_records)")
@@ -591,7 +591,7 @@ def init_db():
             conn.execute("ALTER TABLE upload_records ADD COLUMN download_count INTEGER DEFAULT 0")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(download_count): {e}")
+        logger.error(f"数据库迁移错误(download_count): {e}")
 
     # 添加 source 字段（标识文件来源）
     try:
@@ -602,7 +602,7 @@ def init_db():
             conn.commit()
             logger.info("已为 upload_records 表添加 source 字段")
     except Exception as e:
-        print(f"数据库迁移错误(source): {e}")
+        logger.error(f"数据库迁移错误(source): {e}")
 
     # 添加 passcode_empty 字段（标记空通行证，避免每次请求 check_password_hash）
     try:
@@ -618,7 +618,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 passcode_empty 字段")
     except Exception as e:
-        print(f"数据库迁移错误(passcode_empty): {e}")
+        logger.error(f"数据库迁移错误(passcode_empty): {e}")
 
     # 规范化 uploaded_at 时间格式（去除微秒）
     try:
@@ -629,7 +629,7 @@ def init_db():
         )
         conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(uploaded_at normalize): {e}")
+        logger.error(f"数据库迁移错误(uploaded_at normalize): {e}")
 
     # 清理孤儿记录（实际文件已被删除）
     try:
@@ -648,7 +648,7 @@ def init_db():
             conn.commit()
             logger.info(f"已清理 {deleted_count} 条孤儿记录（文件已不存在）")
     except Exception as e:
-        print(f"数据库迁移错误(orphan cleanup): {e}")
+        logger.error(f"数据库迁移错误(orphan cleanup): {e}")
 
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -657,7 +657,7 @@ def init_db():
             conn.execute("ALTER TABLE links ADD COLUMN expires_at TIMESTAMP")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(expires_at): {e}")
+        logger.error(f"数据库迁移错误(expires_at): {e}")
 
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -669,7 +669,7 @@ def init_db():
             conn.execute("ALTER TABLE links ADD COLUMN allow_preview_download INTEGER DEFAULT 0")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(allow_delete): {e}")
+        logger.error(f"数据库迁移错误(allow_delete): {e}")
 
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -678,7 +678,7 @@ def init_db():
             conn.execute("ALTER TABLE links ADD COLUMN passcode_plain TEXT DEFAULT ''")
             conn.commit()
     except Exception as e:
-        print(f"数据库迁移错误(passcode_plain): {e}")
+        logger.error(f"数据库迁移错误(passcode_plain): {e}")
 
     # 新增分享页开关和独立通行证字段
     try:
@@ -689,7 +689,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_enabled 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_enabled): {e}")
+        logger.error(f"数据库迁移错误(share_enabled): {e}")
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -698,7 +698,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_passcode 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_passcode): {e}")
+        logger.error(f"数据库迁移错误(share_passcode): {e}")
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -707,7 +707,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_passcode_empty 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_passcode_empty): {e}")
+        logger.error(f"数据库迁移错误(share_passcode_empty): {e}")
 
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -717,7 +717,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_passcode_plain 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_passcode_plain): {e}")
+        logger.error(f"数据库迁移错误(share_passcode_plain): {e}")
 
     # 分享页独立描述、独立有效期、收集开关
     try:
@@ -728,7 +728,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_description 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_description): {e}")
+        logger.error(f"数据库迁移错误(share_description): {e}")
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -737,7 +737,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_expires_at 字段")
     except Exception as e:
-        print(f"数据库迁移错误(share_expires_at): {e}")
+        logger.error(f"数据库迁移错误(share_expires_at): {e}")
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -746,7 +746,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 collect_enabled 字段")
     except Exception as e:
-        print(f"数据库迁移错误(collect_enabled): {e}")
+        logger.error(f"数据库迁移错误(collect_enabled): {e}")
 
     # 为 links 表添加 folder_name 列（用于文件系统文件夹，基于收集名称生成）
     try:
@@ -761,7 +761,7 @@ def init_db():
             conn.commit()
             logger.info("已迁移旧链接的 folder_name 为 link_id")
     except Exception as e:
-        print(f"数据库迁移错误(folder_name): {e}")
+        logger.error(f"数据库迁移错误(folder_name): {e}")
 
     # 为 links 表添加 require_uploader 列（空通行证时是否要求上传者填写身份）
     try:
@@ -772,7 +772,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 require_uploader 字段")
     except Exception as e:
-        print(f"数据库迁移错误(require_uploader): {e}")
+        logger.error(f"数据库迁移错误(require_uploader): {e}")
 
     # 为 links 表添加 collect_slug 和 share_slug 列（自定义链接 ID）
     try:
@@ -787,7 +787,7 @@ def init_db():
             conn.commit()
             logger.info("已为 links 表添加 share_slug 字段")
     except Exception as e:
-        print(f"数据库迁移错误(collect_slug/share_slug): {e}")
+        logger.error(f"数据库迁移错误(collect_slug/share_slug): {e}")
 
     # 为 upload_records 表添加 uploader_name 列（记录上传者身份）
     try:
@@ -798,7 +798,7 @@ def init_db():
             conn.commit()
             logger.info("已为 upload_records 表添加 uploader_name 字段")
     except Exception as e:
-        print(f"数据库迁移错误(upload_records.uploader_name): {e}")
+        logger.error(f"数据库迁移错误(upload_records.uploader_name): {e}")
 
     # 为 users 表添加 email 列（旧数据库可能缺失）
     try:
@@ -809,7 +809,7 @@ def init_db():
             conn.commit()
             logger.info("已为 users 表添加 email 字段")
     except Exception as e:
-        print(f"数据库迁移错误(users email): {e}")
+        logger.error(f"数据库迁移错误(users email): {e}")
 
     # 为 users 表添加 nickname 列
     try:
@@ -820,7 +820,7 @@ def init_db():
             conn.commit()
             logger.info("已为 users 表添加 nickname 字段")
     except Exception as e:
-        print(f"数据库迁移错误(users nickname): {e}")
+        logger.error(f"数据库迁移错误(users nickname): {e}")
 
 
 
@@ -840,7 +840,7 @@ def init_db():
         conn.commit()
         logger.info("download_logs 表检查/创建完成")
     except Exception as e:
-        print(f"数据库迁移错误(download_logs): {e}")
+        logger.error(f"数据库迁移错误(download_logs): {e}")
 
     # 上传日志表
     try:
@@ -862,7 +862,7 @@ def init_db():
         conn.commit()
         logger.info("upload_logs 表检查/创建完成")
     except Exception as e:
-        print(f"数据库迁移错误(upload_logs): {e}")
+        logger.error(f"数据库迁移错误(upload_logs): {e}")
 
     # 为 upload_logs 表添加 uploader_name 列（仅对旧表做迁移 + 回填）
     try:
@@ -881,7 +881,7 @@ def init_db():
             conn.commit()
             logger.info("已回填 upload_logs 的 uploader_name 字段")
     except Exception as e:
-        print(f"数据库迁移错误(upload_logs.uploader_name): {e}")
+        logger.error(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
     # 检测是否已有数据库（升级场景）
     existing_admin = conn.execute(
@@ -895,7 +895,7 @@ def init_db():
         if cursor.fetchone():
             existing_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     except Exception as e:
-        print(f"检查用户表失败: {e}")
+        logger.error(f"检查用户表失败: {e}")
 
     if existing_admin:
         # 升级安装：数据库已存在，保留所有已有设置，忽略 wizard 环境变量
@@ -1364,8 +1364,8 @@ def _parse_expire_input(days_str, unit_str, max_days, current_time=None):
         return None, None
     try:
         value = int(days_str.strip())
-    except ValueError:
-        return None, None
+    except (ValueError, TypeError):
+        return None, '请输入有效的整数'
     if value <= 0:
         return None, None
     unit = (unit_str or '天').strip()
@@ -2323,6 +2323,14 @@ def _serve_heic_as_jpeg(stored_path):
     if not HEIC_SUPPORT:
         return None
     
+    # 路径遍历防护
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(stored_path)
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"HEIC 路径遍历攻击拦截: stored_path={stored_path}")
+        return None
+    
     try:
         from PIL import Image
         import io
@@ -3113,6 +3121,125 @@ def api_download_token(link_id):
     token, expires = _generate_download_token(link_id)
     return jsonify({'success': True, 'token': token, 'expires': expires})
 
+
+@app.route('/api/convert/docx/<link_id>/<int:record_id>', methods=['GET'])
+def api_convert_docx(link_id, record_id):
+    """将 docx 文件转换为 HTML"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在'}), 404
+
+    link_id = link['id']
+    if not is_verified(link_id, link) and not is_share_verified(link_id, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '未授权'}), 403
+
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    conn.close()
+    if not record:
+        return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}")
+        return jsonify({'success': False, 'message': '访问拒绝'}), 403
+    if not os.path.isfile(real_path):
+        return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+    ext = record['original_name'].split('.')[-1].lower()
+    if ext not in ['doc', 'docx']:
+        return jsonify({'success': False, 'message': '不支持的文件格式'}), 400
+
+    try:
+        import mammoth
+        with open(real_path, 'rb') as f:
+            result = mammoth.convert_to_html(f)
+            html = result.value
+            messages = result.messages
+            return jsonify({'success': True, 'html': html, 'messages': [str(m) for m in messages]})
+    except ImportError:
+        return jsonify({'success': False, 'message': 'mammoth 库未安装'}), 500
+    except Exception as e:
+        logger.error(f"docx 转换失败: {e}")
+        return jsonify({'success': False, 'message': '转换失败: ' + str(e)}), 500
+
+
+@app.route('/api/convert/xlsx/<link_id>/<int:record_id>', methods=['GET'])
+def api_convert_xlsx(link_id, record_id):
+    """将 xlsx 文件转换为 HTML"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在'}), 404
+
+    link_id = link['id']
+    if not is_verified(link_id, link) and not is_share_verified(link_id, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '未授权'}), 403
+
+    record = conn.execute(
+        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        (record_id, link_id)
+    ).fetchone()
+    conn.close()
+    if not record:
+        return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(record['stored_path'])
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}")
+        return jsonify({'success': False, 'message': '访问拒绝'}), 403
+    if not os.path.isfile(real_path):
+        return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+    ext = record['original_name'].split('.')[-1].lower()
+    if ext not in ['xls', 'xlsx']:
+        return jsonify({'success': False, 'message': '不支持的文件格式'}), 400
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(real_path, read_only=True)
+        html = '<table class="xlsx-table">'
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            html += f'<caption>{sheet_name}</caption>'
+            html += '<thead><tr>'
+            for col in range(1, ws.max_column + 1):
+                val = ws.cell(row=1, column=col).value
+                html += f'<th>{escape_html(str(val) if val else "")}</th>'
+            html += '</tr></thead><tbody>'
+            for row in range(2, ws.max_row + 1):
+                html += '<tr>'
+                for col in range(1, ws.max_column + 1):
+                    val = ws.cell(row=row, column=col).value
+                    html += f'<td>{escape_html(str(val) if val else "")}</td>'
+                html += '</tr>'
+            html += '</tbody>'
+        html += '</table>'
+        wb.close()
+        return jsonify({'success': True, 'html': html})
+    except ImportError:
+        return jsonify({'success': False, 'message': 'openpyxl 库未安装'}), 500
+    except Exception as e:
+        logger.error(f"xlsx 转换失败: {e}")
+        return jsonify({'success': False, 'message': '转换失败: ' + str(e)}), 500
+
 @app.route('/share/<link_id>/records', methods=['GET'])
 def share_get_records(link_id):
     """获取分享页文件列表（支持分页）"""
@@ -3161,7 +3288,7 @@ def share_get_records(link_id):
             (link_id, uploader_filter)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, uploader_filter, per_page, offset)
         ).fetchall()
         total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
@@ -3170,7 +3297,7 @@ def share_get_records(link_id):
             "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, per_page, offset)
         ).fetchall()
         total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
@@ -3254,6 +3381,7 @@ def share_preview_record(link_id, record_id):
     }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
+    audio_exts = {'.mp3', '.wav', '.flac', '.aac', '.m4a'}
 
     if ext in image_exts:
         if ext in ('.heic', '.heif') and HEIC_SUPPORT:
@@ -3267,6 +3395,8 @@ def share_preview_record(link_id, record_id):
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
     elif ext in video_exts:
+        return send_from_directory(directory, filename, as_attachment=False)
+    elif ext in audio_exts:
         return send_from_directory(directory, filename, as_attachment=False)
     else:
         return send_from_directory(directory, filename, as_attachment=True)
@@ -3433,13 +3563,21 @@ def share_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
-    # 大 TXT 文件（≥500KB）走专用阅读器
     ext = record['original_name'].split('.')[-1].lower()
     file_size = os.path.getsize(real_path)
+    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
+    
+    jit_token = request.args.get('token', '')
+    jit_expires = request.args.get('expires', '')
+    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+    
+    if ext in office_exts and file_size > 30 * 1024 * 1024:
+        return render_template('preview_too_large.html',
+            filename=record['original_name'],
+            file_size=file_size,
+            download_url='/share/' + link_id + '/download/' + str(record_id) + token_params)
+
     if ext == 'txt' and file_size >= 500 * 1024:
-        jit_token = request.args.get('token', '')
-        jit_expires = request.args.get('expires', '')
-        token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
         txt_info_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_info/' + str(record_id) + token_params
         txt_chunk_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_chunk/' + str(record_id) + token_params
         download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
@@ -3449,10 +3587,6 @@ def share_jit_view(link_id, record_id):
             txt_chunk_url=txt_chunk_url,
             download_url=download_url)
 
-    # 传递令牌给 JIT SDK 内部请求（公开链接需要）
-    jit_token = request.args.get('token', '')
-    jit_expires = request.args.get('expires', '')
-    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
     file_url = request.host_url.rstrip('/') + '/share/' + link_id + '/preview_file/' + str(record_id) + token_params
     download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
     return render_template('jit_preview.html',
@@ -3890,7 +4024,7 @@ def get_upload_records(link_id):
             "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?", (link_id, uploader_name)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, uploader_name, per_page, offset)
         ).fetchall()
     elif require_uploader:
@@ -3902,7 +4036,7 @@ def get_upload_records(link_id):
             "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, per_page, offset)
         ).fetchall()
     conn.close()
@@ -3955,12 +4089,19 @@ def preview_record(link_id, record_id):
         return '预览功能未开启', 403
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
     conn.close()
     if not record:
         return '文件不存在', 404
+
+    # require_uploader 模式下只允许预览自己的文件
+    if link['require_uploader']:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        rec_uploader = (record['uploader_name'] or '').strip()
+        if uploader_name and rec_uploader and rec_uploader != uploader_name:
+            return '无权访问此文件', 403
 
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -3982,6 +4123,7 @@ def preview_record(link_id, record_id):
     }
     pdf_ext = '.pdf'
     video_exts = {'.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'}
+    audio_exts = {'.mp3', '.wav', '.flac', '.aac', '.m4a'}
 
     if ext in image_exts:
         if ext in ('.heic', '.heif') and HEIC_SUPPORT:
@@ -3995,6 +4137,8 @@ def preview_record(link_id, record_id):
     elif ext == pdf_ext:
         return send_from_directory(directory, filename, mimetype='application/pdf', as_attachment=False)
     elif ext in video_exts:
+        return send_from_directory(directory, filename, as_attachment=False)
+    elif ext in audio_exts:
         return send_from_directory(directory, filename, as_attachment=False)
     else:
         return send_from_directory(directory, filename, as_attachment=True)
@@ -4033,13 +4177,21 @@ def download_record(link_id, record_id):
         return '下载功能未开启', 403
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
 
     if not record:
         conn.close()
         return '文件不存在', 404
+
+    # require_uploader 模式下只允许下载自己的文件
+    if link['require_uploader']:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        rec_uploader = (record['uploader_name'] or '').strip()
+        if uploader_name and rec_uploader and rec_uploader != uploader_name:
+            conn.close()
+            return '无权下载此文件', 403
 
     conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
     conn.commit()
@@ -4081,13 +4233,21 @@ def collect_preview_file(link_id, record_id):
         return '预览功能未开启', 403
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
 
     if not record:
         conn.close()
         return '文件不存在', 404
+
+    # require_uploader 模式下只允许预览自己的文件
+    if link['require_uploader']:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        rec_uploader = (record['uploader_name'] or '').strip()
+        if uploader_name and rec_uploader and rec_uploader != uploader_name:
+            conn.close()
+            return '无权访问此文件', 403
 
     conn.close()
 
@@ -4120,6 +4280,11 @@ def collect_preview_file(link_id, record_id):
     
     return response
 
+@app.route('/collect/<link_id>/view/undefined', methods=['GET'])
+def collect_jit_view_undefined(link_id):
+    """拦截 JitViewer 的 undefined 图片请求，避免 404"""
+    return '', 200
+
 @app.route('/collect/<link_id>/view/<int:record_id>', methods=['GET'])
 def collect_jit_view(link_id, record_id):
     """新窗口纯净预览 - JIT Viewer（收集页）"""
@@ -4150,12 +4315,19 @@ def collect_jit_view(link_id, record_id):
         return '预览功能未开启', 403
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
     conn.close()
     if not record:
         return '文件不存在', 404
+
+    # require_uploader 模式下只允许预览自己的文件
+    if link['require_uploader']:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        rec_uploader = (record['uploader_name'] or '').strip()
+        if uploader_name and rec_uploader and rec_uploader != uploader_name:
+            return '无权访问此文件', 403
 
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -4166,13 +4338,21 @@ def collect_jit_view(link_id, record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
-    # 大 TXT 文件（≥500KB）走专用阅读器
     ext = record['original_name'].split('.')[-1].lower()
     file_size = os.path.getsize(real_path)
+    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
+    
+    jit_token = request.args.get('token', '')
+    jit_expires = request.args.get('expires', '')
+    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
+    
+    if ext in office_exts and file_size > 30 * 1024 * 1024:
+        return render_template('preview_too_large.html',
+            filename=record['original_name'],
+            file_size=file_size,
+            download_url='/collect/' + link_id + '/download/' + str(record_id) + token_params)
+
     if ext == 'txt' and file_size >= 500 * 1024:
-        jit_token = request.args.get('token', '')
-        jit_expires = request.args.get('expires', '')
-        token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
         txt_info_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_info/' + str(record_id) + token_params
         txt_chunk_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_chunk/' + str(record_id) + token_params
         download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
@@ -4182,10 +4362,6 @@ def collect_jit_view(link_id, record_id):
             txt_chunk_url=txt_chunk_url,
             download_url=download_url)
 
-    # 传递令牌给 JIT SDK 内部请求（公开链接需要）
-    jit_token = request.args.get('token', '')
-    jit_expires = request.args.get('expires', '')
-    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
     file_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/preview_file/' + str(record_id) + token_params
     download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
     return render_template('jit_preview.html',
@@ -4325,13 +4501,21 @@ def delete_upload_record(link_id, record_id):
         return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
 
     record = conn.execute(
-        "SELECT id, stored_path FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT id, stored_path, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
 
     if not record:
         conn.close()
         return jsonify({'success': False, 'message': '记录不存在'}), 404
+
+    # require_uploader 模式下只允许删除自己的文件
+    if link['require_uploader']:
+        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+        rec_uploader = (record['uploader_name'] or '').strip()
+        if uploader_name and rec_uploader and rec_uploader != uploader_name:
+            conn.close()
+            return jsonify({'success': False, 'message': '无法删除他人的文件'}), 403
 
     try:
         _safe_delete(record['stored_path'])
@@ -4377,7 +4561,7 @@ def batch_delete_records(link_id):
     # 限制每次最多删除 100 条
     record_ids = record_ids[:100]
 
-    uploader_name = session.get(f'uploader_name_{link_id_db}', '').strip()
+    uploader_name = session.get(f'uploader_{link_id_db}', '').strip()
     require_uploader = bool(link['require_uploader'])
 
     deleted = 0
@@ -4448,7 +4632,7 @@ def delete_all_records(link_id):
         conn.close()
         return jsonify({'success': False, 'message': '该链接不允许删除文件'}), 403
 
-    uploader_name = session.get(f'uploader_name_{link_id_db}', '').strip()
+    uploader_name = session.get(f'uploader_{link_id_db}', '').strip()
     require_uploader = bool(link['require_uploader'])
 
     records = conn.execute(
@@ -4532,6 +4716,10 @@ def upload_file(link_id):
             }), 400
 
         uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+
+        # require_uploader 强制校验：后端拦截绕过前端检查的请求
+        if link['require_uploader'] and not uploader_name:
+            return jsonify({'success': False, 'message': '请先填写您的身份'}), 403
 
         # 检查是否已超过上传总数上限（max_files=0 不限制）
         # 开启上传者时：每个上传者独立配额；未开启时：全局配额
@@ -4869,6 +5057,10 @@ def tus_create(link_id):
         return _tus_error(400, 'Missing filename in metadata')
 
     uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
+
+    # require_uploader 强制校验：后端拦截绕过前端检查的请求
+    if link['require_uploader'] and not uploader_name:
+        return _tus_error(403, '请先填写您的身份')
 
     conn = get_db()
     try:
@@ -6288,11 +6480,12 @@ def download_link_template():
         '有效期(天)',         # expire_days - 空表示永不过期
         '允许删除',           # allow_delete - 空或"否"表示否，"是"表示是
         '显示预览按钮',       # allow_preview_download - 空或"否"表示否，"是"表示是
-        '上传者分组',         # require_uploader - 空或"否"表示否，"是"表示是
+        '上传者登记',         # require_uploader - 空或"否"表示否，"是"表示是
         '自定义收集链接',     # collect_slug - 可选，自定义收集页链接ID
         '启用分享页',         # share_enabled - 空或"否"表示否，"是"表示是
         '分享页描述',         # share_description - 分享页描述（可选）
         '分享页通行证',       # share_passcode - 空表示无需验证（启用分享页后生效）
+        '分享页有效期(天)',   # share_expire_days - 空表示永不过期（启用分享页后生效）
         '自定义分享链接'      # share_slug - 可选，自定义分享页链接ID
     ]
     
@@ -6312,6 +6505,7 @@ def download_link_template():
             '是',
             '这是分享页的描述信息',
             '654321',
+            '7',
             'my-share-link'
         ],
         [
@@ -6326,6 +6520,7 @@ def download_link_template():
             '否',
             '',
             '否',
+            '',
             '',
             '',
             ''
@@ -6365,12 +6560,20 @@ def batch_import_links():
         return jsonify({'success': False, 'message': '请选择要上传的文件'})
     
     ext = file.filename.split('.').pop().lower()
-    if ext not in ('csv', 'xlsx', 'xls'):
-        return jsonify({'success': False, 'message': '不支持的文件格式，请使用CSV或Excel文件'})
+    if ext != 'csv':
+        return jsonify({'success': False, 'message': '仅支持CSV格式。请下载模板后，用Excel打开编辑，保存时选择"CSV（逗号分隔）"格式。'})
     
     try:
-        # 读取CSV内容
-        content = file.read().decode('utf-8-sig')
+        # 读取CSV内容（支持 UTF-8 BOM）
+        raw = file.read()
+        try:
+            content = raw.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            # 可能是 GBK 编码，尝试自动检测
+            try:
+                content = raw.decode('gbk')
+            except Exception:
+                return jsonify({'success': False, 'message': '文件编码无法识别，请确保使用 UTF-8 或 GBK 编码保存CSV文件。'})
         reader = csv.reader(StringIO(content))
         
         rows = list(reader)
@@ -6414,11 +6617,18 @@ def batch_import_links():
                 share_enabled = str(row[10]).strip() if len(row) > 10 else ''
                 share_description = str(row[11]).strip() if len(row) > 11 else ''
                 share_passcode = str(row[12]).strip() if len(row) > 12 else ''
-                share_slug = str(row[13]).strip() if len(row) > 13 else ''
+                share_expire_days = str(row[13]).strip() if len(row) > 13 else ''
+                share_slug = str(row[14]).strip() if len(row) > 14 else ''
                 
-                # 转换字段类型
-                max_files = int(max_files) if max_files else DEFAULT_MAX_FILES
-                max_file_size_gb = float(max_file_size_gb) if max_file_size_gb else DEFAULT_MAX_FILE_SIZE_GB
+                # 转换字段类型（带友好错误提示）
+                try:
+                    max_files = int(max_files) if max_files else DEFAULT_MAX_FILES
+                except (ValueError, TypeError):
+                    raise ValueError(f'"最大文件数量"不是有效数字，请填写整数')
+                try:
+                    max_file_size_gb = float(max_file_size_gb) if max_file_size_gb else DEFAULT_MAX_FILE_SIZE_GB
+                except (ValueError, TypeError):
+                    raise ValueError(f'"单文件上限(GB)"不是有效数字，请填写数字')
                 allow_delete = 1 if allow_delete in ('是', '1', 'true', 'True') else 0
                 allow_preview_download = 1 if allow_preview_download in ('是', '1', 'true', 'True') else 0
                 require_uploader = 1 if require_uploader in ('是', '1', 'true', 'True') else 0
@@ -6436,7 +6646,7 @@ def batch_import_links():
                 if expire_days:
                     expires_at, err = _parse_expire_input(expire_days, '天', _max_expire_days)
                     if err:
-                        raise ValueError(f'有效期错误: {err}')
+                        raise ValueError(f'"有效期(天)"填写错误: {err}')
                 
                 # 生成链接ID
                 link_id = generate_link_id()
@@ -6476,6 +6686,13 @@ def batch_import_links():
                     share_passcode_plain = ''
                     share_passcode_empty = 1
                 
+                # 处理分享页有效期
+                share_expires_at = None
+                if share_expire_days:
+                    share_expires_at, err = _parse_expire_input(share_expire_days, '天', _max_expire_days)
+                    if err:
+                        raise ValueError(f'"分享页有效期(天)"填写错误: {err}')
+                
                 # 创建数据库记录
                 conn = get_db()
                 now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -6484,14 +6701,14 @@ def batch_import_links():
                         id, user_id, title, description, passcode, passcode_plain, passcode_empty,
                         max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
                         require_uploader, collect_slug, share_enabled, share_description, 
-                        share_passcode, share_passcode_plain, share_passcode_empty, share_slug,
+                        share_passcode, share_passcode_plain, share_passcode_empty, share_expires_at, share_slug,
                         status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
                 ''', (
                     link_id, user_id, title, description, passcode_hash, passcode_plain, passcode_empty,
                     max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
                     require_uploader, collect_slug, share_enabled, share_description,
-                    share_passcode_hash, share_passcode_plain, share_passcode_empty, share_slug,
+                    share_passcode_hash, share_passcode_plain, share_passcode_empty, share_expires_at, share_slug,
                     now_str, now_str
                 ))
                 conn.commit()
@@ -6598,11 +6815,17 @@ def create_link():
         description = request.form.get('description', '')  # 降级：保留原始内容
     passcode = request.form.get('passcode', '').strip()
     empty_passcode = request.form.get('empty_passcode') == '1'  # 空通行证复选框
+    passcode_mode = request.form.get('passcode_mode', 'set')  # set/empty/keep
     max_files = request.form.get('max_files', DEFAULT_MAX_FILES)
     max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
     if not title:
         flash('标题不能为空')
+        return redirect(url_for('admin_links'))
+
+    # 验证：选择了"需要通行证验证"但未输入密码
+    if passcode_mode == 'set' and not passcode:
+        flash('请输入通行证密码')
         return redirect(url_for('admin_links'))
 
     # 如果勾选了空通行证，强制清空 passcode
@@ -6711,7 +6934,6 @@ def create_link():
 
     try:
         conn = get_db()
-        passcode_empty = 1 if (not passcode or not passcode.strip()) else 0
         conn.execute(
             """INSERT INTO links (id, user_id, title, description, passcode, passcode_plain,
                max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, passcode_empty,
@@ -6719,7 +6941,7 @@ def create_link():
                share_description, share_expires_at, collect_enabled, require_uploader, 
                folder_name, collect_slug, share_slug)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, passcode_empty,
+            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, empty_passcode,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
              share_description, share_expires_at, collect_enabled, require_uploader, 
              folder_name, collect_slug, share_slug)
@@ -6738,7 +6960,9 @@ def create_link():
         except Exception as e:
             logger.warning(f"创建链接文件夹失败（不影响链接创建）: {e}")
 
-        flash(f'收集链接已创建: /collect/{link_id}')
+        # 优先显示自定义slug
+        display_slug = collect_slug if collect_slug else link_id
+        flash(f'收集链接已创建: /collect/{display_slug}')
     except Exception as e:
         logger.error(f"创建链接失败: {e}\n{traceback.format_exc()}")
         flash(f'创建失败：{e}')
@@ -6765,6 +6989,7 @@ def edit_link(link_id):
             description = request.form.get('description', '')  # 降级：保留原始内容
         passcode = request.form.get('passcode', '').strip()
         empty_passcode = request.form.get('empty_passcode') == '1'  # 空通行证复选框（选中时值为 '1'）
+        passcode_mode = request.form.get('passcode_mode', 'keep')  # set/empty/keep
         max_files = request.form.get('max_files', DEFAULT_MAX_FILES)
         max_file_size_gb = request.form.get('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB))
 
@@ -6784,6 +7009,11 @@ def edit_link(link_id):
 
         if not title:
             flash('标题不能为空')
+            return redirect(url_for('admin_links'))
+
+        # 验证：选择了"需要通行证验证"但未输入密码
+        if passcode_mode == 'set' and not passcode:
+            flash('请输入通行证密码')
             return redirect(url_for('admin_links'))
 
         _max_expire_days = int(get_user_setting(session.get('user_id'), 'default_link_expire_days', '30'))
@@ -6809,16 +7039,24 @@ def edit_link(link_id):
 
         # 分享页设置
         share_enabled = 1 if request.form.get('share_enabled') == '1' else 0
+        share_passcode_mode = request.form.get('share_passcode_mode', 'keep')
         share_passcode_raw = request.form.get('share_passcode', '').strip()
         share_passcode_empty = 1 if request.form.get('share_passcode_empty') == '1' else 0
-        # 分享页通行证是否被用户明确改动（填了新密码 或 勾了空通行证）
-        share_changed = bool(share_passcode_raw) or bool(share_passcode_empty)
+        # 分享页通行证是否被用户明确改动（填了新密码 或 勾了空通行证 或 选择了复用收集页通行证）
+        share_changed = bool(share_passcode_raw) or bool(share_passcode_empty) or (share_passcode_mode == 'inherit')
         if share_passcode_empty:
             share_passcode_hash = ''
             share_passcode_plain = ''
+            share_passcode_empty = 1
         elif share_passcode_raw:
             share_passcode_hash = generate_password_hash(share_passcode_raw)
             share_passcode_plain = share_passcode_raw
+            share_passcode_empty = 0
+        elif share_passcode_mode == 'inherit':
+            # 复用收集页通行证：清空独立通行证，设置 empty=0 触发后端 fallback
+            share_passcode_hash = ''
+            share_passcode_plain = ''
+            share_passcode_empty = 0
         else:
             share_passcode_hash = ''  # 不会被使用（share_changed=False）
             share_passcode_plain = ''
@@ -6932,7 +7170,7 @@ def edit_link(link_id):
         conn.commit()
         conn.close()
 
-        flash('链接已更新')
+        flash('收集已更新')
         return redirect(url_for('admin_links'))
 
     except Exception as e:
@@ -7123,7 +7361,7 @@ def admin_records():
     # 构建高效的 COUNT 和数据查询
     # 管理员无过滤时无需 JOIN（upload_records 已有 link_id）
     # 使用特定字段而非 SELECT r.* 减少数据传输
-    _rec_cols = ("r.id, r.original_name, r.file_size_display, r.download_count, "
+    _rec_cols = ("r.id, r.original_name, r.file_size, r.file_size_display, r.download_count, "
                  "r.uploader_ip, r.uploaded_at, r.link_id, r.stored_path, r.stored_name, r.uploader_name")
 
     if is_admin:
@@ -7457,9 +7695,19 @@ def admin_jit_view(record_id):
     if not os.path.isfile(real_path):
         abort(404)
 
-    # 大 TXT 文件（≥500KB）走专用阅读器
     ext = record['original_name'].split('.')[-1].lower()
     file_size = os.path.getsize(real_path)
+    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
+
+    # Office 文件超过 30MB 提示过大
+    if ext in office_exts and file_size > 30 * 1024 * 1024:
+        download_url = '/admin/records/' + str(record_id) + '/download'
+        return render_template('preview_too_large.html',
+            filename=record['original_name'],
+            file_size=file_size,
+            download_url=download_url)
+
+    # 大 TXT 文件（≥500KB）走专用阅读器
     if ext == 'txt' and file_size >= 500 * 1024:
         txt_info_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_info'
         txt_chunk_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_chunk'
@@ -7550,6 +7798,9 @@ def admin_txt_chunk(record_id):
 @login_required
 def delete_record(record_id):
     """删除单条上传记录（同时删除文件）"""
+    if not validate_csrf():
+        flash('安全验证失败，请刷新页面重试')
+        return redirect(url_for('admin_records'))
     if not _check_record_ownership(record_id):
         flash('无权删除该记录')
         return redirect(url_for('admin_records'))
@@ -7639,6 +7890,8 @@ def admin_preview_record(record_id):
 @login_required
 def admin_batch_delete_records():
     """批量删除记录"""
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'})
     ids = request.form.getlist('ids[]')
     if not ids:
         return jsonify({'success': False, 'message': '未选择记录'})
@@ -7677,6 +7930,8 @@ def admin_batch_delete_records():
 @login_required
 def batch_download_records():
     """批量打包下载选中记录"""
+    if not validate_csrf():
+        return '安全验证失败，请刷新页面重试', 403
     ids = request.form.getlist('ids[]')
     if not ids:
         return '未选择任何记录', 400
@@ -7822,6 +8077,9 @@ def ajax_set_per_page():
 def admin_settings():
     """系统设置"""
     if request.method == 'POST':
+        if not validate_csrf():
+            flash('安全验证失败，请刷新页面重试')
+            return redirect(url_for('admin_settings'))
         action = request.form.get('action', '')
 
         if action == 'account':
@@ -7916,6 +8174,44 @@ def admin_settings():
             set_setting('max_files', str(max_files))
             set_setting('max_file_size_gb', str(max_size))
             set_setting('upload_batch_limit', str(upload_batch))
+
+            # 通行证有效期
+            passcode_ttl = request.form.get('passcode_ttl_minutes', '120')
+            try:
+                _pt = float(passcode_ttl)
+                if _pt != int(_pt):
+                    raise ValueError('通行证有效期必须为整数')
+                p_val = int(_pt)
+                if p_val < 1 or p_val > 43200:
+                    raise ValueError('通行证有效期必须在 1-43200 分钟之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '通行证有效期格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('passcode_ttl_minutes', str(p_val))
+
+            # 链接有效期
+            link_expire = request.form.get('default_link_expire_days', '30')
+            try:
+                _le = float(link_expire)
+                if _le != int(_le):
+                    raise ValueError('链接有效期天数必须为整数')
+                l_val = int(_le)
+                if l_val < 1 or l_val > 3650:
+                    raise ValueError('链接有效期天数必须在 1-3650 天之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '链接有效期格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('default_link_expire_days', str(l_val))
+
+            # 禁止文件类型
+            blocked = request.form.get('blocked_extensions_input', '').strip()
+            if blocked:
+                import re as _re2
+                cleaned = _re2.sub(r'\s+', ' ', blocked).strip()
+                set_setting('blocked_extensions', cleaned)
+            else:
+                set_setting('blocked_extensions', '')
+
             flash('设置已保存')
 
         elif action == 'site_title':
@@ -8103,19 +8399,7 @@ def admin_settings():
         elif action == 'feature_toggles':
             # 用户注册 + 首页设置
             allow_reg = request.form.get('allow_registration', '0')
-            expire_days = request.form.get('default_invite_expire_days', '7')
-            try:
-                _d = float(expire_days)
-                if _d != int(_d):
-                    raise ValueError('邀请码有效期必须为整数')
-                days = int(_d)
-                if days < 1 or days > 365:
-                    raise ValueError('邀请码有效期必须在 1-365 天之间')
-            except ValueError as e:
-                flash(str(e) if '必须' in str(e) else '邀请码有效期格式错误')
-                return redirect(url_for('admin_settings'))
             set_setting('allow_registration', allow_reg)
-            set_setting('default_invite_expire_days', str(days))
             enabled = request.form.get('landing_page_enabled', '0')
             set_setting('landing_page_enabled', enabled)
             flash('功能开关已保存')
@@ -8423,7 +8707,7 @@ def api_status():
     try:
         conn.execute("SELECT 1 FROM settings LIMIT 1")
         db_ok = True
-    except:
+    except Exception:
         db_ok = False
     conn.close()
 
@@ -8481,7 +8765,7 @@ def _bg_file_scanner(interval=30):
                     (str(now),)
                 )
                 conn.commit()
-            except:
+            except Exception:
                 conn.close()
                 time.sleep(interval * 0.3)
                 continue
@@ -8667,11 +8951,11 @@ if __name__ == '__main__':
         'post_worker_init': post_worker_init,
     }
 
-    print(f"文件收集器 v{VERSION} 启动中 (Gunicorn)...")
-    print(f"数据目录: {DATA_DIR}")
-    print(f"上传目录: {UPLOAD_BASE}")
-    print(f"监听端口: {PORT}")
-    print(f"Worker 进程: {workers}")
-    print(f"管理后台: http://localhost:{PORT}/admin")
+    logger.info(f"文件收集器 v{VERSION} 启动中 (Gunicorn)...")
+    logger.info(f"数据目录: {DATA_DIR}")
+    logger.info(f"上传目录: {UPLOAD_BASE}")
+    logger.info(f"监听端口: {PORT}")
+    logger.info(f"Worker 进程: {workers}")
+    logger.info(f"管理后台: http://localhost:{PORT}/admin")
 
     GunicornApp(app, options).run()

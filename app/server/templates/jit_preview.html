@@ -8,12 +8,70 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f5f5; }
-  #jit-viewer-container { width: 100%; height: 100%; }
+    body { overflow: hidden; }
+    /* 强制隐藏所有横向滚动条 */
+    ::-webkit-scrollbar:horizontal { display: none !important; }
+    #jit-viewer-container { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; }
+    #jit-viewer-container .jv-viewer { height: 100%; min-height: 100%; }
+  /* 强制 JitViewer 根组件填满容器 */
+  #jit-viewer-container .jv-viewer { height: 100%; min-height: 100%; overflow-x: hidden !important; }
+  /* 强制 vue-office 组件填满容器且不超宽，允许垂直滚动 */
+  #jit-viewer-container .vue-office-pptx,
+  #jit-viewer-container .vue-office-docx,
+  #jit-viewer-container .vue-office-excel { 
+    height: 100% !important; 
+    max-width: 100% !important; 
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  #jit-viewer-container .pptx-preview-wrapper { 
+    max-width: 100% !important; 
+    overflow-x: hidden !important; 
+  }
+  /* Excel 滚动容器保持可滚动 */
+  #jit-viewer-container .vue-office-excel .ant-table-container,
+  #jit-viewer-container .vue-office-excel .vue-office-excel__sheet {
+    overflow: auto !important;
+  }
   /* 隐藏 JIT Viewer 底部工具栏 */
   .jv-toolbar__bottom { display: none !important; }
-  /* PDF 页自动适配容器宽度（移动端关键：防止 canvas 溢出视口） */
+  /* 移动端顶部工具栏压缩，确保所有按钮可见 */
+  @media (max-width: 767px) {
+    .jv-toolbar__top {
+      max-width: 100vw !important;
+      padding: 3px 6px !important;
+    }
+    .jv-toolbar-btn {
+      padding: 3px 5px !important;
+      font-size: .7rem !important;
+      min-width: 26px !important;
+    }
+    .jv-toolbar-btn__label {
+      font-size: .65rem !important;
+    }
+    .jv-toolbar__filename {
+      max-width: 80px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      font-size: .7rem !important;
+    }
+    .jv-zoom-control__value {
+      font-size: .7rem !important;
+      min-width: 28px !important;
+    }
+    .jv-toolbar__center {
+      gap: 2px !important;
+    }
+  }
+  /* PDF 页适配容器宽度 */
   .jv-pdf-page-wrapper { max-width: 100%; }
   .jv-pdf-canvas { max-width: 100%; height: auto !important; }
+  /* 桌面端 PDF 按自然尺寸居中显示，不强制撑满 */
+  @media (min-width: 768px) {
+    .jv-pdf-canvas { width: auto !important; max-width: 100% !important; }
+    .jv-pdf-page-wrapper { width: auto !important; max-width: 100% !important; display: flex; justify-content: center; }
+  }
   .jit-error {
     display: flex; align-items: center; justify-content: center;
     height: 100%; flex-direction: column;
@@ -29,6 +87,214 @@
 </head>
 <body>
 <div id="jit-viewer-container"></div>
+<script>
+/* PDF canvas 渲染锁清除：防止 PDF.js "same canvas" 错误 */
+(function() {
+  var ctxDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext');
+  if (!ctxDesc) return;
+  var origGetCtx = ctxDesc.value;
+  var renderProps = ['_internalRenderTask', '_renderTask', '__renderTask'];
+  HTMLCanvasElement.prototype.getContext = function() {
+    // 清理 PDF.js 残留的渲染锁标记
+    for (var i = 0; i < renderProps.length; i++) {
+      try { delete this[renderProps[i]]; } catch(_) {}
+    }
+    return origGetCtx.apply(this, arguments);
+  };
+})();
+</script>
+<script>
+/* 拦截 JitViewer 的 undefined 请求 —— 在 HTML/CSS 解析前清洗，零网络泄漏 */
+(function() {
+  var UNDEFINED_RE = /undefined/ig;
+
+  /* ---- 工具函数 ---- */
+  function hasUndefined(s) { return typeof s === 'string' && UNDEFINED_RE.test(s); }
+  function log(msg) { console.log('[undefined-blocker] ' + msg); }
+
+  /* 清洗 HTML 字符串中的 undefined URL（在浏览器解析之前） */
+  function sanitizeHTML(s) {
+    if (typeof s !== 'string' || !UNDEFINED_RE.test(s)) return s;
+    // 1. 替换标签属性中的 undefined URL：src="...undefined..." href="...undefined..." data="...undefined..."
+    s = s.replace(/(\s)(src|href|data|action|poster|background|srcset|xlink:href)=("[^"]*undefined[^"]*"|'[^']*undefined[^']*')/g, function(m, sp, attr, val) {
+      return sp + attr + '=""';
+    });
+    // 2. 替换 style 属性中的 url(...undefined...)
+    s = s.replace(/(style="[^"]*?)url\([^)]*undefined[^)]*\)[^"]*?"/g, '$1"');
+    // 3. 替换 <style> 标签内的 @import url(...undefined...)
+    s = s.replace(/(<style[^>]*>)([\s\S]*?)(<\/style>)/g, function(m, open, body, close) {
+      if (hasUndefined(body)) {
+        body = body.replace(/@import\s+url\([^)]*undefined[^)]*\)\s*;?/g, '');
+        body = body.replace(/url\([^)]*undefined[^)]*\)/g, 'url()');
+      }
+      return open + body + close;
+    });
+    return s;
+  }
+
+  /* 清洗 CSS 文本中的 undefined URL */
+  function sanitizeCSS(s) {
+    if (typeof s !== 'string' || !UNDEFINED_RE.test(s)) return s;
+    s = s.replace(/@import\s+url\([^)]*undefined[^)]*\)\s*;?/g, '');
+    s = s.replace(/url\([^)]*undefined[^)]*\)/g, 'url()');
+    return s;
+  }
+
+  /* ---- ① 拦截 innerHTML —— 浏览器同步解析前清洗，这是最关键的一层 ---- */
+  var innerDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+  if (innerDesc && innerDesc.set) {
+    var origInnerSet = innerDesc.set;
+    innerDesc.set = function(html) {
+      origInnerSet.call(this, sanitizeHTML(html));
+    };
+    Object.defineProperty(Element.prototype, 'innerHTML', innerDesc);
+  }
+
+  /* ② 拦截 outerHTML */
+  var outerDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'outerHTML');
+  if (outerDesc && outerDesc.set) {
+    var origOuterSet = outerDesc.set;
+    outerDesc.set = function(html) {
+      origOuterSet.call(this, sanitizeHTML(html));
+    };
+    Object.defineProperty(Element.prototype, 'outerHTML', outerDesc);
+  }
+
+  /* ③ 拦截 insertAdjacentHTML */
+  var origInsertAdj = Element.prototype.insertAdjacentHTML;
+  Element.prototype.insertAdjacentHTML = function(pos, html) {
+    return origInsertAdj.call(this, pos, sanitizeHTML(html));
+  };
+
+  /* ④ 拦截 CSSStyleDeclaration.cssText 赋值（整个样式块） */
+  var cssTextDesc = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'cssText');
+  if (cssTextDesc && cssTextDesc.set) {
+    var origCssTextSet = cssTextDesc.set;
+    cssTextDesc.set = function(css) {
+      origCssTextSet.call(this, sanitizeCSS(css));
+    };
+    Object.defineProperty(CSSStyleDeclaration.prototype, 'cssText', cssTextDesc);
+  }
+
+  /* ⑤ 拦截 CSSStyleDeclaration.setProperty */
+  var origSetProp = CSSStyleDeclaration.prototype.setProperty;
+  CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
+    if (hasUndefined(value) && /url\(/i.test(value)) { log('blocked: css setProperty'); return; }
+    return origSetProp.call(this, prop, value, priority);
+  };
+
+  /* ⑥ 拦截 HTMLImageElement.prototype.src */
+  var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  if (srcDesc && srcDesc.set) {
+    var origSrcSet = srcDesc.set;
+    srcDesc.set = function(url) {
+      if (hasUndefined(url)) { log('blocked: img.src'); return; }
+      origSrcSet.call(this, url);
+    };
+    Object.defineProperty(HTMLImageElement.prototype, 'src', srcDesc);
+  }
+
+  /* ⑦ 拦截 HTMLObjectElement.prototype.data */
+  if (typeof HTMLObjectElement !== 'undefined') {
+    var objDataDesc = Object.getOwnPropertyDescriptor(HTMLObjectElement.prototype, 'data');
+    if (objDataDesc && objDataDesc.set) {
+      var origDataSet = objDataDesc.set;
+      objDataDesc.set = function(url) {
+        if (hasUndefined(url)) { log('blocked: object.data'); return; }
+        origDataSet.call(this, url);
+      };
+      Object.defineProperty(HTMLObjectElement.prototype, 'data', objDataDesc);
+    }
+  }
+
+  /* ⑧ 拦截 fetch */
+  var origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    if (hasUndefined(url)) { log('blocked: fetch'); return Promise.resolve(new Response('', { status: 200 })); }
+    return origFetch.apply(this, arguments);
+  };
+
+  /* ⑨ 拦截 XMLHttpRequest */
+  var origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+    if (hasUndefined(url)) { this._blocked = true; log('blocked: xhr'); }
+    return origOpen.apply(this, arguments);
+  };
+  var origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function(body) {
+    if (this._blocked) {
+      var self = this;
+      setTimeout(function() {
+        self.readyState = 4; self.status = 200; self.statusText = 'OK';
+        self.responseText = '';
+        if (self.onreadystatechange) self.onreadystatechange();
+        if (self.onload) self.onload();
+      }, 0);
+      return;
+    }
+    return origSend.apply(this, arguments);
+  };
+
+  /* ⑩ 拦截 Element.setAttribute / setAttributeNS */
+  var urlAttrs = ['src', 'href', 'data', 'action', 'poster', 'background', 'xlink:href', 'srcset'];
+  var origSetAttr = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    if (urlAttrs.indexOf(name) !== -1 && hasUndefined(value)) { log('blocked: setAttribute ' + name); return; }
+    return origSetAttr.call(this, name, value);
+  };
+  var origSetAttrNS = Element.prototype.setAttributeNS;
+  Element.prototype.setAttributeNS = function(ns, name, value) {
+    if (hasUndefined(value) && (name === 'href' || name.indexOf('href') !== -1 || urlAttrs.indexOf(name) !== -1)) {
+      log('blocked: setAttributeNS'); return;
+    }
+    return origSetAttrNS.call(this, ns, name, value);
+  };
+
+  /* ⑪ 拦截 window.open */
+  var origWinOpen = window.open;
+  window.open = function(url) {
+    if (hasUndefined(url)) { log('blocked: window.open'); return null; }
+    return origWinOpen.apply(this, arguments);
+  };
+
+  /* ⑫ 拦截 new Image() —— 构造函数返回值没有定义 getter，但可以用代理 */
+  var _OrigImage = window.Image;
+  window.Image = function(w, h) {
+    var img = new _OrigImage(w, h);
+    var origSrcSet = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src').set;
+    Object.defineProperty(img, 'src', {
+      set: function(url) {
+        if (hasUndefined(url)) { log('blocked: new Image().src'); return; }
+        origSrcSet.call(this, url);
+      },
+      get: function() { return ''; },
+      configurable: true
+    });
+    return img;
+  };
+  window.Image.prototype = _OrigImage.prototype;
+
+  /* ⑬ MutationObserver 兜底（innerHTML 清洗后这层基本只抓漏网） */
+  var mo = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) {
+          var tags = node.querySelectorAll ? node.querySelectorAll('*') : [];
+          for (var i = 0; i < tags.length; i++) {
+            var n = tags[i];
+            for (var j = 0; j < urlAttrs.length; j++) {
+              if (hasUndefined(n.getAttribute(urlAttrs[j]))) { n.remove(); log('blocked: mut-attr'); return; }
+            }
+          }
+        }
+      });
+    });
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+
+  log('installed');
+})();
+</script>
 <script src="{{ url_for('static', filename='js/jit-viewer.min.js') }}"></script>
 <script>
 (function() {
@@ -45,6 +311,11 @@
 
     viewer.on('error', function(err) {
       var msg = err && err.message ? err.message : (typeof err === 'string' ? err : '未知错误');
+      /* 可恢复的瞬时渲染错误，静默忽略 */
+      if (/same canvas|multiple render|already rendering/i.test(msg)) {
+        console.log('[jit] recoverable error ignored:', msg);
+        return;
+      }
       document.getElementById('jit-viewer-container').innerHTML =
         '<div class="jit-error">' +
         '<div class="jit-error-icon">⚠️</div>' +
@@ -55,6 +326,35 @@
     });
 
     viewer.mount();
+
+    /* 缩放节流 + canvas 锁清除：防止快速连点导致 PDF canvas 争用报错 */
+    setTimeout(function() {
+      var zoomContainer = document.querySelector('.jv-zoom-control');
+      if (!zoomContainer) return;
+      var lastZoom = 0;
+      var MIN_INTERVAL = 450;
+      function throttleFn(e) {
+        var now = Date.now();
+        if (now - lastZoom < MIN_INTERVAL) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return;
+        }
+        lastZoom = now;
+        // 500ms 后清理所有 PDF canvas 上的渲染锁（PDF.js 残留）
+        setTimeout(function() {
+          var canvases = document.querySelectorAll('.jv-pdf-canvas, canvas');
+          for (var i = 0; i < canvases.length; i++) {
+            var c = canvases[i];
+            try { delete c._internalRenderTask; } catch(_) {}
+            try { delete c._renderTask; } catch(_) {}
+          }
+        }, 500);
+      }
+      zoomContainer.addEventListener('click', throttleFn, true);
+      zoomContainer.addEventListener('mousedown', throttleFn, true);
+    }, 300);
   } catch(e) {
     document.getElementById('jit-viewer-container').innerHTML =
       '<div class="jit-error">' +

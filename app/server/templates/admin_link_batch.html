@@ -2,6 +2,9 @@
 {% block title %}批量创建收集链接{% endblock %}
 
 {% block content %}
+<style>
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
@@ -61,21 +64,31 @@
         </div>
 
         <div id="batch-upload-result" style="display:none;margin-top:24px;">
+          <!-- 上传中状态 -->
+          <div id="batch-upload-loading" style="display:none;padding:20px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;text-align:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28" style="color:#3b82f6;animation:spin 1s linear infinite;">
+              <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="8"/>
+            </svg>
+            <p style="font-size:.85rem;color:#1e40af;margin:8px 0 0;">正在导入中，请稍候...</p>
+          </div>
+          <!-- 成功状态（含行级错误详情） -->
           <div id="batch-upload-success" style="display:none;padding:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#22c55e;flex-shrink:0;">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="16 10 10 16 8 14"/>
               </svg>
-              <div>
-                <p style="font-weight:600;color:#166534;margin:0;font-size:.95rem;">导入成功</p>
+              <div style="flex:1;min-width:0;">
+                <p style="font-weight:600;color:#166534;margin:0;font-size:.95rem;">导入完成</p>
                 <p id="batch-success-text" style="font-size:.82rem;color:#15803d;margin:4px 0 0;line-height:1.5;"></p>
+                <div id="batch-success-details"></div>
                 <a href="{{ url_for('admin_links') }}" style="display:inline-block;margin-top:10px;font-size:.85rem;color:#3b82f6;text-decoration:none;">
                   → 返回收集链接列表
                 </a>
               </div>
             </div>
           </div>
+          <!-- 错误状态（整体导入失败） -->
           <div id="batch-upload-error" style="display:none;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#ef4444;flex-shrink:0;">
@@ -83,7 +96,7 @@
                 <line x1="15" y1="9" x2="9" y2="15"/>
                 <line x1="9" y1="9" x2="15" y2="15"/>
               </svg>
-              <div>
+              <div style="flex:1;min-width:0;">
                 <p style="font-weight:600;color:#991b1b;margin:0;font-size:.95rem;">导入失败</p>
                 <p id="batch-error-text" style="font-size:.82rem;color:#b91c1c;margin:4px 0 0;line-height:1.5;"></p>
               </div>
@@ -112,11 +125,15 @@ function handleBatchFileSelect(input) {
 function processBatchFile(file) {
   var ext = file.name.split('.').pop().toLowerCase();
   if (ext !== 'csv') {
-    showBatchError('请选择CSV文件（.csv格式），可用Excel打开编辑');
+    showBatchError('请选择CSV文件（.csv格式），可用Excel打开编辑保存为CSV后上传');
     return;
   }
 
-  document.getElementById('batch-upload-result').style.display = 'none';
+  // 隐藏旧结果，显示上传中状态
+  document.getElementById('batch-upload-result').style.display = 'block';
+  document.getElementById('batch-upload-success').style.display = 'none';
+  document.getElementById('batch-upload-error').style.display = 'none';
+  document.getElementById('batch-upload-loading').style.display = 'block';
 
   var formData = new FormData();
   formData.append('file', file);
@@ -125,34 +142,72 @@ function processBatchFile(file) {
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '{{ url_for('batch_import_links') }}');
   xhr.onload = function() {
+    document.getElementById('batch-upload-loading').style.display = 'none';
     if (xhr.status === 200) {
-      var result = JSON.parse(xhr.responseText);
-      if (result.success) {
-        showBatchSuccess(result.message);
-      } else {
-        showBatchError(result.message);
+      try {
+        var result = JSON.parse(xhr.responseText);
+        if (result.success) {
+          showBatchSuccess(result.message, result.details);
+        } else {
+          showBatchError(result.message);
+        }
+      } catch(e) {
+        showBatchError('服务器返回异常，请重试');
       }
     } else {
-      showBatchError('导入失败，请重试');
+      showBatchError('导入失败（HTTP ' + xhr.status + '），请重试');
     }
   };
   xhr.onerror = function() {
+    document.getElementById('batch-upload-loading').style.display = 'none';
     showBatchError('网络错误，请重试');
   };
   xhr.send(formData);
 }
 
-function showBatchSuccess(message) {
+function showBatchSuccess(message, details) {
   document.getElementById('batch-upload-result').style.display = 'block';
   document.getElementById('batch-upload-success').style.display = 'block';
   document.getElementById('batch-upload-error').style.display = 'none';
-  document.getElementById('batch-success-text').textContent = message;
+  document.getElementById('batch-upload-loading').style.display = 'none';
+
+  var textEl = document.getElementById('batch-success-text');
+  var detailsEl = document.getElementById('batch-success-details');
+
+  // 清除旧详情
+  if (detailsEl) detailsEl.innerHTML = '';
+
+  if (details && details.length > 0) {
+    // 有行级错误：显示详情列表
+    var html = '<p style="font-weight:600;color:#991b1b;margin:12px 0 6px;font-size:.85rem;">以下行存在问题，未被创建：</p>';
+    html += '<ul style="margin:0;padding:0 0 0 18px;font-size:.78rem;color:#b91c1c;line-height:1.7;max-height:200px;overflow-y:auto;">';
+    for (var i = 0; i < details.length; i++) {
+      html += '<li>' + escapeHtml(details[i]) + '</li>';
+    }
+    html += '</ul>';
+    detailsEl.innerHTML = html;
+    // 变成警告样式
+    document.getElementById('batch-upload-success').style.background = '#fffbeb';
+    document.getElementById('batch-upload-success').style.borderColor = '#fde68a';
+  } else {
+    // 全部成功，正常绿色样式
+    document.getElementById('batch-upload-success').style.background = '#f0fdf4';
+    document.getElementById('batch-upload-success').style.borderColor = '#86efac';
+  }
+  textEl.textContent = message;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
 }
 
 function showBatchError(message) {
   document.getElementById('batch-upload-result').style.display = 'block';
   document.getElementById('batch-upload-error').style.display = 'block';
   document.getElementById('batch-upload-success').style.display = 'none';
+  document.getElementById('batch-upload-loading').style.display = 'none';
   document.getElementById('batch-error-text').textContent = message;
 }
 </script>

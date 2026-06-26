@@ -159,6 +159,87 @@ body {
 /* Remaining slots tile */
 .cp-meta-tile--slots .cp-meta-tile-value { color: #059669; }
 
+/* ---------- Session info line (subtle, no background) ---------- */
+.cp-info-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  font-size: .72rem;
+  color: #9ca3af;
+  border-bottom: 1px dashed #eceef0;
+  min-height: 28px;
+}
+.cp-info-item {
+  font-size: .72rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: opacity .15s;
+}
+.cp-info-item:hover { opacity: .7; }
+.cp-info-item svg { width: 12px; height: 12px; flex-shrink: 0; }
+.cp-info-passcode { color: #059669; }
+.cp-info-uploader { color: #6b7280; }
+.cp-info-sep { color: #d1d5db; user-select: none; }
+
+/* ---------- Tab Bar ---------- */
+.cp-tab-bar {
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid #e4e6eb;
+  background: #fff;
+  padding: 0 4px;
+  gap: 2px;
+}
+.cp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  font-size: .82rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  border-radius: 0;
+}
+.cp-tab:hover { color: #3b82f6; }
+.cp-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+.cp-tab svg { width: 14px; height: 14px; flex-shrink: 0; }
+.cp-tab-count {
+  font-size: .7rem;
+  color: #9ca3af;
+  font-weight: 400;
+}
+.cp-tab.active .cp-tab-count { color: #3b82f6; }
+
+/* Tab panels */
+.cp-tab-panel { display: none; }
+.cp-tab-panel.active { display: block; }
+
+/* History toolbar (inside history panel) */
+.cp-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+
 /* ---------- Card ---------- */
 .cp-card {
   background: #fff;
@@ -251,23 +332,7 @@ body {
 }
 .cp-shake { animation: cp-shake .35s ease; }
 
-/* ---------- Badge ---------- */
-.cp-badge {
-  font-size: .68rem; font-weight: 500;
-  color: #059669;
-  background: #ecfdf5;
-  border-radius: 3px;
-  padding: 1px 7px;
-  cursor: pointer;
-}
-.cp-badge:active { background: #d1fae5; }
-.cp-badge-uploader {
-  color: #475569;
-  background: #f1f5f9;
-  cursor: pointer;
-}
-.cp-badge-uploader:active { background: #e2e8f0; }
-.cp-badge-uploader:hover { background: #e2e8f0; }
+
 
 /* 文件总数胶囊 */
 .cp-file-count {
@@ -570,6 +635,28 @@ body {
 .cp-btn-sm { padding: 3px 8px; font-size: .7rem; }
 .cp-btn-outline { background: #fff; border: 1px solid #d1d5db; color: #1a1d28; }
 
+/* 批量操作按钮：与 share 页统一 */
+.cp-batch-toggle {
+  padding: 5px 10px !important;
+  font-size: .78rem !important;
+  color: #4b5563 !important;
+  background: transparent !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 4px !important;
+}
+.cp-batch-toggle:hover {
+  background: #f3f4f6 !important;
+  border-color: #9ca3af !important;
+}
+
+/* card-actions 行内的工具按钮统一尺寸 */
+.cp-card-actions .cp-btn {
+  padding: 5px 10px !important;
+  font-size: .78rem !important;
+  border-radius: 4px !important;
+}
+.cp-card-actions .cp-btn svg { width: 12px; height: 12px; }
+
 /* ---------- Text Delete Button ---------- */
 .cp-act-del-txt {
   display: inline-flex; align-items: center; justify-content: center;
@@ -605,6 +692,18 @@ body {
 .cp-act-download-txt:hover { background: #eff6ff; border-color: #bfdbfe; }
 .cp-act-preview-txt:active,
 .cp-act-download-txt:active { background: #dbeafe; }
+
+/* 内联预览链接（无删除权限时显示在文件名旁） */
+.cp-preview-inline {
+  color: #3b82f6;
+  font-size: .72rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+.cp-preview-inline:hover { text-decoration: underline; opacity: .8; }
 
 
 
@@ -1025,17 +1124,24 @@ body {
     flex-wrap: wrap;
     align-items: center;
   }
+  /* Tab 和信息栏移动端适配 */
+  .cp-tab { padding: 8px 12px; font-size: .78rem; }
+  .cp-tab svg { width: 12px; height: 12px; }
+  .cp-tab-count { font-size: .66rem; }
+  .cp-info-line { padding: 3px 10px; font-size: .68rem; }
+  .cp-info-item { font-size: .68rem; }
+  .cp-history-toolbar { padding: 6px 10px; }
   .cp-card-head h2 { font-size: .8rem; }
   .cp-card-head .cp-file-count { font-size: .68rem; padding: 1px 8px; }
-  .cp-card-head .cp-batch-toggle { font-size: .7rem; padding: 3px 8px; }
-  .cp-card-head .cp-batch-toggle svg { width: 11px; height: 11px; }
+  /* card-actions 按钮移动端统一 */
+  .cp-card-actions .cp-btn {
+    font-size: .74rem !important;
+    padding: 4px 8px !important;
+  }
+  .cp-card-actions .cp-btn svg { width: 11px; height: 11px; }
   /* 移动端按钮布局优化 */
   .cp-card-head .cp-card-actions {
     gap: 10px;
-  }
-  .cp-card-head .cp-del-all-btn {
-    padding: 4px 12px;
-    font-weight: 500;
   }
   /* 移动端隐藏全选顶栏（与批量操作按钮功能重复） */
   /* 已移除，现在移动端也显示全选栏 */

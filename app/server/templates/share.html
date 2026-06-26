@@ -47,10 +47,35 @@
     #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
     #custom-lightbox .lb-prev { left:16px; }
     #custom-lightbox .lb-next { right:16px; }
-    #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; }
-    #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
-    #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
-    #custom-lightbox .lb-content audio { width:min(480px, 80vw); }
+    #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    #custom-lightbox .lb-content img { max-width:92vw; max-height:86vh; object-fit:contain; border-radius:4px; }
+    #custom-lightbox .lb-content video { max-width:92vw; max-height:86vh; border-radius:4px; }
+    #custom-lightbox .lb-content .lb-audio-wrap {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 40px; background: rgba(255,255,255,0.06); border-radius: 16px;
+      min-width: 340px; max-width: 520px; width: 80vw;
+    }
+    #custom-lightbox .lb-content .lb-audio-icon {
+      width: 80px; height: 80px; border-radius: 12px;
+      background: rgba(255,255,255,0.1); display: flex; align-items: center;
+      justify-content: center; margin-bottom: 16px;
+    }
+    #custom-lightbox .lb-content .lb-audio-icon svg { width: 40px; height: 40px; color: #fff; opacity: 0.7; }
+    #custom-lightbox .lb-content .lb-audio-title {
+      color: #fff; font-size: .95rem; font-weight: 500; margin-bottom: 6px;
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #custom-lightbox .lb-content .lb-audio-sub {
+      color: rgba(255,255,255,0.45); font-size: .78rem; margin-bottom: 18px;
+    }
+    #custom-lightbox .lb-content audio { width: 100%; outline: none; }
+    #custom-lightbox .lb-content .lb-title-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: 10px 48px 10px 18px; text-align: center;
+      color: rgba(255,255,255,0.8); font-size: .85rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -110,27 +135,37 @@
   {% endif %}
 
   {% else %}
+  {% if has_passcode %}
+  {# ---------- Passcode indicator ---------- #}
+  <div class="cp-passcode-indicator" onclick="logoutPasscode()" title="点击退出通行证">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    通行证有效期 {{ passcode_ttl_display }}
+  </div>
+  {% endif %}
   {# ---------- File List ---------- #}
   <div class="cp-card">
     <div class="cp-card-head">
-      <div class="cp-uploader-view-header" id="uploader-view-header" style="display:none;">
-        <button class="cp-back-btn" onclick="goBackToUploaderList()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>返回
-        </button>
-        <span class="cp-uploader-view-title" id="current-uploader-name"></span>
+      <div class="cp-card-head-left">
+        <div class="cp-uploader-view-header" id="uploader-view-header" style="display:none;">
+          <button class="cp-back-btn" onclick="goBackToUploaderList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>返回
+          </button>
+          <span class="cp-uploader-view-title" id="current-uploader-name"></span>
+        </div>
+        <h2 id="file-list-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="title-text">文件列表</span>
+        </h2>
       </div>
-      <h2 id="file-list-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        <span id="title-text">文件列表</span>
-      </h2>
-      <span class="cp-file-count" id="file-total-count">共 0 个文件</span>
-      <div class="cp-card-actions">
-        <button class="cp-btn cp-btn-outline cp-btn-sm cp-batch-toggle" id="batch-toggle-btn" onclick="toggleBatchMode()" title="批量操作">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          批量操作
-        </button>
+      <div class="cp-card-head-right">
+        <span class="cp-file-count" id="file-total-count">共 0 个文件</span>
+        <div class="cp-card-actions">
+          <button class="cp-btn cp-btn-outline cp-btn-sm cp-batch-toggle" id="batch-toggle-btn" onclick="toggleBatchMode()" title="批量操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            批量操作
+          </button>
+        </div>
       </div>
-      {% if has_passcode %}<span class="cp-badge" onclick="logoutPasscode()" title="点击退出通行证">通行证有效期 {{ passcode_ttl_display }}</span>{% endif %}
     </div>
     <div class="cp-card-body cp-card-body--flush">
       <!-- 上传者文件夹列表视图 -->
@@ -229,6 +264,13 @@ function showToast(msg, d) {
   clearTimeout(t._timeout);
   t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
 }
+
+// 监听子窗口发来的"文件过大"消息
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'file-too-large') {
+    showToast('「' + (e.data.filename || '') + '」文件过大（' + (e.data.sizeMB || '') + ' MB），超过 30MB 预览限制，请下载查看', 4000);
+  }
+});
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -529,6 +571,7 @@ function renderFlatListForUploader(records, isMobile) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
 
   var selSuffix = '_u';
   var hasRecords = records && records.length > 0;
@@ -546,7 +589,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM);
+      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM);
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -564,7 +607,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD);
+      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD);
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -583,6 +626,7 @@ function renderFlatList(records, isMobile) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
 
   var selSuffix = '_f';
   var hasRecords = records && records.length > 0;
@@ -600,7 +644,7 @@ function renderFlatList(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM);
+      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM);
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -619,7 +663,7 @@ function renderFlatList(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD);
+      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD);
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -638,6 +682,7 @@ function buildAccordionGroups(isMobile) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
 
   var html = '';
   // 全局全选（跨分组，只有开启批量模式时显示）
@@ -670,7 +715,7 @@ function buildAccordionGroups(isMobile) {
         var rr = files[fj];
         var ext2 = rr.original_name.split('.').pop().toLowerCase();
         var ficon2 = getFileIcon(ext2);
-        var canPrev2 = jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2);
+        var canPrev2 = jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2);
         html += buildFileRow(rr, ext2, ficon2, canPrev2, false, 'sel-m' + selSuffix, selSuffix);
       }
       html += '</div>';
@@ -689,7 +734,7 @@ function buildAccordionGroups(isMobile) {
         var r = files[fi];
         var ext = r.original_name.split('.').pop().toLowerCase();
         var ficon = getFileIcon(ext);
-        var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext);
+        var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext);
         html += buildFileRow(r, ext, ficon, canPreview, true, 'sel-d' + selSuffix, selSuffix);
       }
       html += '</tbody></table></div>';
@@ -900,10 +945,11 @@ function openLightbox(items, startIdx) {
     lb = document.createElement('div');
     lb.id = 'custom-lightbox';
     lb.innerHTML = '<div class="lb-backdrop"></div>' +
+      '<div class="lb-title-bar" id="lb-title-bar"></div>' +
       '<button class="lb-close" title="关闭">&times;</button>' +
       '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
       '<button class="lb-next" title="下一个">&rsaquo;</button>' +
-      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><audio id="lb-audio" controls></audio></div>';
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><div class="lb-audio-wrap" id="lb-audio-wrap"><div class="lb-audio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div class="lb-audio-title" id="lb-audio-title"></div><div class="lb-audio-sub">音频文件</div><audio id="lb-audio" controls></audio></div></div>';
     document.body.appendChild(lb);
     lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
     lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
@@ -943,10 +989,15 @@ function renderLightbox() {
   var img = document.getElementById('lb-img');
   var vid = document.getElementById('lb-video');
   var aud = document.getElementById('lb-audio');
+  var audWrap = document.getElementById('lb-audio-wrap');
+  var audTitle = document.getElementById('lb-audio-title');
+  var titleBar = document.getElementById('lb-title-bar');
   // 先全部隐藏
   img.style.display = 'none';
   vid.style.display = 'none';
-  if (aud) aud.style.display = 'none';
+  if (audWrap) audWrap.style.display = 'none';
+  // 标题栏
+  if (titleBar) titleBar.textContent = item.title || '';
   if (item.type === 'video') {
     vid.style.display = 'block';
     var src = document.createElement('source');
@@ -956,8 +1007,9 @@ function renderLightbox() {
     vid.load();
     vid.play();
   } else if (item.type === 'audio') {
-    if (aud) {
-      aud.style.display = 'block';
+    if (aud && audWrap) {
+      audWrap.style.display = 'flex';
+      if (audTitle) audTitle.textContent = item.title || '';
       var aSrc = document.createElement('source');
       aSrc.src = item.href;
       aud.innerHTML = '';
@@ -980,19 +1032,21 @@ function renderLightbox() {
 }
 
 function previewFile(recordId) {
-  // Look up filename from _allRecords or _uploaderList (avoid escaping issues in onclick)
+  // Look up filename and file_size from _allRecords or _uploaderList (avoid escaping issues in onclick)
   var fileName = null;
+  var fileSize = null;
+  var fileSizeDisplay = '';
   var allRecords = _allRecords;
   if (allRecords && allRecords.length) {
     for (var i = 0; i < allRecords.length; i++) {
-      if (allRecords[i].id == recordId) { fileName = allRecords[i].original_name; break; }
+      if (allRecords[i].id == recordId) { fileName = allRecords[i].original_name; fileSize = allRecords[i].file_size; fileSizeDisplay = allRecords[i].file_size_display; break; }
     }
   }
   if (!fileName && _uploaderList && _uploaderList.length) {
     for (var gi = 0; gi < _uploaderList.length; gi++) {
       var files = _uploaderList[gi].files;
       for (var fi = 0; fi < files.length; fi++) {
-        if (files[fi].id == recordId) { fileName = files[fi].original_name; break; }
+        if (files[fi].id == recordId) { fileName = files[fi].original_name; fileSize = files[fi].file_size; fileSizeDisplay = files[fi].file_size_display; break; }
       }
       if (fileName) break;
     }
@@ -1003,6 +1057,12 @@ function previewFile(recordId) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
 
   if (jitExts.includes(ext)) {
+    // Office 文件超过 30MB：前端拦截，不打开新窗口
+    var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd'];
+    if (officeExts.includes(ext) && fileSize && fileSize > 30 * 1024 * 1024) {
+      showToast('「' + fileName + '」文件过大（' + (fileSizeDisplay || '') + '），超过 30MB 预览限制，请下载查看', 4000);
+      return;
+    }
     var tpJit = getTokenParam();
     window.open('/share/' + linkId + '/view/' + recordId + (tpJit ? '?' + tpJit : ''), '_blank');
     return;

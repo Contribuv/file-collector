@@ -173,6 +173,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Backup files
+*.bak
+
 # Playwright
 .playwright-cli/
 

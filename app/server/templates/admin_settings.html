@@ -9,9 +9,9 @@
 
       <!-- 免责声明 -->
       <div class="card card-compact">
-        <div class="card-header"><h3>免责声明</h3></div>
+        <div class="card-header"><h3>重要提醒</h3></div>
         <div class="card-body">
-          <p style="margin:0;font-size:.88rem;color:#664d03;">应用免责声明，请勿用于非法用途。</p>
+          <p style="margin:0;font-size:.88rem;color:#dc2626;">应用免责声明，请勿用于非法用途。</p>
         </div>
       </div>
 
@@ -273,8 +273,8 @@
               <div class="form-group">
                 <label class="form-label" for="records_per_page_val">上传记录每页数量</label>
                 <input type="number" id="records_per_page_val" name="records_per_page_val" class="form-input form-input-sm"
-                       value="{{ defaults.records_per_page or '10' }}" min="5" max="200" step="1">
-                <div class="form-hint">默认 10 条，范围 5-200（仅对自己生效）</div>
+                       value="{{ defaults.records_per_page or '50' }}" min="5" max="200" step="1">
+                <div class="form-hint">默认 50 条，范围 5-200（仅对自己生效）</div>
               </div>
             </div>
             <button type="submit" name="action" value="pagination" class="btn btn-primary btn-sm">保存</button>

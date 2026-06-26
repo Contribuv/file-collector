@@ -50,21 +50,42 @@
       {% endif %}
     </span>
     <span class="flash-toast-text">{{ msg }}</span>
+    <button type="button" class="flash-toast-close" onclick="closeFlashToast(this)" title="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
   </div>
   {% endfor %}
   </div>
   <script>
   (function(){
-    var el=document.getElementById('flash-toast-overlay');
-    if(!el) return;
-    // 按类型区分停留时长：success/info 1.5s, warning 2s, error 2.5s
-    var items=el.querySelectorAll('.flash-toast-item'), longest=1500;
-    items.forEach(function(it){
-      if(it.classList.contains('flash-toast-error')) longest=Math.max(longest,2500);
-      else if(it.classList.contains('flash-toast-warning')) longest=Math.max(longest,2000);
+    var el = document.getElementById('flash-toast-overlay');
+    if (!el) return;
+    // 按类型区分停留时长：success 1s, info 1.5s, warning 2s, error 2.5s
+    var items = el.querySelectorAll('.flash-toast-item'), longest = 1000;
+    items.forEach(function(it) {
+      if (it.classList.contains('flash-toast-error')) longest = Math.max(longest, 2500);
+      else if (it.classList.contains('flash-toast-warning')) longest = Math.max(longest, 2000);
+      else if (it.classList.contains('flash-toast-info')) longest = Math.max(longest, 1500);
     });
-    setTimeout(function(){el.classList.add('flash-toast-out');setTimeout(function(){el.style.display='none'},300)},longest);
+    el._flashTimer = setTimeout(function() {
+      el.classList.add('flash-toast-out');
+      setTimeout(function() { el.style.display = 'none'; }, 300);
+    }, longest);
   })();
+  function closeFlashToast(btn) {
+    var item = btn.closest('.flash-toast-item');
+    if (item) {
+      item.style.animation = 'flashToastOut .2s ease forwards';
+      setTimeout(function() {
+        item.remove();
+        var overlay = document.getElementById('flash-toast-overlay');
+        if (overlay && !overlay.querySelector('.flash-toast-item')) {
+          overlay.style.display = 'none';
+          clearTimeout(overlay._flashTimer);
+        }
+      }, 250);
+    }
+  }
   </script>
   {% endif %}
   {% endwith %}

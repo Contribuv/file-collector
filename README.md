@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.6-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.7-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,13 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.7
+- 反向代理设置方法弹窗新增 Lucky 反向代理教程（含下载链接）
+- 反向代理服务器教程改为分步文字说明，优化排版
+- 后台/收集页/分享页统一 logo（logo_fs.png）
+- 收集页与分享页 header/footer 样式对齐后台毛玻璃风格
+- 优化退出按钮交互：hover 改为蓝色边框+底色的低调样式
 
 ### v2.3.6
 - 修复分享页 `toggleSelect` 多余参数导致 JS 报错问题

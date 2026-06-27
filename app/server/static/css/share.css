@@ -30,9 +30,11 @@ body {
 
 /* ---------- Topbar ---------- */
 .cp-topbar {
-  height: 40px;
-  background: #fff;
-  border-bottom: 1px solid #e4e6eb;
+  height: 44px;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: .5px solid #e5e7eb;
   display: flex;
   align-items: center;
   position: sticky;
@@ -46,10 +48,10 @@ body {
   padding: 0 var(--cp-pad);
   display: flex;
   align-items: center;
-  /* gap: 6px; */
+  gap: 8px;
 }
-.cp-topbar-logo { width: 22px; height: 22px; flex-shrink: 0; object-fit: contain; }
-.cp-topbar-inner span { font-size: .9rem; font-weight: 600; color: #1a1d28; }
+.cp-topbar-logo { width: 26px; height: 26px; flex-shrink: 0; object-fit: contain; }
+.cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: #1a1d28; }
 
 /* ---------- Main Wrap ---------- */
 .cp-wrap {
@@ -537,11 +539,13 @@ body {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   text-align: center;
-  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-  font-size: .68rem;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  font-size: .7rem;
   color: #9ca3af;
-  background: #fff;
-  border-top: 1px solid #e4e6eb;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: .5px solid #e5e7eb;
   z-index: 50;
 }
 

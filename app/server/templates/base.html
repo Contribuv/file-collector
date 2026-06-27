@@ -20,12 +20,13 @@
   <header class="header">
     <div class="header-inner">
       <a href="{{ url_for('admin_dashboard') }}" class="header-brand">
-        <img class="header-logo" src="{{ url_for('static', filename='img/logo_192.png') }}" alt="Logo" onerror="this.style.display='none'">
+        <img class="header-logo" src="{{ url_for('static', filename='img/logo_fs.png') }}" alt="Logo" onerror="this.style.display='none'">
         {{ config_title|default('文件收集器') }}
       </a>
       {% if session.user_id %}
       <nav class="header-nav">
-        <span class="header-user">欢迎，{{ session.username }}</span>
+        <span class="header-user">{{ session.username }}</span>
+        <span class="header-nav-sep">|</span>
         <a href="{{ url_for('logout') }}" class="header-nav-link header-nav-logout">退出</a>
       </nav>
       {% endif %}

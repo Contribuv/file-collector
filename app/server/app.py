@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.6"
+VERSION = "2.3.7"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -3366,8 +3366,9 @@ def share_get_records(link_id):
         conn.close()
         return jsonify({'success': False, 'message': '请先验证通行证'}), 403
 
-    # 清理孤儿记录（文件已被删除的数据库记录）
+    # 清理孤儿记录（文件已被删除的数据库记录）+ _attachment 脏记录
     cleanup_orphan_records_for_link(conn, link_id)
+    conn.execute("DELETE FROM upload_records WHERE link_id = ? AND uploader_name = '_attachment'", (link_id,))
 
     require_uploader = bool(dict(link).get('require_uploader', 0))
 
@@ -3389,27 +3390,27 @@ def share_get_records(link_id):
     if uploader_filter:
         # 按上传者过滤时，支持分页
         total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?",
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ? AND uploader_name != '_attachment'",
             (link_id, uploader_filter)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? AND uploader_name != '_attachment' ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, uploader_filter, per_page, offset)
         ).fetchall()
         total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
     else:
         total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
+            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment'", (link_id,)
         ).fetchone()[0]
         records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment' ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
             (link_id, per_page, offset)
         ).fetchall()
         total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
     
     # 获取上传者统计（每个上传者的总文件数）
     uploader_stats = conn.execute(
-        "SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE link_id = ? GROUP BY uploader_name",
+        "SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment' GROUP BY uploader_name",
         (link_id,)
     ).fetchall()
     uploader_stats_dict = {row['uploader_name'] or '未署名': row['count'] for row in uploader_stats}

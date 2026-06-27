@@ -396,14 +396,53 @@
       <button class="modal-close" onclick="closeProxyModal()">&times;</button>
     </div>
     <div class="modal-body">
-      <p>请在飞牛应用中心下载 <b>反向代理服务器 > 大于 V1.0.8</b> 由<b> laok </b>大佬开发。</p>
-      <p>请根据以下图示设置即可通过外网访问，然后将反代的URL地址填入上方。</p>
-      <p><strong>反代举例：</strong>假如你的DDNS域名为 nas.fons.com，且配置了飞牛证书，根据图下设置，那么你的公网地址为 <code>https://nas.fons.com:7786</code> 即可。
-      </p>
-      <p><b>高级设置：</b>启用 HSTS , 强制跳转 HTTPS , 保留原始主机头</p>
-      <div class="modal-image-container">
-        <img src="{{ url_for('static', filename='img/fd.png') }}" alt="反向代理设置图示" class="modal-image">
-      </div>
+      <p class="proxy-guide-hint">配置完成后，将反代的 <code>https://域名:端口</code> 填入「公网网址」输入框即可。</p>
+
+      <!-- 方式一：反向代理服务器 (laok) -->
+      <h4 class="proxy-guide-title">方式一：反向代理服务器（laok 开发）</h4>
+      <p>在飞牛应用中心下载 <b>反向代理服务器</b>，由 <b>laok</b> 大佬开发。<br>如果反代出现问题，请到飞牛社区找 <a href="https://club.fnnas.com/forum.php?mod=viewthread&tid=61219&highlight=" target="_blank" rel="noopener">laok 大佬反馈</a>。</p>
+      <p>打开反向代理服务器，进入「来源设置」页面：</p>
+      <ol class="proxy-guide-steps">
+        <li>点击 <b>「添加规则」</b></li>
+        <li><b>来源设置：</b>
+          <ul>
+            <li>协议选择 <b>HTTPS</b></li>
+            <li>主机名填写 <code>127.0.0.1</code></li>
+            <li>端口填写外网端口（如 <code>7786</code>）</li>
+            <li>域名留空，不填</li>
+          </ul>
+        </li>
+        <li><b>目标设置：</b>
+          <ul>
+            <li>主机名/IP 填写文件收集器内网地址和端口，如 <code>127.0.0.1:5557</code></li>
+          </ul>
+        </li>
+        <li><b>高级设置：</b>启用 HSTS、强制跳转 HTTPS、保留原始主机头，全部打钩</li>
+      </ol>
+
+      <hr class="proxy-guide-divider">
+
+      <!-- 方式二：Lucky 反向代理 -->
+      <h4 class="proxy-guide-title">方式二：Lucky 反向代理</h4>
+      <p>Lucky 支持反向代理、DDNS、SSL 证书自动续签。<a href="https://release.66666.host/%E9%A3%9E%E7%89%9B%E7%A6%BB%E7%BA%BF%E5%AE%89%E8%A3%85%E5%8C%85/?sort=namedirfirst&order=asc" target="_blank" rel="noopener">下载 Lucky</a> 安装后：</p>
+      <ol class="proxy-guide-steps">
+        <li>打开 Lucky 后台（默认 <code>16601</code>），点击左侧 <b>「Web 服务」</b></li>
+        <li>点击 <b>「添加 Web 服务规则」</b></li>
+        <li>填写规则配置：
+          <ul>
+            <li><b>监听端口：</b>填写外网访问端口，如 <code>7786</code></li>
+            <li><b>启用 TLS：</b>开启，选择飞牛证书或 Lucky 自动申请</li>
+            <li><b>前端域名：</b>填写 DDNS 域名，如 <code>nas.fons.com</code></li>
+          </ul>
+        </li>
+        <li>切换至「后端」标签：
+          <ul>
+            <li><b>后端地址：</b><code>http://127.0.0.1:5557</code></li>
+            <li><b>后端类型：</b>选择 <code>proxy</code></li>
+          </ul>
+        </li>
+        <li>点击 <b>「添加」</b> 保存，等待生效</li>
+      </ol>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="closeProxyModal()">关闭</button>
@@ -677,6 +716,44 @@
   width: 200px;
   height: 200px;
   object-fit: contain;
+}
+
+/* 反向代理教程 */
+.proxy-guide-hint {
+  font-size: 0.87rem;
+  color: var(--c-primary);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 16px;
+}
+.proxy-guide-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--c-text);
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--c-border);
+}
+.proxy-guide-divider {
+  margin: 20px 0 16px;
+  border: none;
+  border-top: 1px dashed var(--c-border);
+}
+.proxy-guide-steps {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--c-text);
+}
+.proxy-guide-steps ul {
+  margin: 4px 0 4px 16px;
+  padding-left: 0;
+}
+.proxy-guide-steps li {
+  margin-bottom: 6px;
 }
 </style>
 

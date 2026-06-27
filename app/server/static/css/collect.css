@@ -26,7 +26,7 @@ body {
   line-height: 1.4;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- Topbar ---------- */
@@ -93,6 +93,15 @@ body {
 }
 .cp-header .cp-desc p { margin: 0 0 4px; }
 .cp-header .cp-desc p:last-child { margin-bottom: 0; }
+.cp-header .cp-desc a {
+  color: #2563eb;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(37,99,235,.25);
+  transition: border-color .15s;
+}
+.cp-header .cp-desc a:hover {
+  border-bottom-color: #2563eb;
+}
 
 /* Meta grid — 信息卡片双列布局 */
 .cp-meta-grid {
@@ -123,6 +132,10 @@ body {
   flex-shrink: 0;
 }
 
+/* 各 tile 默认图标淡彩色（紧急状态会被覆盖） */
+.cp-meta-grid .cp-meta-tile:nth-child(1) .cp-meta-tile-icon { background: #eff6ff; color: #3b82f6; }  /* 单文件上限 */
+.cp-meta-grid .cp-meta-tile:nth-child(2) .cp-meta-tile-icon { background: #f5f3ff; color: #7c3aed; }  /* 最多文件 */
+
 .cp-meta-tile-body {
   display: flex;
   flex-direction: column;
@@ -144,8 +157,7 @@ body {
   word-break: break-all;
 }
 
-/* Expire urgency coloring */
-.cp-meta-tile--expire .cp-meta-tile-icon { background: #f5f6f8; color: #6b7280; }
+/* ===== 到期时间 — 默认 & 紧急状态 ===== */
 .cp-meta-tile--expire.normal .cp-meta-tile-icon { background: #ecfdf5; color: #059669; }
 .cp-meta-tile--expire.warn .cp-meta-tile-icon { background: #fff7e6; color: #d97706; }
 .cp-meta-tile--expire.danger .cp-meta-tile-icon { background: #fef2f2; color: #dc2626; }
@@ -156,15 +168,20 @@ body {
 .cp-meta-tile--expire.danger .cp-meta-tile-value { color: #dc2626; }
 .cp-meta-tile--expire.forever .cp-meta-tile-value { color: #3b82f6; }
 
-/* Remaining slots tile */
+/* ===== 剩余名额 — 默认绿色，紧急橙/红 ===== */
+.cp-meta-tile--slots .cp-meta-tile-icon { background: #ecfdf5; color: #059669; }
 .cp-meta-tile--slots .cp-meta-tile-value { color: #059669; }
+.cp-meta-tile--slots.warn .cp-meta-tile-icon { background: #fff7e6; color: #d97706; }
+.cp-meta-tile--slots.danger .cp-meta-tile-icon { background: #fef2f2; color: #dc2626; }
+.cp-meta-tile--slots.warn .cp-meta-tile-value { color: #d97706; }
+.cp-meta-tile--slots.danger .cp-meta-tile-value { color: #dc2626; }
 
 /* ---------- Session info line (subtle, no background) ---------- */
 .cp-info-line {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 14px;
+  padding: 4px 14px 4px 20px;  /* 左 20px 与上方 tab 文字对齐 */
   font-size: .72rem;
   color: #9ca3af;
   border-bottom: 1px dashed #eceef0;
@@ -263,6 +280,81 @@ body {
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
 .cp-card-body { padding: 12px; }
 .cp-card-body--flush { padding: 0; }
+
+/* ---------- Attachment (附件) ---------- */
+.cp-attach-card { overflow: visible; }
+.cp-attach-card .cp-card-head {
+  justify-content: flex-start;
+}
+.cp-attach-card .cp-card-head h2 {
+  font-size: .82rem; font-weight: 500; color: #6b7280;
+}
+.cp-attach-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px 12px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.cp-attach-row:hover { background: #f8fafc; }
+.cp-attach-icon {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f5f6f8;
+  border-radius: 6px;
+}
+.cp-attach-icon img { width: 20px; height: 20px; }
+.cp-attach-info {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 0; flex: 1;
+}
+.cp-attach-name {
+  font-size: .85rem; font-weight: 500; color: #1a1d28;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-attach-size {
+  font-size: .7rem; color: #9ca3af;
+}
+
+/* ---------- Attachment Modal ---------- */
+.cp-attach-modal-card {
+  max-width: 640px !important;
+  width: 92% !important;
+  padding: 20px 20px 16px !important;
+  text-align: left !important;
+}
+.cp-attach-modal-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+}
+.cp-attach-modal-header svg {
+  flex-shrink: 0; color: #6b7280;
+}
+.cp-attach-modal-name {
+  font-size: .92rem; font-weight: 600; color: #1a1d28;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-attach-modal-meta {
+  font-size: .75rem; color: #9ca3af;
+  margin-bottom: 14px; padding-left: 28px;
+}
+.cp-attach-modal-body {
+  margin-bottom: 14px;
+  min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cp-attach-modal-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding-top: 10px; border-top: 1px solid #f0f2f5;
+}
+
+@media (max-width: 768px) {
+  .cp-attach-modal-card {
+    max-width: 96% !important;
+    padding: 16px 14px 14px !important;
+  }
+  .cp-attach-modal-body iframe { height: 45vh; }
+}
 
 /* ---------- Passcode ---------- */
 .cp-passcode-body {
@@ -1060,10 +1152,10 @@ body {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   text-align: center;
-  padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   font-size: .68rem;
   color: #9ca3af;
-  background: rgba(255,255,255,.85);
+  background: #fff;
   border-top: 1px solid #e4e6eb;
   z-index: 50;
 }
@@ -1128,7 +1220,7 @@ body {
   .cp-tab { padding: 8px 12px; font-size: .78rem; }
   .cp-tab svg { width: 12px; height: 12px; }
   .cp-tab-count { font-size: .66rem; }
-  .cp-info-line { padding: 3px 10px; font-size: .68rem; }
+  .cp-info-line { padding: 3px 10px 3px 16px; font-size: .68rem; }
   .cp-info-item { font-size: .68rem; }
   .cp-history-toolbar { padding: 6px 10px; }
   .cp-card-head h2 { font-size: .8rem; }
@@ -1146,6 +1238,7 @@ body {
   /* 移动端隐藏全选顶栏（与批量操作按钮功能重复） */
   /* 已移除，现在移动端也显示全选栏 */
   .cp-card-body { padding: 10px 12px; }
+  .cp-card-body--flush { padding: 0; }
   .cp-drop {
     padding: 20px 14px;
     border-radius: 12px;

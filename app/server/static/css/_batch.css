@@ -1,13 +1,13 @@
 /* ============================================================
    批量选择公共样式（collect + share 共用）
    使用 --batch-accent 变量区分主色：
-     collect 页面：红色 #dc2626（删除主题）
-     share  页面：蓝色 #3b82f6（下载主题）
+     collect 页面：红色 var(--c-danger)（删除主题）
+     share  页面：蓝色 var(--c-primary)（下载主题）
    ============================================================ */
 .cp-sel-col { width: 36px; text-align: center; vertical-align: middle; }
 .cp-sel-check {
   width: 15px; height: 15px; cursor: pointer;
-  accent-color: var(--batch-accent, #3b82f6);
+  accent-color: var(--batch-accent, var(--c-primary));
   margin: 0; vertical-align: middle;
 }
 .cp-card-check {
@@ -16,72 +16,64 @@
 }
 .cp-card-check .cp-sel-check { width: 15px; height: 15px; }
 
-/* 全选顶栏（桌面表头补充 + 移动端卡片列表共用） */
+/* 全选顶栏 */
 .cp-sel-top-bar {
-  display: flex; align-items: center; padding: 6px 14px;
-  margin-bottom: 4px; border-bottom: 1px solid #eef0f2;
+  display: flex; align-items: center; padding: 8px 14px;
+  margin-bottom: 4px; border-bottom: 1px solid var(--c-gray-100);
 }
 .cp-sel-top-bar label {
   display: inline-flex; align-items: center; gap: 6px;
-  cursor: pointer; font-size: .82rem; font-weight: 500;
-  color: #555; user-select: none;
+  cursor: pointer; font-size: .78rem; font-weight: 500;
+  color: var(--c-gray-500); user-select: none;
 }
 .cp-sel-top-bar .cp-sel-check { width: 15px; height: 15px; }
-/* 全选底栏（桌面表格下方 + 移动端卡片下方） */
+
+/* 全选底栏 */
 .cp-sel-bottom-bar {
-  align-items: center; padding: 6px 10px;
-  margin-top: 4px; border-top: 1px solid #eef0f2;
+  align-items: center; padding: 8px 10px;
+  margin-top: 4px; border-top: 1px solid var(--c-gray-100);
 }
 .cp-sel-bottom-spacer { width: 36px; flex-shrink: 0; }
 .cp-sel-bottom-bar label {
   display: inline-flex; align-items: center; gap: 6px;
-  cursor: pointer; font-size: .82rem; font-weight: 500;
-  color: #555; user-select: none;
+  cursor: pointer; font-size: .78rem; font-weight: 500;
+  color: var(--c-gray-500); user-select: none;
 }
 .cp-sel-bottom-bar .cp-sel-check { width: 15px; height: 15px; }
+
 /* 分组模式-全局全选顶栏 */
 .cp-global-sel-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 14px;
-  margin-bottom: 8px; background: #f8f9fb;
-  border-radius: 6px; border: 1px solid #eef0f2;
+  padding: 8px 14px; margin-bottom: 8px;
+  background: var(--c-gray-50); border-radius: var(--br-md);
+  border: 1px solid var(--c-gray-100);
   gap: 10px; flex-wrap: wrap;
 }
 .cp-global-sel-bar label {
   display: inline-flex; align-items: center; gap: 6px;
-  cursor: pointer; font-size: .83rem; font-weight: 500;
-  color: #333; user-select: none; flex-shrink: 0;
+  cursor: pointer; font-size: .78rem; font-weight: 500;
+  color: var(--c-gray-700); user-select: none; flex-shrink: 0;
 }
 .cp-global-sel-bar-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 14px;
-    border-radius: 4px;
-    border: 1px solid #91959c70;
-    background: #fff;
-    color: #6e7f9a;
-    font-size: .78rem;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all .12s;
-    white-space: nowrap;
-    flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border-radius: 4px;
+  border: 1px solid var(--c-gray-200);
+  background: #fff; color: var(--c-gray-500);
+  font-size: .78rem; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  transition: all .12s; white-space: nowrap; flex-shrink: 0;
 }
 .cp-global-sel-bar-btn:hover {
-  background: var(--batch-accent, #3b82f6); color: #fff;
+  background: var(--batch-accent, var(--c-primary));
+  color: #fff;
 }
-.cp-global-sel-bar-btn:active {
-  filter: brightness(.88);
-}
-.cp-global-sel-bar-btn:disabled {
-  opacity: .5; pointer-events: none;
-}
+.cp-global-sel-bar-btn:active { filter: brightness(.88); }
+.cp-global-sel-bar-btn:disabled { opacity: .5; pointer-events: none; }
 
+/* 批量操作底栏 */
 .cp-batch-bar {
   position: fixed; bottom: 0; left: 0; right: 0;
-  background: #fff; border-top: 1px solid #e4e6eb;
+  background: #fff; border-top: 1px solid var(--c-gray-200);
   box-shadow: 0 -2px 12px rgba(0,0,0,.08);
   padding: 10px var(--cp-pad);
   display: none; align-items: center; justify-content: center;
@@ -89,32 +81,31 @@
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 }
 .cp-batch-bar.on { display: flex; }
-.cp-batch-info { font-size: .82rem; font-weight: 500; color: #1a1d28; white-space: nowrap; }
+.cp-batch-info { font-size: .78rem; font-weight: 500; color: var(--c-gray-700); white-space: nowrap; }
 .cp-batch-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 14px; border-radius: 4px; border: 1px solid;
+  padding: 5px 10px; border-radius: 4px; border: 1px solid;
   font-size: .78rem; font-weight: 500; cursor: pointer;
   font-family: inherit; transition: all .12s; white-space: nowrap;
 }
-/* 主操作按钮（删除/下载），颜色由 --batch-accent 控制 */
 .cp-batch-btn-accent {
-  background: var(--batch-accent, #3b82f6);
-  color: #fff; border-color: var(--batch-accent, #3b82f6);
+  background: var(--batch-accent, var(--c-primary));
+  color: #fff; border-color: var(--batch-accent, var(--c-primary));
 }
 .cp-batch-btn-accent:hover { filter: brightness(.88); }
 .cp-batch-btn-cancel {
-  background: #fff; color: #6b7280; border-color: #d1d5db;
+  background: #fff; color: var(--c-gray-500); border-color: var(--c-gray-300);
 }
-.cp-batch-btn-cancel:hover { background: #f5f6f8; }
+.cp-batch-btn-cancel:hover { background: var(--c-bg); }
 
 /* 骨架屏 */
 .cp-skeleton-list { padding: 8px 0; }
 .cp-skeleton-row {
   height: 42px; margin: 6px 14px;
-  background: linear-gradient(90deg, #f0f1f3 25%, #e4e6eb 50%, #f0f1f3 75%);
+  background: linear-gradient(90deg, var(--c-gray-100) 25%, var(--c-gray-200) 50%, var(--c-gray-100) 75%);
   background-size: 200% 100%;
   animation: cpShimmer 1.4s infinite linear;
-  border-radius: 6px;
+  border-radius: var(--br-md);
 }
 @keyframes cpShimmer {
   0% { background-position: 200% 0; }
@@ -126,10 +117,10 @@
     gap: 8px; padding: 8px var(--cp-pad);
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
-  .cp-batch-info { font-size: .76rem; }
-  .cp-batch-btn { font-size: .74rem; padding: 5px 12px; }
+  .cp-batch-info { font-size: .74rem; }
+  .cp-batch-btn { font-size: .74rem; padding: 4px 8px; }
   .cp-card-check { align-self: center; }
   .cp-global-sel-bar { padding: 6px 10px; gap: 6px; }
-  .cp-global-sel-bar label { font-size: .78rem; }
-  .cp-global-sel-bar-btn { font-size: .72rem; padding: 4px 10px; }
+  .cp-global-sel-bar label { font-size: .74rem; }
+  .cp-global-sel-bar-btn { font-size: .74rem; padding: 4px 8px; }
 }

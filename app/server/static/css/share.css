@@ -25,7 +25,7 @@ body {
   line-height: 1.4;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- Topbar ---------- */
@@ -92,6 +92,15 @@ body {
 }
 .cp-header .cp-desc p { margin: 0 0 4px; }
 .cp-header .cp-desc p:last-child { margin-bottom: 0; }
+.cp-header .cp-desc a {
+  color: #2563eb;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(37,99,235,.25);
+  transition: border-color .15s;
+}
+.cp-header .cp-desc a:hover {
+  border-bottom-color: #2563eb;
+}
 
 /* Meta grid — 信息卡片布局 */
 .cp-meta-grid {
@@ -528,10 +537,10 @@ body {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   text-align: center;
-  padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   font-size: .68rem;
   color: #9ca3af;
-  background: rgba(255,255,255,.85);
+  background: #fff;
   border-top: 1px solid #e4e6eb;
   z-index: 50;
 }
@@ -789,6 +798,7 @@ body {
   .cp-card-head .cp-batch-toggle { font-size: .74rem !important; padding: 4px 8px !important; }
   .cp-card-head .cp-batch-toggle svg { width: 12px; height: 12px; }
   .cp-card-body { padding: 10px 12px; }
+  .cp-card-body--flush { padding: 0; }
   .cp-passcode-body { padding: 18px 12px 16px !important; }
   .cp-card-item { align-items: center; gap: 6px; }
   .cp-card-icon { width: 24px; height: 24px; margin-bottom: 13px;}
@@ -865,69 +875,63 @@ body {
   border-color: #9ca3af !important;
 }
 
-/* 上传者文件夹列表 */
+/* 上传者文件夹列表 — 极简行内样式 */
 .cp-uploader-folder-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 0;
+  gap: 1px;
 }
 
 .cp-uploader-folder-item {
-  background: #fff;
-  border: 1px solid #e4e6eb;
-  border-radius: 6px;
-  padding: 10px 12px;
+  padding: 5px 12px;
   cursor: pointer;
-  transition: all .12s;
+  transition: background .12s;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
+  border-radius: 4px;
 }
 .cp-uploader-folder-item:hover {
-  background: #f8fafc;
-  border-color: #bfdbfe;
-}
-.cp-uploader-folder-item:active {
-  background: #f0f5ff;
+  background: #f5f6f8;
 }
 
 .cp-folder-icon-wrap {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border-radius: 8px;
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 .cp-folder-icon {
-  width: 18px;
-  height: 18px;
-  color: #3b82f6;
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
 }
 
 .cp-folder-info {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
 }
 
 .cp-folder-name {
-  font-size: .82rem;
+  font-size: .78rem;
   font-weight: 500;
   color: #1a1d28;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .cp-folder-count {
-  font-size: .7rem;
-  color: #6b7280;
+  font-size: .65rem;
+  color: #9ca3af;
+  flex-shrink: 0;
 }
 
 .cp-folder-arrow {
@@ -951,23 +955,19 @@ body {
   color: #1a1d28;
 }
 
-/* 在移动端调整文件夹网格 */
+/* 在移动端调整文件夹列表 */
 @media (max-width: 768px) {
-  .cp-uploader-folder-list {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 8px;
-    padding: 8px 0;
-  }
   .cp-uploader-folder-item {
-    padding: 12px 8px;
+    padding: 5px 12px;
+    gap: 6px;
   }
   .cp-folder-icon-wrap {
-    width: 38px;
-    height: 38px;
+    width: 15px;
+    height: 15px;
   }
   .cp-folder-icon {
-    width: 20px;
-    height: 20px;
+    width: 15px;
+    height: 15px;
   }
   .cp-folder-name {
     font-size: .74rem;
@@ -978,23 +978,23 @@ body {
 }
 
 @media (max-width: 480px) {
-  .cp-uploader-folder-list {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 6px;
-  }
   .cp-uploader-folder-item {
-    padding: 10px 6px;
+    padding: 5px 12px;
+    gap: 5px;
   }
   .cp-folder-icon-wrap {
-    width: 34px;
-    height: 34px;
+    width: 14px;
+    height: 14px;
   }
   .cp-folder-icon {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
   }
   .cp-folder-name {
     font-size: .7rem;
+  }
+  .cp-folder-count {
+    font-size: .6rem;
   }
   .cp-back-btn {
     padding: 4px 8px;

@@ -11,7 +11,7 @@
         <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
       </div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('edit_link', link_id=edit_link['id']) if edit_link else url_for('create_link') }}" id="link-form" onsubmit="return validateForm()">
+        <form method="POST" enctype="multipart/form-data" action="{{ url_for('edit_link', link_id=edit_link['id']) if edit_link else url_for('create_link') }}" id="link-form" onsubmit="return handleSubmit()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
           <div class="form-columns" id="form-columns">
@@ -31,6 +31,36 @@
                       style="min-height:80px;resize:vertical;"
                       placeholder="例：请上传项目A资料，和相关说明文档。">{{ (edit_link['description'] or '')|e if edit_link else '' }}</textarea>
             <div class="form-hint">轻量化运行，支持HTML标签。</div>
+          </div>
+
+          <div class="form-group" id="attachment-group">
+            <label class="form-label" for="attachment">附件（可选）</label>
+            {% if edit_link and edit_link.get('attachment_name') %}
+            <div class="attach-current" id="attach-current">
+              <div class="attach-current-info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                <span class="attach-current-name">{{ edit_link.get('attachment_name') }}</span>
+                <span class="attach-current-size">{{ ('%.1f MB'|format(edit_link.get('attachment_size', 0) / 1048576)) if edit_link.get('attachment_size') else '' }}</span>
+              </div>
+              <button type="button" class="attach-remove-btn" id="attach-remove-btn" onclick="removeAttachment()" title="删除此附件">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                删除附件
+              </button>
+            </div>
+            <input type="hidden" name="remove_attachment" id="remove_attachment" value="0">
+            {% endif %}
+            <input type="file" id="attachment" name="attachment" class="form-input"
+                   style="padding:6px 10px;font-size:.82rem;"
+                   accept="*/*"
+                   onchange="onAttachChange()">
+            {% set att_limit_mb = defaults.attachment_max_mb | default('1000') | float %}
+            <div class="form-hint">上传一个附件（如作业要求），最大 {{ ('%.0f'|format(att_limit_mb)) if att_limit_mb >= 1 else ('%.1f'|format(att_limit_mb)) }}{{ ' MB' if att_limit_mb < 1024 else (' GB (%.1f GB)'|format(att_limit_mb/1024)) }}。学生可在收集页下载。{% if edit_link and edit_link.get('attachment_name') %}重新上传将替换当前附件。{% endif %}</div>
+            <div class="attach-progress-wrap" id="attach-progress-wrap" style="display:none;">
+              <div class="attach-progress-bar-bg">
+                <div class="attach-progress-bar-fill" id="attach-progress-fill"></div>
+              </div>
+              <span class="attach-progress-text" id="attach-progress-text">0%</span>
+            </div>
           </div>
 
           {% if not edit_link %}
@@ -911,6 +941,91 @@ function validateForm() {
   return true;
 }
 
+function removeAttachment() {
+  document.getElementById('remove_attachment').value = '1';
+  var currentEl = document.getElementById('attach-current');
+  if (currentEl) currentEl.style.display = 'none';
+  var fileInput = document.getElementById('attachment');
+  if (fileInput) fileInput.value = '';
+  resetAttachProgress();
+}
+
+function onAttachChange() {
+  var fi = document.getElementById('attachment');
+  if (fi && fi.files && fi.files[0]) {
+    document.getElementById('remove_attachment').value = '0';
+    var currentEl = document.getElementById('attach-current');
+    if (currentEl) currentEl.style.display = 'none';
+  }
+  resetAttachProgress();
+}
+
+function resetAttachProgress() {
+  var wrap = document.getElementById('attach-progress-wrap');
+  if (wrap) wrap.style.display = 'none';
+  var fill = document.getElementById('attach-progress-fill');
+  if (fill) fill.style.width = '0';
+  var txt = document.getElementById('attach-progress-text');
+  if (txt) txt.textContent = '0%';
+}
+
+function handleSubmit() {
+  if (!validateForm()) return false;
+
+  var fi = document.getElementById('attachment');
+  var hasFile = fi && fi.files && fi.files[0];
+  var remAtt = document.getElementById('remove_attachment');
+  if (remAtt && remAtt.value === '1') hasFile = false;
+
+  if (!hasFile) return true; // 无附件，正常提交
+
+  // 有附件：XHR 上传带进度
+  var form = document.getElementById('link-form');
+  var submitBtns = form.querySelectorAll('button[type="submit"]');
+  submitBtns.forEach(function(b) { b.disabled = true; });
+
+  var wrap = document.getElementById('attach-progress-wrap');
+  var fill = document.getElementById('attach-progress-fill');
+  var txt = document.getElementById('attach-progress-text');
+  wrap.style.display = 'flex';
+  fill.style.width = '0';
+  txt.textContent = '0%';
+
+  var xhr = new XMLHttpRequest();
+  var formData = new FormData(form);
+
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      var pct = Math.round(e.loaded / e.total * 100);
+      fill.style.width = pct + '%';
+      txt.textContent = pct + '%';
+    }
+  };
+
+  xhr.onload = function() {
+    if (xhr.status >= 200 && xhr.status < 400) {
+      // XHR 自动跟随 302 重定向，得到最终页面 HTML
+      document.open();
+      document.write(xhr.responseText);
+      document.close();
+    } else {
+      submitBtns.forEach(function(b) { b.disabled = false; });
+      wrap.style.display = 'none';
+      showToast('上传失败：' + (xhr.statusText || '服务器错误'));
+    }
+  };
+
+  xhr.onerror = function() {
+    submitBtns.forEach(function(b) { b.disabled = false; });
+    wrap.style.display = 'none';
+    showToast('网络错误，请重试');
+  };
+
+  xhr.open('POST', form.action);
+  xhr.send(formData);
+  return false;
+}
+
 // 简易提示
 function showToast(msg) {
   var existing = document.querySelector('.form-toast');
@@ -924,6 +1039,83 @@ function showToast(msg) {
 }
 </script>
 <style>
+/* 附件上传区域 */
+.attach-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  font-size: .82rem;
+}
+.attach-current-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #15803d;
+}
+.attach-current-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attach-current-size {
+  color: #6b7280;
+  font-size: .74rem;
+  white-space: nowrap;
+}
+.attach-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: .76rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.attach-remove-btn:hover { background: #fef2f2; }
+
+/* 附件上传进度条 */
+.attach-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.attach-progress-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.attach-progress-bar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border-radius: 3px;
+  transition: width .15s ease;
+}
+.attach-progress-text {
+  font-size: .74rem;
+  color: #6b7280;
+  min-width: 32px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 @keyframes formToastIn {
   from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }

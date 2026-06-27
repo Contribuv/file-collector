@@ -217,6 +217,7 @@
 {%- set _js_cfg = {
     'linkId': link_id,
     'requireUploader': require_uploader,
+    'allowPreviewDownload': allow_preview_download,
     'dlToken': dl_token,
     'dlExpires': dl_token_expires,
     'verified': verified,
@@ -228,6 +229,7 @@
 var _C = JSON.parse(document.getElementById('js-config').textContent);
 const linkId = _C.linkId;
 var requireUploader = _C.requireUploader;
+var allowPreviewDownload = _C.allowPreviewDownload;
 var _dlToken = _C.dlToken;
 var _dlExpires = _C.dlExpires;
 
@@ -360,7 +362,7 @@ function buildFileRow(r, ext, fi, canPreview, isTable, selClass, selSuffix) {
   
   // 只有开启批量模式时才显示复选框
   if (_isBatchMode) {
-    selHtml = '<input type="checkbox" class="cp-sel-check ' + selClass + '" value="' + rid + '"' + checked + ' onchange="toggleSelect(' + rid + ',this.checked,1)">';
+    selHtml = '<input type="checkbox" class="cp-sel-check ' + selClass + '" value="' + rid + '"' + checked + ' onchange="toggleSelect(' + rid + ',this.checked)">';
   }
   
   if (isTable) {
@@ -372,7 +374,7 @@ function buildFileRow(r, ext, fi, canPreview, isTable, selClass, selSuffix) {
       '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
       '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>' +
       '<td class="cp-file-act">' +
-        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ')" style="margin-right:8px;">预览</button>' : '') +
+        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ',' + JSON.stringify(r.original_name).replace(/"/g,'&quot;') + ',' + (r.file_size || 0) + ')" style="margin-right:8px;">预览</button>' : '') +
         '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
       '</td>' +
       '</tr>';
@@ -385,7 +387,7 @@ function buildFileRow(r, ext, fi, canPreview, isTable, selClass, selSuffix) {
         '<div class="cp-card-row-top">' +
           '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
           '<div class="cp-card-actions">' +
-            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ')" style="margin-right:8px;">预览</button>' : '') +
+            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ',' + JSON.stringify(r.original_name).replace(/"/g,'&quot;') + ',' + (r.file_size || 0) + ')" style="margin-right:8px;">预览</button>' : '') +
             '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
           '</div>' +
         '</div>' +
@@ -579,7 +581,7 @@ function renderFlatListForUploader(records, isMobile) {
 
   // 只有开启批量模式时才显示全选栏
   if (hasRecords && _isBatchMode) {
-    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
   }
 
   if (isMobile) {
@@ -589,7 +591,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM);
+      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -607,7 +609,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD);
+      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -633,7 +635,7 @@ function renderFlatList(records, isMobile) {
   var html = '';
   // 全局全选 + 全部打包下载（只有开启批量模式时显示）
   if (hasRecords && _isBatchMode) {
-    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
   }
 
   if (isMobile) {
@@ -644,7 +646,7 @@ function renderFlatList(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM);
+      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -663,7 +665,7 @@ function renderFlatList(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD);
+      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -687,7 +689,7 @@ function buildAccordionGroups(isMobile) {
   var html = '';
   // 全局全选（跨分组，只有开启批量模式时显示）
   if (_isBatchMode) {
-    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全部打包下载</button></div>';
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
   }
   for (var gi = 0; gi < _uploaderList.length; gi++) {
     var group = _uploaderList[gi];
@@ -715,7 +717,7 @@ function buildAccordionGroups(isMobile) {
         var rr = files[fj];
         var ext2 = rr.original_name.split('.').pop().toLowerCase();
         var ficon2 = getFileIcon(ext2);
-        var canPrev2 = jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2);
+        var canPrev2 = (jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2));
         html += buildFileRow(rr, ext2, ficon2, canPrev2, false, 'sel-m' + selSuffix, selSuffix);
       }
       html += '</div>';
@@ -734,7 +736,7 @@ function buildAccordionGroups(isMobile) {
         var r = files[fi];
         var ext = r.original_name.split('.').pop().toLowerCase();
         var ficon = getFileIcon(ext);
-        var canPreview = jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext);
+        var canPreview = (jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext));
         html += buildFileRow(r, ext, ficon, canPreview, true, 'sel-d' + selSuffix, selSuffix);
       }
       html += '</tbody></table></div>';
@@ -1031,26 +1033,7 @@ function renderLightbox() {
   if (nextBtn) nextBtn.style.display = _lbIndex < _lbItems.length - 1 ? 'block' : 'none';
 }
 
-function previewFile(recordId) {
-  // Look up filename and file_size from _allRecords or _uploaderList (avoid escaping issues in onclick)
-  var fileName = null;
-  var fileSize = null;
-  var fileSizeDisplay = '';
-  var allRecords = _allRecords;
-  if (allRecords && allRecords.length) {
-    for (var i = 0; i < allRecords.length; i++) {
-      if (allRecords[i].id == recordId) { fileName = allRecords[i].original_name; fileSize = allRecords[i].file_size; fileSizeDisplay = allRecords[i].file_size_display; break; }
-    }
-  }
-  if (!fileName && _uploaderList && _uploaderList.length) {
-    for (var gi = 0; gi < _uploaderList.length; gi++) {
-      var files = _uploaderList[gi].files;
-      for (var fi = 0; fi < files.length; fi++) {
-        if (files[fi].id == recordId) { fileName = files[fi].original_name; fileSize = files[fi].file_size; fileSizeDisplay = files[fi].file_size_display; break; }
-      }
-      if (fileName) break;
-    }
-  }
+function previewFile(recordId, fileName, fileSize) {
   if (!fileName) { showToast('无法找到该文件信息'); return; }
 
   var ext = fileName.split('.').pop().toLowerCase();
@@ -1060,7 +1043,7 @@ function previewFile(recordId) {
     // Office 文件超过 30MB：前端拦截，不打开新窗口
     var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd'];
     if (officeExts.includes(ext) && fileSize && fileSize > 30 * 1024 * 1024) {
-      showToast('「' + fileName + '」文件过大（' + (fileSizeDisplay || '') + '），超过 30MB 预览限制，请下载查看', 4000);
+      showToast('「' + fileName + '」文件过大（' + (fileSize > 1048576 ? (fileSize / 1048576).toFixed(1) + ' MB' : (fileSize / 1024).toFixed(0) + ' KB') + '），超过 30MB 预览限制，请下载查看', 4000);
       return;
     }
     var tpJit = getTokenParam();

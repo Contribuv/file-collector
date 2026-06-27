@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.5"
+VERSION = "2.3.6"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -882,6 +882,19 @@ def init_db():
             logger.info("已回填 upload_logs 的 uploader_name 字段")
     except Exception as e:
         logger.error(f"数据库迁移错误(upload_logs.uploader_name): {e}")
+
+    # 为 links 表添加附件字段（老师上传附件供学生下载）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'attachment_name' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN attachment_name TEXT DEFAULT ''")
+            conn.execute("ALTER TABLE links ADD COLUMN attachment_path TEXT DEFAULT ''")
+            conn.execute("ALTER TABLE links ADD COLUMN attachment_size INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已为 links 表添加附件字段(attachment_name/path/size)")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(links attachment): {e}")
 
     # 检测是否已有数据库（升级场景）
     existing_admin = conn.execute(
@@ -1652,8 +1665,8 @@ def scan_link_folder(link_id, conn=None):
         folder_real = os.path.realpath(folder_path)
         
         for root, dirs, files in os.walk(folder_path):
-            # 跳过 .chunks 分片临时目录
-            dirs[:] = [d for d in dirs if d != '.chunks']
+            # 跳过 .chunks 分片临时目录和 _attachment 附件目录
+            dirs[:] = [d for d in dirs if d not in ('.chunks', '_attachment')]
             
             # 计算相对于链接根目录的子路径，用于推断 uploader_name
             rel_dir = os.path.relpath(os.path.realpath(root), folder_real)
@@ -2115,6 +2128,35 @@ def _check_record_ownership(record_id):
     conn.close()
     return row is not None
 
+def _can_preview_attachment_ext(filename):
+    """判断附件是否支持预览"""
+    if not filename:
+        return False
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    jit_exts = {'doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'}
+    img_exts = {'jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'}
+    vid_exts = {'mp4','webm','ogg','mov','avi','mkv'}
+    aud_exts = {'mp3','wav','flac','aac','m4a'}
+    return ext in jit_exts or ext in img_exts or ext in vid_exts or ext in aud_exts
+
+
+def _attachment_preview_type(filename):
+    """返回附件预览类型: image / video / audio / office"""
+    if not filename:
+        return 'office'
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    img_exts = {'jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'}
+    vid_exts = {'mp4','webm','ogg','mov','avi','mkv'}
+    aud_exts = {'mp3','wav','flac','aac','m4a'}
+    if ext in img_exts:
+        return 'image'
+    if ext in vid_exts:
+        return 'video'
+    if ext in aud_exts:
+        return 'audio'
+    return 'office'
+
+
 def _check_link_ownership(link_id):
     """校验当前用户是否有权访问指定链接（非管理员只能访问自己的链接）"""
     if session.get('is_admin'):
@@ -2570,6 +2612,63 @@ def create_upload_dir(link_id, uploader_name=''):
 
     return real_dir
 
+DEFAULT_ATTACHMENT_MAX_MB = 1000  # 默认附件上限 1000 MB (≈1GB)
+
+def get_attachment_max_size(user_id=None):
+    """获取附件大小上限（字节），优先用户设置，回退默认值"""
+    mb = DEFAULT_ATTACHMENT_MAX_MB
+    if user_id:
+        val = get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))
+        try:
+            mb = float(val)
+            if mb <= 0:
+                mb = DEFAULT_ATTACHMENT_MAX_MB
+        except (ValueError, TypeError):
+            mb = DEFAULT_ATTACHMENT_MAX_MB
+    return int(mb * 1024 * 1024)
+
+def _save_link_attachment(link_id, file_obj, user_id=None):
+    """保存链接附件（老师上传的作业等），安全存储在链接目录的 _attachment 子目录下"""
+    # 验证大小
+    file_obj.seek(0, 2)
+    file_size = file_obj.tell()
+    file_obj.seek(0)
+    max_size = get_attachment_max_size(user_id)
+    if file_size > max_size:
+        raise ValueError(f'附件大小不能超过 {format_file_size(max_size)}')
+    if file_size == 0:
+        return
+
+    # 安全文件名
+    ext = os.path.splitext(file_obj.filename)[1]
+    safe_name = re.sub(r'[^\w.\-]', '_', file_obj.filename)
+    if not safe_name:
+        safe_name = 'attachment' + ext
+
+    # 存储到链接目录的 _attachment 子目录
+    upload_dir = create_upload_dir(link_id, '')
+    attach_dir = os.path.join(upload_dir, '_attachment')
+    os.makedirs(attach_dir, mode=0o755, exist_ok=True)
+
+    # 如果有旧附件，先删除
+    conn = get_db()
+    old = conn.execute("SELECT attachment_path FROM links WHERE id=?", (link_id,)).fetchone()
+    if old and old['attachment_path']:
+        _safe_delete(old['attachment_path'])
+
+    # 保存新附件
+    stored_path = os.path.join(attach_dir, safe_name)
+    file_obj.save(stored_path)
+
+    conn.execute(
+        "UPDATE links SET attachment_name=?, attachment_path=?, attachment_size=? WHERE id=?",
+        (file_obj.filename, stored_path, file_size, link_id)
+    )
+    conn.commit()
+    conn.close()
+    logger.info(f"链接 {link_id} 附件已保存: {file_obj.filename} ({format_file_size(file_size)})")
+
+
 # ============================================================
 # 路由 - 文件收集页
 # ============================================================
@@ -2729,6 +2828,11 @@ def collect_page(link_id):
         csrf_token=csrf_token,
         dl_token=dl_token,
         dl_token_expires=dl_token_expires,
+        attachment_name=link.get('attachment_name', ''),
+        attachment_size=link.get('attachment_size', 0),
+        attachment_size_display=format_file_size(link['attachment_size']) if link.get('attachment_size') else '',
+        attachment_can_preview=_can_preview_attachment_ext(link.get('attachment_name', '')),
+        attachment_preview_type=_attachment_preview_type(link.get('attachment_name', '')),
         blocked_extensions=sorted(list(get_blocked_extensions())), upload_batch_limit=get_upload_batch_limit(link.get('user_id')))
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
@@ -3021,6 +3125,7 @@ def share_page(link_id):
         expire_level=expire_level,
         creator_name=creator_name,
         require_uploader=bool(link.get('require_uploader', 0)),
+        allow_preview_download=bool(link.get('allow_preview_download', 0)),
         csrf_token=csrf_token,
         dl_token=dl_token,
         dl_token_expires=dl_token_expires)
@@ -6129,6 +6234,19 @@ def user_settings():
             set_user_setting(user_id, 'max_file_size_gb', str(max_size))
             flash('个人默认设置已保存')
         
+        elif action == 'attachment_max':
+            raw = request.form.get('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))
+            try:
+                _v = float(raw)
+                if _v < 0.1:
+                    raise ValueError('附件上限最小为 0.1 MB')
+                mb = round(_v, 1)
+            except ValueError as e:
+                flash(str(e) if '最小' in str(e) else '附件上限格式错误')
+                return redirect(url_for('user_settings'))
+            set_user_setting(user_id, 'attachment_max_mb', str(mb))
+            flash('附件大小上限已保存')
+        
         elif action == 'passcode_ttl':
             minutes = request.form.get('passcode_ttl_minutes', '120')
             try:
@@ -6270,6 +6388,7 @@ def user_settings():
     defaults = {
         'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
+        'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
         'passcode_ttl_minutes': get_user_setting(user_id, 'passcode_ttl_minutes', '120'),
         'default_link_expire_days': get_user_setting(user_id, 'default_link_expire_days', '30'),
         'links_per_page': get_user_setting(user_id, 'links_per_page', '50'),
@@ -6752,6 +6871,7 @@ def admin_link_new():
                            edit_link=None,
                            defaults={'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
+                                     'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
                                      'expire_days': get_user_setting(user_id, 'default_link_expire_days', '30')})
 
 @app.route('/admin/links/<link_id>/form')
@@ -6797,6 +6917,7 @@ def admin_link_form(link_id):
                            edit_link=link_dict,
                            defaults={'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
+                                     'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
                                      'expire_days': get_user_setting(user_id, 'default_link_expire_days', '30')})
 
 @app.route('/admin/links/create', methods=['POST'])
@@ -6959,6 +7080,14 @@ def create_link():
             create_upload_dir(link_id)
         except Exception as e:
             logger.warning(f"创建链接文件夹失败（不影响链接创建）: {e}")
+
+        # 处理附件上传（老师上传的作业等）
+        try:
+            att_file = request.files.get('attachment')
+            if att_file and att_file.filename and att_file.filename.strip():
+                _save_link_attachment(link_id, att_file, session.get('user_id'))
+        except Exception as e:
+            logger.warning(f"附件保存失败（不影响链接创建）: {e}")
 
         # 优先显示自定义slug
         display_slug = collect_slug if collect_slug else link_id
@@ -7167,6 +7296,45 @@ def edit_link(link_id):
                      share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
 
+        # 处理附件（上传新附件 / 删除旧附件 / 保持不变）
+        remove_attachment = request.form.get('remove_attachment') == '1'
+        att_file = request.files.get('attachment')
+        if remove_attachment:
+            old = conn.execute("SELECT attachment_path FROM links WHERE id=?", (link_id,)).fetchone()
+            if old and old['attachment_path']:
+                _safe_delete(old['attachment_path'])
+            conn.execute("UPDATE links SET attachment_name='', attachment_path='', attachment_size=0 WHERE id=?", (link_id,))
+        elif att_file and att_file.filename and att_file.filename.strip():
+            # 验证大小
+            att_file.seek(0, 2)
+            att_size = att_file.tell()
+            att_file.seek(0)
+            max_attach = get_attachment_max_size(session.get('user_id'))
+            if att_size > max_attach:
+                conn.close()
+                flash(f'附件大小不能超过 {format_file_size(max_attach)}')
+                return redirect(url_for('admin_links'))
+            # 删除旧附件
+            old = conn.execute("SELECT attachment_path FROM links WHERE id=?", (link_id,)).fetchone()
+            if old and old['attachment_path']:
+                _safe_delete(old['attachment_path'])
+            try:
+                upload_dir = create_upload_dir(link_id, '')
+                attach_dir = os.path.join(upload_dir, '_attachment')
+                os.makedirs(attach_dir, mode=0o755, exist_ok=True)
+                ext = os.path.splitext(att_file.filename)[1]
+                safe_name = re.sub(r'[^\w.\-]', '_', att_file.filename)
+                if not safe_name:
+                    safe_name = 'attachment' + ext
+                stored_path = os.path.join(attach_dir, safe_name)
+                att_file.save(stored_path)
+                conn.execute(
+                    "UPDATE links SET attachment_name=?, attachment_path=?, attachment_size=? WHERE id=?",
+                    (att_file.filename, stored_path, att_size, link_id)
+                )
+            except Exception as e:
+                logger.warning(f"编辑时附件保存失败: {e}")
+
         conn.commit()
         conn.close()
 
@@ -7177,6 +7345,106 @@ def edit_link(link_id):
         logger.error(f"编辑链接 {link_id} 失败: {e}\n{traceback.format_exc()}")
         flash(f'编辑失败：{e}')
         return redirect(url_for('admin_links'))
+
+# ============================================================
+# 附件下载路由（老师上传的作业等）
+# ============================================================
+
+@app.route('/collect/<link_id>/attachment')
+def collect_attachment(link_id):
+    """下载收集页附件"""
+    return _serve_link_attachment(link_id)
+
+
+
+
+
+def _serve_link_attachment(link_id, as_attachment=True):
+    """安全下载/内联链接附件，使用路径遍历防护"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT attachment_name, attachment_path, attachment_size FROM links WHERE id=?",
+        (link_id,)
+    ).fetchone()
+    conn.close()
+    if not link or not link['attachment_path']:
+        abort(404)
+
+    stored_path = link['attachment_path']
+    upload_base = get_upload_base()
+    real_path = os.path.realpath(stored_path)
+    real_base = os.path.realpath(upload_base)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        logger.warning(f"附件路径遍历攻击拦截: stored_path={stored_path}")
+        abort(403)
+
+    if not os.path.exists(real_path) or not os.path.isfile(real_path):
+        abort(404)
+
+    original_name = link['attachment_name'] or 'attachment'
+    if as_attachment:
+        mimetype = 'application/octet-stream'
+    else:
+        ext = os.path.splitext(original_name)[1].lower()
+        # HEIC/HEIF 浏览器不原生支持，服务端转为 JPEG
+        if ext in ('.heic', '.heif'):
+            if HEIC_SUPPORT:
+                buf = _serve_heic_as_jpeg(real_path)
+                if buf:
+                    resp = make_response(buf.read())
+                    resp.headers['Content-Type'] = 'image/jpeg'
+                    resp.headers['Cache-Control'] = 'public, max-age=3600'
+                    return resp
+            # HEIC 不支持时，返回提示而非原始文件
+            resp = make_response('HEIC 图片暂不支持预览，请点击下载', 415)
+            resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            return resp
+        mimetypes_map = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+            '.svg': 'image/svg+xml',
+            '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg',
+            '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
+            '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.flac': 'audio/flac',
+            '.aac': 'audio/aac', '.m4a': 'audio/mp4',
+        }
+        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+    return send_file(
+        real_path,
+        as_attachment=as_attachment,
+        download_name=original_name,
+        mimetype=mimetype,
+        conditional=True
+    )
+
+
+
+
+@app.route('/collect/<link_id>/attachment/preview')
+def collect_attachment_preview(link_id):
+    """附件内联预览（图片/视频/音频直接展示）"""
+    return _serve_link_attachment(link_id, as_attachment=False)
+
+
+@app.route('/collect/<link_id>/attachment/view')
+def collect_attachment_view(link_id):
+    """附件 JIT Viewer 在线预览（Office/PDF 等）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT id, attachment_name FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id)
+    ).fetchone()
+    conn.close()
+    if not link:
+        abort(404)
+    filename = link['attachment_name'] or 'attachment'
+    file_url = request.host_url.rstrip('/') + url_for('collect_attachment_preview', link_id=link['id'])
+    download_url = url_for('collect_attachment', link_id=link['id'])
+    return render_template('jit_preview.html',
+        filename=filename,
+        file_url=file_url,
+        download_url=download_url)
+
 
 @app.route('/admin/links/<link_id>/toggle', methods=['POST'])
 @login_required
@@ -8212,6 +8480,43 @@ def admin_settings():
             else:
                 set_setting('blocked_extensions', '')
 
+            # 收集附件上限
+            att_max = request.form.get('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))
+            try:
+                _am = float(att_max)
+                if _am < 0.1:
+                    raise ValueError('收集附件上限最小为 0.1 MB')
+                set_setting('attachment_max_mb', str(round(_am, 1)))
+            except ValueError as e:
+                flash(str(e) if '最小' in str(e) else '附件上限格式错误')
+                return redirect(url_for('admin_settings'))
+
+            # 收集链接分页 + 上传记录分页
+            raw_links = request.form.get('links_per_page_val', '10')
+            try:
+                _v = float(raw_links)
+                if _v != int(_v):
+                    raise ValueError('收集链接每页数量必须为整数')
+                val_l = int(_v)
+                if val_l < 5 or val_l > 100:
+                    raise ValueError('收集链接每页数量必须在 5-100 之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('links_per_page', str(val_l))
+            raw_records = request.form.get('records_per_page_val', '50')
+            try:
+                _v2 = float(raw_records)
+                if _v2 != int(_v2):
+                    raise ValueError('上传记录每页数量必须为整数')
+                val_r = int(_v2)
+                if val_r < 5 or val_r > 200:
+                    raise ValueError('上传记录每页数量必须在 5-200 之间')
+            except ValueError as e:
+                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
+                return redirect(url_for('admin_settings'))
+            set_user_setting(session.get('user_id'), 'records_per_page', str(val_r))
+
             flash('设置已保存')
 
         elif action == 'site_title':
@@ -8404,34 +8709,6 @@ def admin_settings():
             set_setting('landing_page_enabled', enabled)
             flash('功能开关已保存')
 
-        elif action == 'pagination':
-            # 收集链接分页 + 上传记录分页
-            raw_links = request.form.get('links_per_page_val', '50')
-            try:
-                _v = float(raw_links)
-                if _v != int(_v):
-                    raise ValueError('收集链接每页数量必须为整数')
-                val_l = int(_v)
-                if val_l < 5 or val_l > 100:
-                    raise ValueError('收集链接每页数量必须在 5-100 之间')
-            except ValueError as e:
-                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
-                return redirect(url_for('admin_settings'))
-            set_setting('links_per_page', str(val_l))
-            raw_records = request.form.get('records_per_page_val', '50')
-            try:
-                _v2 = float(raw_records)
-                if _v2 != int(_v2):
-                    raise ValueError('上传记录每页数量必须为整数')
-                val_r = int(_v2)
-                if val_r < 5 or val_r > 200:
-                    raise ValueError('上传记录每页数量必须在 5-200 之间')
-            except ValueError as e:
-                flash(str(e) if '必须' in str(e) else '每页数量格式错误')
-                return redirect(url_for('admin_settings'))
-            set_user_setting(session.get('user_id'), 'records_per_page', str(val_r))
-            flash('分页设置已保存')
-
         elif action == 'smtp_config':
             smtp_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
                            'smtp_use_tls', 'smtp_from_email', 'smtp_from_name']
@@ -8460,6 +8737,19 @@ def admin_settings():
                 except Exception as e:
                     logger.error(f"同步管理员邮箱失败: {e}")
 
+        elif action == 'attachment_max':
+            raw = request.form.get('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))
+            try:
+                _v = float(raw)
+                if _v < 0.1:
+                    raise ValueError('附件上限最小为 0.1 MB')
+                mb = round(_v, 1)
+            except ValueError as e:
+                flash(str(e) if '最小' in str(e) else '附件上限格式错误')
+                return redirect(url_for('admin_settings'))
+            set_setting('attachment_max_mb', str(mb))
+            flash('附件大小上限已保存')
+
         elif action == 'blocked_extensions':
             raw = request.form.get('blocked_extensions_input', '').strip()
             # 留空则使用默认禁止列表
@@ -8487,6 +8777,7 @@ def admin_settings():
         'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
         'upload_batch_limit': get_setting('upload_batch_limit', '30'),
+        'attachment_max_mb': get_setting('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
         'site_title': get_setting('site_title', '文件收集器'),
         'login_tip': get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
         'collect_footer_text': get_setting('collect_footer_text', ''),

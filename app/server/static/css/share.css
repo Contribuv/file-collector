@@ -883,29 +883,29 @@ body {
 }
 
 .cp-uploader-folder-item {
-  padding: 5px 12px;
+  padding: 10px 14px;
   cursor: pointer;
   transition: background .12s;
   display: flex;
   align-items: center;
-  gap: 7px;
-  border-radius: 4px;
+  gap: 10px;
+  border-radius: 6px;
 }
 .cp-uploader-folder-item:hover {
   background: #f5f6f8;
 }
 
 .cp-folder-icon-wrap {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 .cp-folder-icon {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   color: #6b7280;
 }
 
@@ -918,7 +918,7 @@ body {
 }
 
 .cp-folder-name {
-  font-size: .78rem;
+  font-size: .9rem;
   font-weight: 500;
   color: #1a1d28;
   overflow: hidden;
@@ -929,7 +929,7 @@ body {
 }
 
 .cp-folder-count {
-  font-size: .65rem;
+  font-size: .72rem;
   color: #9ca3af;
   flex-shrink: 0;
 }
@@ -958,43 +958,43 @@ body {
 /* 在移动端调整文件夹列表 */
 @media (max-width: 768px) {
   .cp-uploader-folder-item {
-    padding: 5px 12px;
-    gap: 6px;
+    padding: 8px 12px;
+    gap: 8px;
   }
   .cp-folder-icon-wrap {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
   .cp-folder-icon {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
   .cp-folder-name {
-    font-size: .74rem;
+    font-size: .82rem;
   }
   .cp-folder-count {
-    font-size: .62rem;
+    font-size: .68rem;
   }
 }
 
 @media (max-width: 480px) {
   .cp-uploader-folder-item {
-    padding: 5px 12px;
-    gap: 5px;
+    padding: 8px 12px;
+    gap: 7px;
   }
   .cp-folder-icon-wrap {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
   }
   .cp-folder-icon {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
   }
   .cp-folder-name {
-    font-size: .7rem;
+    font-size: .78rem;
   }
   .cp-folder-count {
-    font-size: .6rem;
+    font-size: .65rem;
   }
   .cp-back-btn {
     padding: 4px 8px;

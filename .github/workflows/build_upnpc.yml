@@ -4,71 +4,66 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build upnpc (${{ matrix.arch }})
+  x86_64:
+    name: upnpc x86_64
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x86_64, aarch64]
-
     steps:
-      - name: Install dependencies
+      - name: Install upnpc from apt
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq build-essential curl
-          if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            sudo apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-          fi
+          sudo apt-get install -y -qq miniupnpc
+          echo "Version:"
+          upnpc -v 2>&1 || true
+          echo "Path:"
+          which upnpc
+          echo "File type:"
+          file $(which upnpc)
+          ldd $(which upnpc)
 
-      - name: Download and extract source
+      - name: Package binary
         run: |
-          VERSION="2.3.3"
-          TAG="miniupnpc_2_3_3"
-          echo "::group::Downloading miniupnpc ${VERSION}"
-          curl -vSL -o miniupnpc.tar.gz "https://github.com/miniupnp/miniupnp/archive/refs/tags/${TAG}.tar.gz"
-          echo "::endgroup::"
-          
-          echo "::group::Extracting"
-          tar -xzf miniupnpc.tar.gz
-          ls -la
-          # GitHub archive: miniupnp-{TAG}/miniupnpc/
-          SRC_DIR=$(find . -maxdepth 1 -type d -name "miniupnp-*" | head -1)
-          echo "Found: ${SRC_DIR}"
-          mv "${SRC_DIR}/miniupnpc" .
-          rm -rf "${SRC_DIR}"
-          rm -f miniupnpc.tar.gz
-          echo "::endgroup::"
-          
-          echo "::group::Source files"
-          ls -la miniupnpc/
-          echo "::endgroup::"
-
-      - name: Build upnpc
-        run: |
-          cd miniupnpc
-          echo "==> Building for ${{ matrix.arch }}..."
-          
-          if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            export AR=aarch64-linux-gnu-ar
-            export RANLIB=aarch64-linux-gnu-ranlib
-          fi
-          
-          echo "CC=${CC:-default}"
-          make clean 2>/dev/null || true
-          make
-          
-          echo "==> Build result:"
-          file upnpc
-          ls -lh upnpc
-
-      - name: Prepare artifact
-        run: |
-          cp miniupnpc/upnpc "upnpc_${{ matrix.arch }}"
+          cp $(which upnpc) upnpc_x86_64
+          ls -lh upnpc_x86_64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: upnpc_${{ matrix.arch }}
-          path: upnpc_${{ matrix.arch }}
+          name: upnpc_x86_64
+          path: upnpc_x86_64
+
+  aarch64:
+    name: upnpc aarch64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download aarch64 package
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev
+          
+          # Download ARM64 miniupnpc from Ubuntu ports
+          mkdir -p pkg
+          cd pkg
+          apt-get download miniupnpc:arm64 2>/dev/null || true
+          
+          if [ -f miniupnpc*.deb ]; then
+            dpkg-deb -x miniupnpc*.deb extracted
+            cp extracted/usr/bin/upnpc ../upnpc_aarch64
+            echo "Extracted from ARM64 package:"
+            file ../upnpc_aarch64
+          else
+            echo "ARM64 download failed, trying cross-compile..."
+            cd ..
+            sudo apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu curl
+            curl -fsSL -o miniupnpc.tar.gz "https://github.com/miniupnp/miniupnp/archive/refs/tags/miniupnpc_2_3_3.tar.gz"
+            tar -xzf miniupnpc.tar.gz
+            SRC=$(find . -maxdepth 1 -type d -name "miniupnp-*" | head -1)
+            cd "${SRC}/miniupnpc"
+            make CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar RANLIB=aarch64-linux-gnu-ranlib
+            cp upnpc ../../upnpc_aarch64
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: upnpc_aarch64
+          path: upnpc_aarch64

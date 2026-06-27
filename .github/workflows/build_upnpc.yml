@@ -2,79 +2,70 @@ name: Build upnpc Binary
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/build_upnpc.yml'
 
 jobs:
   build:
     name: Build upnpc (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [x86_64, aarch64]
-        include:
-          - arch: x86_64
-            cross_compile: ""
-          - arch: aarch64
-            cross_compile: "CC=aarch64-linux-gnu-gcc"
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc make git curl wget
+          sudo apt-get install -y -qq build-essential curl
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+            sudo apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
           fi
 
-      - name: Download miniupnpc source
+      - name: Download and extract source
         run: |
-          UPnPC_VERSION="2.3.3"
-          UPnPC_TAG="miniupnpc_2_3_3"
-          echo "Downloading miniupnpc ${UPnPC_VERSION}..."
+          VERSION="2.3.3"
+          TAG="miniupnpc_2_3_3"
+          echo "::group::Downloading miniupnpc ${VERSION}"
+          curl -vSL -o miniupnpc.tar.gz "https://github.com/miniupnp/miniupnp/archive/refs/tags/${TAG}.tar.gz"
+          echo "::endgroup::"
           
-          # 尝试 curl 下载 GitHub release
-          if curl -fsSL -o miniupnpc.tar.gz "https://github.com/miniupnp/miniupnp/archive/refs/tags/${UPnPC_TAG}.tar.gz"; then
-            echo "GitHub download OK"
-          elif curl -fsSL -o miniupnpc.tar.gz "http://miniupnp.free.fr/files/miniupnpc-${UPnPC_VERSION}.tar.gz"; then
-            echo "Official site download OK"
-          else
-            echo "Download failed"
-            exit 1
-          fi
-          
+          echo "::group::Extracting"
           tar -xzf miniupnpc.tar.gz
-          # 查找解压目录
-          EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "miniupnp*" | head -1)
-          mv "$EXTRACTED_DIR" miniupnpc_src
-          if [ -d "miniupnpc_src/miniupnpc" ]; then
-            mv miniupnpc_src/miniupnpc miniupnpc
-            rm -rf miniupnpc_src
-          else
-            mv miniupnpc_src miniupnpc
-          fi
-          echo "Source dir:"
+          ls -la
+          # GitHub archive: miniupnp-{TAG}/miniupnpc/
+          SRC_DIR=$(find . -maxdepth 1 -type d -name "miniupnp-*" | head -1)
+          echo "Found: ${SRC_DIR}"
+          mv "${SRC_DIR}/miniupnpc" .
+          rm -rf "${SRC_DIR}"
+          rm -f miniupnpc.tar.gz
+          echo "::endgroup::"
+          
+          echo "::group::Source files"
           ls -la miniupnpc/
+          echo "::endgroup::"
 
-      - name: Build upnpc (${{ matrix.arch }})
+      - name: Build upnpc
         run: |
           cd miniupnpc
-          if [ -n "${{ matrix.cross_compile }}" ]; then
-            export ${{ matrix.cross_compile }}
-            echo "Cross-compiling for aarch64..."
+          echo "==> Building for ${{ matrix.arch }}..."
+          
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export AR=aarch64-linux-gnu-ar
+            export RANLIB=aarch64-linux-gnu-ranlib
           fi
+          
+          echo "CC=${CC:-default}"
+          make clean 2>/dev/null || true
           make
-          make upnpc
-          echo "Build complete:"
+          
+          echo "==> Build result:"
           file upnpc
           ls -lh upnpc
 
-      - name: Rename and prepare artifact
+      - name: Prepare artifact
         run: |
-          cd miniupnpc
-          cp upnpc "../upnpc_${{ matrix.arch }}"
-          chmod +x "../upnpc_${{ matrix.arch }}"
+          cp miniupnpc/upnpc "upnpc_${{ matrix.arch }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

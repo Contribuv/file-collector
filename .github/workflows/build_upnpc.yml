@@ -4,66 +4,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  x86_64:
+  build:
     name: upnpc x86_64
     runs-on: ubuntu-latest
     steps:
-      - name: Install upnpc from apt
+      - name: Install and export
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq miniupnpc
-          echo "Version:"
-          upnpc -v 2>&1 || true
-          echo "Path:"
-          which upnpc
-          echo "File type:"
-          file $(which upnpc)
-          ldd $(which upnpc)
-
-      - name: Package binary
-        run: |
-          cp $(which upnpc) upnpc_x86_64
+          sudo apt-get update
+          sudo apt-get install -y miniupnpc
+          cp /usr/bin/upnpc upnpc_x86_64
           ls -lh upnpc_x86_64
 
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: upnpc_x86_64
           path: upnpc_x86_64
-
-  aarch64:
-    name: upnpc aarch64
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download aarch64 package
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq dpkg-dev
-          
-          # Download ARM64 miniupnpc from Ubuntu ports
-          mkdir -p pkg
-          cd pkg
-          apt-get download miniupnpc:arm64 2>/dev/null || true
-          
-          if [ -f miniupnpc*.deb ]; then
-            dpkg-deb -x miniupnpc*.deb extracted
-            cp extracted/usr/bin/upnpc ../upnpc_aarch64
-            echo "Extracted from ARM64 package:"
-            file ../upnpc_aarch64
-          else
-            echo "ARM64 download failed, trying cross-compile..."
-            cd ..
-            sudo apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu curl
-            curl -fsSL -o miniupnpc.tar.gz "https://github.com/miniupnp/miniupnp/archive/refs/tags/miniupnpc_2_3_3.tar.gz"
-            tar -xzf miniupnpc.tar.gz
-            SRC=$(find . -maxdepth 1 -type d -name "miniupnp-*" | head -1)
-            cd "${SRC}/miniupnpc"
-            make CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar RANLIB=aarch64-linux-gnu-ranlib
-            cp upnpc ../../upnpc_aarch64
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: upnpc_aarch64
-          path: upnpc_aarch64

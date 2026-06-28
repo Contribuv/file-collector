@@ -207,8 +207,7 @@
   }
 }
 
-/* 隐藏 JIT Viewer 重复的文件名工具栏 */
-.jv-toolbar__filename { display: none !important; }
+
 
 /* 自定义灯箱 */
   #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
@@ -480,13 +479,7 @@ function previewFile(recordId, fileName, fileSizeBytes) {
 
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
   if (jitExts.includes(ext)) {
-    // Office 文件超过 30MB：前端拦截，不打开新窗口
-    var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd'];
-    if (officeExts.includes(ext) && fileSizeBytes > 30 * 1024 * 1024) {
-      alert('文件过大（' + (fileSizeBytes/1024/1024).toFixed(1) + ' MB），超过 30MB 预览限制，请下载查看');
-      return;
-    }
-    window.open('/admin/records/' + recordId + '/view', '_blank');
+    window.open('/office?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
     return;
   }
 

@@ -307,7 +307,14 @@ GET /api/status
 
 ## 📋 更新日志
 
-### v2.3.7
+### v2.3.8
+- Office 预览全面升级为 flyfish file-viewer，替换 JIT Viewer，支持 PPTX/PPT/DOCX/XLSX/PDF/OFD/MD/CSV/DXF/DWG 等格式浏览器端原生渲染
+- XLSX 启用 Web Worker 并行解析，大文件预览不再卡顿浏览器
+- `/office` 预览路由增加服务端权限校验，防止后台预览 URL 复制后越权访问
+- 所有预览文件类型支持滚动，修复 PDF 预览空白、PPTX worker 404 问题
+- 智能中文错误提示遮罩：无权限/令牌过期/文件不存在等场景清晰提示
+- 去除预览页 HTML 导出按钮、顶部标题栏，精简预览界面
+- 删除失效的 txt_reader.html 模板
 - 反向代理设置方法弹窗新增 Lucky 反向代理教程（含下载链接）
 - 反向代理服务器教程改为分步文字说明，优化排版
 - 后台/收集页/分享页统一 logo（logo_fs.png）

@@ -267,14 +267,6 @@ function showToast(msg, d) {
   clearTimeout(t._timeout);
   t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
 }
-
-// 监听子窗口发来的"文件过大"消息
-window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'file-too-large') {
-    showToast('「' + (e.data.filename || '') + '」文件过大（' + (e.data.sizeMB || '') + ' MB），超过 30MB 预览限制，请下载查看', 4000);
-  }
-});
-
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1041,14 +1033,9 @@ function previewFile(recordId, fileName, fileSize) {
   var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
 
   if (jitExts.includes(ext)) {
-    // Office 文件超过 30MB：前端拦截，不打开新窗口
-    var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd'];
-    if (officeExts.includes(ext) && fileSize && fileSize > 30 * 1024 * 1024) {
-      showToast('「' + fileName + '」文件过大（' + (fileSize > 1048576 ? (fileSize / 1048576).toFixed(1) + ' MB' : (fileSize / 1024).toFixed(0) + ' KB') + '），超过 30MB 预览限制，请下载查看', 4000);
-      return;
-    }
-    var tpJit = getTokenParam();
-    window.open('/share/' + linkId + '/view/' + recordId + (tpJit ? '?' + tpJit : ''), '_blank');
+    var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
+    if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
+    window.open('/office?' + qs, '_blank');
     return;
   }
 

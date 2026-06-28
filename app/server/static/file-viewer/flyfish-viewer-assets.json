@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-23T07:52:33.321Z",
+  "rendererAssetManifests": [
+    {
+      "rendererId": "drawing",
+      "assets": [
+        {
+          "id": "drawio-viewer-script",
+          "rendererId": "drawing",
+          "kind": "script",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/drawio/viewer-static.min.js",
+          "optionPath": "drawing.viewerScriptUrl",
+          "description": "Official diagrams.net viewer-static.min.js self-hosted for offline Draw.io rendering."
+        },
+        {
+          "id": "drawio-offline-assets",
+          "rendererId": "drawing",
+          "kind": "directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/drawio/",
+          "description": "Official diagrams.net styles, shapes, stencils, images, mxGraph and math assets for offline rendering."
+        }
+      ]
+    },
+    {
+      "rendererId": "pdf",
+      "assets": [
+        {
+          "id": "pdf-worker",
+          "rendererId": "pdf",
+          "kind": "worker",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/pdf/pdf.worker.mjs",
+          "optionPath": "pdf.workerUrl",
+          "description": "PDF.js module worker copied into viewer assets for offline PDF rendering."
+        },
+        {
+          "id": "pdf-cmaps",
+          "rendererId": "pdf",
+          "kind": "directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/pdf/cmaps/",
+          "optionPath": "pdf.cMapUrl",
+          "description": "PDF.js packed CMaps used for CJK and embedded text decoding."
+        },
+        {
+          "id": "pdf-wasm",
+          "rendererId": "pdf",
+          "kind": "wasm-directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/pdf/wasm/",
+          "optionPath": "pdf.wasmUrl",
+          "description": "PDF.js WebAssembly helper directory for fully self-hosted PDF rendering."
+        },
+        {
+          "id": "pdf-standard-fonts",
+          "rendererId": "pdf",
+          "kind": "directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "vendor/pdf/standard_fonts/",
+          "optionPath": "pdf.standardFontDataUrl",
+          "description": "PDF.js standard font data used when PDF files reference base fonts."
+        }
+      ]
+    },
+    {
+      "rendererId": "archive",
+      "assets": [
+        {
+          "id": "libarchive-worker",
+          "rendererId": "archive",
+          "kind": "worker",
+          "target": "public",
+          "required": false,
+          "defaultPath": "vendor/libarchive/worker-bundle.js",
+          "optionPath": "archive.workerUrl",
+          "description": "libarchive.js module worker used for broad archive format parsing."
+        },
+        {
+          "id": "libarchive-wasm",
+          "rendererId": "archive",
+          "kind": "wasm",
+          "target": "public",
+          "required": false,
+          "defaultPath": "vendor/libarchive/libarchive.wasm",
+          "optionPath": "archive.wasmUrl",
+          "description": "libarchive.js WebAssembly module expected next to the public worker."
+        }
+      ]
+    },
+    {
+      "rendererId": "cad",
+      "assets": [
+        {
+          "id": "cad-wasm-directory",
+          "rendererId": "cad",
+          "kind": "wasm-directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/cad/",
+          "optionPath": "cad.wasmPath",
+          "description": "@flyfish-dev/cad-viewer WebAssembly directory for DWG/DXF helpers."
+        },
+        {
+          "id": "cad-dwg-worker",
+          "rendererId": "cad",
+          "kind": "worker",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/cad/dwg-worker.js",
+          "optionPath": "cad.workerUrl",
+          "description": "DWG worker entry used by @flyfish-dev/cad-viewer."
+        },
+        {
+          "id": "cad-dwf-wasm",
+          "rendererId": "cad",
+          "kind": "wasm",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/cad/dwfv-render.wasm",
+          "optionPath": "cad.dwfWasmUrl",
+          "description": "DWF/DWFx/XPS raster WebAssembly module used by @flyfish-dev/cad-viewer."
+        }
+      ]
+    },
+    {
+      "rendererId": "office-word-openxml",
+      "assets": [
+        {
+          "id": "docx-worker",
+          "rendererId": "office-word-openxml",
+          "kind": "worker",
+          "target": "public",
+          "required": false,
+          "defaultPath": "vendor/docx/docx.worker.js",
+          "optionPath": "docx.workerUrl",
+          "description": "Optional @file-viewer/docx worker for off-main-thread DOCX ZIP/XML parsing."
+        },
+        {
+          "id": "docx-worker-jszip",
+          "rendererId": "office-word-openxml",
+          "kind": "script",
+          "target": "public",
+          "required": false,
+          "defaultPath": "vendor/docx/jszip.min.js",
+          "optionPath": "docx.workerJsZipUrl",
+          "description": "JSZip runtime loaded by the @file-viewer/docx worker for fully offline DOCX parsing."
+        }
+      ]
+    },
+    {
+      "rendererId": "spreadsheet-openxml",
+      "assets": [
+        {
+          "id": "spreadsheet-worker",
+          "rendererId": "spreadsheet-openxml",
+          "kind": "worker",
+          "target": "public",
+          "required": false,
+          "defaultPath": "vendor/xlsx/sheet.worker.js",
+          "optionPath": "spreadsheet.workerUrl",
+          "description": "Optional Spreadsheet worker for off-main-thread styled-exceljs workbook parsing."
+        }
+      ]
+    },
+    {
+      "rendererId": "typst",
+      "assets": [
+        {
+          "id": "typst-compiler-wasm",
+          "rendererId": "typst",
+          "kind": "wasm",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/typst/typst_ts_web_compiler_bg.wasm",
+          "packagePath": "@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm",
+          "optionPath": "typst.compilerWasmUrl",
+          "description": "Typst compiler WebAssembly module copied to the public assets directory."
+        },
+        {
+          "id": "typst-renderer-wasm",
+          "rendererId": "typst",
+          "kind": "wasm",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/typst/typst_ts_renderer_bg.wasm",
+          "packagePath": "@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm",
+          "optionPath": "typst.rendererWasmUrl",
+          "description": "Typst SVG renderer WebAssembly module copied to the public assets directory."
+        },
+        {
+          "id": "typst-font-assets",
+          "rendererId": "typst",
+          "kind": "directory",
+          "target": "public",
+          "required": true,
+          "defaultPath": "wasm/typst/fonts/",
+          "optionPath": "typst.fontAssetsUrl",
+          "description": "Self-hosted default Typst text fonts used by typst.ts without public CDN requests."
+        }
+      ]
+    },
+    {
+      "rendererId": "data-asset",
+      "assets": [
+        {
+          "id": "data-sql-wasm",
+          "rendererId": "data-asset",
+          "kind": "wasm",
+          "target": "public",
+          "required": false,
+          "defaultPath": "wasm/data/sql-wasm.wasm",
+          "packagePath": "sql.js/dist/sql-wasm.wasm",
+          "optionPath": "data.sqlWasmUrl",
+          "description": "sql.js WebAssembly module copied to the public assets directory for SQLite previews."
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "valid": true,
+    "checkedAt": "2026-06-23T07:52:33.321Z",
+    "assets": [
+      {
+        "id": "drawio-viewer-script",
+        "rendererId": "drawing",
+        "kind": "script",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/drawio/viewer-static.min.js",
+        "exists": true,
+        "description": "Official diagrams.net viewer-static.min.js self-hosted for offline Draw.io rendering."
+      },
+      {
+        "id": "drawio-offline-assets",
+        "rendererId": "drawing",
+        "kind": "directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/drawio/",
+        "exists": true,
+        "description": "Official diagrams.net styles, shapes, stencils, images, mxGraph and math assets for offline rendering."
+      },
+      {
+        "id": "pdf-worker",
+        "rendererId": "pdf",
+        "kind": "worker",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/pdf/pdf.worker.mjs",
+        "exists": true,
+        "description": "PDF.js module worker copied into viewer assets for offline PDF rendering."
+      },
+      {
+        "id": "pdf-cmaps",
+        "rendererId": "pdf",
+        "kind": "directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/pdf/cmaps/",
+        "exists": true,
+        "description": "PDF.js packed CMaps used for CJK and embedded text decoding."
+      },
+      {
+        "id": "pdf-wasm",
+        "rendererId": "pdf",
+        "kind": "wasm-directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/pdf/wasm/",
+        "exists": true,
+        "description": "PDF.js WebAssembly helper directory for fully self-hosted PDF rendering."
+      },
+      {
+        "id": "pdf-standard-fonts",
+        "rendererId": "pdf",
+        "kind": "directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "vendor/pdf/standard_fonts/",
+        "exists": true,
+        "description": "PDF.js standard font data used when PDF files reference base fonts."
+      },
+      {
+        "id": "libarchive-worker",
+        "rendererId": "archive",
+        "kind": "worker",
+        "target": "public",
+        "required": false,
+        "relativePath": "vendor/libarchive/worker-bundle.js",
+        "exists": true,
+        "description": "libarchive.js module worker used for broad archive format parsing."
+      },
+      {
+        "id": "libarchive-wasm",
+        "rendererId": "archive",
+        "kind": "wasm",
+        "target": "public",
+        "required": false,
+        "relativePath": "vendor/libarchive/libarchive.wasm",
+        "exists": true,
+        "description": "libarchive.js WebAssembly module expected next to the public worker."
+      },
+      {
+        "id": "cad-wasm-directory",
+        "rendererId": "cad",
+        "kind": "wasm-directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/cad/",
+        "exists": true,
+        "description": "@flyfish-dev/cad-viewer WebAssembly directory for DWG/DXF helpers."
+      },
+      {
+        "id": "cad-dwg-worker",
+        "rendererId": "cad",
+        "kind": "worker",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/cad/dwg-worker.js",
+        "exists": true,
+        "description": "DWG worker entry used by @flyfish-dev/cad-viewer."
+      },
+      {
+        "id": "cad-dwf-wasm",
+        "rendererId": "cad",
+        "kind": "wasm",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/cad/dwfv-render.wasm",
+        "exists": true,
+        "description": "DWF/DWFx/XPS raster WebAssembly module used by @flyfish-dev/cad-viewer."
+      },
+      {
+        "id": "docx-worker",
+        "rendererId": "office-word-openxml",
+        "kind": "worker",
+        "target": "public",
+        "required": false,
+        "relativePath": "vendor/docx/docx.worker.js",
+        "exists": true,
+        "description": "Optional @file-viewer/docx worker for off-main-thread DOCX ZIP/XML parsing."
+      },
+      {
+        "id": "docx-worker-jszip",
+        "rendererId": "office-word-openxml",
+        "kind": "script",
+        "target": "public",
+        "required": false,
+        "relativePath": "vendor/docx/jszip.min.js",
+        "exists": true,
+        "description": "JSZip runtime loaded by the @file-viewer/docx worker for fully offline DOCX parsing."
+      },
+      {
+        "id": "spreadsheet-worker",
+        "rendererId": "spreadsheet-openxml",
+        "kind": "worker",
+        "target": "public",
+        "required": false,
+        "relativePath": "vendor/xlsx/sheet.worker.js",
+        "exists": true,
+        "description": "Optional Spreadsheet worker for off-main-thread styled-exceljs workbook parsing."
+      },
+      {
+        "id": "typst-compiler-wasm",
+        "rendererId": "typst",
+        "kind": "wasm",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/typst/typst_ts_web_compiler_bg.wasm",
+        "exists": true,
+        "description": "Typst compiler WebAssembly module copied to the public assets directory."
+      },
+      {
+        "id": "typst-renderer-wasm",
+        "rendererId": "typst",
+        "kind": "wasm",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/typst/typst_ts_renderer_bg.wasm",
+        "exists": true,
+        "description": "Typst SVG renderer WebAssembly module copied to the public assets directory."
+      },
+      {
+        "id": "typst-font-assets",
+        "rendererId": "typst",
+        "kind": "directory",
+        "target": "public",
+        "required": true,
+        "relativePath": "wasm/typst/fonts/",
+        "exists": true,
+        "description": "Self-hosted default Typst text fonts used by typst.ts without public CDN requests."
+      },
+      {
+        "id": "data-sql-wasm",
+        "rendererId": "data-asset",
+        "kind": "wasm",
+        "target": "public",
+        "required": false,
+        "relativePath": "wasm/data/sql-wasm.wasm",
+        "exists": true,
+        "description": "sql.js WebAssembly module copied to the public assets directory for SQLite previews."
+      }
+    ],
+    "missingRequired": [],
+    "missingOptional": []
+  }
+}

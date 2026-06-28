@@ -842,28 +842,45 @@ function executeBatchDelete() {
   
   var csrf = document.querySelector('input[name="csrf_token"]').value;
   
+  // 过滤出有效ID（链接ID为8位hex字符串）
+  var validIds = [];
+  _selectedIds.forEach(function(id) {
+    var s = String(id).trim();
+    if (s && /^[a-f0-9]{8}$/i.test(s)) validIds.push(s);
+  });
+  if (validIds.length === 0) {
+    showToast('未选择有效链接');
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    return;
+  }
   fetch('/admin/links/batch_delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': csrf
     },
-    body: 'link_ids=' + Array.from(_selectedIds).join(',')
+    body: 'link_ids=' + encodeURIComponent(validIds.join(','))
   })
-  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    var ct = res.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') !== -1) return res.json();
+    // 非 JSON 响应（如 redirect HTML），说明请求被拦截
+    return res.text().then(function(t) { throw new Error('non-json:' + t.substring(0,100)); });
+  })
   .then(function(data) {
     btn.disabled = false;
     btn.textContent = '确认删除';
     closeBatchDeleteModal();
     showToast(data.message || (data.success ? '删除成功' : '删除失败'));
     if (data.success) {
-      window.location.reload();
+      setTimeout(function() { window.location.reload(); }, 1500);
     }
   })
   .catch(function(e) {
     btn.disabled = false;
     btn.textContent = '确认删除';
-    showToast('网络错误');
+    showToast('网络错误，请刷新页面后重试');
   });
 }
 

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.7"
+VERSION = "2.3.8"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -139,6 +139,10 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True  # 开发环境开启，修改模板�
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24  # 静态资源缓存 1 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
+
+# Office 预览模块（基于 flyfish-dev/file-viewer）
+from office import office_bp
+app.register_blueprint(office_bp)
 
 # 反向代理支持：修正 request.remote_addr / request.scheme
 # x_for=1 信任 1 层反向代理（最常见的 Nginx/Unix Socket 单层反代场景）
@@ -3459,6 +3463,10 @@ def share_preview_record(link_id, record_id):
         conn.close()
         return err, 401
 
+    if not link['allow_preview_download']:
+        conn.close()
+        return '预览功能未开启', 403
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -3541,6 +3549,10 @@ def share_download_record(link_id, record_id):
         conn.close()
         return err, 401
 
+    if not link['allow_preview_download']:
+        conn.close()
+        return '下载功能未开启', 403
+
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
@@ -3559,7 +3571,7 @@ def share_download_record(link_id, record_id):
 
 @app.route('/share/<link_id>/preview_file/<int:record_id>', methods=['GET'])
 def share_preview_file(link_id, record_id):
-    """分享页预览文件（用于JIT Viewer SDK获取文件内容）"""
+    """分享页预览文件（用于 flyfish file-viewer 获取文件内容）"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return '链接格式无效', 400
     conn = get_db()
@@ -3586,6 +3598,10 @@ def share_preview_file(link_id, record_id):
     if not ok:
         conn.close()
         return err, 401
+
+    if not link['allow_preview_download']:
+        conn.close()
+        return '预览功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -3626,80 +3642,6 @@ def share_preview_file(link_id, record_id):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     
     return response
-
-@app.route('/share/<link_id>/view/<int:record_id>', methods=['GET'])
-def share_jit_view(link_id, record_id):
-    """新窗口纯净预览 - JIT Viewer"""
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return '链接格式无效', 400
-    conn = get_db()
-    link = conn.execute(
-        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-    ).fetchone()
-    if not link:
-        conn.close()
-        return '链接不存在或已失效', 404
-
-    # 统一使用数据库规范 ID（支持自定义 slug 访问）
-    link_id = link['id']
-
-    if not is_share_verified(link_id, link):
-        conn.close()
-        return '请先验证通行证', 403
-
-    ok, err = _check_public_link_token(link_id, link, for_share=True)
-    if not ok:
-        conn.close()
-        return err, 401
-
-    record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
-        (record_id, link_id)
-    ).fetchone()
-    conn.close()
-    if not record:
-        return '文件不存在', 404
-
-    upload_base = get_upload_base()
-    real_path = os.path.realpath(record['stored_path'])
-    real_base = os.path.realpath(upload_base)
-    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
-        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}, upload_base={real_base}")
-        abort(403)
-    if not os.path.isfile(real_path):
-        abort(404)
-
-    ext = record['original_name'].split('.')[-1].lower()
-    file_size = os.path.getsize(real_path)
-    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
-    
-    jit_token = request.args.get('token', '')
-    jit_expires = request.args.get('expires', '')
-    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
-    
-    if ext in office_exts and file_size > 30 * 1024 * 1024:
-        return render_template('preview_too_large.html',
-            filename=record['original_name'],
-            file_size=file_size,
-            download_url='/share/' + link_id + '/download/' + str(record_id) + token_params)
-
-    if ext == 'txt' and file_size >= 500 * 1024:
-        txt_info_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_info/' + str(record_id) + token_params
-        txt_chunk_url = request.host_url.rstrip('/') + '/share/' + link_id + '/txt_chunk/' + str(record_id) + token_params
-        download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
-        return render_template('txt_reader.html',
-            filename=record['original_name'],
-            txt_info_url=txt_info_url,
-            txt_chunk_url=txt_chunk_url,
-            download_url=download_url)
-
-    file_url = request.host_url.rstrip('/') + '/share/' + link_id + '/preview_file/' + str(record_id) + token_params
-    download_url = '/share/' + link_id + '/download/' + str(record_id) + token_params
-    return render_template('jit_preview.html',
-        filename=record['original_name'],
-        file_url=file_url,
-        download_url=download_url)
-
 
 @app.route('/share/<link_id>/txt_info/<int:record_id>', methods=['GET'])
 def share_txt_info(link_id, record_id):
@@ -4308,7 +4250,7 @@ def download_record(link_id, record_id):
 
 @app.route('/collect/<link_id>/preview_file/<int:record_id>', methods=['GET'])
 def collect_preview_file(link_id, record_id):
-    """收集页预览文件（用于JIT Viewer SDK获取文件内容）"""
+    """收集页预览文件（用于 flyfish file-viewer 获取文件内容）"""
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
@@ -4385,96 +4327,6 @@ def collect_preview_file(link_id, record_id):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     
     return response
-
-@app.route('/collect/<link_id>/view/undefined', methods=['GET'])
-def collect_jit_view_undefined(link_id):
-    """拦截 JitViewer 的 undefined 图片请求，避免 404"""
-    return '', 200
-
-@app.route('/collect/<link_id>/view/<int:record_id>', methods=['GET'])
-def collect_jit_view(link_id, record_id):
-    """新窗口纯净预览 - JIT Viewer（收集页）"""
-    conn = get_db()
-    link = conn.execute(
-        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
-    ).fetchone()
-    if not link:
-        conn.close()
-        return '链接不存在或已失效', 404
-
-    if not is_verified(link_id, link):
-        conn.close()
-        return '请先验证通行证', 403
-
-    ok, err = _check_preview_rate_limit()
-    if not ok:
-        conn.close()
-        return err, 429
-
-    ok, err = _check_public_link_token(link_id, link, for_share=False)
-    if not ok:
-        conn.close()
-        return err, 401
-
-    if not link['allow_preview_download']:
-        conn.close()
-        return '预览功能未开启', 403
-
-    record = conn.execute(
-        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
-        (record_id, link_id)
-    ).fetchone()
-    conn.close()
-    if not record:
-        return '文件不存在', 404
-
-    # require_uploader 模式下只允许预览自己的文件
-    if link['require_uploader']:
-        uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
-        rec_uploader = (record['uploader_name'] or '').strip()
-        if uploader_name and rec_uploader and rec_uploader != uploader_name:
-            return '无权访问此文件', 403
-
-    upload_base = get_upload_base()
-    real_path = os.path.realpath(record['stored_path'])
-    real_base = os.path.realpath(upload_base)
-    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
-        logger.warning(f"路径遍历攻击拦截: stored_path={record['stored_path']}, upload_base={real_base}")
-        abort(403)
-    if not os.path.isfile(real_path):
-        abort(404)
-
-    ext = record['original_name'].split('.')[-1].lower()
-    file_size = os.path.getsize(real_path)
-    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
-    
-    jit_token = request.args.get('token', '')
-    jit_expires = request.args.get('expires', '')
-    token_params = f'?token={jit_token}&expires={jit_expires}' if jit_token else ''
-    
-    if ext in office_exts and file_size > 30 * 1024 * 1024:
-        return render_template('preview_too_large.html',
-            filename=record['original_name'],
-            file_size=file_size,
-            download_url='/collect/' + link_id + '/download/' + str(record_id) + token_params)
-
-    if ext == 'txt' and file_size >= 500 * 1024:
-        txt_info_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_info/' + str(record_id) + token_params
-        txt_chunk_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/txt_chunk/' + str(record_id) + token_params
-        download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
-        return render_template('txt_reader.html',
-            filename=record['original_name'],
-            txt_info_url=txt_info_url,
-            txt_chunk_url=txt_chunk_url,
-            download_url=download_url)
-
-    file_url = request.host_url.rstrip('/') + '/collect/' + link_id + '/preview_file/' + str(record_id) + token_params
-    download_url = '/collect/' + link_id + '/download/' + str(record_id) + token_params
-    return render_template('jit_preview.html',
-        filename=record['original_name'],
-        file_url=file_url,
-        download_url=download_url)
-
 
 @app.route('/collect/<link_id>/txt_info/<int:record_id>', methods=['GET'])
 def collect_txt_info(link_id, record_id):
@@ -7364,12 +7216,29 @@ def _serve_link_attachment(link_id, as_attachment=True):
     """安全下载/内联链接附件，使用路径遍历防护"""
     conn = get_db()
     link = conn.execute(
-        "SELECT attachment_name, attachment_path, attachment_size FROM links WHERE id=?",
-        (link_id,)
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id)
     ).fetchone()
-    conn.close()
-    if not link or not link['attachment_path']:
+    if not link:
+        conn.close()
         abort(404)
+
+    # 统一使用数据库规范 ID
+    link_id = link['id']
+
+    if not is_verified(link_id, link):
+        conn.close()
+        return '请先验证通行证', 403
+
+    ok, err = _check_public_link_token(link_id, link, for_share=False)
+    if not ok:
+        conn.close()
+        return err, 401
+
+    if not link['attachment_path']:
+        conn.close()
+        abort(404)
+    conn.close()
 
     stored_path = link['attachment_path']
     upload_base = get_upload_base()
@@ -7408,6 +7277,20 @@ def _serve_link_attachment(link_id, as_attachment=True):
             '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
             '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.flac': 'audio/flac',
             '.aac': 'audio/aac', '.m4a': 'audio/mp4',
+            # Office / PDF 格式（flyfish file-viewer 需要正确 Content-Type）
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.ofd': 'application/octet-stream',
+            '.txt': 'text/plain; charset=utf-8',
+            '.md': 'text/markdown; charset=utf-8',
+            '.csv': 'text/csv; charset=utf-8',
+            '.dxf': 'application/dxf',
+            '.dwg': 'application/acad',
         }
         mimetype = mimetypes_map.get(ext, 'application/octet-stream')
     return send_file(
@@ -7425,26 +7308,6 @@ def _serve_link_attachment(link_id, as_attachment=True):
 def collect_attachment_preview(link_id):
     """附件内联预览（图片/视频/音频直接展示）"""
     return _serve_link_attachment(link_id, as_attachment=False)
-
-
-@app.route('/collect/<link_id>/attachment/view')
-def collect_attachment_view(link_id):
-    """附件 JIT Viewer 在线预览（Office/PDF 等）"""
-    conn = get_db()
-    link = conn.execute(
-        "SELECT id, attachment_name FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
-        (link_id, link_id)
-    ).fetchone()
-    conn.close()
-    if not link:
-        abort(404)
-    filename = link['attachment_name'] or 'attachment'
-    file_url = request.host_url.rstrip('/') + url_for('collect_attachment_preview', link_id=link['id'])
-    download_url = url_for('collect_attachment', link_id=link['id'])
-    return render_template('jit_preview.html',
-        filename=filename,
-        file_url=file_url,
-        download_url=download_url)
 
 
 @app.route('/admin/links/<link_id>/toggle', methods=['POST'])
@@ -7522,9 +7385,15 @@ def delete_link(link_id):
     return redirect(url_for('admin_links'))
 
 @app.route('/admin/links/batch_delete', methods=['POST'])
-@login_required
 def batch_delete_links():
-    """批量删除链接"""
+    """批量删除链接（AJAX）—— 自行处理登录/CSRF，返回JSON"""
+    # 登录检查
+    if not session.get('user_id'):
+        return jsonify({'success': False, 'message': '未登录，请刷新页面后重试'}), 401
+    # CSRF 检查
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面后重试'}), 403
+    
     user_id = session.get('user_id')
     is_admin = session.get('is_admin', False)
     
@@ -7532,10 +7401,12 @@ def batch_delete_links():
     if not link_ids:
         return jsonify({'success': False, 'message': '未选择任何链接'})
     
-    try:
-        ids = [int(x) for x in link_ids.split(',') if x.strip()]
-    except ValueError:
-        return jsonify({'success': False, 'message': '链接ID格式错误'})
+    # 链接ID为8位hex字符串，过滤无效值
+    ids = []
+    for x in link_ids.split(','):
+        x = x.strip()
+        if x and re.match(r'^[a-f0-9]{8}$', x, re.I):
+            ids.append(x)
     
     if not ids:
         return jsonify({'success': False, 'message': '未选择任何链接'})
@@ -7894,7 +7765,7 @@ def admin_link_upload_logs(link_id):
 @app.route('/admin/records/<int:record_id>/preview_file')
 @login_required
 def admin_preview_file(record_id):
-    """预览文件（用于JIT Viewer SDK获取文件内容）"""
+    """预览文件（用于 flyfish file-viewer 获取文件内容）"""
     if not _check_record_ownership(record_id):
         abort(403)
     
@@ -7938,62 +7809,6 @@ def admin_preview_file(record_id):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     
     return response
-
-@app.route('/admin/records/<int:record_id>/view')
-@login_required
-def admin_jit_view(record_id):
-    """新窗口纯净预览 - JIT Viewer（管理后台）"""
-    if not _check_record_ownership(record_id):
-        abort(403)
-
-    conn = get_db()
-    record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
-        (record_id,)
-    ).fetchone()
-    if not record:
-        conn.close()
-        return '文件不存在', 404
-    conn.close()
-
-    upload_base = get_upload_base()
-    real_path = os.path.realpath(record['stored_path'])
-    real_base = os.path.realpath(upload_base)
-    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
-        abort(403)
-    if not os.path.isfile(real_path):
-        abort(404)
-
-    ext = record['original_name'].split('.')[-1].lower()
-    file_size = os.path.getsize(real_path)
-    office_exts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd']
-
-    # Office 文件超过 30MB 提示过大
-    if ext in office_exts and file_size > 30 * 1024 * 1024:
-        download_url = '/admin/records/' + str(record_id) + '/download'
-        return render_template('preview_too_large.html',
-            filename=record['original_name'],
-            file_size=file_size,
-            download_url=download_url)
-
-    # 大 TXT 文件（≥500KB）走专用阅读器
-    if ext == 'txt' and file_size >= 500 * 1024:
-        txt_info_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_info'
-        txt_chunk_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/txt_chunk'
-        download_url = '/admin/records/' + str(record_id) + '/download'
-        return render_template('txt_reader.html',
-            filename=record['original_name'],
-            txt_info_url=txt_info_url,
-            txt_chunk_url=txt_chunk_url,
-            download_url=download_url)
-
-    file_url = request.host_url.rstrip('/') + '/admin/records/' + str(record_id) + '/preview_file'
-    download_url = '/admin/records/' + str(record_id) + '/download'
-    return render_template('jit_preview.html',
-        filename=record['original_name'],
-        file_url=file_url,
-        download_url=download_url)
-
 
 @app.route('/admin/records/<int:record_id>/txt_info')
 @login_required

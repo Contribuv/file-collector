@@ -171,6 +171,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             req.add_header('X-Forwarded-For', self.client_address[0])
             req.add_header('X-Forwarded-Proto', 'https')
             req.add_header('X-Real-IP', self.client_address[0])
+            # 透传原始 Host，让 Flask ProxyFix 正确识别域名
+            # 否则 session cookie / url_for 会使用 127.0.0.1:5557，导致登录失败
+            original_host = self.headers.get('Host', '')
+            if original_host:
+                req.add_header('X-Forwarded-Host', original_host)
 
             # 一次性读取配置（避免多次 DB 查询）
             _cfg = ProxyManager.get_config()

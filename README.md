@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.9-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.10-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.10
+- 修复反代缺少 `X-Forwarded-Host` 头导致后台登录后立即被踢回登录页的问题
+- 后端 Flask 配置了 `ProxyFix(x_host=1)`，反代漏传原始 Host 头导致 session 和 url_for 域名错误
 
 ### v2.3.9
 - 放弃 OnlyOffice 庞大的项目集成，继续用 file-viewer 实现 Office 预览

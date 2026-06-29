@@ -1,0 +1,21 @@
+[
+    {
+        "stepTitle": "升级文件收集器",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "<strong>正在升级文件收集器</strong><br><br>✓ 所有已有数据将完整保留（数据库、上传文件、配置）<br>✓ 监听端口已自动填入安装时的设定，可根据需要修改<br><br>点击下一步完成升级。"
+            },
+            {
+                "type": "text",
+                "field": "wizard_app_port",
+                "label": "监听端口",
+                "initValue": "5557",
+                "rules": [
+                    { "required": true, "message": "请输入监听端口" },
+                    { "pattern": "^[0-9]+$", "message": "端口号必须是数字" }
+                ]
+            }
+        ]
+    }
+]

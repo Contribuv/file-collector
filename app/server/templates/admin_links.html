@@ -1,0 +1,1119 @@
+{% extends "base.html" %}
+{% block title %}链接管理{% endblock %}
+
+{% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card links-card">
+      <div class="links-header">
+        <div class="links-header-left">
+          <h3 class="links-header-title">收集链接</h3>
+          <span class="links-header-stats">共 {{ total }} 个 · 第 {{ page }}/{{ total_pages }} 页</span>
+        </div>
+        <div class="links-header-right">
+          <a href="{{ url_for('admin_link_new') }}" class="btn btn-sm btn-primary btn-create" id="btn-create">＋ 创建收集</a>
+          <a href="{{ url_for('admin_link_batch') }}" class="btn btn-sm btn-primary btn-batch-create" id="btn-batch-create">＋ 批量创建</a>
+          {% if creators %}
+          <select id="creator-filter" class="links-filter-select" onchange="applyFilter()">
+            <option value="" {% if not creator_filter %}selected{% endif %}>全部创建人</option>
+            {% for creator in creators %}
+            <option value="{{ creator['id'] }}" {% if creator_filter == creator['id']|string %}selected{% endif %}>
+              {{ creator['nickname'] or creator['username'] }}
+            </option>
+            {% endfor %}
+          </select>
+          {% endif %}
+          <button class="btn btn-sm btn-outline btn-batch-toggle" onclick="toggleBatchMode()" title="批量操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            批量操作
+          </button>
+          <button class="btn btn-sm btn-outline btn-header-more" onclick="toggleHeaderMore(event)" title="更多操作" aria-label="更多操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-more-menu" id="header-more-menu">
+            <a href="{{ url_for('admin_link_batch') }}" class="header-more-item">＋ 批量创建</a>
+            <button class="header-more-item" onclick="toggleBatchMode();closeHeaderMore();">＋ 批量操作</button>
+          </div>
+          <div class="header-more-overlay" id="header-more-overlay" onclick="closeHeaderMore()"></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        {% if links %}
+        <table class="admin-table admin-links-table">
+          <thead>
+            <tr>
+              <th class="col-sel col-sel-hide"><input type="checkbox" class="sel-check sel-check-all" onchange="toggleSelectAll(this.checked)"></th>
+              <th class="col-title">收集名称</th>
+              <th class="col-share">分享</th>
+              <th class="col-hide-mobile col-limit">限制</th>
+              <th class="col-status">状态</th>
+              <th class="col-hide-mobile col-creator">创建人</th>
+              <th class="col-hide-mobile col-time">创建</th>
+              <th class="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for link in links %}
+            <tr data-link-id="{{ link['id'] }}" data-link-title="{{ link['title']|e }}">
+              <td class="col-sel col-sel-hide"><input type="checkbox" class="sel-check sel-check-row" value="{{ link['id'] }}"></td>
+              <td class="col-title">{{ link['title'] }}</td>
+              <td class="col-share">
+                {% if link['share_enabled'] and link['status'] == 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  已开启
+                </span>
+                {% elif link['share_enabled'] and link['status'] != 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#d97706;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  随链接停用
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  未开启
+                </span>
+                {% endif %}
+              </td>
+              <td class="col-hide-mobile col-limit" style="color:var(--c-text-soft);font-size:.82rem;">
+                {% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}
+              </td>
+              <td class="col-status">
+                {% if link['status'] == 'active' %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  已启用
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  已停用
+                </span>
+                {% endif %}
+                {% if link['expires_at'] %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;margin-left:4px;visibility:hidden;" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="transparent" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                {% endif %}
+              </td>
+              <td class="col-hide-mobile col-creator" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['creator_name'] or '未知用户' }}</td>
+              <td class="col-hide-mobile col-time" style="color:var(--c-text-soft);font-size:.82rem;">{{ link['created_at'] }}</td>
+              <td class="col-act">
+                {% set pass_text = link['passcode_plain'] if link['_has_passcode'] else '' %}
+                {% set need_reset = '1' if link['_is_legacy'] else '0' %}
+                {% set share_pass_text = link['share_passcode_plain'] if link['_has_share_passcode'] else '' %}
+                {% set share_need_reset = '1' if link['_is_share_legacy'] else '0' %}
+                <button class="btn btn-sm btn-outline btn-more" title="更多操作"
+                  onclick="showLinkPopover(this)"
+                  data-link-id="{{ link['id'] }}"
+                  data-title="{{ link['title']|e }}"
+                  data-description="{{ link['description']|e if link['description'] else '' }}"
+                  data-status="{{ link['status'] }}"
+                  data-max-files="{{ link['max_files'] }}"
+                  data-max-size-gb="{{ link['max_file_size_gb'] }}"
+                  data-expires-at="{{ link['expires_at'] or '' }}"
+                  data-created-at="{{ link['created_at'] }}"
+                  data-creator="{{ link['creator_name']|e }}"
+                  data-passcode="{{ pass_text }}"
+                  data-has-passcode="{{ link['_has_passcode']|lower }}"
+                  data-is-legacy="{{ need_reset }}"
+                  data-share-passcode="{{ share_pass_text }}"
+                  data-has-share-passcode="{{ link['_has_share_passcode']|lower }}"
+                  data-is-share-legacy="{{ share_need_reset }}"
+                  data-allow-delete="{{ link['allow_delete'] }}"
+                  data-allow-preview-download="{{ link['allow_preview_download'] }}"
+                  data-collect-slug="{{ link['collect_slug'] or '' }}"
+                  data-share-slug="{{ link['share_slug'] or '' }}">操作</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><h3>还没有收集链接</h3><p>点击上方「创建收集链接」开始使用</p></div>
+        {% endif %}
+      </div>
+      {% if total_pages > 1 %}
+      <div class="card-footer" style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_links', page=page-1) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_links', page=page+1) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:.8rem;color:#999;">每页显示</label>
+          <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
+                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+          <span style="font-size:.78rem;color:#aaa;">条</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-footer" style="padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <label style="font-size:.8rem;color:#999;">每页显示</label>
+        <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
+               style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+        <span style="font-size:.78rem;color:#aaa;">条</span>
+      </div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 链接浮窗遮罩层 -->
+<div id="link-popover-overlay" class="link-popover-overlay" style="display:none;" onclick="closeLinkPopover()"></div>
+<!-- 链接浮窗 -->
+<div id="link-popover" class="link-popover" style="display:none;">
+  <div class="link-popover-header">
+    <strong id="lp-title"></strong>
+    <button class="link-popover-close" onclick="closeLinkPopover()">&times;</button>
+  </div>
+  <div class="link-popover-info" id="lp-info"></div>
+  <div class="link-popover-actions" id="lp-actions"></div>
+</div>
+
+{# --- 删除确认模态框 --- #}
+<div class="modal-overlay" id="delete-confirm-modal" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header"><h3>确认删除</h3></div>
+    <div class="modal-body">
+      <p id="delete-confirm-text" style="margin:0;line-height:1.6;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeDeleteConfirm()">取消</button>
+      <button class="btn btn-sm btn-danger" id="delete-confirm-btn" onclick="confirmDeleteLink()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+{# --- 批量删除确认模态框 --- #}
+<div class="modal-overlay" id="batch-delete-modal" style="display:none;">
+  <div class="modal-content" style="max-width:420px;">
+    <div class="modal-header">
+      <h3 style="color:#dc2626;display:flex;align-items:center;gap:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <path d="M12 9v4"/>
+          <path d="M12 17h.01"/>
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        </svg>
+        批量删除确认
+      </h3>
+    </div>
+    <div class="modal-body">
+      <p id="batch-delete-text" style="margin:0 0 12px;line-height:1.6;font-weight:500;">确定要删除选中的链接吗？</p>
+      <p style="margin:0;line-height:1.6;color:#666;font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。</p>
+      <div id="batch-delete-list" style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:6px;max-height:120px;overflow-y:auto;font-size:.82rem;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeBatchDeleteModal()">取消</button>
+      <button class="btn btn-sm btn-danger" id="batch-delete-btn" onclick="executeBatchDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+{# --- 批量操作栏 --- #}
+<div class="batch-bar" id="batch-bar" style="display:none;">
+  <span class="batch-info" id="batch-info">已选择 0 个链接</span>
+  <button class="btn btn-sm btn-danger" onclick="showBatchDeleteModal()">批量删除</button>
+  <button class="btn btn-sm btn-outline" onclick="clearSelection()">取消选择</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* 链接管理页卡片头部 */
+.links-card { overflow: hidden; }
+
+.links-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--c-border, #e8ecf1);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.links-header::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: rgba(59,130,246,.06);
+  top: -100px;
+  right: -80px;
+  pointer-events: none;
+}
+
+.links-header::after {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(139,92,246,.05);
+  bottom: -50px;
+  left: -40px;
+  pointer-events: none;
+}
+
+.links-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.links-header-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--c-text, #1a1d28);
+  letter-spacing: -0.01em;
+}
+
+.links-header-stats {
+  font-size: 0.78rem;
+  color: #8896a4;
+  white-space: nowrap;
+}
+
+.links-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.links-header-right .btn-create { order: 1; }
+.links-header-right .btn-batch-create { order: 2; }
+.links-header-right .links-filter-select { order: 0; }
+.links-header-right .btn-batch-toggle { order: 0; }
+
+/* 移动端更多菜单按钮 — 桌面端隐藏 */
+.btn-header-more {
+  display: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.btn-header-more svg { width: 18px; height: 18px; }
+
+/* 移动端更多菜单面板 */
+.header-more-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  margin-top: 4px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  min-width: 180px;
+  padding: 4px 0;
+  z-index: 1200;
+  animation: menuSlideIn 0.18s ease;
+}
+@keyframes menuSlideIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.header-more-menu.show { display: block; }
+
+.header-more-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--c-text, #1a1d28);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition: background 0.1s;
+}
+.header-more-item:hover { background: #f5f7fa; }
+
+/* 移动端更多菜单遮罩 */
+.header-more-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1199;
+  background: transparent;
+}
+
+/* 筛选下拉框 */
+.links-filter-select {
+  padding: 5px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: .82rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* 批量操作按钮 */
+.btn-batch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 勾选列 */
+.col-sel { width: 36px; text-align: center; }
+.col-sel-hide { display: none; }
+.sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; }
+
+/* 批量操作栏 */
+.batch-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e4e6eb;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 200;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.batch-info { font-size: .85rem; font-weight: 500; color: #1a1d28; }
+
+/* 更多按钮 */
+/* .btn-more-link 已统一为全局 .btn-more */
+
+
+/* PC端 /admin/links 表格 */
+.admin-links-table { table-layout: auto; }
+.admin-links-table th, .admin-links-table td { font-size: .82rem; }
+.admin-links-table .col-title { width: auto; min-width: 0; }
+.admin-links-table .col-share { white-space: nowrap; width: 1px; }
+.admin-links-table .col-status { white-space: nowrap; text-align: left; width: 1px; }
+.admin-links-table .col-creator { white-space: nowrap; width: 1px; }
+.admin-links-table .col-act { white-space: nowrap; text-align: right; width: 1px; }
+.admin-links-table th.col-act { padding-right: 26px; }
+.admin-links-table th { font-weight: 600; color: var(--c-text-soft, #6b7280); }
+
+/* 移动端 */
+@media (max-width: 640px) {
+  .links-card { overflow: visible; }
+
+  .links-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #fff;
+    border-bottom: 1px solid #e8ecf1;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: visible;
+  }
+  .links-header::before,
+  .links-header::after { display: none; }
+
+  .links-header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .links-header-title {
+    font-size: .9rem;
+    margin: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .links-header-stats {
+    font-size: .66rem;
+    color: #8896a4;
+    white-space: nowrap;
+  }
+  .links-header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* 隐藏 PC 端的批量创建和批量操作按钮 */
+  .links-header-right .btn-batch-create,
+  .links-header-right .btn-batch-toggle { display: none; }
+
+  /* 筛选下拉 — 放外面，紧凑样式 */
+  .links-header-right .links-filter-select {
+    order: 0;
+    font-size: .72rem;
+    padding: 4px 22px 4px 8px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    appearance: auto;
+  }
+
+  /* 创建按钮 — 精致风 */
+  .links-header-right .btn-create {
+    order: 1;
+    font-size: .76rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    white-space: nowrap;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    box-shadow: 0 2px 6px rgba(59,130,246,.3);
+  }
+
+  /* 更多按钮 — 去边框，纯图标 */
+  .btn-header-more {
+    display: inline-flex;
+    order: 2;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: #6b7280;
+  }
+  .btn-header-more:hover { background: #f3f4f6; color: #374151; }
+  .btn-header-more svg { width: 18px; height: 18px; }
+
+  .col-hide-mobile { display: none !important; }
+  .admin-links-table { table-layout: auto; }
+  .admin-links-table th, .admin-links-table td { font-size: .82rem; padding: 8px 10px; }
+  .col-title { width: auto; min-width: 0; }
+  .col-share, .col-status { white-space: nowrap; width: 1px; font-size: .72rem !important; }
+  .col-share span, .col-status span { font-size: .7rem !important; }
+  .col-share span svg, .col-status span svg { width: 11px; height: 11px; }
+  .col-act { white-space: nowrap; text-align: right; width: 1px; }
+  .admin-links-table th.col-act { padding-right: 22px; }
+  .batch-bar { gap: 8px; padding: 8px 12px; }
+  .batch-info { font-size: .78rem; }
+  .batch-bar .btn { font-size: .74rem; padding: 5px 10px; }
+}
+
+/* 浮窗遮罩 */
+.link-popover-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 浮窗 */
+.link-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  animation: popoverCenterIn 0.25s ease;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.link-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+  border-radius: 16px 16px 0 0;
+}
+.link-popover-header strong {
+  font-size: 1rem;
+  color: var(--c-text);
+  word-break: break-all;
+  padding-right: 8px;
+}
+.link-popover-close {
+  background: none; border: none; font-size: 22px; color: #aaa; cursor: pointer;
+  padding: 0; width: 30px; height: 30px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.link-popover-close:hover { background: #f0f0f0; color: #666; }
+
+.link-popover-info {
+  padding: 12px 18px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.link-popover-info .lp-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: .8rem;
+  line-height: 1.5;
+}
+.link-popover-info .lp-row .lp-label {
+  color: #999;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+.link-popover-info .lp-row .lp-val {
+  color: #333;
+  flex: 1;
+  word-break: break-all;
+}
+.link-popover-info .lp-row .lp-val.lp-desc {
+  color: #666;
+  font-size: .76rem;
+  overflow-y: auto;
+}
+
+.link-popover-actions { padding: 6px 0; }
+.link-popover-actions .lp-action-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 20px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: .85rem;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid #fafafa;
+}
+.link-popover-actions .lp-action-btn:last-child { border-bottom: none; }
+.link-popover-actions .lp-action-btn:hover { background: #f5f7fa; }
+.link-popover-actions .lp-action-btn.primary { color: var(--c-primary); }
+.link-popover-actions .lp-action-btn.warning { color: #d97706; }
+.link-popover-actions .lp-action-btn.danger { color: #dc2626; }
+.link-popover-actions .lp-action-btn.danger:hover { background: #fef2f2; }
+.link-popover-actions form { margin: 0; }
+.link-popover-actions form .lp-action-btn { width: 100%; }
+.link-popover-actions .lp-action-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 16px;
+}
+
+.lp-action-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+}
+.lp-action-row .lp-action-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  border-bottom: none;
+  white-space: nowrap;
+  min-width: 0;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lp-action-row .lp-action-btn svg {
+  margin-right: 4px !important;
+  flex-shrink: 0;
+}
+.lp-action-row .lp-action-btn.primary { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+.lp-action-row .lp-action-btn.primary:hover { background: #e0e7ff; }
+.lp-action-row .lp-action-btn.warning { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.lp-action-row .lp-action-btn.warning:hover { background: #ffedd5; }
+.lp-action-row .lp-action-btn.danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.lp-action-row .lp-action-btn.danger:hover { background: #fee2e2; }
+.lp-action-row .lp-action-btn.edit { background: #ecfdf5; border-color: #a7f3d0; color: #059669; }
+.lp-action-row .lp-action-btn.edit:hover { background: #d1fae5; }
+.lp-action-row form {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.lp-action-row form .lp-action-btn { width: 100%; }
+
+@media (max-width: 640px) {
+  .link-popover {
+    width: calc(100vw - 24px);
+    border-radius: 18px;
+  }
+  .link-popover-header { padding: 14px 16px; }
+  .link-popover-header strong { font-size: .95rem; }
+  .link-popover-info { padding: 10px 16px; }
+  .link-popover-info .lp-row { font-size: .78rem; }
+  .link-popover-actions .lp-action-btn:not(.lp-action-row .lp-action-btn) { padding: 12px 18px; font-size: .84rem; }
+  .lp-action-row { gap: 4px; padding: 5px 8px; }
+  .lp-action-row .lp-action-btn { font-size: 0.76rem; padding: 10px 4px; }
+  .lp-action-row .lp-action-btn svg { width: 14px; height: 14px; margin-right: 2px !important; }
+}
+
+/* modal 已提取到全局 style.css */
+.btn-danger { background: #dc2626; color: #fff; border: none; }
+.btn-danger:hover { background: #b91c1c; }
+
+/* modal 移动端规则已提取到全局 style.css */
+</style>
+
+<div id="pv" style="display:none;"
+     data-current-user-name="{{ session.get('nickname') or session.get('username', '用户') }}"
+     data-upload-logs-url="{{ url_for('admin_link_upload_logs', link_id='LID_PLACEHOLDER') }}"
+     data-public-url="{{ public_url }}"
+     data-toggle-link-url="{{ url_for('toggle_link', link_id='_ID_') }}"
+     data-delete-link-url="{{ url_for('delete_link', link_id='_ID_') }}"
+     data-edit-link-url="{{ url_for('admin_link_form', link_id='_ID_') }}"></div>
+
+<script>
+var _pd = document.getElementById('pv').dataset;
+var _lpBtn = null;
+var _currentUserName = _pd.currentUserName;
+var adminLinkUploadLogsUrl = _pd.uploadLogsUrl;
+var _isBatchMode = false;
+var _selectedIds = new Set();
+
+/* ==================== 筛选功能 ==================== */
+
+function applyFilter() {
+  var creatorFilter = document.getElementById('creator-filter');
+  if (creatorFilter) {
+    var creator = creatorFilter.value;
+    var url = new URL(window.location.href);
+    if (creator) {
+      url.searchParams.set('creator', creator);
+    } else {
+      url.searchParams.delete('creator');
+    }
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+  }
+}
+
+/* 移动端更多菜单 */
+function toggleHeaderMore(e) {
+  e.stopPropagation();
+  var menu = document.getElementById('header-more-menu');
+  var overlay = document.getElementById('header-more-overlay');
+  var isOpen = menu.classList.contains('show');
+  if (isOpen) {
+    closeHeaderMore();
+  } else {
+    menu.classList.add('show');
+    if (overlay) overlay.style.display = 'block';
+  }
+}
+
+function closeHeaderMore() {
+  var menu = document.getElementById('header-more-menu');
+  var overlay = document.getElementById('header-more-overlay');
+  if (menu) menu.classList.remove('show');
+  if (overlay) overlay.style.display = 'none';
+}
+
+/* ==================== 批量操作 ==================== */
+
+function toggleBatchMode() {
+  _isBatchMode = !_isBatchMode;
+  var btn = document.querySelector('.btn-batch-toggle');
+  var selCols = document.querySelectorAll('.col-sel-hide');
+  var batchBar = document.getElementById('batch-bar');
+  
+  if (_isBatchMode) {
+    btn.classList.add('active');
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> 退出批量';
+    selCols.forEach(function(el) { 
+      if (el.tagName === 'TH') {
+        el.style.display = 'table-cell';
+      } else {
+        el.style.display = 'table-cell';
+      }
+    });
+    batchBar.style.display = 'flex';
+  } else {
+    btn.classList.remove('active');
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作';
+    selCols.forEach(function(el) { el.style.display = 'none'; });
+    batchBar.style.display = 'none';
+    clearSelection();
+  }
+}
+
+function toggleSelectAll(checked) {
+  var rowChecks = document.querySelectorAll('.sel-check-row');
+  rowChecks.forEach(function(cb) {
+    cb.checked = checked;
+    if (checked) {
+      _selectedIds.add(cb.value);
+    } else {
+      _selectedIds.delete(cb.value);
+    }
+  });
+  updateBatchInfo();
+}
+
+function updateBatchInfo() {
+  var info = document.getElementById('batch-info');
+  info.textContent = '已选择 ' + _selectedIds.size + ' 个链接';
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  var allChecks = document.querySelectorAll('.sel-check');
+  allChecks.forEach(function(cb) { cb.checked = false; });
+  updateBatchInfo();
+}
+
+// 行勾选事件监听
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('sel-check-row')) {
+    if (e.target.checked) {
+      _selectedIds.add(e.target.value);
+    } else {
+      _selectedIds.delete(e.target.value);
+    }
+    updateBatchInfo();
+    // 更新全选框状态
+    var rowChecks = document.querySelectorAll('.sel-check-row');
+    var allChecked = rowChecks.length > 0 && rowChecks.length === _selectedIds.size;
+    document.querySelector('.sel-check-all').checked = allChecked;
+  }
+});
+
+/* ==================== 批量删除 ==================== */
+
+function showBatchDeleteModal() {
+  if (_selectedIds.size === 0) {
+    showToast('请先选择要删除的链接');
+    return;
+  }
+  var modal = document.getElementById('batch-delete-modal');
+  var listEl = document.getElementById('batch-delete-list');
+  var textEl = document.getElementById('batch-delete-text');
+  
+  textEl.textContent = '确定要删除选中的 ' + _selectedIds.size + ' 个链接吗？';
+  
+  // 显示选中的链接名称列表
+  var names = [];
+  _selectedIds.forEach(function(id) {
+    var row = document.querySelector('tr[data-link-id="' + id + '"]');
+    if (row) {
+      names.push(row.getAttribute('data-link-title'));
+    }
+  });
+  listEl.innerHTML = names.map(function(n) { return '<div style="padding:2px 0;">• ' + escapeHtml(n) + '</div>'; }).join('');
+  
+  modal.style.display = 'flex';
+}
+
+function closeBatchDeleteModal() {
+  document.getElementById('batch-delete-modal').style.display = 'none';
+}
+
+function executeBatchDelete() {
+  var btn = document.getElementById('batch-delete-btn');
+  btn.disabled = true;
+  btn.textContent = '删除中...';
+  
+  var csrf = document.querySelector('input[name="csrf_token"]').value;
+  
+  // 过滤出有效ID（链接ID为8位hex字符串）
+  var validIds = [];
+  _selectedIds.forEach(function(id) {
+    var s = String(id).trim();
+    if (s && /^[a-f0-9]{8}$/i.test(s)) validIds.push(s);
+  });
+  if (validIds.length === 0) {
+    showToast('未选择有效链接');
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    return;
+  }
+  fetch('/admin/links/batch_delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrf
+    },
+    body: 'link_ids=' + encodeURIComponent(validIds.join(','))
+  })
+  .then(function(res) {
+    var ct = res.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') !== -1) return res.json();
+    // 非 JSON 响应（如 redirect HTML），说明请求被拦截
+    return res.text().then(function(t) { throw new Error('non-json:' + t.substring(0,100)); });
+  })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    closeBatchDeleteModal();
+    showToast(data.message || (data.success ? '删除成功' : '删除失败'));
+    if (data.success) {
+      setTimeout(function() { window.location.reload(); }, 1500);
+    }
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+    showToast('网络错误，请刷新页面后重试');
+  });
+}
+
+function getBaseUrl() {
+  var pu = _pd.publicUrl;
+  if (pu) {
+    pu = String(pu).trim();
+    if (pu && !pu.endsWith('/')) pu += '/';
+    if (pu) return pu;
+  }
+  var origin = window.location.origin;
+  if (!origin.endsWith('/')) origin += '/';
+  return origin;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { showToast('已复制'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('已复制');
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeJs(str) {
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n');
+}
+
+function stripHtml(html) {
+  return String(html).replace(/<[^>]*>/g, '');
+}
+
+/* ==================== 浮窗 ==================== */
+
+function showLinkPopover(btn) {
+  if (_lpBtn === btn) { closeLinkPopover(); return; }
+  closeLinkPopover();
+
+  _lpBtn = btn;
+  btn.classList.add('active');
+
+  var d = {
+    linkId:   btn.getAttribute('data-link-id'),
+    collectSlug: btn.getAttribute('data-collect-slug') || '',
+    shareSlug: btn.getAttribute('data-share-slug') || '',
+    title:    btn.getAttribute('data-title'),
+    desc:     btn.getAttribute('data-description'),
+    status:   btn.getAttribute('data-status'),
+    maxFiles: btn.getAttribute('data-max-files'),
+    maxSizeGb:btn.getAttribute('data-max-size-gb'),
+    expiresAt:btn.getAttribute('data-expires-at'),
+    createdAt:btn.getAttribute('data-created-at'),
+    creator:  btn.getAttribute('data-creator') || '未知用户',
+    passcode: btn.getAttribute('data-passcode'),
+    hasPasscode: btn.getAttribute('data-has-passcode') === 'true',
+    isLegacy: btn.getAttribute('data-is-legacy') === '1',
+    sharePasscode: btn.getAttribute('data-share-passcode'),
+    hasSharePasscode: btn.getAttribute('data-has-share-passcode') === 'true',
+    isShareLegacy: btn.getAttribute('data-is-share-legacy') === '1',
+    allowDelete: btn.getAttribute('data-allow-delete') === '1',
+    allowPreviewDownload: btn.getAttribute('data-allow-preview-download') === '1',
+    csrfToken: document.querySelector('input[name="csrf_token"]').value
+  };
+
+  var isActive = d.status === 'active';
+  var statusText = isActive ? '<span style="color:#059669;">● 已启用</span>' : '<span style="color:#999;">● 已停用</span>';
+
+  var limitText;
+  if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }
+  else { limitText = d.maxFiles + ' 个'; }
+  limitText += ' / ';
+  if (parseFloat(d.maxSizeGb) < 1) {
+    limitText += Math.round(parseFloat(d.maxSizeGb) * 1024) + ' MB';
+  } else {
+    limitText += d.maxSizeGb + ' GB';
+  }
+
+  var expireText;
+  if (d.expiresAt) {
+    expireText = '<span style="color:#f59e0b;">' + escapeHtml(d.expiresAt.replace('T',' ')) + '</span>';
+  } else {
+    expireText = '<span style="color:#999;">永不过期</span>';
+  }
+
+  var descPlain = d.desc ? stripHtml(d.desc).replace(/\s+/g, ' ').trim() : '';
+  if (descPlain.length > 80) descPlain = descPlain.substring(0, 80) + '...';
+  var descHtml = descPlain ? '<div class="lp-row"><span class="lp-label">描述</span><span class="lp-val lp-desc">' + escapeHtml(descPlain) + '</span></div>' : '';
+
+  document.getElementById('lp-title').textContent = d.title;
+  document.getElementById('lp-info').innerHTML =
+    '<div class="lp-row"><span class="lp-label">状态</span><span class="lp-val">' + statusText + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">限制</span><span class="lp-val">' + escapeHtml(limitText) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">有效期</span><span class="lp-val">' + expireText + '</span></div>' +
+    descHtml +
+    '<div class="lp-row"><span class="lp-label">创建</span><span class="lp-val" style="font-size:.76rem;color:#999;">' + escapeHtml(d.createdAt) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">创建用户</span><span class="lp-val">' + escapeHtml(d.creator) + '</span></div>' +
+    '<div class="lp-row"><span class="lp-label">上传记录</span><span class="lp-val"><a href="' + adminLinkUploadLogsUrl.replace('LID_PLACEHOLDER', d.linkId) + '" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>' +
+    '<div class="lp-row"><span class="lp-label">收集预览</span><span class="lp-val">' + (d.allowPreviewDownload ? '<span style="color:#059669;">已开启</span>' : '<span style="color:#999;">未开启</span>') + '</span></div>';
+
+  var toggleLabel = isActive ? '停用链接' : '启用链接';
+  var toggleClass = isActive ? 'warning' : 'primary';
+  var html = '';
+
+  var svgCopy = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  var svgDownload = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  var svgEdit = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  var svgToggleStop = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
+  var svgTogglePlay = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>';
+  var svgToggle = isActive ? svgToggleStop : svgTogglePlay;
+  var svgDelete = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+  var toggleUrl = _pd.toggleLinkUrl.replace('_ID_', d.linkId);
+  var deleteUrl = _pd.deleteLinkUrl.replace('_ID_', d.linkId);
+  var editUrl = _pd.editLinkUrl.replace('_ID_', d.linkId);
+
+  // 第一排：分享 & 收集
+  var collectId = d.collectSlug || d.linkId;
+  var shareId = d.shareSlug || d.linkId;
+  html += '<div class="lp-action-row">';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'share\',\'' + shareId + '\',\'' + escapeJs(d.sharePasscode) + '\',' + d.isShareLegacy + ')">' + svgCopy + '复制分享链接</button>';
+  html += '<button class="lp-action-btn primary" onclick="popoverCopyLink(\'collect\',\'' + collectId + '\',\'' + escapeJs(d.passcode) + '\',' + d.isLegacy + ')">' + svgDownload + '复制收集链接</button>';
+  html += '</div>';
+
+  html += '<div class="lp-action-divider"></div>';
+
+  // 第二排：编辑 / 启停 / 删除
+  html += '<div class="lp-action-row">';
+  html += '<a href="' + editUrl + '" class="lp-action-btn edit">' + svgEdit + '编辑此收集</a>';
+  html += '<form method="POST" action="' + toggleUrl + '" onsubmit="return confirm(\'确定' + toggleLabel + '？\');">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="submit" class="lp-action-btn ' + toggleClass + '">' + svgToggle + toggleLabel + '</button>' +
+    '</form>';
+  html += '<form method="POST" action="' + deleteUrl + '" id="delete-form-' + d.linkId + '" onsubmit="return false;">' +
+    '<input type="hidden" name="csrf_token" value="' + escapeHtml(d.csrfToken) + '">' +
+    '<button type="button" class="lp-action-btn danger" onclick="showDeleteConfirm(\'' + d.linkId + '\',\'' + escapeJs(d.title) + '\')">' + svgDelete + '删除链接</button>' +
+    '</form>';
+  html += '</div>';
+
+  document.getElementById('lp-actions').innerHTML = html;
+
+  document.getElementById('link-popover-overlay').style.display = '';
+  document.getElementById('link-popover').style.display = '';
+}
+
+function closeLinkPopover() {
+  if (_lpBtn) { _lpBtn.classList.remove('active'); _lpBtn = null; }
+  document.getElementById('link-popover-overlay').style.display = 'none';
+  document.getElementById('link-popover').style.display = 'none';
+}
+
+function popoverCopyLink(type, linkId, passcode, isLegacy) {
+  var url = getBaseUrl() + type + '/' + linkId;
+  if (isLegacy) {
+    alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
+    return;
+  }
+  var actionHint = type === 'collect' ? (_currentUserName + '，邀请您通过此链接上传文件') : (_currentUserName + '，通过此链接给您分享了文件');
+  var text;
+  if (passcode) {
+    var passLabel = type === 'collect' ? '上传通行证' : '分享通行证';
+    text = actionHint + '\n' + passLabel + '：' + passcode + '\n' + url;
+  } else {
+    text = actionHint + '\n' + url;
+  }
+  copyToClipboard(text);
+}
+
+/* --- 删除确认弹窗 --- */
+var _deleteLinkId = null;
+
+function showDeleteConfirm(linkId, title) {
+  _deleteLinkId = linkId;
+  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + escapeHtml(title) + '」吗？<br>该链接的所有文件、文件夹及数据将被永久删除，无法找回！此操作不可撤销。';
+  document.getElementById('delete-confirm-modal').style.display = '';
+  closeLinkPopover();
+}
+
+function closeDeleteConfirm() {
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
+}
+
+function confirmDeleteLink() {
+  if (!_deleteLinkId) return;
+  var form = document.getElementById('delete-form-' + _deleteLinkId);
+  if (form) form.submit();
+  _deleteLinkId = null;
+  document.getElementById('delete-confirm-modal').style.display = 'none';
+}
+
+// 每页数量自动保存
+(function() {
+  var input = document.getElementById('per-page-input');
+  if (!input) return;
+  var currentVal = parseInt(input.value) || 50;
+  var timer = null;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      var raw = input.value.trim();
+      var val = parseInt(raw);
+      if (!raw || isNaN(val)) { input.style.outline='2px solid #ef4444'; return; }
+      if (val < 5) { alert('最少每页显示 5 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val > 100) { alert('最多每页显示 100 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val === currentVal) { input.style.outline=''; return; }
+      input.style.outline='';
+      var fd = new FormData();
+      fd.append('key', 'links_per_page');
+      fd.append('value', String(val));
+      var csrf = document.querySelector('input[name="csrf_token"]');
+      if (csrf) fd.append('csrf_token', csrf.value);
+      fetch('/admin/ajax/set-per-page', {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            currentVal = val;
+            window.location.reload(true);
+          } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+          }
+        }).catch(function(e) {
+          alert('请求失败: ' + e.message);
+        });
+    }, 800);
+  });
+})();
+</script>
+{% endblock %}

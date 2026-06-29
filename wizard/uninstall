@@ -1,0 +1,20 @@
+[
+    {
+        "stepTitle": "卸载选项",
+        "items": [
+            {
+                "type": "select",
+                "field": "wizard_uninstall_mode",
+                "label": "数据库处理方式",
+                "initValue": "keep_db",
+                "options": [
+                    {"label": "保留数据库卸载（推荐）", "value": "keep_db"},
+                    {"label": "删除数据库卸载", "value": "delete_db"}
+                ],
+                "rules": [
+                    {"required": true, "message": "请选择数据库处理方式"}
+                ]
+            }
+        ]
+    }
+]

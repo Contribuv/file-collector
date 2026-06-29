@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>{{ error_title|default('出错了') }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body class="error-page">
+  <div class="error-card">
+    <div class="error-code">{{ error_code|default(404) }}</div>
+    <h2>{{ error_title|default('页面未找到') }}</h2>
+    <p>{{ error_message|default('您访问的页面不存在或已被移除。') }}</p>
+  </div>
+</body>
+</html>

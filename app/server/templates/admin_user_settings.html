@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}个人设置{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="settings-grid">
+      <!-- 账号设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>账号设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_username">用户名</label>
+                <input type="text" id="new_username" name="new_username" class="form-input form-input-sm"
+                       value="{{ user.username }}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="new_nickname">昵称</label>
+                <input type="text" id="new_nickname" name="new_nickname" class="form-input form-input-sm"
+                       value="{{ user.nickname or '' }}" placeholder="显示名称">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_email">邮箱</label>
+                <input type="email" id="new_email" name="new_email" class="form-input form-input-sm"
+                       value="{{ user.email or '' }}" placeholder="用于密码找回">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="old_password">当前密码 *</label>
+                <input type="password" id="old_password" name="old_password" class="form-input form-input-sm"
+                       placeholder="修改信息需验证" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="new_password">新密码</label>
+                <input type="password" id="new_password" name="new_password" class="form-input form-input-sm" placeholder="留空则不修改">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="confirm_password">确认新密码</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input form-input-sm" placeholder="再次输入新密码">
+              </div>
+            </div>
+            <button type="submit" name="action" value="account" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="settings-grid-sub">
+      <!-- 通行证有效期 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>通行证有效期</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="passcode_ttl_minutes">有效期（分钟）</label>
+              <input type="number" id="passcode_ttl_minutes" name="passcode_ttl_minutes" class="form-input form-input-sm"
+                     value="{{ defaults.passcode_ttl_minutes or '120' }}" min="1" max="43200" step="1">
+              <div class="form-hint">验证后浏览器缓存有效期，默认 120 分钟</div>
+            </div>
+            <button type="submit" name="action" value="passcode_ttl" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 默认设置 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>默认设置</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="default_max_files">默认最大文件数</label>
+                <input type="number" id="default_max_files" name="default_max_files" class="form-input form-input-sm"
+                       value="{{ defaults.max_files or 10 }}" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="default_max_size_val">单文件上限</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" id="default_max_size_val" class="form-input form-input-sm" style="flex:1;"
+                         value="{{ defaults.max_file_size_gb or 1 }}" min="0.01" step="0.01">
+                  <select id="default_max_size_unit" class="form-input form-input-sm" style="width:64px;flex:none;">
+                    <option value="MB">MB</option>
+                    <option value="GB">GB</option>
+                  </select>
+                </div>
+                <input type="hidden" id="default_max_size" name="default_max_size" value="{{ defaults.max_file_size_gb or 1 }}">
+              </div>
+            </div>
+            <div class="form-hint" style="margin-bottom:8px;">创建链接时的默认参数，留空则使用管理员全局设置</div>
+            <button type="submit" name="action" value="defaults" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 链接有效期 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>默认链接有效期</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="default_link_expire_days">最大有效期（天）</label>
+              <input type="number" id="default_link_expire_days" name="default_link_expire_days" class="form-input form-input-sm"
+                     value="{{ defaults.default_link_expire_days }}" min="1" max="3650" step="1">
+              <div class="form-hint">创建链接时的默认有效期上限，默认 30 天</div>
+            </div>
+            <button type="submit" name="action" value="default_link_expiry" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 收集链接显示数量 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>收集链接显示数量/页</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="links_per_page_val">每页显示数量</label>
+              <input type="number" id="links_per_page_val" name="links_per_page_val" class="form-input form-input-sm"
+                     value="{{ defaults.links_per_page or '10' }}" min="5" max="100" step="1">
+              <div class="form-hint">收集链接列表每页显示条数，默认 10 条，范围 5-100</div>
+            </div>
+            <button type="submit" name="action" value="links_per_page" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 上传记录单页数量 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>上传记录单页数量</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="records_per_page_val">每页显示数量</label>
+              <input type="number" id="records_per_page_val" name="records_per_page_val" class="form-input form-input-sm"
+                     value="{{ defaults.records_per_page or '10' }}" min="5" max="200" step="1">
+              <div class="form-hint">上传记录列表每页显示条数，默认 10 条，范围 5-200（仅对自己生效）</div>
+            </div>
+            <button type="submit" name="action" value="records_per_page" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 收集附件上限 -->
+      <div class="card card-compact">
+        <div class="card-header"><h3>收集附件上限</h3></div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('user_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-group">
+              <label class="form-label" for="attachment_max_mb">最大附件大小（MB）</label>
+              <input type="number" id="attachment_max_mb" name="attachment_max_mb" class="form-input form-input-sm"
+                     value="{{ defaults.attachment_max_mb or '1000' }}" min="0.1" step="0.1">
+              <div class="form-hint">创建或编辑收集链接时上传附件的最大限制，默认 1000 MB（≈1 GB）</div>
+            </div>
+            <button type="submit" name="action" value="attachment_max" class="btn btn-primary btn-sm">保存</button>
+          </form>
+        </div>
+      </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+/* card-compact / form-input-sm / form-textarea-sm 已提取到全局 style.css */
+
+.settings-grid-sub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .settings-grid-sub { grid-template-columns: 1fr; }
+}
+</style>
+<script>
+function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
+  var valEl = document.getElementById(valId);
+  var unitEl = document.getElementById(unitId);
+  var hidEl = document.getElementById(hidId);
+  if (!valEl || !unitEl || !hidEl) return;
+
+  gbVal = parseFloat(gbVal) || 0;
+
+  function sync() {
+    var v = parseFloat(valEl.value) || 0;
+    var gb = unitEl.value === 'MB' ? v / 1024 : v;
+    hidEl.value = Math.round(gb * 1000000) / 1000000;
+  }
+
+  function onUnitChange() {
+    var curGb = parseFloat(hidEl.value) || gbVal;
+    if (unitEl.value === 'MB') {
+      valEl.value = Math.round(curGb * 1024 * 10) / 10;
+      valEl.step = '1';
+      valEl.min = '1';
+    } else {
+      valEl.value = Math.round(curGb * 100) / 100;
+      valEl.step = '0.01';
+      valEl.min = '0.01';
+    }
+    sync();
+  }
+
+  if (gbVal < 1 && gbVal > 0) {
+    unitEl.value = 'MB';
+    valEl.value = Math.round(gbVal * 1024 * 10) / 10;
+    valEl.step = '1';
+    valEl.min = '1';
+  } else {
+    unitEl.value = 'GB';
+    valEl.value = gbVal;
+    valEl.step = '0.01';
+    valEl.min = '0.01';
+  }
+  sync();
+
+  valEl.addEventListener('input', sync);
+  unitEl.addEventListener('change', onUnitChange);
+}
+(function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
+</script>
+{% endblock %}

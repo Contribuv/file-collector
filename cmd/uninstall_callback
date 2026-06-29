@@ -1,0 +1,131 @@
+#!/bin/bash
+### 卸载后回调 - 清理应用文件，根据卸载向导选择处理数据库
+
+APP_NAME="file-collector"
+
+# 数据目录（与 main 脚本保持一致：优先 TRIM_DATA_SHARE_PATHS）
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    DATA_DIR="${_SHARE_BASE}/data"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    DATA_DIR="/tmp/${APP_NAME}/data"
+fi
+mkdir -p "$DATA_DIR"
+LOG="${DATA_DIR}/uninstall.log"
+
+echo "[$(date)] === UNINSTALL CALLBACK ===" >> "$LOG"
+
+clean_dir() {
+    local dir="$1"
+    if [ -d "$dir" ]; then
+        rm -rf "$dir"
+        echo "  已删除: $dir" >> "$LOG"
+    fi
+}
+
+# ============================================================
+# 读取卸载向导选择
+# ============================================================
+UNINSTALL_MODE="${wizard_uninstall_mode:-keep_db}"
+echo "  卸载模式: ${UNINSTALL_MODE}" >> "$LOG"
+
+# ============================================================
+# 上传文件始终保留（用户资料，禁止删除）
+# ============================================================
+echo "  上传文件始终保留（禁止删除）" >> "$LOG"
+
+# ============================================================
+# 处理数据库
+# ============================================================
+if [ "$UNINSTALL_MODE" = "delete_db" ]; then
+    echo "  用户选择：删除数据库" >> "$LOG"
+
+    # 删除 DATA_DIR 中的数据库（新路径：SHARE/data）
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ]; then
+        rm -f "$DB_PATH"
+        rm -f "${DB_PATH}-wal" "${DB_PATH}-shm" 2>/dev/null || true
+        echo "  已删除数据库及 WAL 文件" >> "$LOG"
+    fi
+    # 同时清理旧路径残留（TRIM_PKGVAR/data）
+    if [ -n "$TRIM_PKGVAR" ] && [ -f "${TRIM_PKGVAR}/data/file_collector.db" ]; then
+        rm -f "${TRIM_PKGVAR}/data/file_collector.db"* 2>/dev/null || true
+        echo "  已清理旧路径数据库残留" >> "$LOG"
+    fi
+
+    # 删除 DATA_DIR 中的数据库后，也清理该目录下的日志和备份
+    if [ -d "$DATA_DIR" ]; then
+        rm -f "${DATA_DIR}/gunicorn.log" "${DATA_DIR}/install.log" \
+              "${DATA_DIR}/upgrade.log" "${DATA_DIR}/uninstall.log" 2>/dev/null || true
+        rm -rf "${DATA_DIR}/backups" 2>/dev/null || true
+        # 如果 DATA_DIR 为空则删除
+        rmdir "$DATA_DIR" 2>/dev/null || true
+        echo "  已清理 DATA_DIR 日志及备份" >> "$LOG"
+    fi
+    if [ -d "${TRIM_PKGVAR}/backups" ]; then
+        rm -rf "${TRIM_PKGVAR}/backups"
+        echo "  已清理 PKGVAR 内备份" >> "$LOG"
+    fi
+
+    # 清理 /var/backups 中的备份（用户明确要删除）
+    SAFE_BACKUP_DIR="/var/backups/file-collector"
+    if [ -d "$SAFE_BACKUP_DIR" ]; then
+        rm -rf "$SAFE_BACKUP_DIR"
+        echo "  已清理 /var/backups 备份" >> "$LOG"
+    fi
+else
+    echo "  用户选择：保留数据库" >> "$LOG"
+
+    # 保留模式：备份数据库到 DATA_DIR/backups + /var/backups
+    DB_PATH="${DATA_DIR}/file_collector.db"
+    if [ -f "$DB_PATH" ]; then
+        SAFE_BACKUP_DIR="/var/backups/file-collector"
+        mkdir -p "$DATA_DIR/backups" "$SAFE_BACKUP_DIR"
+        cp "$DB_PATH" "${DATA_DIR}/backups/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        cp "$DB_PATH" "${SAFE_BACKUP_DIR}/file_collector_$(date +%Y%m%d_%H%M%S).db"
+        echo "  已备份数据库到 DATA_DIR/backups 和 /var/backups" >> "$LOG"
+        ls -t "${DATA_DIR}/backups"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+        ls -t "${SAFE_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    fi
+
+    # 保留模式下也清理日志（日志不保留）
+    if [ -d "$DATA_DIR" ]; then
+        rm -f "${DATA_DIR}/gunicorn.log" "${DATA_DIR}/install.log" \
+              "${DATA_DIR}/upgrade.log" "${DATA_DIR}/uninstall.log" 2>/dev/null || true
+        rmdir "$DATA_DIR" 2>/dev/null || true
+        echo "  已清理日志文件" >> "$LOG"
+    fi
+fi
+
+# 只清理 venv 和运行时文件
+if [ -n "$TRIM_PKGVAR" ] && [ -d "$TRIM_PKGVAR" ]; then
+    rm -rf "${TRIM_PKGVAR}/.venv" 2>/dev/null || true
+    rm -f "${TRIM_PKGVAR}/gunicorn.pid" "${TRIM_PKGVAR}/gunicorn.log" 2>/dev/null || true
+    rm -f "${TRIM_PKGVAR}/.write_test" 2>/dev/null || true
+    rm -f "${TRIM_PKGVAR}/.venv_cache.tar.gz" 2>/dev/null || true
+    # 清理旧路径残留（v2.1.28- 的 data 目录）
+    rm -rf "${TRIM_PKGVAR}/data" 2>/dev/null || true
+    echo "  已清理 TRIM_PKGVAR 运行时文件" >> "$LOG"
+fi
+
+# 清理 /var/apps 下的应用残留（不涉及用户数据）
+for dir in /var/apps/file-collector /var/apps/file-collector-*; do
+    clean_dir "$dir"
+done 2>/dev/null || true
+
+# 清理 /usr/local/apps 残留
+for dir in /usr/local/apps/@appcenter/file-collector /usr/local/apps/file-collector; do
+    clean_dir "$dir"
+done 2>/dev/null || true
+
+# 清理 /tmp 残留
+rm -rf /tmp/file-collector /tmp/file-collector-* 2>/dev/null || true
+
+if [ "$UNINSTALL_MODE" = "delete_db" ]; then
+    echo "[$(date)] callback done (数据库已删除，上传文件已保留)" >> "$LOG"
+else
+    echo "[$(date)] callback done (数据库已保留，上传文件已保留)" >> "$LOG"
+fi
+exit 0

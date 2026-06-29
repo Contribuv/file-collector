@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>{{ task_title|default('文件分享') }} - {{ share_page_title or site_title }}</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/share.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
+  <style>
+    /* share 页面批量操作主色：蓝色（下载） */
+    :root { --batch-accent: #3b82f6; }
+
+    /* 批量下载等待浮窗（share 独有） */
+    .cp-loading-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center;
+      animation: cpLoFadeIn .2s ease;
+    }
+    @keyframes cpLoFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .cp-loading-card {
+      background: #fff; border-radius: 12px; padding: 32px 40px;
+      text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      max-width: 320px; width: 90%;
+    }
+    .cp-loading-spinner {
+      width: 40px; height: 40px; margin: 0 auto 16px;
+      border: 3px solid #e4e6eb; border-top-color: #3b82f6;
+      border-radius: 50%; animation: cpLoSpin .6s linear infinite;
+    }
+    @keyframes cpLoSpin { to { transform: rotate(360deg); } }
+    .cp-loading-text { font-size: .95rem; font-weight: 600; color: #1a1d28; margin-bottom: 6px; }
+    .cp-loading-sub { font-size: .78rem; color: #9ca3af; }
+    @media (max-width: 768px) {
+      .cp-loading-card { padding: 24px 28px; }
+    }
+
+    /* 自定义灯箱 */
+    #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
+    #custom-lightbox .lb-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); }
+    #custom-lightbox .lb-close { position:absolute; top:12px; right:18px; z-index:10; font-size:40px; color:#fff; background:none; border:none; cursor:pointer; line-height:1; padding:0 8px; opacity:0.8; }
+    #custom-lightbox .lb-close:hover { opacity:1; }
+    #custom-lightbox .lb-prev, #custom-lightbox .lb-next { position:absolute; top:50%; transform:translateY(-50%); z-index:10; font-size:44px; color:#fff; background:rgba(255,255,255,0.12); border:none; cursor:pointer; padding:8px 14px; border-radius:6px; line-height:1; }
+    #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
+    #custom-lightbox .lb-prev { left:16px; }
+    #custom-lightbox .lb-next { right:16px; }
+    #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    #custom-lightbox .lb-content img { max-width:92vw; max-height:86vh; object-fit:contain; border-radius:4px; }
+    #custom-lightbox .lb-content video { max-width:92vw; max-height:86vh; border-radius:4px; }
+    #custom-lightbox .lb-content .lb-audio-wrap {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 40px; background: rgba(255,255,255,0.06); border-radius: 16px;
+      min-width: 340px; max-width: 520px; width: 80vw;
+    }
+    #custom-lightbox .lb-content .lb-audio-icon {
+      width: 80px; height: 80px; border-radius: 12px;
+      background: rgba(255,255,255,0.1); display: flex; align-items: center;
+      justify-content: center; margin-bottom: 16px;
+    }
+    #custom-lightbox .lb-content .lb-audio-icon svg { width: 40px; height: 40px; color: #fff; opacity: 0.7; }
+    #custom-lightbox .lb-content .lb-audio-title {
+      color: #fff; font-size: .95rem; font-weight: 500; margin-bottom: 6px;
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #custom-lightbox .lb-content .lb-audio-sub {
+      color: rgba(255,255,255,0.45); font-size: .78rem; margin-bottom: 18px;
+    }
+    #custom-lightbox .lb-content audio { width: 100%; outline: none; }
+    #custom-lightbox .lb-content .lb-title-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: 10px 48px 10px 18px; text-align: center;
+      color: rgba(255,255,255,0.8); font-size: .85rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+{% if in_wechat %}
+<div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以下载文件</div>
+{% endif %}
+
+<div class="cp-topbar">
+  <div class="cp-topbar-inner">
+    <img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo_fs.png') }}" alt="文件收集器">
+    <span>{{ share_page_title or site_title }}</span>
+  </div>
+</div>
+
+<div class="cp-wrap">
+
+  {# ---------- Header ---------- #}
+  <div class="cp-header">
+    <h1>{{ creator_name or '用户' }}，分享了文件给您！</h1>
+    {% if description %}
+    <div class="cp-desc">{{ description | safe }}</div>
+    {% endif %}
+    <div class="cp-meta-grid single">
+      <div class="cp-meta-tile cp-meta-tile--expire {{ expire_level }}" id="expire-tile">
+        <div class="cp-meta-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="cp-meta-tile-body">
+          <span class="cp-meta-tile-label">到期时间</span>
+          <span class="cp-meta-tile-value" id="expire-countdown"{% if expire_days_left >= 0 %} data-expires-at="{{ expire_display }}"{% endif %}>{{ expire_text }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if not verified %}
+  {% if has_passcode %}
+  {# ---------- Passcode ---------- #}
+  <div class="cp-card">
+    <div class="cp-card-body cp-passcode-body">
+      <div class="cp-passcode-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>
+        </svg>
+      </div>
+      <h2 class="cp-passcode-title">验证通行证</h2>
+      <p class="cp-passcode-sub">需要通行证才能查看文件</p>
+      <div class="cp-passcode-row" id="passcode-row">
+        <input type="password" id="passcode-input" placeholder="输入通行证" autofocus>
+        <button class="cp-passcode-btn" onclick="verifyPasscode()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>验证
+        </button>
+      </div>
+      <div class="cp-passcode-msg" id="passcode-msg"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  {% if has_passcode %}
+  {# ---------- Passcode indicator ---------- #}
+  <div class="cp-passcode-indicator" onclick="logoutPasscode()" title="点击退出通行证">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    通行证有效期 {{ passcode_ttl_display }}
+  </div>
+  {% endif %}
+  {# ---------- File List ---------- #}
+  <div class="cp-card">
+    <div class="cp-card-head">
+      <div class="cp-card-head-left">
+        <div class="cp-uploader-view-header" id="uploader-view-header" style="display:none;">
+          <button class="cp-back-btn" onclick="goBackToUploaderList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>返回
+          </button>
+          <span class="cp-uploader-view-title" id="current-uploader-name"></span>
+        </div>
+        <h2 id="file-list-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="title-text">文件列表</span>
+        </h2>
+      </div>
+      <div class="cp-card-head-right">
+        <span class="cp-file-count" id="file-total-count">共 0 个文件</span>
+        <div class="cp-card-actions">
+          <button class="cp-btn cp-btn-outline cp-btn-sm cp-batch-toggle" id="batch-toggle-btn" onclick="toggleBatchMode()" title="批量操作">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            批量操作
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="cp-card-body cp-card-body--flush">
+      <!-- 上传者文件夹列表视图 -->
+      <div id="uploader-folder-view" style="display:none;">
+        <div class="cp-uploader-folder-list" id="uploader-folder-list">
+          <div class="cp-skeleton-list">
+            <div class="cp-skeleton-row"></div>
+            <div class="cp-skeleton-row"></div>
+            <div class="cp-skeleton-row"></div>
+          </div>
+        </div>
+      </div>
+      <!-- 文件列表视图 -->
+      <div id="history-wrap">
+        <div class="cp-skeleton-list">
+          <div class="cp-skeleton-row"></div>
+          <div class="cp-skeleton-row"></div>
+          <div class="cp-skeleton-row"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# ---------- 批量操作栏 ---------- #}
+<div class="cp-batch-bar" id="batch-bar">
+  <span class="cp-batch-info" id="batch-info">已选 0 个文件</span>
+  <button class="cp-batch-btn cp-batch-btn-accent" id="batch-dl-btn" onclick="batchDownload()">批量下载</button>
+  <button class="cp-batch-btn cp-batch-btn-cancel" onclick="clearSelection()">取消选择</button>
+</div>
+
+<div class="collect-page-footer">
+  {% if share_footer_text %}{{ share_footer_text }}{% elif collect_footer_text %}{{ collect_footer_text }}{% else %}Powered by File Collector{% endif %}
+</div>
+
+<div class="cp-toast" id="toast"></div>
+
+{# ---------- 批量下载等待浮窗 ---------- #}
+<div class="cp-loading-overlay" id="loading-overlay" style="display:none;">
+  <div class="cp-loading-card">
+    <div class="cp-loading-spinner"></div>
+    <div class="cp-loading-text" id="loading-text">正在打包文件，请稍候...</div>
+    <div class="cp-loading-sub" id="loading-sub">文件较多时可能需要一些时间</div>
+  </div>
+</div>
+
+{# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+{%- set _js_cfg = {
+    'linkId': link_id,
+    'requireUploader': require_uploader,
+    'allowPreviewDownload': allow_preview_download,
+    'dlToken': dl_token,
+    'dlExpires': dl_token_expires,
+    'verified': verified,
+    'publicUrl': public_url or ''
+} %}
+
+<script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
+<script>
+var _C = JSON.parse(document.getElementById('js-config').textContent);
+const linkId = _C.linkId;
+var requireUploader = _C.requireUploader;
+var allowPreviewDownload = _C.allowPreviewDownload;
+var _dlToken = _C.dlToken;
+var _dlExpires = _C.dlExpires;
+
+function getTokenParam() {
+  if (!_dlToken) return '';
+  return 'token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
+}
+
+function refreshToken() {
+  return fetch('/api/download-token/' + linkId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { _dlToken = d.token; _dlExpires = d.expires; }
+      return d.success;
+    })
+    .catch(function() { return false; });
+}
+
+function refreshTokenThenRetry(url) {
+  return refreshToken().then(function(ok) {
+    if (ok) {
+      var sep = url.indexOf('?') >= 0 ? '&' : '?';
+      window.location.href = url + sep + getTokenParam();
+    } else {
+      showToast('令牌刷新失败，请刷新页面');
+    }
+  });
+}
+
+
+function showToast(msg, d) {
+  var t = document.getElementById('toast'); if (!t) return;
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(function(){ t.classList.remove('show'); }, d || 2000);
+}
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fmtTime(t) { if (!t) return ''; return String(t).replace(/\.\d+/, ''); }
+
+/* ========== Passcode ========== */
+async function verifyPasscode() {
+  var code = document.getElementById('passcode-input').value.trim();
+  var msg = document.getElementById('passcode-msg');
+  var row = document.getElementById('passcode-row');
+  var btn = row.querySelector('button');
+  if (!code) { msg.textContent = '请输入通行证'; msg.className = 'cp-passcode-msg error'; row.classList.add('cp-shake'); setTimeout(function(){ row.classList.remove('cp-shake'); },400); return; }
+  msg.textContent = '验证中...'; msg.className = 'cp-passcode-msg';
+  btn.disabled = true;
+  try {
+    var res = await fetch('/share/' + linkId + '/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: 'passcode=' + encodeURIComponent(code)
+    });
+    var data = await res.json();
+    if (data.success) { msg.textContent = '验证成功'; msg.className = 'cp-passcode-msg success'; setTimeout(function(){ location.reload(); }, 600); }
+    else { msg.textContent = data.message || '通行证错误'; msg.className = 'cp-passcode-msg error'; row.classList.add('cp-shake'); setTimeout(function(){ row.classList.remove('cp-shake'); },400); btn.disabled = false; }
+  } catch(e) { msg.textContent = '网络错误'; msg.className = 'cp-passcode-msg error'; btn.disabled = false; }
+}
+var pi = document.getElementById('passcode-input');
+if (pi) pi.addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPasscode(); });
+
+async function logoutPasscode() {
+  if (!confirm('确定退出通行证？')) return;
+  try {
+    var res = await fetch('/share/' + linkId + '/logout', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var data = await res.json();
+    if (data.success) { location.reload(); } else { showToast(data.message || '退出失败'); }
+  } catch(e) { showToast('网络错误'); }
+}
+
+/* ========== File Icons ========== */
+function getFileIcon(ext) {
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','ico','heic','heif'];
+  var vidExts = ['mp4','webm','ogg','mov','avi','mkv','flv','wmv'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+  var docExts = ['doc','docx'], xlsExts = ['xls','xlsx','csv'], pptExts = ['ppt','pptx'];
+  var arcExts = ['zip','rar','7z','tar','gz','bz2','xz'];
+  var codeExts = ['py','js','ts','jsx','tsx','java','c','cpp','h','hpp','cs','go','rs','rb','php','swift','kt','scala','lua','r','sql','sh','bat','ps1','dart','vue','svelte','css','scss','less','html','htm'];
+  var txtExts = ['txt','log','md','rtf','readme','license'];
+  var cfgExts = ['json','yaml','yml','toml','ini','cfg','conf','xml','env','properties','editorconfig','gitignore'];
+
+  if (ext === 'pdf') return {iconUrl: '/static/img/pdf.svg'};
+  if (ext === 'fpk') return {iconUrl: '/static/img/fpk.svg'};
+  if (imgExts.includes(ext)) return {iconUrl: '/static/img/image.svg'};
+  if (vidExts.includes(ext)) return {iconUrl: '/static/img/video.svg'};
+  if (audExts.includes(ext)) return {iconUrl: '/static/img/audio.svg'};
+  if (docExts.includes(ext)) return {iconUrl: '/static/img/word.svg'};
+  if (xlsExts.includes(ext)) return {iconUrl: '/static/img/excel.svg'};
+  if (pptExts.includes(ext)) return {iconUrl: '/static/img/ppt.svg'};
+  if (arcExts.includes(ext)) return {iconUrl: '/static/img/archive.svg'};
+  if (codeExts.includes(ext)) return {iconUrl: '/static/img/code.svg'};
+  if (txtExts.includes(ext)) return {iconUrl: '/static/img/txt.svg'};
+  if (cfgExts.includes(ext)) return {iconUrl: '/static/img/config.svg'};
+  return {iconUrl: '/static/img/file.svg'};
+}
+
+/* ========== History ========== */
+var _allRecords = [];
+var _uploaderList = [];  // [{name, files, totalCount}]
+var _cacheRequireUploader = false;  // 缓存是否需要上传者分组，供 resize 重渲染
+var _cachePagination = null;  // 缓存分页信息，供 resize 重渲染
+var _uploaderStats = {};  // 缓存上传者统计（总文件数）
+var _currentPerPage = parseInt(localStorage.getItem('cp_pp_share_' + linkId)) || 20;
+var _currentView = 'uploader';  // 'uploader' | 'files' - 当前视图
+var _currentUploaderName = '';  // 当前选中的上传者名称
+var _uploaderPagination = null;  // 上传者文件列表的分页信息
+
+/* 图片灯箱导航：可预览图片列表 & 当前索引 */
+var _previewableImages = [];
+var _previewIndex = -1;
+
+function isMobileView() { return window.innerWidth <= 768; }
+
+function buildFileRow(r, ext, fi, canPreview, isTable, selClass, selSuffix) {
+  var rid = parseInt(r.id, 10);
+  var checked = _selectedIds.has(rid) ? ' checked' : '';
+  var selHtml = '';
+  
+  // 只有开启批量模式时才显示复选框
+  if (_isBatchMode) {
+    selHtml = '<input type="checkbox" class="cp-sel-check ' + selClass + '" value="' + rid + '"' + checked + ' onchange="toggleSelect(' + rid + ',this.checked)">';
+  }
+  
+  if (isTable) {
+    var iconHtml = '<td class="cp-file-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></td>';
+    return '<tr>' +
+      (_isBatchMode ? '<td class="cp-sel-col">' + selHtml + '</td>' : '') +
+      iconHtml +
+      '<td class="cp-file-name" title="' + escapeHtml(r.original_name) + '">' + escapeHtml(r.original_name) + '</td>' +
+      '<td class="cp-file-size">' + escapeHtml(r.file_size_display) + '</td>' +
+      '<td class="cp-file-time">' + escapeHtml(fmtTime(r.uploaded_at)) + '</td>' +
+      '<td class="cp-file-act">' +
+        (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ',' + JSON.stringify(r.original_name).replace(/"/g,'&quot;') + ',' + (r.file_size || 0) + ')" style="margin-right:8px;">预览</button>' : '') +
+        '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
+      '</td>' +
+      '</tr>';
+  } else {
+    var cardIconHtml = '<div class="cp-card-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></div>';
+    return '<div class="cp-card-item">' +
+      (_isBatchMode ? '<div class="cp-card-check">' + selHtml + '</div>' : '') +
+      cardIconHtml +
+      '<div class="cp-card-info">' +
+        '<div class="cp-card-row-top">' +
+          '<div class="cp-card-name">' + escapeHtml(r.original_name) + '</div>' +
+          '<div class="cp-card-actions">' +
+            (canPreview ? '<button class="cp-act-preview-txt" onclick="previewFile(' + rid + ',' + JSON.stringify(r.original_name).replace(/"/g,'&quot;') + ',' + (r.file_size || 0) + ')" style="margin-right:8px;">预览</button>' : '') +
+            '<button class="cp-act-download-txt" onclick="downloadFile(' + rid + ')">下载</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span></div>' +
+      '</div>' +
+      '</div>';
+  }
+}
+
+/* --- Uploader Folder List (requireUploader = true, first view) --- */
+function renderUploaderFolderList() {
+  if (!_uploaderList || _uploaderList.length === 0) {
+    document.getElementById('uploader-folder-list').innerHTML = 
+      '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无上传者</p><p>还没有上传者上传文件</p></div>';
+    return;
+  }
+  
+  var html = '';
+  for (var i = 0; i < _uploaderList.length; i++) {
+    var uploader = _uploaderList[i];
+    html += '<div class="cp-uploader-folder-item" onclick="openUploaderFiles(\'' + escapeHtml(uploader.name) + '\')">';
+    html += '<div class="cp-folder-icon-wrap">';
+    html += '<svg class="cp-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+    html += '</div>';
+    html += '<div class="cp-folder-info">';
+    html += '<div class="cp-folder-name">' + escapeHtml(uploader.name) + '</div>';
+    html += '<div class="cp-folder-count">' + (uploader.totalCount || uploader.files.length) + ' 个文件</div>';
+    html += '</div>';
+    html += '<svg class="cp-folder-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>';
+    html += '</div>';
+  }
+  document.getElementById('uploader-folder-list').innerHTML = html;
+}
+
+/* --- 打开上传者文件列表 --- */
+async function openUploaderFiles(uploaderName) {
+  _currentView = 'files';
+  _currentUploaderName = uploaderName;
+  
+  // 隐藏上传者文件夹视图，显示文件列表视图
+  document.getElementById('uploader-folder-view').style.display = 'none';
+  document.getElementById('history-wrap').style.display = 'block';
+  
+  // 显示返回按钮和当前上传者名称
+  document.getElementById('uploader-view-header').style.display = 'flex';
+  document.getElementById('current-uploader-name').textContent = uploaderName;
+  
+  // 隐藏文件列表标题
+  document.getElementById('file-list-title').style.display = 'none';
+  
+  // 显示批量操作按钮（文件列表需要批量操作）
+  var batchBtn = document.getElementById('batch-toggle-btn');
+  if (batchBtn) { batchBtn.style.display = 'inline-flex'; }
+  
+  // 显示加载状态
+  document.getElementById('history-wrap').innerHTML = '<div class="cp-skeleton-list"><div class="cp-skeleton-row"></div><div class="cp-skeleton-row"></div><div class="cp-skeleton-row"></div></div>';
+  
+  // 加载上传者文件列表（分页）
+  loadUploaderRecords(uploaderName, 1);
+}
+
+/* --- 更新页面标题 --- */
+function updatePageTitle(isUploaderMode) {
+  var titleText = document.getElementById('title-text');
+  if (titleText) {
+    titleText.textContent = isUploaderMode ? '文件夹列表' : '文件列表';
+  }
+}
+
+/* --- 加载上传者文件列表 --- */
+async function loadUploaderRecords(uploaderName, page) {
+  page = page || 1;
+  try {
+    var res = await fetch('/share/' + linkId + '/records?uploader=' + encodeURIComponent(uploaderName) + '&page=' + page + '&per_page=' + _currentPerPage);
+    var data = await res.json();
+    
+    var wrap = document.getElementById('history-wrap');
+    if (!data.records || data.records.length === 0) {
+      wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p></div>';
+      document.getElementById('file-total-count').textContent = '共 0 个文件';
+      return;
+    }
+    
+    // 更新分页信息
+    _uploaderPagination = {
+      page: data.page || 1,
+      totalPages: data.total_pages || 1,
+      totalUploaded: data.total_uploaded || 0
+    };
+    
+    // 渲染文件列表
+    var mobile = isMobileView();
+    var html = renderFlatListForUploader(data.records, mobile);
+    // 添加分页控件
+    html += renderUploaderPagination();
+    wrap.innerHTML = html;
+    
+    document.getElementById('file-total-count').textContent = '共 ' + _uploaderPagination.totalUploaded + ' 个文件';
+    updateBatchBar();
+    
+  } catch(e) {
+    console.warn('加载上传者文件失败:', e);
+    var wrap = document.getElementById('history-wrap');
+    wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
+  }
+}
+
+/* --- 上传者文件列表的分页控件 --- */
+function renderUploaderPagination() {
+  if (!_uploaderPagination) return '';
+  var p = _uploaderPagination;
+  if (p.totalPages <= 1 && p.totalUploaded <= 20) return '';
+  var html = '<div class="cp-pagination-footer">';
+  html += '<div class="pagination">';
+  if (p.page > 1) {
+    html += '<button class="page-btn" onclick="loadUploaderRecords(\'' + escapeHtml(_currentUploaderName) + '\', ' + (p.page - 1) + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+  } else {
+    html += '<button class="page-btn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+  }
+  html += '<span class="page-info">第 ' + p.page + '/' + p.totalPages + ' 页，共 ' + p.totalUploaded + ' 个文件</span>';
+  if (p.page < p.totalPages) {
+    html += '<button class="page-btn" onclick="loadUploaderRecords(\'' + escapeHtml(_currentUploaderName) + '\', ' + (p.page + 1) + ')">下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+  } else {
+    html += '<button class="page-btn" disabled>下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+  }
+  html += '</div>';
+  html += '<div class="cp-per-page-wrap"><label class="cp-per-page-label">每页显示</label>';
+  html += '<input type="number" class="cp-per-page-input" value="' + _currentPerPage + '" min="5" max="100" step="1" onchange="onUploaderPerPageChange(this)">';
+  html += '<span class="cp-per-page-unit">条</span></div>';
+  html += '</div>';
+  return html;
+}
+
+function onUploaderPerPageChange(input) {
+  var raw = input.value.trim();
+  var val = parseInt(raw);
+  if (!raw || isNaN(val) || val < 5) { val = 5; input.value = 5; }
+  if (val > 100) { val = 100; input.value = 100; }
+  if (val === _currentPerPage) return;
+  _currentPerPage = val;
+  localStorage.setItem('cp_pp_share_' + linkId, val);
+  loadUploaderRecords(_currentUploaderName, 1);
+}
+
+/* --- 返回上传者列表 --- */
+function goBackToUploaderList() {
+  _currentView = 'uploader';
+  _currentUploaderName = '';
+  _uploaderPagination = null;  // 清空上传者分页状态
+  
+  // 显示上传者文件夹视图，隐藏文件列表视图
+  document.getElementById('uploader-folder-view').style.display = 'block';
+  document.getElementById('history-wrap').style.display = 'none';
+  
+  // 隐藏返回按钮和当前上传者名称
+  document.getElementById('uploader-view-header').style.display = 'none';
+  document.getElementById('current-uploader-name').textContent = '';
+  
+  // 显示文件列表标题
+  document.getElementById('file-list-title').style.display = 'flex';
+  
+  // 更新标题为"文件夹列表"
+  updatePageTitle(true);
+  
+  // 恢复文件总数
+  document.getElementById('file-total-count').textContent = '共 ' + (_cachePagination ? _cachePagination.totalUploaded : 0) + ' 个文件';
+  
+  // 隐藏批量操作按钮（文件夹列表不需要批量操作）
+  var batchBtn = document.getElementById('batch-toggle-btn');
+  if (batchBtn) { batchBtn.style.display = 'none'; }
+  
+  // 退出批量模式并清空选择
+  if (_isBatchMode) {
+    _isBatchMode = false;
+    var card = document.querySelector('.cp-card');
+    if (card) { card.classList.remove('batch-mode'); }
+  }
+  clearSelection();
+}
+
+/* --- Flat list for single uploader (no pagination) --- */
+function renderFlatListForUploader(records, isMobile) {
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
+
+  var selSuffix = '_u';
+  var hasRecords = records && records.length > 0;
+  var html = '';
+
+  // 只有开启批量模式时才显示全选栏
+  if (hasRecords && _isBatchMode) {
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
+  }
+
+  if (isMobile) {
+    html += '<div class="cp-card-list">';
+    // 移动端不生成全选顶栏（与批量操作按钮功能重复）
+    for (var j = 0; j < records.length; j++) {
+      var rm = records[j];
+      var extM = rm.original_name.split('.').pop().toLowerCase();
+      var fiM = getFileIcon(extM);
+      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
+      html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>';
+    // 只有开启批量模式时才显示全选列
+    if (_isBatchMode) {
+      html += '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>';
+    }
+    html += '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      '<th class="cp-th-act">操作</th>' +
+      '</tr></thead><tbody>';
+    for (var k = 0; k < records.length; k++) {
+      var rd = records[k];
+      var extD = rd.original_name.split('.').pop().toLowerCase();
+      var fiD = getFileIcon(extD);
+      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
+      html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
+    }
+    html += '</tbody></table></div>';
+  }
+
+  // 只有开启批量模式时才显示底部全选栏
+  if (hasRecords && _isBatchMode) {
+    html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label></div>';
+  }
+  
+  return html;
+}
+
+/* --- Flat list (requireUploader = false) --- */
+function renderFlatList(records, isMobile) {
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
+
+  var selSuffix = '_f';
+  var hasRecords = records && records.length > 0;
+  var html = '';
+  // 全局全选 + 全部打包下载（只有开启批量模式时显示）
+  if (hasRecords && _isBatchMode) {
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
+  }
+
+  if (isMobile) {
+    // ---- 仅移动端卡片列表 ----
+    html += '<div class="cp-card-list">';
+    // 移动端不生成全选顶栏（与批量操作按钮功能重复）
+    for (var j = 0; j < records.length; j++) {
+      var rm = records[j];
+      var extM = rm.original_name.split('.').pop().toLowerCase();
+      var fiM = getFileIcon(extM);
+      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
+      html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
+    }
+    html += '</div>';
+  } else {
+    // ---- 仅桌面表格 ----
+    html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>';
+    // 只有开启批量模式时才显示全选列
+    if (_isBatchMode) {
+      html += '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>';
+    }
+    html += '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+      '<th class="cp-th-act">操作</th>' +
+      '</tr></thead><tbody>';
+    for (var k = 0; k < records.length; k++) {
+      var rd = records[k];
+      var extD = rd.original_name.split('.').pop().toLowerCase();
+      var fiD = getFileIcon(extD);
+      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
+      html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
+    }
+    html += '</tbody></table></div>';
+  }
+
+  // 底部全选（桌面端 + 移动端通用，只有开启批量模式时显示）
+  if (hasRecords && _isBatchMode) {
+    html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label></div>';
+  }
+  html += renderPagination();
+  return html;
+}
+
+/* ==== Accordion: 上传者分组折叠 ==== */
+function buildAccordionGroups(isMobile) {
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
+
+  var html = '';
+  // 全局全选（跨分组，只有开启批量模式时显示）
+  if (_isBatchMode) {
+    html += '<div class="cp-global-sel-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-global-bar" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label><button class="cp-global-sel-bar-btn" onclick="downloadAll(event)" title="打包下载全部文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>打包下载</button></div>';
+  }
+  for (var gi = 0; gi < _uploaderList.length; gi++) {
+    var group = _uploaderList[gi];
+    var files = group.files;
+    var selSuffix = '_a' + gi;
+
+    // Header（桌面和移动端共用）
+    html += '<div class="cp-accordion-group' + (gi === 0 ? ' open' : '') + '">';
+    html += '<div class="cp-accordion-header" onclick="toggleAccordion(this)">';
+    html += '<svg class="cp-accordion-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>';
+    html += '<svg class="cp-accordion-usericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    html += '<span class="cp-accordion-name">' + escapeHtml(group.name) + '</span>';
+    var totalCount = group.totalCount || files.length;
+    html += '<span class="cp-accordion-count">共' + totalCount + ' 个文件</span>';
+    html += '<button class="cp-accordion-dl-btn" onclick="downloadGroup(event,' + gi + ')" title="打包下载此上传者的所有文件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11Z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg></button>';
+    html += '</div>';
+
+    html += '<div class="cp-accordion-body">';
+
+    if (isMobile) {
+      // ---- 仅移动端卡片列表 ----
+      html += '<div class="cp-card-list">';
+      // 移动端不生成全选顶栏（与批量操作按钮功能重复）
+      for (var fj = 0; fj < files.length; fj++) {
+        var rr = files[fj];
+        var ext2 = rr.original_name.split('.').pop().toLowerCase();
+        var ficon2 = getFileIcon(ext2);
+        var canPrev2 = (jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2));
+        html += buildFileRow(rr, ext2, ficon2, canPrev2, false, 'sel-m' + selSuffix, selSuffix);
+      }
+      html += '</div>';
+    } else {
+      // ---- 仅桌面表格 ----
+      html += '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>';
+      // 只有开启批量模式时才显示全选列
+      if (_isBatchMode) {
+        html += '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" id="sel-all-d' + selSuffix + '" onchange="toggleSelectAll(this.checked,\'d' + selSuffix + '\')" title="全选"></th>';
+      }
+      html += '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+        '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+        '<th class="cp-th-act">操作</th>' +
+        '</tr></thead><tbody>';
+      for (var fi = 0; fi < files.length; fi++) {
+        var r = files[fi];
+        var ext = r.original_name.split('.').pop().toLowerCase();
+        var ficon = getFileIcon(ext);
+        var canPreview = (jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext));
+        html += buildFileRow(r, ext, ficon, canPreview, true, 'sel-d' + selSuffix, selSuffix);
+      }
+      html += '</tbody></table></div>';
+    }
+
+    html += '</div>'; // .cp-accordion-body
+    html += '</div>'; // .cp-accordion-group
+  }
+
+  // 底部全选（桌面端 + 移动端通用，只有开启批量模式时显示）
+  if (_isBatchMode) {
+    html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAllGlobal(this.checked)"> <span>全选当前页文件</span></label></div>';
+  }
+  html += renderPagination();
+  return html;
+}
+
+function toggleAccordion(header) {
+  var group = header.parentElement;
+  group.classList.toggle('open');
+}
+
+/* ==== 分页控件 ==== */
+function renderPagination() {
+  if (!_cachePagination) return '';
+  var p = _cachePagination;
+  if (p.totalPages <= 1 && p.totalUploaded <= 20) return '';
+  var html = '<div class="cp-pagination-footer">';
+  html += '<div class="pagination">';
+  if (p.page > 1) {
+    html += '<button class="page-btn" onclick="loadHistory(' + (p.page - 1) + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+  } else {
+    html += '<button class="page-btn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
+  }
+  html += '<span class="page-info">第 ' + p.page + '/' + p.totalPages + ' 页，共 ' + p.totalUploaded + ' 个文件</span>';
+  if (p.page < p.totalPages) {
+    html += '<button class="page-btn" onclick="loadHistory(' + (p.page + 1) + ')">下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+  } else {
+    html += '<button class="page-btn" disabled>下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
+  }
+  html += '</div>';
+  html += '<div class="cp-per-page-wrap"><label class="cp-per-page-label">每页显示</label>';
+  html += '<input type="number" class="cp-per-page-input" value="' + _currentPerPage + '" min="5" max="100" step="1" onchange="onPerPageChange(this)">';
+  html += '<span class="cp-per-page-unit">条</span></div>';
+  html += '</div>';
+  return html;
+}
+
+function onPerPageChange(input) {
+  var raw = input.value.trim();
+  var val = parseInt(raw);
+  if (!raw || isNaN(val) || val < 5) { val = 5; input.value = 5; }
+  if (val > 100) { val = 100; input.value = 100; }
+  if (val === _currentPerPage) return;
+  _currentPerPage = val;
+  localStorage.setItem('cp_pp_share_' + linkId, val);
+  loadHistory(1);
+}
+
+/* ==== Entry ==== */
+function renderHistory() {
+  // 从缓存数据重渲染（供 resize 切换视图用），不清空选择
+  var wrap = document.getElementById('history-wrap');
+  if (!wrap || !_allRecords.length) return;
+  
+  // 如果开启了上传者模式，需要检查当前视图状态
+  if (_cacheRequireUploader && _uploaderList.length) {
+    // 如果当前是上传者列表视图或正在查看上传者文件，不执行重渲染
+    // 避免resize时错误切换回折叠面板视图
+    if (_currentView === 'uploader') {
+      // 当前在上传者列表视图，不需要重渲染
+      // 隐藏批量操作按钮
+      var batchBtn = document.getElementById('batch-toggle-btn');
+      if (batchBtn) { batchBtn.style.display = 'none'; }
+      return;
+    } else if (_currentView === 'files' && _currentUploaderName) {
+      // 当前在查看某个上传者的文件列表，重新加载该上传者的文件保持视图一致
+      // 显示批量操作按钮
+      var batchBtn = document.getElementById('batch-toggle-btn');
+      if (batchBtn) { batchBtn.style.display = 'inline-flex'; }
+      loadUploaderRecords(_currentUploaderName, _uploaderPagination ? _uploaderPagination.page : 1);
+      return;
+    }
+    // 其他情况（初始加载），显示上传者文件夹列表
+    document.getElementById('uploader-folder-view').style.display = 'block';
+    document.getElementById('history-wrap').style.display = 'none';
+    // 隐藏批量操作按钮
+    var batchBtn = document.getElementById('batch-toggle-btn');
+    if (batchBtn) { batchBtn.style.display = 'none'; }
+    renderUploaderFolderList();
+    return;
+  }
+  
+  // 未开启上传者模式，正常渲染
+  var mobile = isMobileView();
+  // 显示批量操作按钮
+  var batchBtn = document.getElementById('batch-toggle-btn');
+  if (batchBtn) { batchBtn.style.display = 'inline-flex'; }
+  wrap.innerHTML = renderFlatList(_allRecords, mobile);
+  updateBatchBar();
+}
+
+async function loadHistory(page) {
+  page = page || 1;
+  try {
+    var res = await fetch('/share/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
+    var data = await res.json();
+    var wrap = document.getElementById('history-wrap');
+    document.getElementById('file-total-count').textContent = '共 ' + (data.total_uploaded || 0) + ' 个文件';
+    if (!data.records || data.records.length === 0) {
+      _allRecords = []; _cacheRequireUploader = false; _cachePagination = null;
+      wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>还没有上传过文件</p></div>';
+      return;
+    }
+
+    _allRecords = data.records;
+    _cacheRequireUploader = !!(requireUploader && data.require_uploader);
+    _cachePagination = {
+      page: data.page || 1,
+      totalPages: data.total_pages || 1,
+      totalUploaded: data.total_uploaded || 0
+    };
+
+    // 构建可预览媒体列表（灯箱左右键导航用：图片、视频、音频）
+    _previewableImages = [];
+    var imgExtsNav = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+    var vidExtsNav = ['mp4','webm','ogg','mov','avi','mkv'];
+    var audExtsNav = ['mp3','wav','flac','aac','m4a'];
+    for (var n = 0; n < _allRecords.length; n++) {
+      var extNav = _allRecords[n].original_name.split('.').pop().toLowerCase();
+      if (imgExtsNav.indexOf(extNav) >= 0 || vidExtsNav.indexOf(extNav) >= 0 || audExtsNav.indexOf(extNav) >= 0) {
+        _previewableImages.push({id: _allRecords[n].id, name: _allRecords[n].original_name});
+      }
+    }
+
+    // 缓存上传者统计信息
+    _uploaderStats = data.uploader_stats || {};
+    
+    if (_cacheRequireUploader) {
+      // 根据 uploader_stats 构建完整的上传者列表（包含所有上传者，不只是当前页）
+      var groupMap = {};
+      var groupOrder = [];
+      // 先按当前页数据分组
+      for (var i = 0; i < _allRecords.length; i++) {
+        var name = _allRecords[i].uploader_name || '未署名';
+        if (!groupMap[name]) { groupMap[name] = []; groupOrder.push(name); }
+        groupMap[name].push(_allRecords[i]);
+      }
+      // 确保 uploader_stats 中的所有上传者都被包含（即使当前页没有他们的文件）
+      var statsNames = Object.keys(_uploaderStats);
+      for (var k = 0; k < statsNames.length; k++) {
+        var statName = statsNames[k];
+        if (!groupMap[statName]) {
+          groupMap[statName] = [];
+          groupOrder.push(statName);
+        }
+      }
+      _uploaderList = [];
+      for (var j = 0; j < groupOrder.length; j++) {
+        var gn = groupOrder[j];
+        var totalCount = _uploaderStats[gn] || groupMap[gn].length;
+        _uploaderList.push({ name: gn, files: groupMap[gn], totalCount: totalCount });
+      }
+    }
+
+    var mobile = isMobileView();
+    if (_cacheRequireUploader && _uploaderList.length) {
+      // 开启上传者模式：显示上传者文件夹列表视图
+      document.getElementById('uploader-folder-view').style.display = 'block';
+      document.getElementById('history-wrap').style.display = 'none';
+      document.getElementById('file-list-title').style.display = 'flex';
+      document.getElementById('uploader-view-header').style.display = 'none';
+      // 更新标题为"文件夹列表"
+      updatePageTitle(true);
+      // 隐藏批量操作按钮（文件夹列表不需要批量操作）
+      var batchBtn = document.getElementById('batch-toggle-btn');
+      if (batchBtn) { batchBtn.style.display = 'none'; }
+      renderUploaderFolderList();
+    } else {
+      // 未开启上传者模式：显示文件平铺列表
+      document.getElementById('uploader-folder-view').style.display = 'none';
+      document.getElementById('history-wrap').style.display = 'block';
+      // 更新标题为"文件列表"
+      updatePageTitle(false);
+      // 显示批量操作按钮（文件列表需要批量操作）
+      var batchBtn = document.getElementById('batch-toggle-btn');
+      if (batchBtn) { batchBtn.style.display = 'inline-flex'; }
+      wrap.innerHTML = renderFlatList(_allRecords, mobile);
+    }
+
+    updateBatchBar();
+  } catch(e) {
+    var wrap = document.getElementById('history-wrap');
+    if (wrap) wrap.innerHTML = '<div class="cp-empty"><p>加载失败</p><p>请刷新页面重试</p></div>';
+  }
+}
+
+
+/* ========== 自定义灯箱（图片/视频浮窗预览） ========== */
+var _lbItems = [];
+var _lbIndex = -1;
+
+function openLightbox(items, startIdx) {
+  _lbItems = items;
+  _lbIndex = startIdx;
+  var lb = document.getElementById('custom-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'custom-lightbox';
+    lb.innerHTML = '<div class="lb-backdrop"></div>' +
+      '<div class="lb-title-bar" id="lb-title-bar"></div>' +
+      '<button class="lb-close" title="关闭">&times;</button>' +
+      '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
+      '<button class="lb-next" title="下一个">&rsaquo;</button>' +
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><div class="lb-audio-wrap" id="lb-audio-wrap"><div class="lb-audio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div class="lb-audio-title" id="lb-audio-title"></div><div class="lb-audio-sub">音频文件</div><audio id="lb-audio" controls></audio></div></div>';
+    document.body.appendChild(lb);
+    lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-prev').addEventListener('click', function(){ navLightbox(-1); });
+    lb.querySelector('.lb-next').addEventListener('click', function(){ navLightbox(1); });
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('custom-lightbox') || document.getElementById('custom-lightbox').style.display === 'none') return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navLightbox(-1);
+      if (e.key === 'ArrowRight') navLightbox(1);
+    });
+  }
+  renderLightbox();
+  lb.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  var lb = document.getElementById('custom-lightbox');
+  if (lb) lb.style.display = 'none';
+  document.body.style.overflow = '';
+  var vid = document.getElementById('lb-video');
+  if (vid) { vid.pause(); vid.removeAttribute('src'); }
+  var aud = document.getElementById('lb-audio');
+  if (aud) { aud.pause(); aud.removeAttribute('src'); }
+}
+
+function navLightbox(dir) {
+  var newIdx = _lbIndex + dir;
+  if (newIdx < 0 || newIdx >= _lbItems.length) return;
+  _lbIndex = newIdx;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  var item = _lbItems[_lbIndex];
+  var img = document.getElementById('lb-img');
+  var vid = document.getElementById('lb-video');
+  var aud = document.getElementById('lb-audio');
+  var audWrap = document.getElementById('lb-audio-wrap');
+  var audTitle = document.getElementById('lb-audio-title');
+  var titleBar = document.getElementById('lb-title-bar');
+  // 先全部隐藏
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  if (audWrap) audWrap.style.display = 'none';
+  // 标题栏
+  if (titleBar) titleBar.textContent = item.title || '';
+  if (item.type === 'video') {
+    vid.style.display = 'block';
+    var src = document.createElement('source');
+    src.src = item.href;
+    vid.innerHTML = '';
+    vid.appendChild(src);
+    vid.load();
+    vid.play();
+  } else if (item.type === 'audio') {
+    if (aud && audWrap) {
+      audWrap.style.display = 'flex';
+      if (audTitle) audTitle.textContent = item.title || '';
+      var aSrc = document.createElement('source');
+      aSrc.src = item.href;
+      aud.innerHTML = '';
+      aud.appendChild(aSrc);
+      aud.load();
+      aud.play();
+    }
+  } else {
+    vid.pause();
+    vid.innerHTML = '';
+    vid.removeAttribute('src');
+    if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
+    img.style.display = 'block';
+    img.src = item.href;
+  }
+  var prevBtn = document.querySelector('#custom-lightbox .lb-prev');
+  var nextBtn = document.querySelector('#custom-lightbox .lb-next');
+  if (prevBtn) prevBtn.style.display = _lbIndex > 0 ? 'block' : 'none';
+  if (nextBtn) nextBtn.style.display = _lbIndex < _lbItems.length - 1 ? 'block' : 'none';
+}
+
+function previewFile(recordId, fileName, fileSize) {
+  if (!fileName) { showToast('无法找到该文件信息'); return; }
+
+  var ext = fileName.split('.').pop().toLowerCase();
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+
+  if (jitExts.includes(ext)) {
+    var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
+    if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
+    window.open('/office?' + qs, '_blank');
+    return;
+  }
+
+  var tp = getTokenParam();
+  var previewUrl = '/share/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
+  var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
+  var audExtsP = ['mp3','wav','flac','aac','m4a'];
+
+  var elements = [];
+  var startIdx = -1;
+  for (var i = 0; i < _previewableImages.length; i++) {
+    var item = _previewableImages[i];
+    var itemExt = item.name.split('.').pop().toLowerCase();
+    var itemUrl = '/share/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
+    var el = { href: itemUrl, title: item.name, type: 'image' };
+    if (vidExtsP.includes(itemExt)) { el.type = 'video'; }
+    if (audExtsP.includes(itemExt)) { el.type = 'audio'; }
+    if (item.id == recordId) startIdx = i;
+    elements.push(el);
+  }
+
+  if (elements.length === 0 || startIdx < 0) {
+    var el = { href: previewUrl, title: fileName, type: 'image' };
+    if (vidExtsP.includes(ext)) { el.type = 'video'; }
+    if (audExtsP.includes(ext)) { el.type = 'audio'; }
+    elements = [el];
+    startIdx = 0;
+  }
+
+  openLightbox(elements, startIdx);
+}
+
+
+
+
+
+function downloadFile(recordId) {
+  var tp = getTokenParam();
+  var a = document.createElement('a');
+  a.href = '/share/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); }, 200);
+}
+
+(function() {
+  try {
+    var publicUrl = _C.publicUrl;
+    if (!publicUrl) publicUrl = window.location.origin;
+    if (!publicUrl.endsWith('/')) publicUrl += '/';
+    console.log('分享链接：' + (publicUrl + 'share/' + linkId));
+  } catch(e) {}
+})();
+
+// 到期时间实时倒计时
+(function startCountdown() {
+  var el = document.getElementById('expire-countdown');
+  if (!el) return;
+  var expiresAt = el.getAttribute('data-expires-at');
+  if (!expiresAt) return; // 永不过期
+  var expireTime;
+  try {
+    expireTime = new Date(expiresAt.replace(' ', 'T') + ':00');
+    if (isNaN(expireTime.getTime())) return;
+  } catch(e) { return; }
+  var tile = document.getElementById('expire-tile');
+  var timerId = null;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function update() {
+    var now = new Date();
+    var diff = expireTime - now;
+    var totalSeconds = Math.floor(diff / 1000);
+
+    if (totalSeconds <= 0) {
+      el.textContent = '已过期';
+      if (tile) { tile.classList.remove('forever', 'normal', 'warn'); tile.classList.add('danger'); }
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      return;
+    }
+
+    var days = Math.floor(totalSeconds / 86400);
+    var hours = Math.floor((totalSeconds % 86400) / 3600);
+    var minutes = Math.floor((totalSeconds % 3600) / 60);
+    var seconds = totalSeconds % 60;
+    var text, level;
+
+    if (totalSeconds < 60) {
+      text = '即将过期';
+      level = 'danger';
+    } else if (totalSeconds < 3600) {
+      text = '还剩 ' + minutes + ' 分 ' + pad(seconds) + ' 秒';
+      level = 'danger';
+    } else if (totalSeconds < 86400) {
+      text = '还剩 ' + hours + ' 时 ' + minutes + ' 分 ' + pad(seconds) + ' 秒';
+      level = 'warn';
+    } else {
+      text = '还剩 ' + days + ' 天 ' + hours + ' 时 ' + minutes + ' 分';
+      level = days <= 1 ? 'warn' : 'normal';
+    }
+
+    el.textContent = text;
+    if (tile) { tile.classList.remove('forever', 'normal', 'warn', 'danger'); tile.classList.add(level); }
+  }
+
+  update();
+  if (expireTime > new Date()) {
+    timerId = setInterval(update, 1000);
+  }
+})();
+
+if (_C.verified) { loadHistory(); }
+
+/* ========== 批量选择 ========== */
+var _selectedIds = new Set();
+var _isBatchMode = false;  // 是否开启批量操作模式
+
+/* 切换批量操作模式 */
+function toggleBatchMode() {
+  _isBatchMode = !_isBatchMode;
+  var btn = document.getElementById('batch-toggle-btn');
+  var card = document.querySelector('.cp-card');
+  
+  if (_isBatchMode) {
+    // 开启批量模式
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> 退出批量';
+    card.classList.add('batch-mode');
+    // 重新渲染列表显示复选框
+    if (_currentView === 'uploader') {
+      // 在上传者列表视图，重新渲染
+      loadHistory(1);
+    } else if (_currentView === 'files' && _currentUploaderName) {
+      // 在上传者文件视图，重新加载
+      loadUploaderRecords(_currentUploaderName, _uploaderPagination ? _uploaderPagination.page : 1);
+    } else {
+      // 普通文件列表视图
+      loadHistory(1);
+    }
+  } else {
+    // 退出批量模式
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 批量操作';
+    card.classList.remove('batch-mode');
+    // 清空选择
+    clearSelection();
+    // 重新渲染列表隐藏复选框
+    if (_currentView === 'uploader') {
+      loadHistory(1);
+    } else if (_currentView === 'files' && _currentUploaderName) {
+      loadUploaderRecords(_currentUploaderName, _uploaderPagination ? _uploaderPagination.page : 1);
+    } else {
+      loadHistory(1);
+    }
+  }
+}
+
+function toggleSelectAll(checked, cls) {
+  var cbs = document.querySelectorAll('.sel-' + cls);
+  for (var i = 0; i < cbs.length; i++) {
+    cbs[i].checked = checked;
+    var v = parseInt(cbs[i].value, 10);
+    if (checked) { _selectedIds.add(v); } else { _selectedIds.delete(v); }
+  }
+  updateBatchBar();
+}
+
+function toggleSelect(recordId, checked) {
+  if (checked) { _selectedIds.add(recordId); } else { _selectedIds.delete(recordId); }
+  updateBatchBar();
+  // 同步全局全选 checkbox（顶部 bar + 底部 bar）
+  var glCb = document.querySelector('.cp-sel-check-global-bar');
+  var bar2Cb = document.querySelector('.cp-sel-check-bar2');
+  if (glCb || bar2Cb) {
+    var allCbs = document.querySelectorAll('.cp-sel-check');
+    var totalFiles = 0;
+    for (var i = 0; i < allCbs.length; i++) {
+      if (!allCbs[i].closest('thead') && !allCbs[i].classList.contains('cp-sel-check-global-bar') && !allCbs[i].classList.contains('cp-sel-check-bar') && !allCbs[i].classList.contains('cp-sel-check-bar2')) totalFiles++;
+    }
+    var allChecked = totalFiles > 0 && _selectedIds.size >= totalFiles;
+    if (glCb) glCb.checked = allChecked;
+    if (bar2Cb) bar2Cb.checked = allChecked;
+  }
+}
+
+function updateBatchBar() {
+  var bar = document.getElementById('batch-bar');
+  var info = document.getElementById('batch-info');
+  if (!bar || !info) return;
+  if (_selectedIds.size > 0) {
+    bar.classList.add('on');
+    info.textContent = '已选 ' + _selectedIds.size + ' 个文件';
+    document.body.style.paddingBottom = (bar.offsetHeight + 20) + 'px';
+  } else {
+    bar.classList.remove('on');
+    info.textContent = '已选 0 个文件';
+    document.body.style.paddingBottom = '';
+  }
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  var allCbs = document.querySelectorAll('.cp-sel-check');
+  for (var i = 0; i < allCbs.length; i++) {
+    allCbs[i].checked = false;
+  }
+  updateBatchBar();
+}
+
+function toggleSelectAllGlobal(checked) {
+  _selectedIds.clear();
+  document.querySelectorAll('.cp-sel-check').forEach(function(c) {
+    if (c.closest('thead') || c.classList.contains('cp-sel-check-global-bar') || c.classList.contains('cp-sel-check-bar') || c.classList.contains('cp-sel-check-bar2')) return;
+    c.checked = checked;
+    if (checked) _selectedIds.add(parseInt(c.value, 10));
+  });
+  // 同步所有表头、顶栏、底栏 checkbox
+  document.querySelectorAll('thead .cp-sel-check, .cp-sel-check-bar, .cp-sel-check-global-bar, .cp-sel-check-bar2').forEach(function(c) { c.checked = checked; });
+  updateBatchBar();
+}
+
+async function downloadAll(evt) {
+  // 防止按钮多次点击
+  var btn = evt.currentTarget;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  var originalHTML = btn.innerHTML;
+  btn.innerHTML = '打包中...';
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/share/' + linkId + '/download_all', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      return;
+    }
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = 'all_files.zip';
+    if (disposition) {
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    var blob = await res.blob();
+    if (overlay) overlay.style.display = 'none';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 500);
+    showToast('开始下载全部文件');
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误，请重试');
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+async function downloadGroup(evt, gi) {
+  evt.stopPropagation();
+  var btn = evt.currentTarget;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  var group = _uploaderList[gi];
+  if (!group) { btn.disabled = false; return; }
+  var uploaderName = group.name;
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/share/' + linkId + '/download_group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ uploader_name: uploaderName })
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      btn.disabled = false;
+      return;
+    }
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = uploaderName + '.zip';
+    if (disposition) {
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    var blob = await res.blob();
+    if (overlay) overlay.style.display = 'none';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 500);
+    showToast('开始下载 ' + uploaderName + ' 的文件');
+    btn.disabled = false;
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误，请重试');
+    btn.disabled = false;
+  }
+}
+
+async function batchDownload() {
+  var ids = Array.from(_selectedIds);
+  if (ids.length === 0) return;
+  // 显示等待浮窗
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/share/' + linkId + '/batch_download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ record_ids: ids })
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      return;
+    }
+    // 文件已打包完成，更新浮窗文字为传输中
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    // 从响应头读取服务器指定的文件名（优先 RFC 5987 UTF-8 编码）
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = 'batch_download.zip';
+    if (disposition) {
+      // 优先取 filename*=UTF-8''... 并 decodeURIComponent
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    var blob = await res.blob();
+    if (overlay) overlay.style.display = 'none';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 500);
+    showToast('开始下载 ' + ids.length + ' 个文件');
+    // 隐藏批量下载栏并清除选择
+    var batchBar = document.getElementById('batch-bar');
+    if (batchBar) batchBar.style.display = 'none';
+    clearSelection();
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误，请重试');
+  }
+}
+// 屏幕旋转/窗口缩放时自动切换表格/卡片视图
+var _resizeDebounce = null;
+window.addEventListener('resize', function(){
+  if (_resizeDebounce) clearTimeout(_resizeDebounce);
+  _resizeDebounce = setTimeout(function(){
+    if (_allRecords.length) renderHistory();
+  }, 300);
+});
+</script>
+</body>
+</html>

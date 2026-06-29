@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% block title %}信息面板{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{ total_links }}</div>
+        <div class="stat-label">收集链接</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ active_links_count }}</div>
+        <div class="stat-label">活跃链接</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ total_uploads }}</div>
+        <div class="stat-label">上传总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ today_uploads }}</div>
+        <div class="stat-label">今日上传</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>最近上传</h3>
+        <a href="{{ url_for('admin_records') }}" class="btn btn-sm btn-link">查看全部</a>
+      </div>
+      {% if recent_uploads %}
+      <!-- PC 端：精简表格 -->
+      <div class="records-table-pc">
+        <table class="admin-table admin-table--records">
+          <thead>
+            <tr><th>文件名</th><th style="width:80px;text-align:right;padding-right:24px;">操作</th></tr>
+          </thead>
+          <tbody>
+            {% for r in recent_uploads %}
+            {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+            <tr>
+              <td class="col-name"><span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span></td>
+              <td style="text-align:right;">
+                <button class="btn btn-sm btn-outline btn-more" title="查看详情"
+                  data-record-id="{{ r['id'] }}"
+                  data-filename="{{ r['original_name']|e }}"
+                  data-size="{{ r['file_size_display'] }}"
+                  data-size-bytes="{{ r['file_size'] }}"
+                  data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+                  data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+                  data-downloads="{{ r['download_count'] }}"
+                  data-ip="{{ r['uploader_ip'] or '-' }}"
+                  data-time="{{ r['uploaded_at'] }}"
+                  data-uploader="{{ r['uploader_name'] or '' }}"
+                  data-require-uploader="{{ r['require_uploader']|string|lower }}"
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <!-- 移动端：卡片列表 -->
+      <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <span>文件名</span>
+          <span>操作</span>
+        </div>
+        {% for r in recent_uploads %}
+        {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+        <div class="record-card">
+          <div class="record-card-body">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <span class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</span>
+              <button class="btn btn-sm btn-outline btn-more" title="查看详情"
+                data-record-id="{{ r['id'] }}"
+                data-filename="{{ r['original_name']|e }}"
+                data-size="{{ r['file_size_display'] }}"
+                data-size-bytes="{{ r['file_size'] }}"
+                data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+                data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+                data-downloads="{{ r['download_count'] }}"
+                data-ip="{{ r['uploader_ip'] or '-' }}"
+                data-time="{{ r['uploaded_at'] }}"
+                data-uploader="{{ r['uploader_name'] or '' }}"
+                data-require-uploader="{{ r['require_uploader']|string|lower }}"
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state"><h3>暂无上传记录</h3><p>创建收集链接后，用户上传的文件会在此显示</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+{% endblock %}
+
+{% block styles %}
+<style>
+.admin-table--records .col-name a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--c-primary);
+}
+
+/* .btn-more 已提取到全局 style.css */
+
+.detail-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 280px;
+  max-width: 360px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.2s ease;
+  pointer-events: auto;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.detail-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.detail-popover-header strong {
+  font-size: 0.85rem;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+.detail-popover-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.detail-popover-close:hover { background: #f5f5f5; }
+.detail-popover-body { padding: 10px 14px; }
+.detail-popover-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.detail-popover-row:not(:last-child) { border-bottom: 1px solid #f8f8f8; }
+.detail-popover-label { color: #999; min-width: 64px; flex-shrink: 0; }
+.detail-popover-value { color: #333; flex: 1; word-break: break-all; }
+
+.detail-popover-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.detail-popover-footer .btn { font-size: 0.8rem; }
+
+/* 浮窗遮罩 */
+.popover-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .detail-popover {
+    max-width: calc(100vw - 40px);
+    min-width: 260px;
+  }
+}
+
+
+
+/* 自定义灯箱 */
+  #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
+  #custom-lightbox .lb-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); }
+  #custom-lightbox .lb-close { position:absolute; top:12px; right:18px; z-index:10; font-size:40px; color:#fff; background:none; border:none; cursor:pointer; line-height:1; padding:0 8px; opacity:0.8; }
+  #custom-lightbox .lb-close:hover { opacity:1; }
+  #custom-lightbox .lb-prev, #custom-lightbox .lb-next { position:absolute; top:50%; transform:translateY(-50%); z-index:10; font-size:44px; color:#fff; background:rgba(255,255,255,0.12); border:none; cursor:pointer; padding:8px 14px; border-radius:6px; line-height:1; }
+  #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
+  #custom-lightbox .lb-prev { left:16px; }
+  #custom-lightbox .lb-next { right:16px; }
+  #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
+  #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
+  #custom-lightbox .lb-content .lb-audio-wrap {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 40px; background: rgba(255,255,255,0.06); border-radius: 16px;
+    min-width: 340px; max-width: 520px; width: 80vw;
+  }
+  #custom-lightbox .lb-content .lb-audio-icon {
+    width: 80px; height: 80px; border-radius: 12px;
+    background: rgba(255,255,255,0.1); display: flex; align-items: center;
+    justify-content: center; margin-bottom: 16px;
+  }
+  #custom-lightbox .lb-content .lb-audio-icon svg { width: 40px; height: 40px; color: #fff; opacity: 0.7; }
+  #custom-lightbox .lb-content .lb-audio-title {
+    color: #fff; font-size: .95rem; font-weight: 500; margin-bottom: 6px;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #custom-lightbox .lb-content .lb-audio-sub {
+    color: rgba(255,255,255,0.45); font-size: .78rem; margin-bottom: 18px;
+  }
+  #custom-lightbox .lb-content audio { width: 100%; outline: none; }
+</style>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentPopover = null;
+var currentPopoverBtn = null;
+var currentOverlay = null;
+
+/* 图片灯箱导航 */
+var _previewableAdminImages = [];
+
+// 页面加载时扫描 DOM 收集可预览媒体列表（图片、视频、音频）
+(function initPreviewNav() {
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+  var buttons = document.querySelectorAll('[data-previewable="1"]');
+  buttons.forEach(function(btn) {
+    var name = btn.getAttribute('data-filename');
+    if (!name) return;
+    var ext = name.split('.').pop().toLowerCase();
+    if (imgExts.indexOf(ext) >= 0 || vidExts.indexOf(ext) >= 0 || audExts.indexOf(ext) >= 0) {
+      _previewableAdminImages.push({
+        id: btn.getAttribute('data-record-id'),
+        name: name
+      });
+    }
+  });
+})();
+
+function closeAllPopovers() {
+  if (currentPopover) { currentPopover.remove(); currentPopover = null; }
+  if (currentOverlay) { currentOverlay.remove(); currentOverlay = null; }
+  if (currentPopoverBtn) { currentPopoverBtn.classList.remove('active'); currentPopoverBtn = null; }
+  document.body.style.overflow = '';
+}
+
+function toggleDetailPopover(btn) {
+  if (currentPopoverBtn === btn) { closeAllPopovers(); return; }
+  closeAllPopovers();
+  
+  currentPopoverBtn = btn;
+  btn.classList.add('active');
+  
+  var id = btn.getAttribute('data-record-id');
+  var filename = btn.getAttribute('data-filename');
+  var size = btn.getAttribute('data-size');
+  var sizeBytes = parseInt(btn.getAttribute('data-size-bytes')) || 0;
+  var source = btn.getAttribute('data-source');
+  var creator = btn.getAttribute('data-creator') || '未知用户';
+  var downloads = btn.getAttribute('data-downloads');
+  var ip = btn.getAttribute('data-ip');
+  var time = btn.getAttribute('data-time');
+  var uploader = btn.getAttribute('data-uploader') || '';
+  var requireUploader = btn.getAttribute('data-require-uploader') === 'true' || btn.getAttribute('data-require-uploader') === '1';
+  var previewable = btn.getAttribute('data-previewable') === '1';
+  var csrfToken = '{{ csrf_token }}';
+  
+  // 添加遮罩层
+  var overlay = document.createElement('div');
+  overlay.className = 'popover-overlay';
+  overlay.addEventListener('click', closeAllPopovers);
+  document.body.appendChild(overlay);
+  currentOverlay = overlay;
+  document.body.style.overflow = 'hidden';
+  
+  // 构建操作按钮
+  var footerHtml = '';
+  if (previewable) {
+    footerHtml += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\',' + sizeBytes + ');closeAllPopovers();">预览</button>';
+  }
+  footerHtml += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
+  footerHtml += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
+  
+  // 构建信息行，上传者信息动态显示
+  var infoRows = '';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>';
+  if (requireUploader && uploader) {
+    infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">上传者</span><span class="detail-popover-value">' + escapeHtml(uploader) + '</span></div>';
+  }
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>';
+  
+  var popover = document.createElement('div');
+  popover.className = 'detail-popover';
+  popover.innerHTML =
+    '<div class="detail-popover-header">' +
+      '<strong title="' + escapeHtml(filename) + '">' + escapeHtml(filename) + '</strong>' +
+      '<button class="detail-popover-close" onclick="closeAllPopovers()">&times;</button>' +
+    '</div>' +
+    '<div class="detail-popover-body">' +
+      infoRows +
+    '</div>' +
+    '<div class="detail-popover-footer">' + footerHtml + '</div>';
+  
+  document.body.appendChild(popover);
+  currentPopover = popover;
+  popover.addEventListener('click', function(e) { e.stopPropagation(); });
+}
+
+function escapeHtml(str) {
+  if (!str) return '-';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function fmtTime(t) {
+  if (!t) return '-';
+  // 去除微秒部分：2026-06-14 00:32:52.097572 -> 2026-06-14 00:32:52
+  return String(t).replace(/\.\d+/, '');
+}
+
+function escapeJs(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+document.addEventListener('click', function(e) {
+  if (currentPopover && !currentPopover.contains(e.target)) {
+    if (!e.target.closest('.btn-more')) { closeAllPopovers(); }
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeAllPopovers();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.btn-more').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDetailPopover(this);
+    });
+  });
+});
+
+// 预览功能 (自定义灯箱)
+var _lbItems = [];
+var _lbIndex = -1;
+
+function openLightbox(items, startIdx) {
+  _lbItems = items;
+  _lbIndex = startIdx;
+  var lb = document.getElementById('custom-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'custom-lightbox';
+    lb.innerHTML = '<div class="lb-backdrop"></div>' +
+      '<button class="lb-close" title="关闭">&times;</button>' +
+      '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
+      '<button class="lb-next" title="下一个">&rsaquo;</button>' +
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><div class="lb-audio-wrap" id="lb-audio-wrap"><div class="lb-audio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div class="lb-audio-title" id="lb-audio-title"></div><div class="lb-audio-sub">音频文件</div><audio id="lb-audio" controls></audio></div></div>';
+    document.body.appendChild(lb);
+    lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-prev').addEventListener('click', function(){ navLightbox(-1); });
+    lb.querySelector('.lb-next').addEventListener('click', function(){ navLightbox(1); });
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('custom-lightbox') || document.getElementById('custom-lightbox').style.display === 'none') return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navLightbox(-1);
+      if (e.key === 'ArrowRight') navLightbox(1);
+    });
+  }
+  renderLightbox();
+  lb.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  var lb = document.getElementById('custom-lightbox');
+  if (lb) lb.style.display = 'none';
+  document.body.style.overflow = '';
+  var vid = document.getElementById('lb-video');
+  if (vid) { vid.pause(); vid.innerHTML = ''; vid.removeAttribute('src'); }
+  var aud = document.getElementById('lb-audio');
+  if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
+}
+
+function navLightbox(dir) {
+  var newIdx = _lbIndex + dir;
+  if (newIdx < 0 || newIdx >= _lbItems.length) return;
+  _lbIndex = newIdx;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  var item = _lbItems[_lbIndex];
+  var img = document.getElementById('lb-img');
+  var vid = document.getElementById('lb-video');
+  var aud = document.getElementById('lb-audio');
+  var audWrap = document.getElementById('lb-audio-wrap');
+  var audTitle = document.getElementById('lb-audio-title');
+  // 先全部隐藏
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  if (audWrap) audWrap.style.display = 'none';
+  if (item.type === 'video') {
+    vid.style.display = 'block';
+    vid.innerHTML = '';
+    var src = document.createElement('source');
+    src.src = item.href;
+    vid.appendChild(src);
+    vid.load();
+    vid.play();
+  } else if (item.type === 'audio') {
+    if (aud && audWrap) {
+      audWrap.style.display = 'flex';
+      if (audTitle) audTitle.textContent = item.title || '';
+      aud.innerHTML = '';
+      var aSrc = document.createElement('source');
+      aSrc.src = item.href;
+      aud.appendChild(aSrc);
+      aud.load();
+      aud.play();
+    }
+  } else {
+    vid.pause();
+    vid.innerHTML = '';
+    vid.removeAttribute('src');
+    if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
+    img.style.display = 'block';
+    img.src = item.href;
+  }
+  var prevBtn = document.querySelector('#custom-lightbox .lb-prev');
+  var nextBtn = document.querySelector('#custom-lightbox .lb-next');
+  if (prevBtn) prevBtn.style.display = _lbIndex > 0 ? 'block' : 'none';
+  if (nextBtn) nextBtn.style.display = _lbIndex < _lbItems.length - 1 ? 'block' : 'none';
+}
+
+function previewFile(recordId, fileName, fileSizeBytes) {
+  var ext = fileName.split('.').pop().toLowerCase();
+
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  if (jitExts.includes(ext)) {
+    window.open('/office?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
+    return;
+  }
+
+  var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+
+  var elements = [];
+  var startIdx = -1;
+  for (var i = 0; i < _previewableAdminImages.length; i++) {
+    var item = _previewableAdminImages[i];
+    var itemExt = item.name.split('.').pop().toLowerCase();
+    var itemUrl = '/admin/records/' + item.id + '/preview-img';
+    var el = { href: itemUrl, title: item.name, type: 'image' };
+    if (vidExts.includes(itemExt)) { el.type = 'video'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (audExts.includes(itemExt)) { el.type = 'audio'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (item.id == recordId) startIdx = i;
+    elements.push(el);
+  }
+
+  if (elements.length === 0 || startIdx < 0) {
+    var isImg = (['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif'].includes(ext));
+    var url = '/admin/records/' + recordId + (isImg ? '/preview-img' : '/preview_file');
+    var el = { href: url, title: fileName, type: 'image' };
+    if (vidExts.includes(ext)) { el.type = 'video'; }
+    if (audExts.includes(ext)) { el.type = 'audio'; }
+    elements = [el];
+    startIdx = 0;
+  }
+
+  openLightbox(elements, startIdx);
+}
+</script>
+{% endblock %}

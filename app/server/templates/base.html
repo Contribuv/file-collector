@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>{% block title %}{{ config_title|default('文件收集器') }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  {% block styles %}{% endblock %}
+</head>
+<body class="{% if session.is_admin %}is-admin{% endif %}{% block body_class %}{% endblock %}">
+
+  {% if in_wechat %}
+  <div class="wechat-warn">请点击右上角「···」选择"在浏览器中打开"以正常上传文件</div>
+  {% endif %}
+
+  {% block header %}
+  <header class="header">
+    <div class="header-inner">
+      <a href="{{ url_for('admin_dashboard') }}" class="header-brand">
+        <img class="header-logo" src="{{ url_for('static', filename='img/logo_fs.png') }}" alt="Logo" onerror="this.style.display='none'">
+        {{ config_title|default('文件收集器') }}
+      </a>
+      {% if session.user_id %}
+      <nav class="header-nav">
+        <span class="header-user">{{ session.username }}</span>
+        <span class="header-nav-sep">|</span>
+        <a href="{{ url_for('logout') }}" class="header-nav-link header-nav-logout">退出</a>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+  {% endblock %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-toast-overlay" id="flash-toast-overlay">
+  {% for category, msg in messages %}
+  {% set cat = 'info' if category == 'message' else category %}
+  <div class="flash-toast-item flash-toast-{{ cat }}">
+    <span class="flash-toast-icon">
+      {% if cat == 'success' %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      {% elif cat == 'error' %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      {% elif cat == 'warning' %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      {% else %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      {% endif %}
+    </span>
+    <span class="flash-toast-text">{{ msg }}</span>
+    <button type="button" class="flash-toast-close" onclick="closeFlashToast(this)" title="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  {% endfor %}
+  </div>
+  <script>
+  (function(){
+    var el = document.getElementById('flash-toast-overlay');
+    if (!el) return;
+    // 按类型区分停留时长：success 1s, info 1.5s, warning 2s, error 2.5s
+    var items = el.querySelectorAll('.flash-toast-item'), longest = 1000;
+    items.forEach(function(it) {
+      if (it.classList.contains('flash-toast-error')) longest = Math.max(longest, 2500);
+      else if (it.classList.contains('flash-toast-warning')) longest = Math.max(longest, 2000);
+      else if (it.classList.contains('flash-toast-info')) longest = Math.max(longest, 1500);
+    });
+    el._flashTimer = setTimeout(function() {
+      el.classList.add('flash-toast-out');
+      setTimeout(function() { el.style.display = 'none'; }, 300);
+    }, longest);
+  })();
+  function closeFlashToast(btn) {
+    var item = btn.closest('.flash-toast-item');
+    if (item) {
+      item.style.animation = 'flashToastOut .2s ease forwards';
+      setTimeout(function() {
+        item.remove();
+        var overlay = document.getElementById('flash-toast-overlay');
+        if (overlay && !overlay.querySelector('.flash-toast-item')) {
+          overlay.style.display = 'none';
+          clearTimeout(overlay._flashTimer);
+        }
+      }, 250);
+    }
+  }
+  </script>
+  {% endif %}
+  {% endwith %}
+
+  <main class="main">
+    <div class="main-inner">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  {% block footer %}
+  <footer class="footer">
+    {{ collect_footer_text or config_title|default('文件收集器') }}
+  </footer>
+  {% endblock %}
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  function showToast(msg, d) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._timeout);
+    t._timeout = setTimeout(() => t.classList.remove('show'), d || 2000);
+  }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

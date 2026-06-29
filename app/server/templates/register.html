@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block body_class %} auth-layout{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block title %}用户注册{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="{{ url_for('static', filename='img/logo_192.png') }}" alt="">
+    </div>
+    <h1>{{ config_title|default('文件收集器') }}</h1>
+    <p class="auth-subtitle">创建新账户</p>
+
+    {% if error %}
+    <div class="auth-tip auth-tip--err">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="auth-tip auth-tip--ok">{{ success }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('register') }}" onsubmit="return validateForm()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      
+      <div class="form-group">
+        <label class="form-label" for="username">用户名</label>
+        <input type="text" id="username" name="username" class="form-input" placeholder="3-20位字母、数字或下划线" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">密码</label>
+        <div class="password-field">
+          <input type="password" id="password" name="password" class="form-input" placeholder="至少8位，包含字母和数字" required>
+          <button type="button" class="password-toggle" id="pwdToggle" title="显示密码" aria-label="显示密码">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="confirm_password">确认密码</label>
+        <div class="password-field">
+          <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="再次输入密码" required>
+          <button type="button" class="password-toggle" id="confirmPwdToggle" title="显示密码" aria-label="显示密码">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="email">邮箱 <span style="color:#ef4444;">*</span></label>
+        <input type="email" id="email" name="email" class="form-input" placeholder="请输入您的邮箱地址" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="invite_code">邀请码</label>
+        <input type="text" id="invite_code" name="invite_code" class="form-input" placeholder="请输入管理员提供的邀请码" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="regBtn">注册</button>
+    </form>
+
+    <div class="auth-extra">
+      已有账号？<a href="{{ url_for('admin_login') }}">立即登录</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.auth-logo { text-align: center; margin-bottom: 20px; }
+.auth-logo img { width: 48px; height: 48px; border-radius: 10px; }
+.auth-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
+.auth-subtitle { color: #86868b; margin-bottom: 28px; }
+.auth-tip {
+  margin-bottom: 20px; padding: 10px 14px; border-radius: 8px;
+  font-size: .8rem; text-align: center; border: 1px solid;
+}
+.auth-tip--err { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.auth-tip--ok { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  /* 密码可见性切换 */
+  function setupPwdToggle(inputId, btnId) {
+    var pwd = document.getElementById(inputId);
+    var btn = document.getElementById(btnId);
+    if (!pwd || !btn) return;
+    var eyeOpen = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var eyeClosed = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    btn.addEventListener('click', function(){
+      if (pwd.type === 'password') {
+        pwd.type = 'text';
+        btn.innerHTML = eyeClosed;
+        btn.setAttribute('aria-label', '隐藏密码');
+        btn.setAttribute('title', '隐藏密码');
+      } else {
+        pwd.type = 'password';
+        btn.innerHTML = eyeOpen;
+        btn.setAttribute('aria-label', '显示密码');
+        btn.setAttribute('title', '显示密码');
+      }
+    });
+  }
+  setupPwdToggle('password', 'pwdToggle');
+  setupPwdToggle('confirm_password', 'confirmPwdToggle');
+
+  /* 注册按钮 loading */
+  var form = document.querySelector('.auth-card form');
+  var regBtn = document.getElementById('regBtn');
+  if (form && regBtn) {
+    form.addEventListener('submit', function(e){
+      if (!validateForm()) { e.preventDefault(); return; }
+      regBtn.classList.add('btn-loading');
+      regBtn.textContent = '注册中...';
+    });
+  }
+})();
+</script>
+{% endblock %}

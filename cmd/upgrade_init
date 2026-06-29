@@ -1,0 +1,50 @@
+#!/bin/bash
+### 升级前回调 - 备份数据库，确保数据安全
+
+# 数据目录（与 main 脚本保持一致：优先 TRIM_DATA_SHARE_PATHS）
+if [ -n "$TRIM_DATA_SHARE_PATHS" ]; then
+    _SHARE_BASE="${TRIM_DATA_SHARE_PATHS%%:*}"
+    DATA_DIR="${_SHARE_BASE}/data"
+elif [ -n "$TRIM_PKGVAR" ]; then
+    DATA_DIR="${TRIM_PKGVAR}/data"
+else
+    DATA_DIR="/tmp/file-collector/data"
+fi
+mkdir -p "$DATA_DIR"
+LOG="${DATA_DIR}/upgrade.log"
+echo "[$(date)] === UPGRADE INIT (升级前备份) ===" >> "$LOG"
+
+DB_PATH="${DATA_DIR}/file_collector.db"
+
+if [ -f "$DB_PATH" ]; then
+    TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+
+    # 备份1: 存到 DATA_DIR/backups（数据库同目录）
+    mkdir -p "$DATA_DIR/backups"
+    cp "$DB_PATH" "${DATA_DIR}/backups/file_collector_${TIMESTAMP}.db" 2>/dev/null && {
+        DB_SIZE=$(du -h "$DB_PATH" 2>/dev/null | cut -f1)
+        echo "  备份1(DATA_DIR/backups): file_collector_${TIMESTAMP}.db (${DB_SIZE})" >> "$LOG"
+        ls -t "${DATA_DIR}/backups"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    } || echo "  WARN: DATA_DIR 备份失败!" >> "$LOG"
+
+    # 备份2: 存到 /tmp（快速恢复）
+    BACKUP_DIR="/tmp/file-collector-backup"
+    mkdir -p "$BACKUP_DIR"
+    cp "$DB_PATH" "${BACKUP_DIR}/file_collector_${TIMESTAMP}.db" 2>/dev/null && {
+        echo "  备份2(/tmp): file_collector_${TIMESTAMP}.db (${DB_SIZE})" >> "$LOG"
+        ls -t "${BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    } || echo "  WARN: /tmp 备份失败!" >> "$LOG"
+
+    # 备份3: 存到 TRIM_PKGVAR/backups（持久化，防止 /tmp 被清理）
+    PKG_BACKUP_DIR="${TRIM_PKGVAR}/backups"
+    mkdir -p "$PKG_BACKUP_DIR"
+    cp "$DB_PATH" "${PKG_BACKUP_DIR}/file_collector_${TIMESTAMP}.db" 2>/dev/null && {
+        echo "  备份3(PKGVAR): file_collector_${TIMESTAMP}.db" >> "$LOG"
+        ls -t "${PKG_BACKUP_DIR}"/file_collector_*.db 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+    } || echo "  WARN: PKGVAR 备份失败!" >> "$LOG"
+else
+    echo "  数据库不存在，跳过备份（首次安装）" >> "$LOG"
+fi
+
+echo "[$(date)] upgrade_init done" >> "$LOG"
+exit 0

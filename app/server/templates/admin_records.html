@@ -1,0 +1,870 @@
+{% extends "base.html" %}
+{% block title %}上传记录{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header records-card-header">
+        <h3>上传记录</h3>
+        <div class="records-toolbar">
+          <form method="GET" action="{{ url_for('admin_records') }}" class="records-filter-form">
+            <select name="link_id" class="form-select records-filter-select" onchange="this.form.submit()">
+              <option value="">全部链接</option>
+              {% for l in links %}
+              <option value="{{ l['id'] }}" {{ 'selected' if l['id']|string == link_filter }}>{{ l['title'] }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <form id="batch-form" method="POST" action="{{ url_for('admin_batch_delete_records') }}" onsubmit="return prepareBatchDelete()" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger" id="batch-btn" disabled>批量删除</button>
+          </form>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="batch-dl-btn" disabled onclick="prepareBatchDownload()">批量打包下载</button>
+        </div>
+      </div>
+
+      {% if records %}
+      <!-- PC 端：精简表格 -->
+      <div class="records-table-pc">
+        <table class="admin-table admin-table--records">
+          <thead>
+            <tr>
+              <th class="col-chk"><input type="checkbox" class="select-all-cb" onchange="toggleAll(this)"></th>
+              <th>文件名</th><th class="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+            {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+            <tr>
+              <td class="col-chk"><input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()"></td>
+              <td class="col-name"><span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span></td>
+              <td class="col-act">
+                <button class="btn btn-sm btn-outline btn-more" title="查看详情"
+                  data-record-id="{{ r['id'] }}"
+                  data-filename="{{ r['original_name']|e }}"
+                  data-size="{{ r['file_size_display'] }}"
+                  data-size-bytes="{{ r['file_size'] }}"
+                  data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+                  data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+                  data-downloads="{{ r['download_count'] }}"
+                  data-ip="{{ r['uploader_ip'] }}"
+                  data-time="{{ r['uploaded_at'] }}"
+                  data-uploader="{{ r['uploader_name'] or '' }}"
+                  data-require-uploader="{{ r['require_uploader']|string|lower }}"
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 移动端：简洁卡片列表（参考仪表盘设计） -->
+      <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <label style="flex-shrink:0;margin-right:6px;display:flex;align-items:center;">
+            <input type="checkbox" class="select-all-cb" onchange="toggleAll(this)" style="width:16px;height:16px;accent-color:#2563eb;">
+          </label>
+          <span class="records-mobile-h-col">文件名</span>
+          <span class="records-mobile-h-act">操作</span>
+        </div>
+        {% for r in records %}
+        {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
+        <div class="record-card">
+          <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
+            <label class="record-card-check" style="flex-shrink:0;margin-top:2px;">
+              <input type="checkbox" name="ids[]" value="{{ r['id'] }}" class="record-checkbox" onchange="updateBatchBtn()">
+            </label>
+            <span class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</span>
+            <button class="btn btn-sm btn-outline btn-more" title="查看详情" style="flex-shrink:0;"
+              data-record-id="{{ r['id'] }}"
+              data-filename="{{ r['original_name']|e }}"
+              data-size="{{ r['file_size_display'] }}"
+              data-size-bytes="{{ r['file_size'] }}"
+              data-source="{{ (r['link_title'] or r['link_id'])|e }}"
+              data-creator="{{ (r['creator_name'] or '未知用户')|e }}"
+              data-downloads="{{ r['download_count'] }}"
+              data-ip="{{ r['uploader_ip'] }}"
+              data-time="{{ r['uploaded_at'] }}"
+              data-uploader="{{ r['uploader_name'] or '' }}"
+              data-require-uploader="{{ r['require_uploader']|string|lower }}"
+              data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="empty-state"><h3>暂无上传记录</h3></div>
+      {% endif %}
+
+      {% if total_pages > 1 %}
+      <div class="card-footer" style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
+        <div class="pagination">
+          {% if page > 1 %}
+          <a href="{{ url_for('admin_records', page=page-1, link_id=link_filter) }}" class="btn btn-sm">上一页</a>
+          {% endif %}
+          <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+          {% if page < total_pages %}
+          <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter) }}" class="btn btn-sm">下一页</a>
+          {% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:.8rem;color:#999;">每页显示</label>
+          <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="200" step="1"
+                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+          <span style="font-size:.78rem;color:#aaa;">条</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-footer" style="padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <label style="font-size:.8rem;color:#999;">每页显示</label>
+        <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="200" step="1"
+               style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
+        <span style="font-size:.78rem;color:#aaa;">条</span>
+      </div>{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---------- 自定义灯箱（JS 动态创建） ---------- #}
+
+<!-- 批量下载等待浮窗 -->
+<div class="batch-loading-overlay" id="batch-loading-overlay" style="display:none;">
+  <div class="batch-loading-card">
+    <div class="batch-loading-spinner"></div>
+    <div class="batch-loading-text" id="batch-loading-text">正在打包文件，请稍候...</div>
+    <div class="batch-loading-sub" id="batch-loading-sub">文件较多时可能需要一些时间</div>
+  </div>
+</div>
+
+<style>
+/* 精简表格 */
+.admin-table--records .col-chk { width: 38px; text-align: center; }
+.admin-table--records .col-chk input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--c-primary); }
+.admin-table--records .col-act { width: 120px; text-align: center; white-space: nowrap; }
+
+/* ========== 记录页头部工具栏 ========== */
+.records-card-header { flex-wrap: wrap; gap: 8px; }
+.records-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.records-filter-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.records-filter-select {
+  width: auto;
+  padding: 6px 28px 6px 10px;
+  font-size: .82rem;
+  border-radius: 4px;
+}
+@media (max-width: 640px) {
+  .records-card-header { gap: 6px; }
+  .records-card-header h3 { font-size: .95rem; margin: 0; }
+  .records-toolbar { width: 100%; justify-content: space-between; gap: 6px; }
+  .records-filter-select { max-width: 140px; font-size: .78rem; padding: 5px 24px 5px 8px; }
+  .records-toolbar .btn-sm { font-size: .73rem; padding: 4px 10px; flex-shrink: 0; }
+}
+
+/* 更多按钮 — 已提取到全局 style.css */
+
+
+/* ========== Popover 浮窗（全设备居中弹窗） ========== */
+.detail-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 280px;
+  max-width: 360px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.2s ease;
+  pointer-events: auto;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.detail-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.detail-popover-header strong {
+  font-size: 0.85rem;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+.detail-popover-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.detail-popover-close:hover { background: #f5f5f5; }
+.detail-popover-body { padding: 10px 14px; }
+.detail-popover-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.detail-popover-row:not(:last-child) { border-bottom: 1px solid #f8f8f8; }
+.detail-popover-label {
+  color: #999;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+.detail-popover-value { color: #333; flex: 1; word-break: break-all; }
+.detail-popover-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+}
+.detail-popover-footer .btn { font-size: 0.8rem; }
+
+/* 浮窗遮罩 */
+.popover-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 移动端浮窗宽度微调 */
+@media (max-width: 640px) {
+  .detail-popover {
+    max-width: calc(100vw - 40px);
+    min-width: 260px;
+  }
+}
+
+/* 移动端卡片微调 */
+@media (max-width: 640px) {
+  .record-card {
+    padding: 10px 12px;
+  }
+  .record-card-name {
+    font-size: .88rem;
+  }
+  .record-card .btn-more {
+    font-size: .75rem;
+    padding: 3px 10px;
+  }
+  .record-card-check input {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* 移动端列表标题 */
+.records-mobile-header {
+  display: none;
+}
+@media (max-width: 640px) {
+  .records-mobile-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fb;
+    border-bottom: 2px solid #e5e7eb;
+    font-size: .78rem;
+    font-weight: 600;
+    color: #6b7280;
+    gap: 8px;
+  }
+  .records-mobile-h-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .records-mobile-h-act {
+    flex-shrink: 0;
+    width: 80px;
+    text-align: center;
+  }
+}
+
+
+
+
+/* 批量下载等待浮窗 */
+.batch-loading-overlay {
+  position: fixed; inset: 0; z-index: 10001;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  animation: bloFadeIn .2s ease;
+}
+@keyframes bloFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.batch-loading-card {
+  background: #fff; border-radius: 12px; padding: 32px 40px;
+  text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  max-width: 320px; width: 90%;
+}
+.batch-loading-spinner {
+  width: 40px; height: 40px; margin: 0 auto 16px;
+  border: 3px solid #e4e6eb; border-top-color: #3b82f6;
+  border-radius: 50%; animation: bloSpin .6s linear infinite;
+}
+@keyframes bloSpin { to { transform: rotate(360deg); } }
+.batch-loading-text { font-size: .95rem; font-weight: 600; color: #1a1d28; margin-bottom: 6px; }
+.batch-loading-sub { font-size: .78rem; color: #9ca3af; }
+@media (max-width: 640px) {
+  .batch-loading-card { padding: 24px 28px; }
+}
+</style>
+{% endblock %}
+
+{% block styles %}
+<style>
+  #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
+  #custom-lightbox .lb-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); }
+  #custom-lightbox .lb-close { position:absolute; top:12px; right:18px; z-index:10; font-size:40px; color:#fff; background:none; border:none; cursor:pointer; line-height:1; padding:0 8px; opacity:0.8; }
+  #custom-lightbox .lb-close:hover { opacity:1; }
+  #custom-lightbox .lb-prev, #custom-lightbox .lb-next { position:absolute; top:50%; transform:translateY(-50%); z-index:10; font-size:44px; color:#fff; background:rgba(255,255,255,0.12); border:none; cursor:pointer; padding:8px 14px; border-radius:6px; line-height:1; }
+  #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
+  #custom-lightbox .lb-prev { left:16px; }
+  #custom-lightbox .lb-next { right:16px; }
+  #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #custom-lightbox .lb-content img { max-width:92vw; max-height:92vh; object-fit:contain; border-radius:4px; }
+  #custom-lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:4px; }
+  #custom-lightbox .lb-content .lb-audio-wrap {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 40px; background: rgba(255,255,255,0.06); border-radius: 16px;
+    min-width: 340px; max-width: 520px; width: 80vw;
+  }
+  #custom-lightbox .lb-content .lb-audio-icon {
+    width: 80px; height: 80px; border-radius: 12px;
+    background: rgba(255,255,255,0.1); display: flex; align-items: center;
+    justify-content: center; margin-bottom: 16px;
+  }
+  #custom-lightbox .lb-content .lb-audio-icon svg { width: 40px; height: 40px; color: #fff; opacity: 0.7; }
+  #custom-lightbox .lb-content .lb-audio-title {
+    color: #fff; font-size: .95rem; font-weight: 500; margin-bottom: 6px;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #custom-lightbox .lb-content .lb-audio-sub {
+    color: rgba(255,255,255,0.45); font-size: .78rem; margin-bottom: 18px;
+  }
+  #custom-lightbox .lb-content audio { width: 100%; outline: none; }
+</style>
+{% endblock %}
+{% block scripts %}
+<script>
+/* 图片灯箱导航 */
+var _previewableAdminImages = [];
+var _previewIndex = -1;
+
+// 页面加载时扫描 DOM 收集可预览媒体列表（图片、视频、音频）
+(function initPreviewNav() {
+  var imgExts = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
+  var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+  var buttons = document.querySelectorAll('[data-previewable="1"]');
+  buttons.forEach(function(btn) {
+    var name = btn.getAttribute('data-filename');
+    if (!name) return;
+    var ext = name.split('.').pop().toLowerCase();
+    if (imgExts.indexOf(ext) >= 0 || vidExts.indexOf(ext) >= 0 || audExts.indexOf(ext) >= 0) {
+      _previewableAdminImages.push({
+        id: btn.getAttribute('data-record-id'),
+        name: name
+      });
+    }
+  });
+})();
+
+// 获取当前可见容器内的 checkbox（PC 和移动端只有一套可见，避免重复计数）
+function getVisibleRecordCheckboxes() {
+  const pcContainer = document.querySelector('.records-table-pc');
+  const mobileContainer = document.querySelector('.records-cards-mobile');
+  if (mobileContainer && window.getComputedStyle(mobileContainer).display !== 'none') {
+    return mobileContainer.querySelectorAll('.record-checkbox');
+  }
+  if (pcContainer && window.getComputedStyle(pcContainer).display !== 'none') {
+    return pcContainer.querySelectorAll('.record-checkbox');
+  }
+  return document.querySelectorAll('.record-checkbox');
+}
+function getSelectedRecordIds() {
+  const ids = [];
+  getVisibleRecordCheckboxes().forEach(function(cb) {
+    if (cb.checked) ids.push(cb.value);
+  });
+  return ids;
+}
+function toggleAll(el) {
+  const container = el.closest('.records-table-pc') || el.closest('.records-cards-mobile');
+  const cbs = container ? container.querySelectorAll('.record-checkbox') : getVisibleRecordCheckboxes();
+  cbs.forEach(cb => { cb.checked = el.checked; });
+  updateBatchBtn();
+}
+function updateBatchBtn() {
+  const total = getVisibleRecordCheckboxes().length;
+  const n = getSelectedRecordIds().length;
+  const delBtn = document.getElementById('batch-btn');
+  const dlBtn = document.getElementById('batch-dl-btn');
+  delBtn.disabled = n === 0;
+  delBtn.textContent = n > 0 ? '批量删除 (' + n + ')' : '批量删除';
+  dlBtn.disabled = n === 0;
+  dlBtn.textContent = n > 0 ? '批量打包下载 (' + n + ')' : '批量打包下载';
+  // 同步全选框状态
+  document.querySelectorAll('.select-all-cb').forEach(function(cb) {
+    cb.checked = total > 0 && n === total;
+    cb.indeterminate = n > 0 && n < total;
+  });
+}
+function prepareBatchDelete() {
+  const ids = getSelectedRecordIds();
+  if (!ids.length) return false;
+  if (!confirm('确定删除选中的 ' + ids.length + ' 条记录？')) return false;
+  const form = document.getElementById('batch-form');
+  form.action = '{{ url_for("admin_batch_delete_records") }}';
+  form.querySelectorAll('input[data-dynamic]').forEach(el => el.remove());
+  ids.forEach(function(id) {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = id;
+    inp.setAttribute('data-dynamic', '1');
+    form.appendChild(inp);
+  });
+  return true;
+}
+function prepareBatchDownload() {
+  const ids = getSelectedRecordIds();
+  if (!ids.length) return;
+
+  const btn = document.getElementById('batch-dl-btn');
+  btn.disabled = true;
+  btn.textContent = '打包中...';
+  document.getElementById('batch-btn').disabled = true;
+
+  // 显示等待浮窗
+  const overlay = document.getElementById('batch-loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  // 收集选中 ID 和 CSRF token
+  var csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+  var formData = new FormData();
+  ids.forEach(function(id) { formData.append('ids[]', id); });
+  formData.append('csrf_token', csrfToken);
+
+  fetch('{{ url_for("batch_download_records") }}', {
+    method: 'POST',
+    body: formData,
+    credentials: 'same-origin'
+  }).then(function(res) {
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = '批量打包下载';
+      updateBatchBtn();
+      res.text().then(function(msg) { alert(msg || '下载失败'); });
+      return;
+    }
+    // 文件已打包完成，更新浮窗文字为传输中
+    var loadingText = document.getElementById('batch-loading-text');
+    var loadingSub = document.getElementById('batch-loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    // 从响应头读取服务器指定的文件名（优先 RFC 5987 UTF-8 编码）
+    var disposition = res.headers.get('Content-Disposition');
+    var filename = 'batch_download.zip';
+    if (disposition) {
+      var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (utf8Match) {
+        filename = decodeURIComponent(utf8Match[1]);
+      } else {
+        var match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+    }
+    return res.blob().then(function(blob) {
+      if (overlay) overlay.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = '批量打包下载';
+      updateBatchBtn();
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      }, 500);
+    });
+  }).catch(function(e) {
+    if (overlay) overlay.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '批量打包下载';
+    updateBatchBtn();
+    alert('网络错误，请重试');
+  });
+}
+
+// ======= 详情浮窗逻辑 =======
+let currentPopover = null;
+let currentPopoverBtn = null;
+let currentOverlay = null;
+
+function closeAllPopovers() {
+  if (currentPopover) { currentPopover.remove(); currentPopover = null; }
+  if (currentOverlay) { currentOverlay.remove(); currentOverlay = null; }
+  if (currentPopoverBtn) { currentPopoverBtn.classList.remove('active'); currentPopoverBtn = null; }
+  document.body.style.overflow = '';
+}
+
+function toggleDetailPopover(btn) {
+  // 如果点击的是同一个按钮，则关闭
+  if (currentPopoverBtn === btn) { closeAllPopovers(); return; }
+  
+  // 关闭之前的浮窗
+  closeAllPopovers();
+  
+  // 标记当前按钮
+  currentPopoverBtn = btn;
+  btn.classList.add('active');
+  
+  // 读取数据
+  var id = btn.getAttribute('data-record-id');
+  var filename = btn.getAttribute('data-filename');
+  var size = btn.getAttribute('data-size');
+  var sizeBytes = parseInt(btn.getAttribute('data-size-bytes')) || 0;
+  var source = btn.getAttribute('data-source');
+  var creator = btn.getAttribute('data-creator') || '未知用户';
+  var downloads = btn.getAttribute('data-downloads');
+  var ip = btn.getAttribute('data-ip');
+  var time = btn.getAttribute('data-time');
+  var uploader = btn.getAttribute('data-uploader') || '';
+  var requireUploader = btn.getAttribute('data-require-uploader') === 'true' || btn.getAttribute('data-require-uploader') === '1';
+  var previewable = btn.getAttribute('data-previewable') === '1';
+  var csrfToken = document.querySelector('input[name="csrf_token"]').value;
+  
+  // 添加遮罩层
+  var overlay = document.createElement('div');
+  overlay.className = 'popover-overlay';
+  overlay.addEventListener('click', closeAllPopovers);
+  document.body.appendChild(overlay);
+  currentOverlay = overlay;
+  document.body.style.overflow = 'hidden';
+  
+  // 构建操作按钮区
+  var actionBtns = '';
+  if (previewable) {
+    actionBtns += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\',' + sizeBytes + ');closeAllPopovers();">预览</button>';
+  }
+  actionBtns += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
+  actionBtns += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
+  
+  // 构建信息行，上传者信息动态显示
+  var infoRows = '';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">大小</span><span class="detail-popover-value">' + escapeHtml(size) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">来源</span><span class="detail-popover-value">' + escapeHtml(source) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">创建用户</span><span class="detail-popover-value">' + escapeHtml(creator) + '</span></div>';
+  if (requireUploader && uploader) {
+    infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">上传者</span><span class="detail-popover-value">' + escapeHtml(uploader) + '</span></div>';
+  }
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>';
+  
+  // 创建浮窗
+  var popover = document.createElement('div');
+  popover.className = 'detail-popover';
+  popover.innerHTML = 
+    '<div class="detail-popover-header">' +
+      '<strong title="' + escapeHtml(filename) + '">' + escapeHtml(filename) + '</strong>' +
+      '<button class="detail-popover-close" onclick="closeAllPopovers()">&times;</button>' +
+    '</div>' +
+    '<div class="detail-popover-body">' +
+      infoRows +
+    '</div>' +
+    '<div class="detail-popover-footer" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">' + actionBtns +
+    '</div>';
+  
+  document.body.appendChild(popover);
+  currentPopover = popover;
+  
+  // 阻止浮窗内部点击冒泡
+  popover.addEventListener('click', function(e) { e.stopPropagation(); });
+}
+
+function escapeHtml(str) {
+  if (!str) return '-';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function fmtTime(t) {
+  if (!t) return '-';
+  // 去除微秒部分：2026-06-14 00:32:52.097572 -> 2026-06-14 00:32:52
+  return String(t).replace(/\.\d+/, '');
+}
+
+function escapeJs(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// 全局点击关闭浮窗
+document.addEventListener('click', function(e) {
+  if (currentPopover && !currentPopover.contains(e.target)) {
+    // 检查是否点击的是更多按钮（按钮有自己的toggle逻辑）
+    if (!e.target.closest('.btn-more')) {
+      closeAllPopovers();
+    }
+  }
+});
+
+// ESC 关闭浮窗
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeAllPopovers();
+});
+
+// 绑定所有"操作"按钮
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.btn-more').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleDetailPopover(this);
+    });
+  });
+});
+
+// 预览功能 (自定义灯箱)
+var _lbItems = [];
+var _lbIndex = -1;
+
+function openLightbox(items, startIdx) {
+  _lbItems = items;
+  _lbIndex = startIdx;
+  var lb = document.getElementById('custom-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'custom-lightbox';
+    lb.innerHTML = '<div class="lb-backdrop"></div>' +
+      '<button class="lb-close" title="关闭">&times;</button>' +
+      '<button class="lb-prev" title="上一个">&lsaquo;</button>' +
+      '<button class="lb-next" title="下一个">&rsaquo;</button>' +
+      '<div class="lb-content"><img id="lb-img"><video id="lb-video" controls playsinline></video><div class="lb-audio-wrap" id="lb-audio-wrap"><div class="lb-audio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div class="lb-audio-title" id="lb-audio-title"></div><div class="lb-audio-sub">音频文件</div><audio id="lb-audio" controls></audio></div></div>';
+    document.body.appendChild(lb);
+    lb.querySelector('.lb-backdrop').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-close').addEventListener('click', closeLightbox);
+    lb.querySelector('.lb-prev').addEventListener('click', function(){ navLightbox(-1); });
+    lb.querySelector('.lb-next').addEventListener('click', function(){ navLightbox(1); });
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('custom-lightbox') || document.getElementById('custom-lightbox').style.display === 'none') return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navLightbox(-1);
+      if (e.key === 'ArrowRight') navLightbox(1);
+    });
+  }
+  renderLightbox();
+  lb.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  var lb = document.getElementById('custom-lightbox');
+  if (lb) lb.style.display = 'none';
+  document.body.style.overflow = '';
+  var vid = document.getElementById('lb-video');
+  if (vid) { vid.pause(); vid.innerHTML = ''; vid.removeAttribute('src'); }
+  var aud = document.getElementById('lb-audio');
+  if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
+}
+
+function navLightbox(dir) {
+  var newIdx = _lbIndex + dir;
+  if (newIdx < 0 || newIdx >= _lbItems.length) return;
+  _lbIndex = newIdx;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  var item = _lbItems[_lbIndex];
+  var img = document.getElementById('lb-img');
+  var vid = document.getElementById('lb-video');
+  var aud = document.getElementById('lb-audio');
+  var audWrap = document.getElementById('lb-audio-wrap');
+  var audTitle = document.getElementById('lb-audio-title');
+  // 先全部隐藏
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  if (audWrap) audWrap.style.display = 'none';
+  if (item.type === 'video') {
+    vid.style.display = 'block';
+    vid.innerHTML = '';
+    var src = document.createElement('source');
+    src.src = item.href;
+    vid.appendChild(src);
+    vid.load();
+    vid.play();
+  } else if (item.type === 'audio') {
+    if (aud && audWrap) {
+      audWrap.style.display = 'flex';
+      if (audTitle) audTitle.textContent = item.title || '';
+      aud.innerHTML = '';
+      var aSrc = document.createElement('source');
+      aSrc.src = item.href;
+      aud.appendChild(aSrc);
+      aud.load();
+      aud.play();
+    }
+  } else {
+    vid.pause();
+    vid.innerHTML = '';
+    vid.removeAttribute('src');
+    if (aud) { aud.pause(); aud.innerHTML = ''; aud.removeAttribute('src'); }
+    img.style.display = 'block';
+    img.src = item.href;
+  }
+  var prevBtn = document.querySelector('#custom-lightbox .lb-prev');
+  var nextBtn = document.querySelector('#custom-lightbox .lb-next');
+  if (prevBtn) prevBtn.style.display = _lbIndex > 0 ? 'block' : 'none';
+  if (nextBtn) nextBtn.style.display = _lbIndex < _lbItems.length - 1 ? 'block' : 'none';
+}
+
+
+function previewFile(recordId, fileName, fileSizeBytes) {
+  var ext = fileName.split('.').pop().toLowerCase();
+
+  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  if (jitExts.includes(ext)) {
+    window.open('/office?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
+    return;
+  }
+
+  var vidExts = ['mp4','webm','ogg','mov'];
+  var audExts = ['mp3','wav','flac','aac','m4a'];
+
+  var elements = [];
+  var startIdx = -1;
+  for (var i = 0; i < _previewableAdminImages.length; i++) {
+    var item = _previewableAdminImages[i];
+    var itemExt = item.name.split('.').pop().toLowerCase();
+    var itemUrl = '/admin/records/' + item.id + '/preview-img';
+    var el = { href: itemUrl, title: item.name, type: 'image' };
+    if (vidExts.includes(itemExt)) { el.type = 'video'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (audExts.includes(itemExt)) { el.type = 'audio'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (item.id == recordId) startIdx = i;
+    elements.push(el);
+  }
+
+  if (elements.length === 0 || startIdx < 0) {
+    var isImg = (['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif'].includes(ext));
+    var url = '/admin/records/' + recordId + (isImg ? '/preview-img' : '/preview_file');
+    var el = { href: url, title: fileName, type: 'image' };
+    if (vidExts.includes(ext)) { el.type = 'video'; }
+    if (audExts.includes(ext)) { el.type = 'audio'; }
+    elements = [el];
+    startIdx = 0;
+  }
+
+  openLightbox(elements, startIdx);
+}
+
+// 每页数量自动保存
+(function() {
+  var input = document.getElementById('per-page-input');
+  if (!input) return;
+  var currentVal = parseInt(input.value) || 50;
+  var timer = null;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      var raw = input.value.trim();
+      var val = parseInt(raw);
+      if (!raw || isNaN(val)) { input.style.outline='2px solid #ef4444'; return; }
+      if (val < 5) { alert('最少每页显示 5 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val > 200) { alert('最多每页显示 200 条'); input.style.outline='2px solid #ef4444'; return; }
+      if (val === currentVal) { input.style.outline=''; return; }
+      input.style.outline='';
+      var fd = new FormData();
+      fd.append('key', 'records_per_page');
+      fd.append('value', String(val));
+      var csrf = document.querySelector('input[name="csrf_token"]');
+      if (csrf) fd.append('csrf_token', csrf.value);
+      fetch('/admin/ajax/set-per-page', {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            currentVal = val;
+            window.location.reload(true);
+          } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+          }
+        }).catch(function(e) {
+          alert('请求失败: ' + e.message);
+        });
+    }, 800);
+  });
+})();
+
+// 后台扫描状态轮询（每30秒检查一次是否有新文件或清理）
+(function() {
+  var _lastNewFiles = 0;
+  var _lastOrphans = 0;
+  var _pollInterval = 30000; // 30秒
+
+  function pollScanStatus() {
+    fetch('/api/scan-status', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.total_new_files > _lastNewFiles || data.total_orphans_cleaned > _lastOrphans) {
+          // 有变化时刷新页面
+          window.location.reload();
+        }
+        _lastNewFiles = data.total_new_files || 0;
+        _lastOrphans = data.total_orphans_cleaned || 0;
+      })
+      .catch(function(e) {
+        // 静默失败
+      });
+  }
+
+  // 首次延迟后开始轮询
+  setTimeout(function() {
+    pollScanStatus();
+    setInterval(pollScanStatus, _pollInterval);
+  }, _pollInterval);
+})();
+</script>
+{% endblock %}

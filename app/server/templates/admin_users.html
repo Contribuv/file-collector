@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+{% block title %}用户管理{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <h3>用户管理</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <a href="{{ url_for('admin_user_create') }}" class="btn btn-sm btn-primary">新增用户</a>
+          <a href="{{ url_for('admin_invite_codes') }}" class="btn btn-sm btn-outline">管理邀请码</a>
+        </div>
+      </div>
+
+      {% if users %}
+      <!-- PC 端：表格 -->
+      <div class="records-table-pc">
+        <div class="table-responsive">
+          <table class="admin-table admin-users-table">
+            <thead>
+              <tr>
+                <th>用户名</th>
+                <th class="col-hide-mobile">邮箱</th>
+                <th>角色</th>
+                <th class="col-hide-mobile">状态</th>
+                <th>注册时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+              <tr>
+                <td class="col-user">{{ user.username }}</td>
+                <td class="col-hide-mobile col-email" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ user.email or '' }}">{{ user.email or '—' }}</td>
+                <td>
+                  {% if user.is_admin %}
+                  <span class="badge badge-admin">管理账号</span>
+                  {% else %}
+                  <span class="badge badge-user">普通用户</span>
+                  {% endif %}
+                </td>
+                <td class="col-hide-mobile">
+                  {% if user.status == 'active' %}
+                  <span class="badge badge-status badge-active" style="display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    启用
+                  </span>
+                  {% else %}
+                  <span class="badge badge-status badge-inactive" style="display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    禁用
+                  </span>
+                  {% endif %}
+                </td>
+                <td class="col-time">{{ user.created_at }}</td>
+                <td>
+                  {% if not user.is_admin %}
+                  <button class="btn btn-sm btn-outline btn-more" title="更多操作"
+                    data-user-id="{{ user.id }}"
+                    data-username="{{ user.username }}"
+                    data-email="{{ user.email or '' }}"
+                    data-role="{{ '管理账号' if user.is_admin else '普通用户' }}"
+                    data-status="{{ user.status }}"
+                    data-created="{{ user.created_at }}">操作</button>
+                  {% else %}
+                  <span class="text-muted">管理账号</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 移动端：卡片列表 -->
+      <div class="records-cards-mobile">
+        <div class="records-mobile-header">
+          <span>用户名</span>
+          <span>操作</span>
+        </div>
+        {% for user in users %}
+        <div class="record-card">
+          <div class="record-card-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <div style="flex:1;min-width:0;overflow:hidden;">
+                <span class="record-card-name">{{ user.username }}</span>
+                <div class="record-card-meta">
+                  <span>{{ user.created_at[:10] }}</span>
+                  <span>{% if user.is_admin %}管理账号{% else %}普通用户{% endif %}</span>
+                  <span style="{% if user.status == 'active' %}color:#059669;{% else %}color:#dc2626;{% endif %}">{% if user.status == 'active' %}已启用{% else %}已禁用{% endif %}</span>
+                </div>
+              </div>
+              {% if not user.is_admin %}
+              <button class="btn btn-sm btn-outline btn-more" title="更多操作"
+                data-user-id="{{ user.id }}"
+                data-username="{{ user.username }}"
+                data-email="{{ user.email or '' }}"
+                data-role="{{ '管理账号' if user.is_admin else '普通用户' }}"
+                data-status="{{ user.status }}"
+                data-created="{{ user.created_at }}">操作</button>
+              {% else %}
+              <span class="text-muted">管理账号</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div class="empty-state">
+        <h3>暂无用户</h3>
+        <p>用户可通过邀请码注册账户</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 编辑用户弹窗 -->
+<div class="modal-overlay" id="edit-modal" style="display:none;">
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h3>编辑用户</h3>
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <form method="POST" id="edit-form" onsubmit="return validateEditForm()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="edit-username">用户名</label>
+          <input type="text" id="edit-username" name="new_username" class="form-input" required>
+          <div class="form-hint">3-20位字母、数字或下划线</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-email">邮箱</label>
+          <input type="email" id="edit-email" name="new_email" class="form-input" placeholder="用于密码找回">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-password">新密码</label>
+          <input type="password" id="edit-password" name="new_password" class="form-input" placeholder="留空则不修改密码">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="edit-confirm">确认新密码</label>
+          <input type="password" id="edit-confirm" class="form-input" placeholder="再次输入新密码">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline" onclick="closeEditModal()">取消</button>
+        <button type="submit" class="btn btn-sm btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 重置密码确认弹窗 -->
+<div class="modal-overlay" id="reset-modal" style="display:none;">
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h3>重置密码</h3>
+      <button class="modal-close" onclick="closeResetModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>确定要重置用户 <strong id="reset-username-display"></strong> 的密码吗？</p>
+      <p class="text-muted">新密码将在重置后显示，请务必记下。</p>
+      <div id="reset-result" style="display:none;margin-top:10px;padding:10px 14px;background:#ecfdf5;border-radius:8px;font-size:0.85rem;">
+        <strong>新密码：</strong><code id="reset-new-pwd" style="font-family:monospace;"></code>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-sm btn-outline" id="reset-close-btn" onclick="closeResetModal()">关闭</button>
+      <button type="button" class="btn btn-sm btn-primary" id="reset-confirm-btn" onclick="confirmReset()">确定重置</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+/* 状态徽章 */
+.badge-status {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.badge-active {
+  background: none;
+  color: #059669;
+}
+.badge-inactive {
+  background: none;
+  color: #dc2626;
+}
+
+/* 角色徽章 */
+.badge-admin,
+.badge-user {
+  background: none;
+  color: #6b7280;
+}
+
+/* 更多操作按钮 */
+/* .btn-more-user 已统一为全局 .btn-more */
+
+/* 强化管理页按钮可见性 */
+.card .btn-outline {
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+}
+.card .btn-outline:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+.btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+.btn-danger:hover { background: #fecaca; color: #b91c1c; }
+.text-muted { color: #9ca3af; font-size: 0.875rem; }
+
+/* 移动端隐藏列 */
+@media (max-width: 640px) {
+  .col-hide-mobile { display: none !important; }
+  .admin-users-table th, .admin-users-table td { font-size: .82rem; padding: 8px 10px; }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-header h3 {
+    width: 100%;
+  }
+  .card-header .btn {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
+}
+
+/* 用户操作浮窗 */
+.user-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  min-width: 260px;
+  max-width: 320px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.25s ease;
+  pointer-events: auto;
+  overflow: hidden;
+}
+.user-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+}
+.user-popover-header strong { font-size: 0.92rem; color: var(--c-text); }
+.user-popover-close {
+  background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer;
+  padding: 0; width: 28px; height: 28px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.user-popover-close:hover { background: #f0f0f0; color: #666; }
+
+/* 用户信息概览区 */
+.user-popover-info {
+  padding: 10px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #f0f0f0;
+}
+.user-popover-info .info-line {
+  display: flex;
+  padding: 4px 0;
+  font-size: .78rem;
+  color: #666;
+}
+.user-popover-info .info-line .info-dot {
+  color: #aaa; width: 50px; flex-shrink: 0;
+}
+.user-popover-info .info-line .info-val {
+  color: #333; flex: 1; word-break: break-all;
+}
+.user-popover-body {
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.user-popover-row { display: contents; }
+/* 第二排上方加横线 */
+.user-popover-body > :nth-child(n+3) { border-top: 1px solid #f0f0f0; }
+/* 第二列加左边线 */
+.user-popover-body > :nth-child(even) { border-left: 1px solid #f0f0f0; }
+.user-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.user-popover-item:hover { background: #f5f7fa; }
+.user-popover-item.danger { color: #dc2626; }
+.user-popover-item.danger:hover { background: #fef2f2; }
+.user-popover-body form { margin: 0; min-width: 0; display: flex; }
+.user-popover-body form .user-popover-item { width: 100%; }
+
+/* 浮窗动画 */
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 浮窗遮罩 */
+.popover-overlay2 {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* modal 已提取到全局 style.css */
+
+@media (max-width: 640px) {
+  .user-popover { max-width: calc(100vw - 32px); min-width: 240px; border-radius: 18px; }
+  .user-popover-header { padding: 12px 14px; }
+  .user-popover-header strong { font-size: .88rem; }
+  .user-popover-item { padding: 11px 8px; font-size: .82rem; }
+  .user-popover-item svg { width: 14px; height: 14px; margin-right: 4px !important; }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var editUserId = null;
+var resetUserId = null;
+
+// ======= 用户操作浮窗 =======
+var _upBtn = null, _upOverlay = null, _upPopover = null;
+
+function closeUserPopover() {
+  if (_upPopover) { _upPopover.remove(); _upPopover = null; }
+  if (_upOverlay) { _upOverlay.remove(); _upOverlay = null; }
+  if (_upBtn) { _upBtn.classList.remove('active'); _upBtn = null; }
+}
+
+function showUserPopover(btn) {
+  if (_upBtn === btn) { closeUserPopover(); return; }
+  closeUserPopover();
+  
+  _upBtn = btn;
+  btn.classList.add('active');
+  
+  var userId = btn.getAttribute('data-user-id');
+  var username = btn.getAttribute('data-username');
+  var email = btn.getAttribute('data-email') || '—';
+  var role = btn.getAttribute('data-role');
+  var status = btn.getAttribute('data-status');
+  var created = btn.getAttribute('data-created');
+  var csrfToken = document.querySelector('input[name="csrf_token"]').value;
+  var isActive = status === 'active';
+  var toggleLabel = isActive ? '禁用' : '启用';
+  var statusBadge = isActive ? '<span style="color:#059669;font-weight:500;">● 已启用</span>' : '<span style="color:#dc2626;font-weight:500;">● 已禁用</span>';
+  
+  // SVG 图标
+  var svgToggleUser = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="' + (isActive ? '4.93' : '10') + '" y1="' + (isActive ? '4.93' : '15') + '" x2="' + (isActive ? '19.07' : '14') + '" y2="' + (isActive ? '19.07' : '9') + '"/></svg>';
+  var svgEditUser = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  var svgResetKey = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>';
+  var svgDeleteUser = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  
+  // 遮罩
+  var overlay = document.createElement('div');
+  overlay.className = 'popover-overlay2';
+  overlay.addEventListener('click', closeUserPopover);
+  document.body.appendChild(overlay);
+  _upOverlay = overlay;
+  
+  // 浮窗
+  var popover = document.createElement('div');
+  popover.className = 'user-popover';
+  popover.innerHTML =
+    '<div class="user-popover-header">' +
+      '<strong>' + escapeHtml(username) + '</strong>' +
+      '<button class="user-popover-close" onclick="closeUserPopover()">&times;</button>' +
+    '</div>' +
+    '<div class="user-popover-info">' +
+      '<div class="info-line"><span class="info-dot">邮箱</span><span class="info-val">' + escapeHtml(email) + '</span></div>' +
+      '<div class="info-line"><span class="info-dot">角色</span><span class="info-val">' + escapeHtml(role) + '</span></div>' +
+      '<div class="info-line"><span class="info-dot">状态</span><span class="info-val">' + statusBadge + '</span></div>' +
+      '<div class="info-line"><span class="info-dot">注册</span><span class="info-val">' + escapeHtml(created) + '</span></div>' +
+    '</div>' +
+    '<div class="user-popover-body">' +
+      '<div class="user-popover-row">' +
+        '<form method="POST" action="/admin/users/' + userId + '/toggle" style="margin:0;" onsubmit="return confirm(\'确定' + toggleLabel + '用户\u300c' + escapeJs(username) + '\u300d？\');">' +
+          '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
+          '<button type="submit" class="user-popover-item">' + svgToggleUser + toggleLabel + '用户</button>' +
+        '</form>' +
+        '<button class="user-popover-item" onclick="closeUserPopover();showEditModal(\'' + userId + '\',\'' + escapeJs(username) + '\',\'' + escapeJs(email) + '\')">' + svgEditUser + '编辑信息</button>' +
+      '</div>' +
+      '<div class="user-popover-row">' +
+        '<button class="user-popover-item" onclick="closeUserPopover();showResetModal(\'' + userId + '\',\'' + escapeJs(username) + '\')">' + svgResetKey + '重置密码</button>' +
+        '<form method="POST" action="/admin/users/' + userId + '/delete" style="margin:0;" onsubmit="return confirm(\'确定删除用户\u300c' + escapeJs(username) + '\u300d？此操作不可恢复！\');">' +
+          '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
+          '<button type="submit" class="user-popover-item danger">' + svgDeleteUser + '删除用户</button>' +
+        '</form>' +
+      '</div>' +
+    '</div>';
+  
+  popover.addEventListener('click', function(e) { e.stopPropagation(); });
+  document.body.appendChild(popover);
+  _upPopover = popover;
+}
+
+function escapeHtml(str) {
+  if (!str) return '-';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeJs(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// 绑定"更多操作"按钮
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.btn-more').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showUserPopover(this);
+    });
+  });
+});
+
+// 全局点击关闭浮窗
+document.addEventListener('click', function(e) {
+  if (_upPopover && !_upPopover.contains(e.target) && !e.target.closest('.btn-more')) {
+    closeUserPopover();
+  }
+});
+
+// ESC 关闭浮窗
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closeUserPopover(); closeEditModal(); closeResetModal(); }
+});
+
+// ======= 编辑/重置弹窗 =======
+function showEditModal(userId, username, email) {
+  editUserId = userId;
+  document.getElementById('edit-username').value = username;
+  document.getElementById('edit-email').value = email || '';
+  document.getElementById('edit-password').value = '';
+  document.getElementById('edit-confirm').value = '';
+  document.getElementById('edit-form').action = '/admin/users/' + userId + '/edit';
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+function closeEditModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+  editUserId = null;
+}
+function validateEditForm() {
+  var pw = document.getElementById('edit-password').value;
+  var cf = document.getElementById('edit-confirm').value;
+  if (pw && pw !== cf) { alert('两次输入的密码不一致'); return false; }
+  if (pw && pw.length < 6) { alert('密码至少需要6位'); return false; }
+  return true;
+}
+
+function showResetModal(userId, username) {
+  resetUserId = userId;
+  document.getElementById('reset-username-display').textContent = username;
+  document.getElementById('reset-result').style.display = 'none';
+  document.getElementById('reset-confirm-btn').style.display = '';
+  document.getElementById('reset-close-btn').textContent = '关闭';
+  document.getElementById('reset-modal').style.display = 'flex';
+}
+function closeResetModal() {
+  document.getElementById('reset-modal').style.display = 'none';
+  resetUserId = null;
+}
+async function confirmReset() {
+  if (!resetUserId) return;
+  var csrf = document.querySelector('input[name="csrf_token"]').value;
+  try {
+    var resp = await fetch('/admin/users/' + resetUserId + '/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }
+    });
+    var result = await resp.json();
+    if (result.success) {
+      document.getElementById('reset-new-pwd').textContent = result.new_password;
+      document.getElementById('reset-result').style.display = 'block';
+      document.getElementById('reset-confirm-btn').style.display = 'none';
+      document.getElementById('reset-close-btn').textContent = '已重置，关闭';
+    } else {
+      alert('重置失败: ' + (result.message || '未知错误'));
+    }
+  } catch(e) {
+    alert('请求失败，请检查网络');
+  }
+}
+
+// 点击遮罩关闭弹窗
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'edit-modal') closeEditModal();
+  if (e.target.id === 'reset-modal') closeResetModal();
+});
+</script>
+{% endblock %}

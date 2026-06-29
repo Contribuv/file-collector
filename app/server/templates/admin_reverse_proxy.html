@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}反向代理配置{% endblock %}
+
+{% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="admin-layout">
+  {% include "_admin_sidebar.html" %}
+  <div class="admin-content">
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <a href="{{ url_for('admin_settings') }}" class="btn btn-sm btn-outline">← 返回设置</a>
+          <h3 style="margin:0;">反向代理配置</h3>
+        </div>
+      </div>
+      <div class="card-body">
+
+        <!-- 基础配置 -->
+        <div class="rp-section">
+          <div class="rp-section-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            基础配置
+          </div>
+
+          <div class="rp-form-grid">
+            <!-- 域名 + 证书信息 -->
+            <div class="rp-field rp-field--wide">
+              <label class="rp-label">域名 <span class="rp-required">*</span></label>
+              <select id="rp-domain" class="form-input" onchange="onDomainChange()">
+                <option value="">-- 请选择域名 --</option>
+                {% for cert in certs %}
+                {% set cert_loop = loop %}
+                {% for san in cert.sans %}
+                <option value="{{ san }}" data-cert-index="{{ cert_loop.index0 }}"
+                        {% if config.domain == san %}selected{% endif %}>
+                  {{ san }}
+                  {% if cert.expired %} [已过期]{% endif %}
+                  {% if cert.used %} [使用中]{% endif %}
+                </option>
+                {% endfor %}
+                {% endfor %}
+              </select>
+              {% if certs %}
+              <div id="rp-cert-info" class="rp-cert-inline">
+                <span>📋</span>
+                <span>到期: <strong id="cert-expires">-</strong></span>
+                <span id="cert-status">-</span>
+              </div>
+              {% else %}
+              <div class="rp-warn-inline">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                未检测到飞牛系统证书，请先在飞牛「设置 → 证书管理」中添加证书
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- 端口 -->
+            <div class="rp-field rp-field--narrow">
+              <label class="rp-label" for="rp-port">端口</label>
+              <input type="number" id="rp-port" class="form-input" value="{{ config.port or 7786 }}"
+                     min="1" max="65535" step="1" placeholder="7786">
+              <div class="rp-mini-hint">
+                默认 7786，80/443/8080 被占用
+              </div>
+              <div class="rp-warn-inline">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                需在路由器开启<strong style="color:#b91c1c;">端口转发</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作条：按钮 + 状态 + 外网地址 -->
+        <div class="rp-action-bar">
+          <div class="rp-btns">
+            {% if status.running %}
+            <button class="btn btn-sm btn-danger" onclick="stopProxy()" id="btn-stop">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              停止反代
+            </button>
+            <button class="btn btn-sm btn-outline" onclick="reloadCert()" id="btn-reload" style="display:none;">
+              重载证书
+            </button>
+            {% else %}
+            <button class="btn btn-sm btn-primary" onclick="startProxy()" id="btn-start" {% if not certs %}disabled{% endif %}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 19,12 8,19"/></svg>
+              开始反代
+            </button>
+            <button class="btn btn-sm btn-outline" onclick="location.reload()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              检测
+            </button>
+            {% endif %}
+          </div>
+          <div class="rp-status-bar" id="rp-status">
+            {% if status.running %}
+            <span class="rp-dot rp-dot--on"></span>
+            <span class="rp-status-text"><strong>{{ status.domain }}:{{ status.port }}</strong></span>
+            <a href="https://{{ status.domain }}:{{ status.port }}" target="_blank" rel="noopener" class="rp-ext-link">
+              外网访问 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+            {% elif certs %}
+            <span class="rp-dot rp-dot--off"></span>
+            <span class="rp-status-text rp-status-text--muted">未启动</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- 高级选项 -->
+        <div class="rp-section">
+          <div class="rp-section-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            高级选项
+          </div>
+
+          <div class="rp-opts-row">
+            <!-- Gzip -->
+            <div class="rp-opt">
+              <label class="form-switch" style="cursor:pointer;">
+                <input type="checkbox" id="rp-gzip" {{ 'checked' if config.gzip_enabled != False else '' }}>
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="rp-opt-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Gzip 压缩
+                </span>
+              </label>
+              <span class="rp-opt-desc">自动压缩文本响应，减少流量</span>
+            </div>
+
+            <!-- HSTS -->
+            <div class="rp-opt">
+              <label class="form-switch" style="cursor:pointer;">
+                <input type="checkbox" id="rp-hsts" {{ 'checked' if config.hsts_enabled != False else '' }}>
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="rp-opt-name">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  HSTS
+                </span>
+              </label>
+              <span class="rp-opt-desc">强制浏览器使用 HTTPS</span>
+            </div>
+
+            <!-- HTTP→HTTPS -->
+            <div class="rp-opt rp-opt--info">
+              <span class="rp-opt-name">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                HTTP → HTTPS
+              </span>
+              <span class="rp-ok-tag">✓ 自动301</span>
+            </div>
+
+            <!-- 超时 -->
+            <div class="rp-opt">
+              <span class="rp-opt-name">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                代理超时
+              </span>
+              <div style="display:inline-flex;align-items:center;gap:6px;margin-top:2px;">
+                <input type="number" id="rp-timeout" class="form-input" value="{{ config.timeout or 600 }}"
+                       min="30" max="7200" step="10" style="width:72px;font-size:.8rem;padding:3px 8px;">
+                <span style="font-size:.72rem;color:#92400e;"><em>超时不重连</em> · 1GB≈240秒</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 日志 -->
+        <div class="rp-section">
+          <div class="rp-log-head">
+            <span class="rp-section-label" style="margin-bottom:0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              运行日志
+            </span>
+            <div class="rp-log-tools">
+              <button class="btn btn-xs btn-outline" onclick="clearLogs()">清除</button>
+              <button class="btn btn-xs btn-outline" onclick="exportLogs()">导出</button>
+              <label style="display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:#6b7280;cursor:pointer;">
+                <input type="checkbox" id="rp-auto-scroll" checked style="width:13px;height:13px;accent-color:#3b82f6;">
+                自动滚动
+              </label>
+            </div>
+          </div>
+          <div class="rp-log-box" id="rp-log-box">
+            {% if logs %}
+            {% for log in logs %}
+            <div class="rp-log-line {{ log.level|lower }}">[{{ log.time }}] {{ log.level }} {{ log.msg }}</div>
+            {% endfor %}
+            {% else %}
+            <div class="rp-log-empty">暂无日志 — 启动反代后此处将显示运行记录</div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* ====== 分区标题 ====== */
+.rp-section { margin-bottom: 16px; }
+.rp-section:last-child { margin-bottom: 0; }
+.rp-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid #e5e7eb;
+}
+
+/* ====== 表格表单 ====== */
+.rp-form-grid {
+  display: grid;
+  grid-template-columns: 1.3fr .7fr;
+  gap: 16px 20px;
+  align-items: start;
+}
+@media (max-width: 600px) { .rp-form-grid { grid-template-columns: 1fr; } }
+
+.rp-field { display: flex; flex-direction: column; }
+.rp-label {
+  font-size: .78rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 4px;
+}
+.rp-required { color: #dc2626; font-weight: 700; }
+
+/* 证书行内提示 */
+.rp-cert-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: .73rem;
+  color: #6b7280;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.rp-cert-inline strong { color: #374151; }
+
+/* 行内警告 */
+.rp-warn-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: .72rem;
+  line-height: 1.35;
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-word;
+}
+.rp-warn-inline:first-of-type {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.rp-warn-inline svg { flex-shrink: 0; }
+
+.rp-mini-hint {
+  font-size: .7rem;
+  color: #9ca3af;
+  margin-top: 3px;
+}
+
+/* ====== 操作条 ====== */
+.rp-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.rp-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.rp-btns .btn svg { margin-right: 3px; vertical-align: -1px; }
+
+.rp-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .78rem;
+  min-height: 28px;
+  flex-wrap: wrap;
+}
+.rp-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rp-dot--on { background: #22c55e; box-shadow: 0 0 5px rgba(34,197,94,.45); }
+.rp-dot--off { background: #d1d5db; }
+.rp-status-text strong { color: #166534; word-break: break-all; }
+.rp-status-text--muted { color: #9ca3af; }
+.rp-ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  font-size: .7rem;
+  color: #3b82f6;
+  text-decoration: none;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  background: #eff6ff;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.rp-ext-link:hover { background: #dbeafe; text-decoration: none; }
+
+/* ====== 高级选项（横排紧凑）====== */
+.rp-opts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+@media (max-width: 600px) { .rp-opts-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 420px) { .rp-opts-row { grid-template-columns: 1fr; } }
+
+.rp-opt {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color .15s;
+}
+.rp-opt:hover { border-color: #d1d5db; }
+.rp-opt--info { background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border-color: #bbf7d0; }
+.rp-opt--info:hover { border-color: #86efac; }
+
+.rp-opt-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .8rem;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 2px;
+}
+.rp-opt-desc {
+  font-size: .7rem;
+  color: #9ca3af;
+  margin-left: 25px;
+}
+.rp-ok-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  font-size: .68rem;
+  font-weight: 500;
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+/* ====== 日志 ====== */
+.rp-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rp-log-tools { display: flex; align-items: center; gap: 6px; }
+
+.rp-log-box {
+  background: #0f172a;
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  height: 200px;
+  overflow-y: auto;
+  font-family: 'Consolas','Monaco','Courier New',monospace;
+  font-size: .72rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.rp-log-box::-webkit-scrollbar{width:5px;height:5px;}
+.rp-log-box::-webkit-scrollbar-thumb{background:#334155;border-radius:3px;}
+.rp-log-box::-webkit-scrollbar-track{background:#1e293b;}
+.rp-log-line.info { color: #7dd3fc; }
+.rp-log-line.warn { color: #fcd34d; }
+.rp-log-line.error { color: #fca5a5; }
+.rp-log-empty {
+  color: #475569;
+  text-align: center;
+  padding-top: 60px;
+  font-size:.78rem;
+}
+@media (max-width: 480px) { .rp-log-box { height: 160px; } }
+</style>
+
+<script>
+var _certData = {{ all_certs_json|safe }};
+var _csrf = document.querySelector('input[name="csrf_token"]').value;
+var _statusUrl = '{{ url_for("api_reverse_proxy_status") }}';
+var _startUrl = '{{ url_for("api_reverse_proxy_start") }}';
+var _stopUrl = '{{ url_for("api_reverse_proxy_stop") }}';
+var _reloadUrl = '{{ url_for("api_reverse_proxy_reload_cert") }}';
+var _logsUrl = '{{ url_for("api_reverse_proxy_logs") }}';
+var _clearLogsUrl = '{{ url_for("api_reverse_proxy_clear_logs") }}';
+var _exportLogsUrl = '{{ url_for("api_reverse_proxy_export_logs") }}';
+var _logTimer = null, _statusTimer = null;
+
+function onDomainChange() {
+  var sel = document.getElementById('rp-domain');
+  var expiresEl = document.getElementById('cert-expires');
+  var statusEl = document.getElementById('cert-status');
+  if (!sel.value || !_certData.length) {
+    if (expiresEl) expiresEl.textContent = '-';
+    if (statusEl) statusEl.textContent = '';
+    return;
+  }
+  var idx = sel.selectedIndex > 0 ? parseInt(sel.options[sel.selectedIndex].getAttribute('data-cert-index')) : -1;
+  if (idx >= 0 && idx < _certData.length) {
+    var c = _certData[idx];
+    if (expiresEl) expiresEl.textContent = c.expires || '-';
+    if (statusEl) {
+      statusEl.innerHTML = c.expired
+        ? '<span style="color:#dc2626;">已过期</span>'
+        : '<span style="color:#059669;">✓ 有效</span>';
+    }
+  }
+}
+
+function reloadCert() {
+  if (!confirm('重新加载证书将热更新 SSL 上下文，不会中断现有连接。确定继续？')) return;
+  var btn = document.getElementById('btn-reload');
+  btn.disabled = true; btn.textContent = '加载中...';
+  fetch(_reloadUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': _csrf },
+    body: 'csrf_token=' + encodeURIComponent(_csrf)
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false; btn.textContent = '重载证书';
+      showToast(d.message || (d.success ? '证书已重载' : '重载失败'));
+      if (d.success) { btn.style.display = 'none'; refreshStatus(); }
+    }).catch(function() { btn.disabled = false; btn.textContent = '重载证书'; showToast('网络错误'); });
+}
+
+function startProxy() {
+  var domain = document.getElementById('rp-domain').value;
+  var port = document.getElementById('rp-port').value;
+  if (!domain) { showToast('请选择域名'); return; }
+  if (!port || port < 1 || port > 65535) { showToast('请输入有效端口 (1-65535)'); return; }
+  if (port == 80 || port == 443 || port == 8080) { showToast('端口 ' + port + ' 已被飞牛系统占用，请使用其他端口（如 7786）'); return; }
+  var sel = document.getElementById('rp-domain');
+  var idx = sel.selectedIndex > 0 ? parseInt(sel.options[sel.selectedIndex].getAttribute('data-cert-index')) : -1;
+  if (idx >= 0 && idx < _certData.length && _certData[idx].expired) {
+    if (!confirm('所选域名证书已过期，启动后可能无法正常访问。确定继续？')) return;
+  }
+  var body = 'domain=' + encodeURIComponent(domain) +
+    '&port=' + encodeURIComponent(port) +
+    '&gzip=' + (document.getElementById('rp-gzip').checked ? '1' : '0') +
+    '&hsts=' + (document.getElementById('rp-hsts').checked ? '1' : '0') +
+    '&timeout=' + encodeURIComponent(document.getElementById('rp-timeout').value) +
+    '&csrf_token=' + encodeURIComponent(_csrf);
+  var btn = document.getElementById('btn-start');
+  btn.disabled = true; btn.textContent = '启动中...';
+  fetch(_startUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': _csrf }, body: body })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { btn.disabled = false; btn.textContent = '开始反代'; showToast(d.message); if (d.success) setTimeout(function(){window.location.reload();},1200); })
+    .catch(function() { btn.disabled = false; btn.textContent = '开始反代'; showToast('请求失败'); });
+}
+
+function stopProxy() {
+  if (!confirm('确定停止反向代理？停止后分享链接将无法通过此域名访问。')) return;
+  var btn = document.getElementById('btn-stop');
+  btn.disabled = true; btn.textContent = '停止中...';
+  fetch(_stopUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': _csrf }, body: 'csrf_token=' + encodeURIComponent(_csrf) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { btn.disabled = false; btn.textContent = '停止反代'; showToast(d.message); if (d.success) setTimeout(function(){window.location.reload();},1200); })
+    .catch(function() { btn.disabled = false; btn.textContent = '停止反代'; showToast('请求失败'); });
+}
+
+function refreshLogs() {
+  fetch(_logsUrl).then(function(r){return r.json();})
+    .then(function(d){
+      var box = document.getElementById('rp-log-box');
+      if (!d.logs||!d.logs.length){box.innerHTML='<div class="rp-log-empty">暂无日志 — 启动反代后此处将显示运行记录</div>';return;}
+      box.innerHTML=d.logs.map(function(l){return'<div class="rp-log-line '+l.level.toLowerCase()+'">['+l.time+'] '+l.level+' '+escapeHtml(l.msg)+'</div>';}).join('');
+      if(document.getElementById('rp-auto-scroll').checked) box.scrollTop=box.scrollHeight;
+    });
+}
+function clearLogs(){if(!confirm('确定清除所有日志？'))return;fetch(_clearLogsUrl,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':_csrf},body:'csrf_token='+encodeURIComponent(_csrf)}).then(function(){document.getElementById('rp-log-box').innerHTML='<div class="rp-log-empty">暂无日志 — 启动反代后此处将显示运行记录</div>';showToast('日志已清除');});}
+function exportLogs(){window.open(_exportLogsUrl,'_blank');}
+
+function refreshStatus(){
+  fetch(_statusUrl).then(function(r){return r.json();}).then(function(d){
+    var st=document.getElementById('rp-status'),reloadBtn=document.getElementById('btn-reload');
+    if(d.running){
+      st.innerHTML='<span class="rp-dot rp-dot--on"></span><span class="rp-status-text"><strong>'+d.domain+':'+d.port+'</strong></span>'+
+        '<a href="https://'+d.domain+':'+d.port+'" target="_blank" rel="noopener" class="rp-ext-link">'+
+        '外网访问<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
+      if(d.cert_changed){st.innerHTML+='<div style="width:100%;margin-top:4px;padding:4px 8px;background:#fef3c7;border-radius:4px;font-size:.7rem;color:#92400e;border:1px solid #fde68a;">系统证书已更新，建议重新加载</div>';if(reloadBtn)reloadBtn.style.display='';}
+    }else{
+      // 如果之前显示运行中，现在变成未启动 → 刷新页面以更新按钮状态
+      var wasRunning = document.querySelector('#rp-status .rp-dot--on');
+      st.innerHTML='<span class="rp-dot rp-dot--off"></span><span class="rp-status-text rp-status-text--muted">未启动</span>';if(reloadBtn)reloadBtn.style.display='none';
+      if(wasRunning){setTimeout(function(){window.location.reload();},1500);}
+    }
+  });
+}
+
+function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+document.addEventListener('DOMContentLoaded', function(){
+  onDomainChange();
+  {% if status.running %}refreshStatus();_statusTimer=setInterval(refreshStatus,60000);{% endif %}
+  refreshLogs();_logTimer=setInterval(refreshLogs,5000);
+});
+window.addEventListener('beforeunload',function(){if(_logTimer)clearInterval(_logTimer);if(_statusTimer)clearInterval(_statusTimer);});
+
+function showToast(msg){
+  var el=document.createElement('div');
+  el.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);padding:8px 16px;background:#1e293b;color:#fff;border-radius:6px;font-size:.8rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeInOut 2.5s forwards;';
+  el.textContent=msg;document.body.appendChild(el);
+  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},2500);
+}
+// toast 动画
+var s=document.createElement('style');s.textContent='@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(-8px)}10%{opacity:1;transform:translateX(-50%) translateY(0)}90%{opacity:1}100%{opacity:0}}';
+document.head.appendChild(s);
+</script>
+{% endblock %}

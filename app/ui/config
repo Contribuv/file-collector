@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "file-collector.main": {
+            "title": "文件收集器",
+            "icon": "images/icon-{0}.png",
+            "type": "url",
+            "protocol": "http",
+            "port": "${wizard_app_port}",
+            "url": "/admin",
+            "allUsers": true
+        }
+    }
+}

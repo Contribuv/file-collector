@@ -118,6 +118,29 @@ GZIP_TYPES = {
 }
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """禁止 urllib 自动跟随重定向。
+    反向代理必须原样把 3xx + Set-Cookie 等响应头返回客户端，
+    否则 session cookie / 登录流程会被 urllib 内部吞掉。"""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+    def http_error_301(self, req, fp, code, msg, headers):
+        return fp
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        return fp
+
+    def http_error_303(self, req, fp, code, msg, headers):
+        return fp
+
+    def http_error_307(self, req, fp, code, msg, headers):
+        return fp
+
+    def http_error_308(self, req, fp, code, msg, headers):
+        return fp
+
+
 class ProxyHandler(BaseHTTPRequestHandler):
     """HTTP 代理处理器 —— 转发请求到内部 Flask 并返回响应"""
 
@@ -183,9 +206,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
             gzip_enabled = _cfg.get('gzip_enabled', True)
             hsts_enabled = _cfg.get('hsts_enabled', True)
 
-            # 发送请求
+            # 发送请求（禁用自动重定向跟随，否则会吞掉 Set-Cookie 等响应头）
             try:
-                resp = urllib.request.urlopen(req, timeout=int(req_timeout))
+                resp = urllib.request.build_opener(
+                    urllib.request.HTTPHandler(),
+                    NoRedirectHandler,
+                    urllib.request.HTTPDefaultErrorHandler()
+                ).open(req, timeout=int(req_timeout))
                 status = resp.status
                 resp_headers = dict(resp.headers)
                 resp_body = resp.read()
@@ -564,6 +591,13 @@ class ProxyManager:
             cls.append_log('ERROR', f'服务异常退出: {e}')
         finally:
             cls._running = False
+            # 释放 server socket，否则端口永远不释放
+            if cls._server:
+                try:
+                    cls._server.server_close()
+                except Exception:
+                    pass
+                cls._server = None
             try:
                 cfg = cls._load_config()
                 # 防止 DB 异常时用残缺配置覆盖正常配置
@@ -594,7 +628,11 @@ class ProxyManager:
                 try:
                     cls._server.shutdown()
                 except Exception as e:
-                    logger.warning(f"关闭服务器异常: {e}")
+                    logger.warning(f"shutdown 异常: {e}")
+                try:
+                    cls._server.server_close()
+                except Exception as e:
+                    logger.warning(f"server_close 异常: {e}")
             cls._running = False
 
             if cls._thread and cls._thread.is_alive():

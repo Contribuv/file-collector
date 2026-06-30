@@ -255,7 +255,7 @@ start() {
     fi
 
     # ---- 第5步：数据库恢复检查 ----
-    log "[5/7] 检查数据库..."
+    log "[5/8] 检查数据库..."
     DB_PATH="${DATA_DIR}/file_collector.db"
     DB_VALID=0
 
@@ -327,8 +327,34 @@ start() {
         fi
     fi
 
-    # ---- 第6步：清理旧进程并启动 ----
-    log "[6/7] 清理旧进程并启动..."
+    # ---- 第6步：Go 反向代理二进制检测 ----
+    log "[6/8] 检测 Go 反向代理..."
+    RPROXY_DIR="${APP_DIR%/*}/rproxy"
+    ARCH=$(uname -m)
+    RPROXY_BIN=""
+    if [ -d "$RPROXY_DIR" ]; then
+        case "$ARCH" in
+            x86_64|amd64)
+                [ -f "${RPROXY_DIR}/fc-rproxy-amd64" ] && RPROXY_BIN="${RPROXY_DIR}/fc-rproxy-amd64"
+                ;;
+            aarch64|arm64)
+                [ -f "${RPROXY_DIR}/fc-rproxy-arm64" ] && RPROXY_BIN="${RPROXY_DIR}/fc-rproxy-arm64"
+                ;;
+        esac
+        if [ -n "$RPROXY_BIN" ]; then
+            chmod +x "$RPROXY_BIN" 2>/dev/null || true
+            log "  Go 反代可用: ${RPROXY_BIN}"
+            export RPROXY_BIN_PATH="$RPROXY_BIN"
+        else
+            log "  WARN: 未找到对应架构的 Go 反代二进制文件，反向代理功能将不可用"
+            log "  请在 NAS 上执行 ${RPROXY_DIR}/build.sh 编译对应架构版本"
+        fi
+    else
+        log "  INFO: 反代目录不存在: ${RPROXY_DIR}"
+    fi
+
+    # ---- 第7步：清理旧进程并启动 ----
+    log "[7/8] 清理旧进程并启动..."
     [ -f "$PID_FILE" ] && {
         OLD=$(cat "$PID_FILE")
         kill -0 "$OLD" 2>/dev/null && kill -9 "$OLD" 2>/dev/null
@@ -353,7 +379,7 @@ start() {
         }
     done
 
-    log "[7/7] 启动成功! 端口 ${APP_PORT}"
+    log "[8/8] 启动成功! 端口 ${APP_PORT}"
 
     # 启动成功后三重备份数据库（DATA_DIR + PKGVAR + /var/backups）
     if [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then

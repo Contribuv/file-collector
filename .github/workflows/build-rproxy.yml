@@ -1,0 +1,91 @@
+name: Build fc-rproxy
+
+on:
+  push:
+    paths:
+      - 'app/rproxy/src/**'
+      - '.github/workflows/build-rproxy.yml'
+    branches:
+      - main
+      - master
+  pull_request:
+    paths:
+      - 'app/rproxy/src/**'
+      - '.github/workflows/build-rproxy.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            binary-name: fc-rproxy-amd64
+          - goos: linux
+            goarch: arm64
+            binary-name: fc-rproxy-arm64
+          - goos: windows
+            goarch: amd64
+            binary-name: fc-rproxy.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          cd app/rproxy/src
+          go build -ldflags="-s -w" -o "../${{ matrix.binary-name }}" .
+          ls -lh "../${{ matrix.binary-name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary-name }}
+          path: app/rproxy/${{ matrix.binary-name }}
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp artifacts/fc-rproxy-amd64/fc-rproxy-amd64 release/
+          cp artifacts/fc-rproxy-arm64/fc-rproxy-arm64 release/
+          cp artifacts/fc-rproxy.exe/fc-rproxy.exe release/
+          chmod +x release/fc-rproxy-amd64 release/fc-rproxy-arm64
+          ls -lh release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

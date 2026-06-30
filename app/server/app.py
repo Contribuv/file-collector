@@ -144,8 +144,11 @@ app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流�
 from office import office_bp
 app.register_blueprint(office_bp)
 
-# 内置反向代理引擎
-import reverse_proxy
+# 内置反向代理引擎（Go 版本）
+import rproxy_manager
+from cert_manager import CertManager
+
+RPROXY_PM = rproxy_manager.GoRProxyManager()
 
 # 反向代理支持：修正 request.remote_addr / request.scheme
 # x_for=1 信任 1 层反向代理（最常见的 Nginx/Unix Socket 单层反代场景）
@@ -2185,7 +2188,7 @@ def _resolve_public_url(user_id=None):
     2. 手动设置的 public_url
     3. 空（前端回退到 window.location.origin）
     """
-    rp_public = reverse_proxy.ProxyManager.get_public_url()
+    rp_public = RPROXY_PM.get_public_url()
     if rp_public:
         return rp_public
     if user_id:
@@ -8501,7 +8504,7 @@ def admin_settings():
             footer_text = request.form.get('collect_footer_text', '').strip()
             set_setting('collect_footer_text', footer_text)
             # 反代运行时 public_url 为只读，不覆盖用户手动设置的值
-            if not reverse_proxy.ProxyManager.get_public_url():
+            if not RPROXY_PM.get_public_url():
                 public_url = request.form.get('public_url', '').strip()
                 set_setting('public_url', public_url)
             share_title = request.form.get('share_page_title', '').strip()
@@ -8652,7 +8655,7 @@ def admin_settings():
         admin_nickname=admin_nickname,
         custom_upload_path=custom_upload_path,
         sys_info=sys_info,
-        rp_status=reverse_proxy.ProxyManager.status(),
+        rp_status=RPROXY_PM.status(),
         version=VERSION)
 
 
@@ -8660,14 +8663,18 @@ def admin_settings():
 # 内置反向代理路由
 # ============================================================
 
+def _rp_get_pm():
+    return RPROXY_PM
+
 @app.route('/admin/settings/reverse-proxy')
 @admin_required
 def admin_reverse_proxy():
     """反向代理配置页面"""
-    certs = reverse_proxy.CertManager.get_certs_for_display()
-    config = reverse_proxy.ProxyManager.get_config()
-    status = reverse_proxy.ProxyManager.status()
-    logs = reverse_proxy.ProxyManager.get_logs(50)
+    pm = _rp_get_pm()
+    certs = CertManager.get_certs_for_display()
+    config = pm.get_config()
+    status = pm.status()
+    logs = pm.get_logs(50)
     return render_template('admin_reverse_proxy.html',
         certs=certs,
         config=config,
@@ -8680,13 +8687,13 @@ def admin_reverse_proxy():
 @app.route('/api/reverse-proxy/status')
 @admin_required
 def api_reverse_proxy_status():
-    return jsonify(reverse_proxy.ProxyManager.status())
+    return jsonify(_rp_get_pm().status())
 
 
 @app.route('/api/reverse-proxy/certs')
 @admin_required
 def api_reverse_proxy_certs():
-    return jsonify({'certs': reverse_proxy.CertManager.get_certs_for_display()})
+    return jsonify({'certs': CertManager.get_certs_for_display()})
 
 
 @app.route('/api/reverse-proxy/start', methods=['POST'])
@@ -8710,7 +8717,7 @@ def api_reverse_proxy_start():
         return jsonify({'success': False, 'message': '端口范围 1-65535'})
     if port in (80, 443, 8080):
         return jsonify({'success': False, 'message': f'端口 {port} 已被飞牛系统占用，请使用其他端口（如 7786）'})
-    certs = reverse_proxy.CertManager.load_certs()
+    certs = CertManager.load_certs()
     cert_path = None
     key_path = None
     for cert in certs:
@@ -8721,8 +8728,10 @@ def api_reverse_proxy_start():
             break
     if not cert_path:
         return jsonify({'success': False, 'message': f'未找到域名 {domain} 的证书'})
-    success, msg = reverse_proxy.ProxyManager.start(
+
+    success, msg = RPROXY_PM.start(
         domain, port, cert_path, key_path,
+        f'http://127.0.0.1:{PORT}',
         gzip_enabled, hsts_enabled, timeout
     )
     return jsonify({'success': success, 'message': msg})
@@ -8733,7 +8742,7 @@ def api_reverse_proxy_start():
 def api_reverse_proxy_stop():
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'})
-    success, msg = reverse_proxy.ProxyManager.stop()
+    success, msg = _rp_get_pm().stop()
     return jsonify({'success': success, 'message': msg})
 
 
@@ -8742,14 +8751,14 @@ def api_reverse_proxy_stop():
 def api_reverse_proxy_reload_cert():
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'})
-    success, msg = reverse_proxy.ProxyManager.reload_cert()
+    success, msg = _rp_get_pm().reload_cert()
     return jsonify({'success': success, 'message': msg})
 
 
 @app.route('/api/reverse-proxy/logs')
 @admin_required
 def api_reverse_proxy_logs():
-    return jsonify({'logs': reverse_proxy.ProxyManager.get_logs(200)})
+    return jsonify({'logs': _rp_get_pm().get_logs(200)})
 
 
 @app.route('/api/reverse-proxy/logs/clear', methods=['POST'])
@@ -8757,7 +8766,7 @@ def api_reverse_proxy_logs():
 def api_reverse_proxy_clear_logs():
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败'})
-    reverse_proxy.ProxyManager.clear_logs()
+    _rp_get_pm().clear_logs()
     return jsonify({'success': True})
 
 
@@ -8765,7 +8774,7 @@ def api_reverse_proxy_clear_logs():
 @admin_required
 def api_reverse_proxy_export_logs():
     from flask import Response
-    logs = reverse_proxy.ProxyManager.get_logs(9999)
+    logs = _rp_get_pm().get_logs(9999)
     content = '\n'.join(
         f"[{l['time']}] {l['level']} {l['msg']}" for l in logs
     )

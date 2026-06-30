@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -158,9 +159,22 @@ func (rp *ReverseProxy) handleConn(conn net.Conn) {
 	if peek[0] == 0x16 {
 		tlsConn := tls.Server(&peekConn{Conn: conn, peek: peek}, rp.tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
+			rp.logger.Add("ERROR", fmt.Sprintf("TLS handshake failed: %v", err))
 			return
 		}
-		http.Serve(&singleConnListener{conn: tlsConn}, rp.server.Handler)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		wrappedConn := &waitCloseConn{
+			Conn:   tlsConn,
+			closer: &wg,
+		}
+
+		listener := &singleConnListener{conn: wrappedConn}
+		rp.server.Serve(listener)
+
+		wg.Wait()
 	} else {
 		rp.handleHTTPRedirect(&peekConn{Conn: conn, peek: peek}, nil)
 	}
@@ -196,6 +210,20 @@ func (l *singleConnListener) Accept() (net.Conn, error) {
 
 func (l *singleConnListener) Close() error   { return nil }
 func (l *singleConnListener) Addr() net.Addr { return l.conn.LocalAddr() }
+
+type waitCloseConn struct {
+	net.Conn
+	closer    *sync.WaitGroup
+	closeOnce sync.Once
+}
+
+func (c *waitCloseConn) Close() error {
+	err := c.Conn.Close()
+	c.closeOnce.Do(func() {
+		c.closer.Done()
+	})
+	return err
+}
 
 func (rp *ReverseProxy) handleHTTPRedirect(conn net.Conn, _ []byte) {
 	buf := make([]byte, 4096)

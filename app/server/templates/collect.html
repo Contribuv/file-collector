@@ -447,14 +447,30 @@ var _attachPreviewType = _C.attachPreviewType || '';
 
 function handleAttachClick() {
   if (!_attachCanPreview) {
-    // 直接下载
-    var a = document.createElement('a');
-    a.href = '/collect/' + linkId + '/attachment';
-    a.download = '';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function(){ document.body.removeChild(a); }, 200);
+    // 直接下载（fetch 避免错误时浏览器弹"无法从网站提取文件"）
+    var dl = '/collect/' + linkId + '/attachment';
+    var tp = getTokenParam();
+    if (tp) dl += '?' + tp;
+    fetch(dl, { credentials: 'same-origin' })
+      .then(function(r){
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.blob();
+      })
+      .then(function(blob){
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = _C.attachName || 'attachment';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 200);
+      })
+      .catch(function(err){
+        var msg = '附件下载失败：' + (err && err.message ? err.message : '请刷新收集页后重试');
+        if (msg.indexOf('403') !== -1) msg = '请先验证通行证后再下载附件';
+        else if (msg.indexOf('401') !== -1) msg = '访问令牌已过期，请刷新收集页后重试';
+        else msg = '附件下载失败，请刷新收集页后重试';
+        alert(msg);
+      });
     return;
   }
 

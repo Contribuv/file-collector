@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.12-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.14-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,11 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.14
+- 修复公开链接（空通行证）附件下载权限校验漏洞：下载 URL 缺少安全令牌参数导致 401
+- 附件下载改用 fetch+Blob 方案，避免浏览器对错误响应弹出"无法提取文件"对话框
+- 后端 401/403 错误返回统一为 HTML 错误页面，前端智能提示（令牌过期/需验证通行证）
 
 ### v2.3.13
 - 反向代理状态持久化：启动状态、配置、证书指纹写入 `rproxy_state.json`，应用重启后自动恢复连接，无需手动重启反代

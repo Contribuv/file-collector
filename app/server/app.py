@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.13"
+VERSION = "2.3.14"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -7227,14 +7227,33 @@ def edit_link(link_id):
 # 附件下载路由（老师上传的作业等）
 # ============================================================
 
+_ERROR_HTML = '''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{title}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}}
+.e{{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:32px 28px;text-align:center;max-width:400px;width:100%}}
+.e-icon{{font-size:48px;margin-bottom:12px}}
+.e-title{{font-size:1.05rem;font-weight:600;color:#1f2937;margin-bottom:8px}}
+.e-desc{{font-size:.85rem;color:#6b7280;line-height:1.6}}
+.e-btn{{display:inline-block;margin-top:20px;padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;text-decoration:none}}
+.e-btn:hover{{background:#2563eb}}
+</style>
+</head>
+<body><div class="e"><div class="e-icon">&#128683;</div><div class="e-title">{title}</div><div class="e-desc">{desc}</div><a class="e-btn" href="javascript:history.back()">返回</a></div></body></html>'''
+
+def _render_error_html(msg, code=401):
+    desc = '请返回收集页刷新后重试' if code == 401 else '请先验证通行证后再访问'
+    return _ERROR_HTML.format(title=msg, desc=desc), code
+
 @app.route('/collect/<link_id>/attachment')
 def collect_attachment(link_id):
     """下载收集页附件"""
     return _serve_link_attachment(link_id)
-
-
-
-
 
 def _serve_link_attachment(link_id, as_attachment=True):
     """安全下载/内联链接附件，使用路径遍历防护"""
@@ -7252,12 +7271,12 @@ def _serve_link_attachment(link_id, as_attachment=True):
 
     if not is_verified(link_id, link):
         conn.close()
-        return '请先验证通行证', 403
+        return _render_error_html('请先验证通行证', 403)
 
     ok, err = _check_public_link_token(link_id, link, for_share=False)
     if not ok:
         conn.close()
-        return err, 401
+        return _render_error_html(err, 401)
 
     if not link['attachment_path']:
         conn.close()

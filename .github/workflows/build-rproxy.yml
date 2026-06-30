@@ -58,6 +58,44 @@ jobs:
           path: app/rproxy/${{ matrix.binary-name }}
           if-no-files-found: error
 
+  commit-binaries:
+    name: Commit binaries to repo
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Copy binaries to rproxy folder
+        run: |
+          cp artifacts/fc-rproxy-amd64/fc-rproxy-amd64 app/rproxy/
+          cp artifacts/fc-rproxy-arm64/fc-rproxy-arm64 app/rproxy/
+          cp artifacts/fc-rproxy.exe/fc-rproxy.exe app/rproxy/
+          chmod +x app/rproxy/fc-rproxy-amd64 app/rproxy/fc-rproxy-arm64
+          ls -lh app/rproxy/
+
+      - name: Commit and push binaries
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/rproxy/fc-rproxy-amd64 app/rproxy/fc-rproxy-arm64 app/rproxy/fc-rproxy.exe
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: 更新 rproxy 二进制文件 [skip ci]"
+            git push
+          fi
+
   release:
     name: Create Release
     needs: build

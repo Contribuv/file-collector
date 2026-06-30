@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.14
+version               = 2.3.16
 display_name          = 文件收集器
 desc                  = 文件收集增强版，更专业更强悍更好看。<br><br>基于 Flask + SQLite 的多用户文件收集与分享系统，内置 Go 反向代理（HTTPS/HSTS/Gzip/证书热重载），支持 Office/PDF 在线预览、大文件 TUS 断点续传。默认端口 5557，可自定义。<br><br>【断点续传】TUS 协议分片上传，断网自动续传。每文件独立进度条+实时速度，失败一键重试。<br><br>【功能特性】多用户体系（邀请码注册/用户管理）、Office/PDF 在线预览、多媒体预览、收集与分享双模式、通行证保护、文件大小与数量限制、链接有效期控制、禁止同名文件/指定类型、CSV 批量创建链接、数据库备份与恢复、响应式界面。<br><br>【部署特性】内置 Go 反向代理、离线打包零网络依赖、x86/ARM 双架构、升级自动备份迁移、卸载可选保留数据、上传文件始终保留。
 platform              = all
@@ -15,4 +15,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://github.com/Contribuv/file-collector
-changelog             = v2.3.13 - 反向代理状态持久化（应用重启自动恢复、无需手动重启）、端口占用自动清理旧进程、status接口去除副作用、PDF预览改用Mozilla官方PDF.js（默认100%缩放）、新增/pdf简洁路由、优化manifest描述强调内置反代
+changelog             = v2.3.16 - 静态资源7天缓存加速、移除导致移动端加载慢的CSS、iPhone禁止缩放、PDF自适应缩放

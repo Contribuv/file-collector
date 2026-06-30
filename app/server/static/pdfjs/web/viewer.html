@@ -24,9 +24,10 @@ See https://github.com/adobe-type-tools/cmap-resources
   <head>
     <base href="/static/pdfjs/web/">
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="google" content="notranslate">
     <title>PDF 预览</title>
+    <style>#viewBookmark{display:none!important}#viewBookmarkSeparator{display:none!important}</style>
 
 <!-- This snippet is used in production (included from viewer.html) -->
 <link rel="resource" type="application/l10n" href="locale/locale.json">
@@ -181,6 +182,18 @@ See https://github.com/adobe-type-tools/cmap-resources
                     <option title="" value="4" data-l10n-id="pdfjs-page-scale-percent" data-l10n-args='{ "scale": 400 }'>400%</option>
                   </select>
                 </span>
+                <script>
+                  // PC/移动端自适应缩放：PC 用 actual size，移动端用 auto 适配宽度
+                  (function(){
+                    var sel = document.getElementById('scaleSelect');
+                    if (!sel) return;
+                    if (window.innerWidth >= 1024) {
+                      sel.value = 'page-actual';  // PC: 100% 实际大小
+                    } else {
+                      sel.value = 'auto';         // 移动端: 自动适配宽度
+                    }
+                  })();
+                </script>
               </div>
               <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
                 <div id="editorModeButtons" class="toolbarHorizontalGroup" role="radiogroup">

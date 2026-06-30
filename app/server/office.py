@@ -120,7 +120,7 @@ def office_preview():
 
     if _is_pdf(filename):
         encoded_file = quote(file_url, safe='')
-        return redirect(f'/pdf?file={encoded_file}#zoom=100')
+        return redirect(f'/pdf?file={encoded_file}#page=1')
 
     return render_template('office_preview.html',
         file_url=file_url,

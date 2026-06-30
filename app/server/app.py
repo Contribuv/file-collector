@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.14"
+VERSION = "2.3.16"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -136,7 +136,7 @@ _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # 开发环境开启，修改模板后自动刷新
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24  # 静态资源缓存 1 天
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24 * 7  # 静态资源缓存 7 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
 
@@ -2257,10 +2257,10 @@ def fix_static_content_type(response):
         response.headers['Content-Type'] = 'text/css; charset=utf-8'
     elif ext in ('.js', '.mjs') and 'charset' not in current:
         response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
-    # 静态资源强缓存：CSS/JS/字体/图片等长期缓存，HTML 不缓存
+    # 静态资源强缓存：CSS/JS/字体/图片等 7 天缓存，HTML 不缓存
     if ext in _ESSENTIAL_MIMETYPES and ext not in ('.html', '.htm',):
         response.cache_control.public = True
-        response.cache_control.max_age = 3600 * 24
+        response.cache_control.max_age = 3600 * 24 * 7
         response.headers['Vary'] = 'Accept-Encoding'
     return response
 

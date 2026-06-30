@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.14-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.16-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,20 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.16
+- 静态资源缓存从 1 天提升到 7 天，大幅加快移动端二次访问速度
+- 移除导致移动端加载慢的 CSS `@supports` 键盘修复块（恢复原始 CSS 布局）
+- iPhone/移动端禁止所有页面缩放，统一 viewport meta 标签
+- PDF 预览 PC/移动端自适应缩放：宽屏用 actual size（100%），移动端自动适配宽度
+- 隐藏 PDF 预览工具栏书签按钮（避免 404）
+
+### v2.3.15
+- iPhone/移动端禁止所有页面缩放，统一 viewport meta 标签
+- 修复 iOS Safari 键盘弹起时页面自动滚动问题（`@supports (-webkit-touch-callout: none)` 限定）
+- PDF 预览 PC/移动端自适应缩放：宽屏用 actual size（100%），移动端自动适配宽度
+- 隐藏 PDF 预览工具栏书签按钮（避免 404）
+- 修复 PDF.js viewer 浏览器缩放问题
 
 ### v2.3.14
 - 修复公开链接（空通行证）附件下载权限校验漏洞：下载 URL 缺少安全令牌参数导致 401

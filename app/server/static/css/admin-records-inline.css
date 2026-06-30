@@ -4,6 +4,58 @@
 .admin-table--records .col-chk input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--c-primary); }
 .admin-table--records .col-act { width: 120px; text-align: center; white-space: nowrap; }
 
+/* 复选框列默认隐藏（批量模式才显示） */
+.col-chk-hide { display: none; }
+
+/* 批量操作按钮 */
+.btn-batch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+.btn-batch-toggle.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+.btn-batch-toggle svg { flex-shrink: 0; }
+
+/* 记录勾选 */
+.sel-check { width: 15px; height: 15px; cursor: pointer; accent-color: #dc2626; }
+
+/* 批量操作底栏 */
+.batch-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e4e6eb;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 200;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.batch-info { font-size: .85rem; font-weight: 500; color: #1a1d28; }
+.batch-actions { display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 640px) {
+  .batch-bar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .batch-info { font-size: .78rem; }
+  .batch-actions { width: 100%; justify-content: center; flex-wrap: wrap; gap: 6px; }
+  .batch-bar .btn { font-size: .74rem; padding: 5px 10px; }
+}
+
 /* ========== 记录页头部工具栏 ========== */
 .records-card-header { flex-wrap: wrap; gap: 8px; }
 .records-toolbar {

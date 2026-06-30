@@ -499,7 +499,7 @@ function goBackToUploaderList() {
 
 /* --- Flat list for single uploader (no pagination) --- */
 function renderFlatListForUploader(records, isMobile) {
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var jitExts = ['pdf', 'txt'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -554,7 +554,7 @@ function renderFlatListForUploader(records, isMobile) {
 
 /* --- Flat list (requireUploader = false) --- */
 function renderFlatList(records, isMobile) {
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var jitExts = ['pdf', 'txt'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -610,7 +610,7 @@ function renderFlatList(records, isMobile) {
 
 /* ==== Accordion: 上传者分组折叠 ==== */
 function buildAccordionGroups(isMobile) {
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var jitExts = ['pdf', 'txt'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -969,12 +969,13 @@ function previewFile(recordId, fileName, fileSize) {
   if (!fileName) { showToast('无法找到该文件信息'); return; }
 
   var ext = fileName.split('.').pop().toLowerCase();
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var jitExts = ['pdf', 'txt'];
 
   if (jitExts.includes(ext)) {
     var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/office?' + qs, '_blank');
+    var route = ext === 'txt' ? '/txt?' : '/office?';
+    window.open(route + qs, '_blank');
     return;
   }
 

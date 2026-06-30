@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.16"
+VERSION = "2.3.17"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -140,15 +140,19 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24 * 7  # 静态资源缓存 7 
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
 
-# Office 预览模块（基于 flyfish-dev/file-viewer）
-from office import office_bp
-app.register_blueprint(office_bp)
+# PDF 预览模块
+from pdf import pdf_bp
+app.register_blueprint(pdf_bp)
+
+# TXT 预览模块
+from txt import txt_bp
+app.register_blueprint(txt_bp)
 
 # 预编译常用模板到 Jinja2 缓存，避免首次访问时的 I/O 和编译延迟
 _PRECOMPILE_TEMPLATES = [
     'collect.html', 'share.html', 'error.html',
     'admin_dashboard.html', 'admin_records.html',
-    'office_preview.html',
+    'txt_reader.html',
 ]
 def _precompile_templates():
     for name in _PRECOMPILE_TEMPLATES:
@@ -1095,6 +1099,8 @@ def set_user_setting(user_id, key, value):
     )
     conn.commit()
     conn.close()
+    # 清除缓存，确保下次读取时返回最新值
+    _user_setting_cache.pop((str(user_id), key), None)
 
 def get_upload_batch_limit(user_id=None):
     """获取单次上传个数限制，优先用户级设置，回退全局设置，默认 30"""
@@ -3647,7 +3653,8 @@ def share_download_record(link_id, record_id):
 
 @app.route('/share/<link_id>/preview_file/<int:record_id>', methods=['GET'])
 def share_preview_file(link_id, record_id):
-    """分享页预览文件（用于 flyfish file-viewer 获取文件内容）"""
+    """分享页预览文件（PDF.js 获取文件内容）"""
+
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return '链接格式无效', 400
     conn = get_db()
@@ -4322,7 +4329,8 @@ def download_record(link_id, record_id):
 
 @app.route('/collect/<link_id>/preview_file/<int:record_id>', methods=['GET'])
 def collect_preview_file(link_id, record_id):
-    """收集页预览文件（用于 flyfish file-viewer 获取文件内容）"""
+    """收集页预览文件（PDF.js 获取文件内容）"""
+
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
@@ -6410,7 +6418,7 @@ def admin_links():
     creator_filter = request.args.get('creator', '')
     
     # 获取每页显示数量
-    per_page = int(get_user_setting(user_id, 'links_per_page', '50'))
+    per_page = int(request.args.get('per_page') or get_user_setting(user_id, 'links_per_page', '50'))
     try:
         page = int(request.args.get('page', '1'))
         if page < 1:
@@ -7385,7 +7393,7 @@ def _serve_link_attachment(link_id, as_attachment=True):
             '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
             '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.flac': 'audio/flac',
             '.aac': 'audio/aac', '.m4a': 'audio/mp4',
-            # Office / PDF 格式（flyfish file-viewer 需要正确 Content-Type）
+            # Office / PDF 格式 Content-Type 映射
             '.pdf': 'application/pdf',
             '.doc': 'application/msword',
             '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -7592,7 +7600,7 @@ def admin_records():
         page = 1
     user_id = session.get('user_id')
     is_admin = session.get('is_admin', False)
-    per_page = int(get_user_setting(user_id, 'records_per_page', '50'))
+    per_page = int(request.args.get('per_page') or get_user_setting(user_id, 'records_per_page', '50'))
     link_filter = request.args.get('link_id', '').strip()
 
     # 验证权限（非管理员只能看自己的链接）
@@ -7873,7 +7881,8 @@ def admin_link_upload_logs(link_id):
 @app.route('/admin/records/<int:record_id>/preview_file')
 @login_required
 def admin_preview_file(record_id):
-    """预览文件（用于 flyfish file-viewer 获取文件内容）"""
+    """预览文件（PDF.js 获取文件内容）"""
+
     if not _check_record_ownership(record_id):
         abort(403)
     
@@ -8114,6 +8123,12 @@ def admin_batch_delete_records():
             deleted += 1
     conn.commit()
     conn.close()
+
+    # AJAX 请求返回 JSON，否则重定向
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+       request.accept_mimetypes.best == 'application/json' or \
+       request.headers.get('Accept', '').find('application/json') >= 0:
+        return jsonify({'success': True, 'message': f'已删除 {deleted} 条记录', 'deleted': deleted})
 
     flash(f'已删除 {deleted} 条记录')
     return redirect(url_for('admin_records'))

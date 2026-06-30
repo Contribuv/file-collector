@@ -814,48 +814,36 @@ tbody tr:active { background: #f7f8fa; }
 .auth-extra a:hover { text-decoration: underline; }
 
 /* ============================================================
-   Error Page — 深色主题，与预览错误页统一
+   Error Page
    ============================================================ */
 .error-page {
-  min-height: 100vh; min-height: 100dvh;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px; background: #1a1a1b;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--c-bg);
 }
 .error-card {
   text-align: center;
-  max-width: 360px; width: 100%;
-  padding: 24px;
+  background: var(--c-white);
+  border-radius: 20px;
+  padding: 40px 28px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 4px 24px rgba(0,0,0,.06);
 }
-.error-icon { margin-bottom: 18px; }
-.error-icon svg { width: 48px; height: 48px; }
 .error-code {
-  font-size: 3.5rem; font-weight: 800;
-  color: rgba(255,255,255,.08);
-  line-height: 1; margin-bottom: 4px; letter-spacing: -1px;
-  user-select: none;
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: #e5e7eb;
+  line-height: 1;
+  margin-bottom: 8px;
+  letter-spacing: -1px;
 }
-.error-card h2 {
-  font-size: 1.15rem; font-weight: 600;
-  color: #f1f1f1; margin: 0 0 10px;
-}
-.error-card p {
-  color: rgba(255,255,255,.55);
-  margin-bottom: 22px; font-size: .85rem; line-height: 1.55;
-}
-.error-back-btn {
-  display: inline-block;
-  background: rgba(255,255,255,.1);
-  color: #e0e0e0;
-  border: 1px solid rgba(255,255,255,.18);
-  padding: 8px 24px;
-  border-radius: 6px;
-  font-size: .84rem;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background .15s;
-}
-.error-back-btn:hover { background: rgba(255,255,255,.2); color: #e0e0e0; }
+.error-card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+.error-card p { color: var(--c-text-soft); margin-bottom: 20px; font-size: .88rem; }
 
 /* ============================================================
    Toast

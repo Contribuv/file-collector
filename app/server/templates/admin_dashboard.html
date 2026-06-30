@@ -54,7 +54,7 @@
                   data-time="{{ r['uploaded_at'] }}"
                   data-uploader="{{ r['uploader_name'] or '' }}"
                   data-require-uploader="{{ r['require_uploader']|string|lower }}"
-                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+                  data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','pdf','txt'] else '0' }}">操作</button>
               </td>
             </tr>
             {% endfor %}
@@ -85,7 +85,7 @@
                 data-time="{{ r['uploaded_at'] }}"
                 data-uploader="{{ r['uploader_name'] or '' }}"
                 data-require-uploader="{{ r['require_uploader']|string|lower }}"
-                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','txt','md','csv','doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','dxf','dwg'] else '0' }}">操作</button>
+                data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','pdf','txt'] else '0' }}">操作</button>
             </div>
           </div>
         </div>
@@ -340,9 +340,10 @@ function renderLightbox() {
 function previewFile(recordId, fileName, fileSizeBytes) {
   var ext = fileName.split('.').pop().toLowerCase();
 
-  var jitExts = ['doc','docx','xls','xlsx','ppt','pptx','pdf','ofd','txt','md','markdown','csv','dxf','dwg'];
+  var jitExts = ['pdf', 'txt'];
   if (jitExts.includes(ext)) {
-    window.open('/office?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
+    var route = ext === 'txt' ? '/txt?' : '/office?';
+    window.open(route + 'type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
     return;
   }
 

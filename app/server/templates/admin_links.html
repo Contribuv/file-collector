@@ -143,11 +143,11 @@
       <div class="card-footer" style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
         <div class="pagination">
           {% if page > 1 %}
-          <a href="{{ url_for('admin_links', page=page-1) }}" class="btn btn-sm">上一页</a>
+          <a href="{{ url_for('admin_links', page=page-1, per_page=per_page) }}" class="btn btn-sm">上一页</a>
           {% endif %}
           <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
           {% if page < total_pages %}
-          <a href="{{ url_for('admin_links', page=page+1) }}" class="btn btn-sm">下一页</a>
+          <a href="{{ url_for('admin_links', page=page+1, per_page=per_page) }}" class="btn btn-sm">下一页</a>
           {% endif %}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
@@ -649,17 +649,22 @@ function confirmDeleteLink() {
       if (csrf) fd.append('csrf_token', csrf.value);
       fetch('/admin/ajax/set-per-page', {
         method: 'POST', body: fd, credentials: 'same-origin'
-      }).then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.ok) {
-            currentVal = val;
-            window.location.reload(true);
-          } else {
-            alert('保存失败: ' + (data.error || '未知错误'));
-          }
-        }).catch(function(e) {
-          alert('请求失败: ' + e.message);
-        });
+      }).then(function(r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.json();
+      }).then(function(data) {
+        if (data.ok) {
+          currentVal = val;
+          var url = new URL(window.location.href);
+          url.searchParams.set('per_page', val);
+          url.searchParams.set('page', '1');
+          window.location.href = url.toString();
+        } else {
+          alert('保存失败: ' + (data.error || '未知错误'));
+        }
+      }).catch(function(e) {
+        alert('保存失败: ' + (e.message || '网络错误'));
+      });
     }, 800);
   });
 })();

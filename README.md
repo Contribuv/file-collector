@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.10-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.12-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,25 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.13
+- 反向代理状态持久化：启动状态、配置、证书指纹写入 `rproxy_state.json`，应用重启后自动恢复连接，无需手动重启反代
+- 新增端口占用自动清理：启动反代时如检测到端口被旧 fc-rproxy 进程占用，自动杀掉旧进程后再启动
+- 修复 `status()` 接口副作用问题：查询状态不再自动启动 Go 进程，改为纯查询
+- 前端「检测」按钮自动增强：页面加载/点击检测时自动尝试恢复已运行的反代状态
+
+### v2.3.12
+- PDF 预览改用 Mozilla PDF.js 官方 viewer，默认 100% 缩放，彻底解决自适应全屏模糊问题
+- 新增 `/pdf` 简洁路由，隐藏内部静态资源路径
+- 支持完整的 PDF 浏览功能：缩放、旋转、搜索、缩略图、大纲、下载、打印等
+- 清理 office_preview.html 中无效的 PDF 缩放代码
+
+### v2.3.11
+- 修复反向代理管理页面联动 Bug：`status()` 接口缺少 `public_url` 字段导致设置页反代卡片不显示域名、缺少 `cert_changed` 字段导致证书变更不提示重载
+- 新增证书指纹追踪机制：启动/重载证书时保存 sum，状态接口实时检测飞牛系统证书是否更新
+- 安装向导新增醒目黄色警告卡片：首次访问务必使用 IP + 端口直连，不要通过飞牛桌面图标反代打开
+- 移除 Windows 平台支持：GitHub Actions 不再编译 Windows 版本、删除 `fc-rproxy.exe`、精简 `rproxy_manager.py` 跨平台代码
+- 仅保留飞牛 NAS Linux 平台（x86 / ARM 双架构）
 
 ### v2.3.10
 - 修复反代缺少 `X-Forwarded-Host` 头导致后台登录后立即被踢回登录页的问题

@@ -189,4 +189,3 @@ cython_debug/
 # Build artifacts
 *.fpk
 *.msi
-!app/rproxy/*.exe

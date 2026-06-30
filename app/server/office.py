@@ -1,6 +1,7 @@
 """
 Office 文件预览模块
-基于 flyfish-dev/file-viewer，在浏览器端纯前端渲染 Office 文件。
+- PDF 文件：使用 Mozilla PDF.js 官方 viewer（默认 100% 缩放，清晰不模糊）
+- 其他 Office 文件：使用 flyfish-dev/file-viewer，在浏览器端纯前端渲染
 路由 /office — 无状态预览容器，零磁盘读取。
 支持两种参数格式：
   短格式（推荐）：type=c/s/a/ca &lid= &rid= &tk= &ex= &fn=
@@ -11,13 +12,24 @@ Office 文件预览模块
 因此需要注册 /assets/ 路由将其映射到 file-viewer 的 assets 目录。
 """
 import os
-from flask import Blueprint, render_template, request, abort, send_from_directory, session, redirect
+from urllib.parse import quote
+from flask import Blueprint, render_template, request, abort, send_from_directory, session, redirect, url_for
 
 office_bp = Blueprint('office_preview', __name__)
 
 # flyfish renderer 内部硬编码的 /assets/ worker 路径
 _FV_ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'file-viewer', 'assets')
 _FV_VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'file-viewer', 'vendor')
+
+# PDF.js viewer 路径
+_PDFJS_WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pdfjs', 'web')
+
+
+def _is_pdf(filename):
+    """判断文件名是否为 PDF"""
+    if not filename:
+        return False
+    return filename.lower().endswith('.pdf')
 
 
 @office_bp.route('/assets/<path:filename>')
@@ -32,9 +44,15 @@ def serve_flyfish_vendor(filename):
     return send_from_directory(_FV_VENDOR_DIR, filename)
 
 
+@office_bp.route('/pdf')
+def pdf_preview():
+    """PDF 预览入口，返回 PDF.js viewer 页面，隐藏静态资源路径。"""
+    return send_from_directory(_PDFJS_WEB_DIR, 'viewer.html')
+
+
 @office_bp.route('/office')
 def office_preview():
-    """无状态文件预览容器。"""
+    """无状态文件预览容器。PDF 走 PDF.js viewer，其他文件走 flyfish。"""
 
     # 短格式参数
     type_param = request.args.get('type', '')
@@ -99,6 +117,10 @@ def office_preview():
         abort(400)
     if not filename:
         filename = '文件预览'
+
+    if _is_pdf(filename):
+        encoded_file = quote(file_url, safe='')
+        return redirect(f'/pdf?file={encoded_file}#zoom=100')
 
     return render_template('office_preview.html',
         file_url=file_url,

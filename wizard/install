@@ -13,7 +13,7 @@
         "items": [
             {
                 "type": "tips",
-                "helpText": "请设置管理员账号和监听端口。<br><br>管理员账号用于登录后台，创建收集链接、管理用户。<br>监听端口默认为 5557，如有冲突可自定义（需未被占用）。"
+                "helpText": "管理员账号用于登录后台，创建收集链接、管理用户。<br>监听端口默认为 5557，如有冲突可自定义（需未被占用）。"
             },
             {
                 "type": "text",
@@ -43,6 +43,10 @@
                     { "required": true, "message": "请输入监听端口" },
                     { "pattern": "^[0-9]+$", "message": "端口号必须是数字" }
                 ]
+            },
+            {
+                "type": "tips",
+                "helpText": "<div style=\"background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-top:8px;\"><div style=\"color:#92400e;font-weight:600;font-size:15px;margin-bottom:6px;\">重要提醒</div><div style=\"color:#78350f;font-size:13px;line-height:1.6;\"><strong>安装完成后，第一次访问请务必使用 <span style=\"color:#dc2626;\">飞牛IP + 端口号</span> 的方式访问！</strong>例如：<code style=\"background:#fef9c3;padding:2px 6px;border-radius:4px;\">http://192.168.1.100:5557</code><br>首次不要通过飞牛桌面的应用图标直接打开（应用内置反向代理，设置反代后然后将URL填入此应用中心自定义URL即可实现桌面图标访问）</div></div>"
             }
         ]
     }

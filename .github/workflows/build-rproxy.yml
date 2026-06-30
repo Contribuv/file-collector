@@ -28,9 +28,6 @@ jobs:
           - goos: linux
             goarch: arm64
             binary-name: fc-rproxy-arm64
-          - goos: windows
-            goarch: amd64
-            binary-name: fc-rproxy.exe
 
     steps:
       - name: Checkout code
@@ -81,7 +78,6 @@ jobs:
         run: |
           cp artifacts/fc-rproxy-amd64/fc-rproxy-amd64 app/rproxy/
           cp artifacts/fc-rproxy-arm64/fc-rproxy-arm64 app/rproxy/
-          cp artifacts/fc-rproxy.exe/fc-rproxy.exe app/rproxy/
           chmod +x app/rproxy/fc-rproxy-amd64 app/rproxy/fc-rproxy-arm64
           ls -lh app/rproxy/
 
@@ -89,7 +85,7 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f app/rproxy/fc-rproxy-amd64 app/rproxy/fc-rproxy-arm64 app/rproxy/fc-rproxy.exe
+          git add -f app/rproxy/fc-rproxy-amd64 app/rproxy/fc-rproxy-arm64
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
@@ -118,7 +114,6 @@ jobs:
           mkdir -p release
           cp artifacts/fc-rproxy-amd64/fc-rproxy-amd64 release/
           cp artifacts/fc-rproxy-arm64/fc-rproxy-arm64 release/
-          cp artifacts/fc-rproxy.exe/fc-rproxy.exe release/
           chmod +x release/fc-rproxy-amd64 release/fc-rproxy-arm64
           ls -lh release/
 

@@ -6,7 +6,10 @@ import socket
 import platform
 import subprocess
 import threading
-import requests
+import urllib.request
+import urllib.error
+
+from cert_manager import CertManager
 
 
 RPROXY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'rproxy')
@@ -19,9 +22,6 @@ def _get_binary_path():
 
     system = platform.system().lower()
     arch = platform.machine().lower()
-
-    if system == 'windows':
-        return os.path.join(RPROXY_DIR, 'fc-rproxy.exe')
 
     if system == 'linux':
         if arch in ('aarch64', 'arm64', 'armv8'):
@@ -38,6 +38,79 @@ def _find_free_port():
     port = s.getsockname()[1]
     s.close()
     return port
+
+
+def _get_data_dir():
+    data_dir = os.environ.get('DATA_DIR')
+    if not data_dir:
+        pkgvar = os.environ.get('TRIM_PKGVAR', '/tmp/file-collector')
+        data_dir = os.path.join(pkgvar, 'data')
+    return data_dir
+
+
+def _state_file_path():
+    return os.path.join(_get_data_dir(), 'rproxy_state.json')
+
+
+def _port_occupied(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('0.0.0.0', port))
+        s.close()
+        return False
+    except OSError:
+        s.close()
+        return True
+
+
+def _find_pid_by_port(port):
+    try:
+        result = subprocess.run(
+            ['ss', '-tlnp', f'sport = :{port}'],
+            capture_output=True, text=True, timeout=3
+        )
+        for line in result.stdout.splitlines():
+            if f':{port}' in line and 'LISTEN' in line:
+                idx = line.find('users:')
+                if idx >= 0:
+                    import re
+                    m = re.search(r'pid=(\d+)', line[idx:])
+                    if m:
+                        return int(m.group(1))
+    except Exception:
+        pass
+    return None
+
+
+def _is_fc_rproxy_process(pid):
+    try:
+        result = subprocess.run(
+            ['cat', f'/proc/{pid}/cmdline'],
+            capture_output=True, text=True, timeout=2
+        )
+        cmdline = result.stdout.replace('\x00', ' ')
+        return 'fc-rproxy' in cmdline
+    except Exception:
+        return False
+
+
+def _kill_process(pid):
+    try:
+        os.kill(pid, 15)
+        for _ in range(20):
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.1)
+            except OSError:
+                return True
+        try:
+            os.kill(pid, 9)
+            time.sleep(0.2)
+        except OSError:
+            pass
+        return True
+    except Exception:
+        return False
 
 
 class GoRProxyManager:
@@ -63,22 +136,102 @@ class GoRProxyManager:
         self._running = False
         self._start_requested = False
         self._last_config = None
+        self._current_cert_sum = ''
+        self._recovered = False
 
     def is_available(self):
         binary = _get_binary_path()
         if not binary:
             return False
-        return os.path.exists(binary) and os.access(binary, os.X_OK if os.name != 'nt' else os.F_OK)
+        if not os.path.exists(binary):
+            return False
+        if not os.access(binary, os.X_OK):
+            try:
+                os.chmod(binary, 0o755)
+            except Exception:
+                pass
+        return True
+
+    def _load_state_file(self):
+        path = _state_file_path()
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _save_state_file(self, state):
+        try:
+            path = _state_file_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+
+    def _clear_state_file(self):
+        try:
+            path = _state_file_path()
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+    def _try_recover_from_state(self):
+        if self._recovered:
+            return False
+        state = self._load_state_file()
+        if not state:
+            return False
+
+        api_port = state.get('api_port')
+        pid = state.get('pid')
+        config = state.get('config')
+
+        if not api_port or not pid:
+            self._clear_state_file()
+            return False
+
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            self._clear_state_file()
+            return False
+
+        api_base = f'http://127.0.0.1:{api_port}'
+        try:
+            req = urllib.request.Request(f'{api_base}/health', method='GET')
+            resp = urllib.request.urlopen(req, timeout=1)
+            if resp.status != 200:
+                self._clear_state_file()
+                return False
+        except Exception:
+            self._clear_state_file()
+            return False
+
+        self.api_port = api_port
+        self.api_base = api_base
+        self._running = True
+        self._last_config = config
+        self._start_requested = config is not None
+        self._recovered = True
+        self._current_cert_sum = state.get('cert_sum', '')
+        return True
 
     def _ensure_process(self):
         if self.process and self.process.poll() is None:
+            return True
+
+        if self._try_recover_from_state():
             return True
 
         binary = _get_binary_path()
         if not binary or not os.path.exists(binary):
             return False
 
-        if os.name != 'nt' and not os.access(binary, os.X_OK):
+        if not os.access(binary, os.X_OK):
             try:
                 os.chmod(binary, 0o755)
             except Exception:
@@ -100,8 +253,10 @@ class GoRProxyManager:
 
             for _ in range(30):
                 try:
-                    resp = requests.get(f'{self.api_base}/health', timeout=0.5)
-                    if resp.status_code == 200:
+                    req = urllib.request.Request(f'{self.api_base}/health', method='GET')
+                    resp = urllib.request.urlopen(req, timeout=0.5)
+                    if resp.status == 200:
+                        self._recovered = True
                         return True
                 except Exception:
                     pass
@@ -119,25 +274,84 @@ class GoRProxyManager:
         url = f'{self.api_base}{path}'
         try:
             if method == 'GET':
-                resp = requests.get(url, timeout=timeout)
+                req = urllib.request.Request(url, method='GET')
+                resp = urllib.request.urlopen(req, timeout=timeout)
+                body = resp.read().decode('utf-8')
+                return True, json.loads(body)
             else:
-                resp = requests.post(url, json=data, timeout=timeout)
-
-            if resp.status_code == 200:
-                return True, resp.json()
-            else:
-                return False, resp.text
+                body_data = json.dumps(data).encode('utf-8')
+                req = urllib.request.Request(url, data=body_data, method='POST')
+                req.add_header('Content-Type', 'application/json')
+                resp = urllib.request.urlopen(req, timeout=timeout)
+                body = resp.read().decode('utf-8')
+                return True, json.loads(body)
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode('utf-8')
+                return False, body
+            except Exception:
+                return False, str(e)
         except Exception as e:
             return False, str(e)
+
+    def _api_request_no_start(self, method, path, data=None, timeout=5):
+        if not self._running or not self.api_base:
+            return False, '反代未运行'
+
+        url = f'{self.api_base}{path}'
+        try:
+            if method == 'GET':
+                req = urllib.request.Request(url, method='GET')
+                resp = urllib.request.urlopen(req, timeout=timeout)
+                body = resp.read().decode('utf-8')
+                return True, json.loads(body)
+            else:
+                body_data = json.dumps(data).encode('utf-8')
+                req = urllib.request.Request(url, data=body_data, method='POST')
+                req.add_header('Content-Type', 'application/json')
+                resp = urllib.request.urlopen(req, timeout=timeout)
+                body = resp.read().decode('utf-8')
+                return True, json.loads(body)
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode('utf-8')
+                return False, body
+            except Exception:
+                return False, str(e)
+        except Exception as e:
+            return False, str(e)
+
+    def _cleanup_port(self, port):
+        if not _port_occupied(port):
+            return True
+
+        pid = _find_pid_by_port(port)
+        if not pid:
+            return True
+
+        if not _is_fc_rproxy_process(pid):
+            return False
+
+        _kill_process(pid)
+        time.sleep(0.3)
+        return not _port_occupied(port)
 
     def start(self, domain, port, cert_path, key_path, backend_addr,
               gzip_enabled=True, hsts_enabled=True, timeout=600):
         if not self.is_available():
             return False, 'Go 反代二进制文件不可用'
 
+        try:
+            port_int = int(port)
+        except (ValueError, TypeError):
+            return False, '端口号必须是数字'
+
+        if not self._try_recover_from_state():
+            self._cleanup_port(port_int)
+
         config = {
             'domain': domain,
-            'port': port,
+            'port': port_int,
             'cert_path': cert_path,
             'key_path': key_path,
             'backend_addr': backend_addr,
@@ -150,28 +364,68 @@ class GoRProxyManager:
         if success and result.get('success'):
             self._start_requested = True
             self._last_config = config
+            certs = CertManager.load_certs()
+            cert_sum = ''
+            for cert in certs:
+                if (cert.get('fullchain') == cert_path or
+                    cert.get('certificate') == cert_path or
+                    domain in cert.get('san', []) or
+                    domain == cert.get('domain')):
+                    cert_sum = cert.get('sum', '')
+                    self._current_cert_sum = cert_sum
+                    break
+
+            state = {
+                'api_port': self.api_port,
+                'pid': self.process.pid if self.process else None,
+                'config': config,
+                'cert_sum': cert_sum,
+            }
+            self._save_state_file(state)
+
             return True, '反代启动成功'
         else:
             msg = result.get('message', str(result)) if isinstance(result, dict) else str(result)
+            if 'address already in use' in msg or 'listen failed' in msg:
+                if self._cleanup_port(port_int):
+                    success2, result2 = self._api_request('POST', '/start', config)
+                    if success2 and result2.get('success'):
+                        self._start_requested = True
+                        self._last_config = config
+                        state = {
+                            'api_port': self.api_port,
+                            'pid': self.process.pid if self.process else None,
+                            'config': config,
+                            'cert_sum': self._current_cert_sum,
+                        }
+                        self._save_state_file(state)
+                        return True, '反代启动成功（已清理旧进程）'
+                return False, f'启动失败：端口 {port_int} 被占用且无法自动清理'
             return False, f'启动失败: {msg}'
 
     def stop(self):
-        if not self._running or not self.process:
+        if not self._running or not self.api_base:
             self._start_requested = False
+            self._current_cert_sum = ''
+            self._clear_state_file()
             return True, '反代未运行'
 
-        success, result = self._api_request('POST', '/stop')
+        success, result = self._api_request_no_start('POST', '/stop')
         self._start_requested = False
+        self._current_cert_sum = ''
+        self._clear_state_file()
 
         if success:
             return True, '反代已停止'
         else:
             try:
-                self.process.terminate()
-                self.process.wait(timeout=5)
+                if self.process:
+                    self.process.terminate()
+                    self.process.wait(timeout=5)
             except Exception:
                 try:
-                    self.process.kill()
+                    if self.process:
+                        self.process.kill()
                 except Exception:
                     pass
             self._running = False
@@ -181,55 +435,88 @@ class GoRProxyManager:
         if not self._last_config:
             return False, '没有配置信息'
 
-        success, result = self._api_request('POST', '/reload-cert', {
+        success, result = self._api_request_no_start('POST', '/reload-cert', {
             'cert_path': self._last_config['cert_path'],
             'key_path': self._last_config['key_path'],
         })
 
         if success and result.get('success'):
+            certs = CertManager.load_certs()
+            cert_path = self._last_config['cert_path']
+            domain = self._last_config['domain']
+            cert_sum = ''
+            for cert in certs:
+                if (cert.get('fullchain') == cert_path or
+                    cert.get('certificate') == cert_path or
+                    domain in cert.get('san', []) or
+                    domain == cert.get('domain')):
+                    cert_sum = cert.get('sum', '')
+                    self._current_cert_sum = cert_sum
+                    break
+
+            state = self._load_state_file() or {}
+            state['cert_sum'] = cert_sum
+            state['config'] = self._last_config
+            self._save_state_file(state)
+
             return True, '证书重载成功'
         else:
             msg = result.get('message', str(result)) if isinstance(result, dict) else str(result)
             return False, f'证书重载失败: {msg}'
 
     def status(self):
-        if not self._running or not self.process:
-            return {
-                'running': False,
-                'port': 0,
-                'domain': '',
-                'pid': None,
-                'started_at': ''
-            }
+        if not self._running or not self.api_base:
+            if not self._try_recover_from_state():
+                return {
+                    'running': False,
+                    'port': 0,
+                    'domain': '',
+                    'pid': None,
+                    'started_at': '',
+                    'public_url': '',
+                    'cert_changed': False,
+                }
 
-        success, result = self._api_request('GET', '/status')
+        success, result = self._api_request_no_start('GET', '/status')
         if success:
-            result['pid'] = self.process.pid
-            return result
+            if isinstance(result, dict):
+                pid = result.get('pid')
+                if not pid and self.process:
+                    pid = self.process.pid
+                result['pid'] = pid
+                result['public_url'] = self.get_public_url()
+                result['cert_changed'] = CertManager.check_cert_change(self._current_cert_sum)
+                return result
         else:
+            running = False
+            if self.process and self.process.poll() is None:
+                running = True
             return {
-                'running': self.process.poll() is None,
+                'running': running,
                 'port': 0,
                 'domain': '',
                 'pid': self.process.pid if self.process else None,
-                'started_at': ''
+                'started_at': '',
+                'public_url': '',
+                'cert_changed': False,
             }
 
     def get_logs(self, limit=200):
         if not self._running:
             return []
 
-        success, result = self._api_request('GET', f'/logs?limit={limit}')
+        success, result = self._api_request_no_start('GET', f'/logs?limit={limit}')
         if success and isinstance(result, dict):
             return result.get('logs', [])
         return []
 
     def clear_logs(self):
-        self._api_request('POST', '/logs/clear')
+        if self._running and self.api_base:
+            self._api_request_no_start('POST', '/logs/clear')
         return True
 
     def get_public_url(self):
-        if not self._running or not self._last_config:
+        if not self._start_requested or not self._last_config:
             return ''
         domain = self._last_config.get('domain', '')
         port = self._last_config.get('port', 443)
@@ -245,6 +532,7 @@ class GoRProxyManager:
     def shutdown(self):
         self._running = False
         self._start_requested = False
+        self._clear_state_file()
         if self.process:
             try:
                 self.process.terminate()

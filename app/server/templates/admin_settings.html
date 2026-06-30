@@ -160,7 +160,7 @@
 
       <!-- 反向代理 -->
       <div class="card card-compact">
-        <div class="card-header"><h3>反向代理</h3></div>
+        <div class="card-header"><h3>反向代理（外网访问）</h3></div>
         <div class="card-body">
           <div id="rp-card-status">
           {% if rp_status and rp_status.running %}
@@ -1083,12 +1083,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var rpCardStatus = document.getElementById('rp-card-status');
     var rpCardUrl = document.getElementById('rp-card-url');
     var rpUrlText = document.getElementById('rp-public-url-text');
+    var firstLoad = true;
 
     function pollRpStatus() {
       fetch(rpStatusUrl).then(function(r){return r.json();}).then(function(d){
         var nowRunning = d.running;
-        if (nowRunning !== lastRunning || (nowRunning && rpUrlText && rpUrlText.textContent !== d.public_url)) {
+        if (firstLoad || nowRunning !== lastRunning || (nowRunning && rpUrlText && rpUrlText.textContent !== d.public_url)) {
           lastRunning = nowRunning;
+          firstLoad = false;
           // 更新公网网址输入框
           if (publicUrlInput) {
             if (nowRunning) {
@@ -1133,7 +1135,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function(){});
     }
 
-    // 每 30 秒轮询一次
+    // 页面加载后立即刷新一次，然后每 30 秒轮询
+    pollRpStatus();
     setInterval(pollRpStatus, 30000);
   })();
 })();

@@ -1,0 +1,8 @@
+﻿git : To https://github.com/Contribuv/file-collector.git
+所在位置 行:1 字符: 261
++ ... Buddy\文件收集\file-collector"; $r = git push -f origin main 2>&1; $r | O ...
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://gith...e-collector.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ + 3b62952...a15445e main -> main (forced update)

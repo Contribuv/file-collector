@@ -122,29 +122,6 @@ window.addEventListener('unhandledrejection', function(e) {
   setTimeout(hideButtons, 1500);
 })();
 
-// PDF：隐藏缩放按钮
-{% if filename and filename.lower().endswith('.pdf') %}
-(function(){
-  var fv = document.getElementById('fv');
-  function fixToolbar(){
-    if (!fv) return;
-    var btns = fv.querySelectorAll('button');
-    for (var i = 0; i < btns.length; i++) {
-      var t = btns[i].getAttribute('title') || '';
-      var cls = btns[i].className || '';
-      if (t.indexOf('缩小') >= 0 || t.indexOf('放大') >= 0 ||
-          t.indexOf('还原比例') >= 0 || cls.indexOf('zoom-meter') >= 0) {
-        btns[i].style.display = 'none';
-      }
-    }
-  }
-  var obs = new MutationObserver(fixToolbar);
-  obs.observe(fv, {childList:true,subtree:true});
-  fixToolbar();
-  setTimeout(fixToolbar, 600);
-  setTimeout(fixToolbar, 1500);
-})();
-{% endif %}
 // Excel：性能提示
 {% if filename and (filename.lower().endswith('.xls') or filename.lower().endswith('.xlsx') or filename.lower().endswith('.csv')) %}
 // Excel 性能提示

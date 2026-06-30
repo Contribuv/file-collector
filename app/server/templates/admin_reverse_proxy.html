@@ -72,25 +72,22 @@
 
         <!-- 操作条：按钮 + 状态 + 外网地址 -->
         <div class="rp-action-bar">
-          <div class="rp-btns">
-            {% if status.running %}
-            <button class="btn btn-sm btn-danger" onclick="stopProxy()" id="btn-stop">
+          <div class="rp-btns" id="rp-btns">
+            <button class="btn btn-sm btn-danger" onclick="stopProxy()" id="btn-stop" {% if not status.running %}style="display:none;"{% endif %}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
               停止反代
             </button>
             <button class="btn btn-sm btn-outline" onclick="reloadCert()" id="btn-reload" style="display:none;">
               重载证书
             </button>
-            {% else %}
-            <button class="btn btn-sm btn-primary" onclick="startProxy()" id="btn-start" {% if not certs %}disabled{% endif %}>
+            <button class="btn btn-sm btn-primary" onclick="startProxy()" id="btn-start" {% if status.running %}style="display:none;"{% endif %} {% if not certs %}disabled{% endif %}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 19,12 8,19"/></svg>
               开始反代
             </button>
-            <button class="btn btn-sm btn-outline" onclick="location.reload()">
+            <button class="btn btn-sm btn-outline" onclick="refreshStatus()" id="btn-refresh" {% if status.running %}style="display:none;"{% endif %}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               检测
             </button>
-            {% endif %}
           </div>
           <div class="rp-status-bar" id="rp-status">
             {% if status.running %}
@@ -379,7 +376,7 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.rp-log-tools { display: flex; align-items: center; gap: 6px; }
+.rp-log-tools { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 
 .rp-log-box {
   background: #0f172a;
@@ -508,15 +505,23 @@ function exportLogs(){window.open(_exportLogsUrl,'_blank');}
 function refreshStatus(){
   fetch(_statusUrl).then(function(r){return r.json();}).then(function(d){
     var st=document.getElementById('rp-status'),reloadBtn=document.getElementById('btn-reload');
+    var startBtn=document.getElementById('btn-start'),stopBtn=document.getElementById('btn-stop'),refreshBtn=document.getElementById('btn-refresh');
     if(d.running){
       st.innerHTML='<span class="rp-dot rp-dot--on"></span><span class="rp-status-text"><strong>'+d.domain+':'+d.port+'</strong></span>'+
         '<a href="https://'+d.domain+':'+d.port+'" target="_blank" rel="noopener" class="rp-ext-link">'+
         '外网访问<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
       if(d.cert_changed){st.innerHTML+='<div style="width:100%;margin-top:4px;padding:4px 8px;background:#fef3c7;border-radius:4px;font-size:.7rem;color:#92400e;border:1px solid #fde68a;">系统证书已更新，建议重新加载</div>';if(reloadBtn)reloadBtn.style.display='';}
+      if(startBtn)startBtn.style.display='none';
+      if(refreshBtn)refreshBtn.style.display='none';
+      if(stopBtn)stopBtn.style.display='';
+      if(reloadBtn && !d.cert_changed)reloadBtn.style.display='none';
     }else{
-      // 如果之前显示运行中，现在变成未启动 → 刷新页面以更新按钮状态
       var wasRunning = document.querySelector('#rp-status .rp-dot--on');
-      st.innerHTML='<span class="rp-dot rp-dot--off"></span><span class="rp-status-text rp-status-text--muted">未启动</span>';if(reloadBtn)reloadBtn.style.display='none';
+      st.innerHTML='<span class="rp-dot rp-dot--off"></span><span class="rp-status-text rp-status-text--muted">未启动</span>';
+      if(stopBtn)stopBtn.style.display='none';
+      if(reloadBtn)reloadBtn.style.display='none';
+      if(startBtn)startBtn.style.display='';
+      if(refreshBtn)refreshBtn.style.display='';
       if(wasRunning){setTimeout(function(){window.location.reload();},1500);}
     }
   });
@@ -526,7 +531,8 @@ function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;
 
 document.addEventListener('DOMContentLoaded', function(){
   onDomainChange();
-  {% if status.running %}refreshStatus();_statusTimer=setInterval(refreshStatus,60000);{% endif %}
+  refreshStatus();
+  _statusTimer=setInterval(refreshStatus, 30000);
   refreshLogs();_logTimer=setInterval(refreshLogs,5000);
 });
 window.addEventListener('beforeunload',function(){if(_logTimer)clearInterval(_logTimer);if(_statusTimer)clearInterval(_statusTimer);});

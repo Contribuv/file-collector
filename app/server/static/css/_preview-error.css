@@ -1,0 +1,100 @@
+/* ===== 通用预览错误覆盖层（灯箱 / Office / PDF 共用） ===== */
+
+/* 灯箱内错误卡片 */
+.lb-error-overlay {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  text-align: center;
+  z-index: 10;
+  min-width: 260px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+.lb-error-overlay .lb-error-icon { margin-bottom: 14px; }
+.lb-error-overlay .lb-error-icon svg { width: 40px; height: 40px; }
+.lb-error-title {
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.lb-error-desc {
+  color: rgba(255,255,255,.65);
+  font-size: .82rem;
+  margin: 0 0 18px;
+  line-height: 1.55;
+}
+.lb-error-actions { display: flex; gap: 8px; justify-content: center; }
+.lb-error-btn {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.lb-error-btn:hover { background: rgba(255,255,255,.22); }
+.lb-error-btn.primary { background: rgba(59,130,246,.35); border-color: rgba(59,130,246,.5); }
+.lb-error-btn.primary:hover { background: rgba(59,130,246,.5); }
+
+/* PDF.js 全页错误覆盖层 */
+.pdf-error-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #1a1a1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.pdf-error-card {
+  text-align: center;
+  max-width: 360px;
+  padding: 24px;
+}
+.pdf-error-card .pdf-error-icon { margin-bottom: 18px; }
+.pdf-error-card .pdf-error-icon svg { width: 48px; height: 48px; }
+.pdf-error-card .pdf-error-title {
+  font-size: 1.15rem;
+  color: #f1f1f1;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.pdf-error-card .pdf-error-desc {
+  font-size: .85rem;
+  color: rgba(255,255,255,.55);
+  margin: 0 0 22px;
+  line-height: 1.55;
+}
+.pdf-error-card .pdf-error-close {
+  background: rgba(255,255,255,.1);
+  color: #e0e0e0;
+  border: 1px solid rgba(255,255,255,.18);
+  padding: 8px 24px;
+  border-radius: 6px;
+  font-size: .84rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.pdf-error-card .pdf-error-close:hover { background: rgba(255,255,255,.2); }
+.pdf-error-card .pdf-error-refresh {
+  background: rgba(59,130,246,.3);
+  color: #e0e0e0;
+  border: 1px solid rgba(59,130,246,.45);
+  padding: 8px 24px;
+  border-radius: 6px;
+  font-size: .84rem;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: background .15s;
+}
+.pdf-error-card .pdf-error-refresh:hover { background: rgba(59,130,246,.45); }

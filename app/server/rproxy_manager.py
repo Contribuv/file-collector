@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import signal
 import socket
 import platform
 import subprocess
@@ -130,6 +131,7 @@ class GoRProxyManager:
             return
         self._initialized = True
         self.process = None
+        self._recovered_pid = None
         self.api_port = None
         self.api_base = None
         self._watchdog_thread = None
@@ -214,6 +216,7 @@ class GoRProxyManager:
         self.api_port = api_port
         self.api_base = api_base
         self._running = True
+        self._recovered_pid = pid
         self._last_config = config
         self._start_requested = config is not None
         self._recovered = True
@@ -407,17 +410,27 @@ class GoRProxyManager:
         if not self._running or not self.api_base:
             self._start_requested = False
             self._current_cert_sum = ''
+            self._recovered_pid = None
             self._clear_state_file()
             return True, '反代未运行'
 
         success, result = self._api_request_no_start('POST', '/stop')
         self._start_requested = False
         self._current_cert_sum = ''
+        self._recovered_pid = None
         self._clear_state_file()
 
         if success:
             return True, '反代已停止'
         else:
+            # 尝试杀进程（支持从状态文件恢复的进程）
+            pid_to_kill = self.process.pid if self.process else self._recovered_pid
+            try:
+                if pid_to_kill:
+                    os.kill(pid_to_kill, signal.SIGTERM)
+                    time.sleep(0.5)
+            except Exception:
+                pass
             try:
                 if self.process:
                     self.process.terminate()
@@ -428,7 +441,14 @@ class GoRProxyManager:
                         self.process.kill()
                 except Exception:
                     pass
+            # 兜底：通过 PID 强杀
+            try:
+                if pid_to_kill and not (self.process and self.process.poll() is None):
+                    os.kill(pid_to_kill, 9)
+            except Exception:
+                pass
             self._running = False
+            self._recovered_pid = None
             return True, '反代已停止'
 
     def reload_cert(self):
@@ -464,6 +484,30 @@ class GoRProxyManager:
             msg = result.get('message', str(result)) if isinstance(result, dict) else str(result)
             return False, f'证书重载失败: {msg}'
 
+    def _pid_alive(self, pid):
+        """检查 PID 是否存活"""
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def _active_pid(self):
+        """返回当前活跃进程的 PID（优先 self.process，回退 self._recovered_pid）"""
+        if self.process and self.process.poll() is None:
+            return self.process.pid
+        if self._recovered_pid and self._pid_alive(self._recovered_pid):
+            return self._recovered_pid
+        return None
+
+    def _is_process_running(self):
+        """检查 Go 反代进程是否在运行（不依赖 API 调用）"""
+        if self.process and self.process.poll() is None:
+            return True
+        if self._recovered_pid and self._pid_alive(self._recovered_pid):
+            return True
+        return False
+
     def status(self):
         if not self._running or not self.api_base:
             if not self._try_recover_from_state():
@@ -480,26 +524,23 @@ class GoRProxyManager:
         success, result = self._api_request_no_start('GET', '/status')
         if success:
             if isinstance(result, dict):
-                pid = result.get('pid')
-                if not pid and self.process:
-                    pid = self.process.pid
+                pid = result.get('pid') or self._active_pid()
                 result['pid'] = pid
                 result['public_url'] = self.get_public_url()
                 result['cert_changed'] = CertManager.check_cert_change(self._current_cert_sum)
                 return result
-        else:
-            running = False
-            if self.process and self.process.poll() is None:
-                running = True
-            return {
-                'running': running,
-                'port': 0,
-                'domain': '',
-                'pid': self.process.pid if self.process else None,
-                'started_at': '',
-                'public_url': '',
-                'cert_changed': False,
-            }
+
+        # API 调用失败 — 用进程存活检测兜底
+        running = self._is_process_running()
+        return {
+            'running': running,
+            'port': self._last_config.get('port', 0) if running and self._last_config else 0,
+            'domain': self._last_config.get('domain', '') if running and self._last_config else '',
+            'pid': self._active_pid(),
+            'started_at': '',
+            'public_url': self.get_public_url() if running else '',
+            'cert_changed': CertManager.check_cert_change(self._current_cert_sum) if running else False,
+        }
 
     def get_logs(self, limit=200):
         if not self._running:

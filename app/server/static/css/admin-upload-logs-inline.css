@@ -1,0 +1,96 @@
+/* admin_upload_logs.html */
+/* ===== 日志页响应式（纯CSS，不依赖JS） ===== */
+.logs-pc { display: block; }
+.logs-mob { display: none; }
+@media (max-width: 640px) {
+  .logs-pc { display: none !important; }
+  .logs-mob { display: block !important; }
+}
+
+/* 移动端卡片行 */
+.log-card {
+  margin: 0 12px;
+  padding: 10px 0;
+  border-bottom: .5px solid #e5e5ea;
+}
+.log-card:first-child { padding-top: 4px; }
+.log-card:last-child { border-bottom: none; padding-bottom: 4px; }
+.log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: .875rem;
+  line-height: 1.5;
+}
+.log-label {
+  flex-shrink: 0;
+  width: 38px;
+  color: #8e8e93;
+  font-size: .72rem;
+  font-weight: 500;
+}
+.log-val {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  color: #1c1c1e;
+}
+
+/* 摘要栏 */
+.logs-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px 16px;
+  color: #666;
+  font-size: .8125rem;
+  border-bottom: 1px solid #eee;
+  line-height: 1.7;
+}
+
+/* 侧栏导航横向滚动 */
+.sidebar-nav {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+.sidebar-nav a { white-space: nowrap; flex-shrink: 0; }
+
+/* 小屏适配 */
+@media (max-width: 640px) {
+  .logs-summary { gap: 4px 10px; font-size: .75rem; padding: 8px 12px; }
+  .card-header h3 { font-size: .95rem; }
+  .card-header .btn { font-size: .72rem; padding: 3px 9px; }
+  .sidebar-nav a { font-size: .68rem; padding: 10px 8px; }
+  .log-row { font-size: .82rem; }
+  .log-label { width: 34px; font-size: .68rem; }
+}
+@media (max-width: 400px) {
+  .logs-summary { font-size: .7rem; gap: 2px 8px; padding: 6px 10px; }
+  .log-row { font-size: .78rem; }
+  .log-label { width: 30px; font-size: .65rem; }
+}
+
+/* 表格基础样式 */
+.admin-table--logs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.admin-table--logs th,
+.admin-table--logs td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #f2f3f5;
+  white-space: nowrap;
+}
+.admin-table--logs th {
+  background: #fafafa;
+  color: #666;
+  font-weight: 600;
+  font-size: .78rem;
+}

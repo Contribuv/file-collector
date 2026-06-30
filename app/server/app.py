@@ -135,7 +135,7 @@ _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templa
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
-app.config['TEMPLATES_AUTO_RELOAD'] = True  # 开发环境开启，修改模板后自动刷新
+app.config['TEMPLATES_AUTO_RELOAD'] = False  # 生产环境关闭，避免每次请求都 stat 模板文件
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24 * 7  # 静态资源缓存 7 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
@@ -143,6 +143,20 @@ app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流�
 # Office 预览模块（基于 flyfish-dev/file-viewer）
 from office import office_bp
 app.register_blueprint(office_bp)
+
+# 预编译常用模板到 Jinja2 缓存，避免首次访问时的 I/O 和编译延迟
+_PRECOMPILE_TEMPLATES = [
+    'collect.html', 'share.html', 'error.html',
+    'admin_dashboard.html', 'admin_records.html',
+    'office_preview.html',
+]
+def _precompile_templates():
+    for name in _PRECOMPILE_TEMPLATES:
+        try:
+            app.jinja_env.get_template(name)
+        except Exception:
+            pass
+_precompile_templates()
 
 # 内置反向代理引擎（Go 版本）
 import rproxy_manager
@@ -1026,12 +1040,20 @@ def init_db():
     conn.commit()
     conn.close()
 
+_setting_cache = {}  # {key: (timestamp, value)} 全局设置缓存
+
 def get_setting(key, default=None):
-    """获取单个设置值"""
+    """获取单个设置值（30 秒缓存，避免频繁 DB 查询）"""
+    now = time.time()
+    cached = _setting_cache.get(key)
+    if cached and now - cached[0] < 30:
+        return cached[1]
     conn = get_db()
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
     conn.close()
-    return row['value'] if row else default
+    result = row['value'] if row else default
+    _setting_cache[key] = (now, result)
+    return result
 
 def set_setting(key, value):
     """设置单个值"""
@@ -1042,18 +1064,27 @@ def set_setting(key, value):
     )
     conn.commit()
     conn.close()
+    # 清除缓存
+    _setting_cache.pop(key, None)
+
+_user_setting_cache = {}  # {(user_id, key): (timestamp, value)} 用户设置缓存
 
 def get_user_setting(user_id, key, default=None):
-    """获取用户级设置，优先用户设置，回退到全局设置"""
+    """获取用户级设置，优先用户设置，回退到全局设置（带 30 秒缓存）"""
+    cache_key = (str(user_id), key)
+    now = time.time()
+    cached = _user_setting_cache.get(cache_key)
+    if cached and now - cached[0] < 30:
+        return cached[1]
     conn = get_db()
     row = conn.execute(
         "SELECT value FROM user_settings WHERE user_id = ? AND key = ?",
         (str(user_id), key)
     ).fetchone()
     conn.close()
-    if row:
-        return row['value']
-    return get_setting(key, default)
+    result = row['value'] if row else get_setting(key, default)
+    _user_setting_cache[cache_key] = (now, result)
+    return result
 
 def set_user_setting(user_id, key, value):
     """设置用户级设置"""
@@ -1629,8 +1660,15 @@ def get_link_folder(link_id, user_id=None):
     # 旧数据：保持原位置
     return os.path.join(get_upload_base(), link_id)
 
+_scan_cache = {}  # {link_id: timestamp} 文件夹扫描缓存，避免频繁 os.walk
+
 def scan_link_folder(link_id, conn=None):
-    """扫描链接文件夹，识别手动放入的文件（高性能版：递归扫描子目录、批量 INSERT）"""
+    """扫描链接文件夹，识别手动放入的文件（带缓存：60 秒内不重复扫描）"""
+    now = time.time()
+    last_scan = _scan_cache.get(link_id, 0)
+    if now - last_scan < 60:
+        return []  # 60 秒内已扫描过，跳过
+    _scan_cache[link_id] = now
     should_close = False
     if conn is None:
         conn = get_db()
@@ -2215,12 +2253,16 @@ def add_security_headers(response):
 
 @app.after_request
 def minify_html_response(response):
-    """压缩 HTML 响应：去除注释和多余空白，减小传输体积"""
+    """压缩 HTML 响应：去除注释和多余空白，减小传输体积。
+    跳过收集页和分享页（模板已充分优化、内联 CSS 巨大，压缩收益远小于 CPU 开销）"""
     ct = (response.content_type or '')
     if 'text/html' not in ct:
         return response
     # 仅压缩成功响应（200/304），跳过错误页
     if response.status_code not in (200, 304):
+        return response
+    # 跳过高频访问的大页面（92KB collect.html / 68KB share.html）
+    if request.endpoint in ('collect_page', 'share_page'):
         return response
     try:
         data = response.get_data(as_text=True)
@@ -2712,6 +2754,7 @@ def index():
 @app.route('/collect/<link_id>')
 def collect_page(link_id):
     """文件收集页面"""
+    _t0 = time.time()
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return render_template('error.html',
             error_code=404,
@@ -2721,10 +2764,10 @@ def collect_page(link_id):
     row = conn.execute(
         "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
-    conn.close()
     link = dict(row) if row else None
 
     if not link:
+        conn.close()
         return render_template('error.html',
             error_code=404,
             error_title='链接失效',
@@ -2738,6 +2781,7 @@ def collect_page(link_id):
         share_hint = ''
         if link.get('share_enabled', 0):
             share_hint = '收集已关闭，但您仍可通过分享链接查看文件。'
+        conn.close()
         return render_template('error.html',
             error_code=410,
             error_title='收集已关闭',
@@ -2747,6 +2791,7 @@ def collect_page(link_id):
         try:
             expire_time = datetime.strptime(link['expires_at'], '%Y-%m-%dT%H:%M')
             if datetime.now() > expire_time:
+                conn.close()
                 return render_template('error.html',
                     error_code=410,
                     error_title='链接已过期',
@@ -2765,9 +2810,11 @@ def collect_page(link_id):
     
     # verified 仅取决于通行证验证，上传者不再作为门禁
     verified = is_verified(link_id) if has_passcode else True
-    
+
+    _t1 = time.time()
     # 自动扫描文件夹中的新文件
     scan_link_folder(link_id)
+    _t_scan = time.time() - _t1
     
     link_owner_id = link.get('user_id', '')
     ttl_minutes = int(get_user_setting(link_owner_id, 'passcode_ttl_minutes', '120'))
@@ -2810,12 +2857,10 @@ def collect_page(link_id):
         except (ValueError, TypeError):
             pass
 
-    # 查询创建者名称（优先昵称）
+    # 查询创建者名称（优先昵称）— 复用已有 conn，避免额外 DB 连接
     creator_name = ''
     try:
-        conn2 = get_db()
-        user_row = conn2.execute("SELECT username, nickname FROM users WHERE id = ?", (link_owner_id,)).fetchone()
-        conn2.close()
+        user_row = conn.execute("SELECT username, nickname FROM users WHERE id = ?", (link_owner_id,)).fetchone()
         if user_row:
             creator_name = user_row['nickname'] or user_row['username']
     except Exception:
@@ -2827,7 +2872,10 @@ def collect_page(link_id):
     dl_token_expires = 0
     if not has_passcode:
         dl_token, dl_token_expires = _generate_download_token(link_id)
-    return render_template('collect.html',
+    conn.close()
+
+    _t2 = time.time()
+    rendered = render_template('collect.html',
         link_id=link_id,
         task_title=link['title'],
         description=link['description'],
@@ -2860,6 +2908,10 @@ def collect_page(link_id):
         attachment_can_preview=_can_preview_attachment_ext(link.get('attachment_name', '')),
         attachment_preview_type=_attachment_preview_type(link.get('attachment_name', '')),
         blocked_extensions=sorted(list(get_blocked_extensions())), upload_batch_limit=get_upload_batch_limit(link.get('user_id')))
+    _t_render = time.time() - _t2
+    _t_total = time.time() - _t0
+    logger.info(f"[collect] {link_id} total={int(_t_total*1000)}ms | scan={int(_t_scan*1000)}ms render={int(_t_render*1000)}ms")
+    return rendered
 
 @app.route('/collect/<link_id>/verify', methods=['POST'])
 def verify_passcode(link_id):
@@ -3006,16 +3058,17 @@ def logout_uploader(link_id):
 @app.route('/share/<link_id>')
 def share_page(link_id):
     """文件分享页面（仅查看和下载，无上传功能）"""
+    _t0 = time.time()
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
         return render_template('error.html', error_code=400, error_title='链接格式无效', error_message='链接格式不合法'), 400
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
-    conn.close()
     link = dict(row) if row else None
 
     if not link:
+        conn.close()
         return render_template('error.html',
             error_code=404,
             error_title='链接失效',
@@ -3026,6 +3079,7 @@ def share_page(link_id):
 
     # 检查分享页是否启用
     if not link.get('share_enabled', 0):
+        conn.close()
         return render_template('error.html',
             error_code=404,
             error_title='分享未启用',
@@ -3037,6 +3091,7 @@ def share_page(link_id):
         try:
             expire_time = datetime.strptime(share_expires_at, '%Y-%m-%dT%H:%M')
             if datetime.now() > expire_time:
+                conn.close()
                 return render_template('error.html',
                     error_code=410,
                     error_title='链接已过期',
@@ -3065,8 +3120,10 @@ def share_page(link_id):
     else:
         verified = True
     
+    _t1 = time.time()
     # 自动扫描文件夹中的新文件
     scan_link_folder(link_id)
+    _t_scan = time.time() - _t1
     
     share_owner_id = link.get('user_id', '')
     ttl_minutes = int(get_user_setting(share_owner_id, 'passcode_ttl_minutes', '120'))
@@ -3112,12 +3169,10 @@ def share_page(link_id):
     # 分享页描述：优先独立描述，否则回退到收集页描述
     share_description_text = link.get('share_description') or link.get('description', '')
 
-    # 查询创建者名称（优先昵称）
+    # 查询创建者名称（优先昵称）— 复用已有 conn，避免额外 DB 连接
     creator_name = ''
     try:
-        conn2 = get_db()
-        user_row = conn2.execute("SELECT username, nickname FROM users WHERE id = ?", (share_owner_id,)).fetchone()
-        conn2.close()
+        user_row = conn.execute("SELECT username, nickname FROM users WHERE id = ?", (share_owner_id,)).fetchone()
         if user_row:
             creator_name = user_row['nickname'] or user_row['username']
     except Exception:
@@ -3131,7 +3186,10 @@ def share_page(link_id):
     dl_token_expires = 0
     if not has_passcode:
         dl_token, dl_token_expires = _generate_download_token(link_id)
-    return render_template('share.html',
+    conn.close()
+
+    _t2 = time.time()
+    rendered = render_template('share.html',
         link_id=link_id,
         task_title=link['title'],
         description=share_description_text,
@@ -3151,10 +3209,14 @@ def share_page(link_id):
         expire_level=expire_level,
         creator_name=creator_name,
         require_uploader=bool(link.get('require_uploader', 0)),
-        allow_preview_download=bool(link.get('allow_preview_download', 0)),
+        allow_preview_download=True,  # 分享页始终允许预览和下载
         csrf_token=csrf_token,
         dl_token=dl_token,
         dl_token_expires=dl_token_expires)
+    _t_render = time.time() - _t2
+    _t_total = time.time() - _t0
+    logger.info(f"[share] {link_id} total={int(_t_total*1000)}ms | scan={int(_t_scan*1000)}ms render={int(_t_render*1000)}ms")
+    return rendered
 
 @app.route('/share/<link_id>/verify', methods=['POST'])
 def share_verify_passcode(link_id):
@@ -3459,35 +3521,31 @@ def share_get_records(link_id):
 def share_preview_record(link_id, record_id):
     """预览分享页的文件（内联显示；支持 HEIC 转 JPEG）"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return '链接格式无效', 400
+        return _render_error_html('链接格式无效', 400, '链接ID格式不正确')
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
-        return '链接不存在或已失效', 404
+        return _render_error_html('链接不存在或已失效', 404)
 
     # 统一使用数据库规范 ID（支持自定义 slug 访问）
     link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
-        return '请先验证通行证', 403
+        return _render_error_html('请先验证通行证', 403, '请返回分享页输入通行证后再访问该文件')
 
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
-        return err, 429
+        return _render_error_html(err, 429, '请求过于频繁，请稍后重试')
 
     ok, err = _check_public_link_token(link_id, link, for_share=True)
     if not ok:
         conn.close()
-        return err, 401
-
-    if not link['allow_preview_download']:
-        conn.close()
-        return '预览功能未开启', 403
+        return _render_error_html(err, 401, '请返回分享页刷新后重试')
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -3495,7 +3553,7 @@ def share_preview_record(link_id, record_id):
     ).fetchone()
     conn.close()
     if not record:
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -3545,35 +3603,31 @@ def share_preview_record(link_id, record_id):
 def share_download_record(link_id, record_id):
     """分享页下载文件"""
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
-        return '链接格式无效', 400
+        return _render_error_html('链接格式无效', 400, '链接ID格式不正确')
     conn = get_db()
     link = conn.execute(
         "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
     ).fetchone()
     if not link:
         conn.close()
-        return '链接不存在或已失效', 404
+        return _render_error_html('链接不存在或已失效', 404)
 
     # 统一使用数据库规范 ID（支持自定义 slug 访问）
     link_id = link['id']
 
     if not is_share_verified(link_id, link):
         conn.close()
-        return '请先验证通行证', 403
+        return _render_error_html('请先验证通行证', 403, '请返回分享页输入通行证后再下载该文件')
 
     ok, err = _check_download_rate_limit()
     if not ok:
         conn.close()
-        return err, 429
+        return _render_error_html(err, 429, '请求过于频繁，请稍后重试')
 
     ok, err = _check_public_link_token(link_id, link, for_share=True)
     if not ok:
         conn.close()
-        return err, 401
-
-    if not link['allow_preview_download']:
-        conn.close()
-        return '下载功能未开启', 403
+        return _render_error_html(err, 401, '请返回分享页刷新后重试')
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -3582,7 +3636,7 @@ def share_download_record(link_id, record_id):
 
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
     conn.commit()
@@ -3620,10 +3674,6 @@ def share_preview_file(link_id, record_id):
     if not ok:
         conn.close()
         return err, 401
-
-    if not link['allow_preview_download']:
-        conn.close()
-        return '预览功能未开启', 403
 
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -4135,28 +4185,28 @@ def preview_record(link_id, record_id):
     ).fetchone()
     if not link:
         conn.close()
-        return '链接不存在或已失效', 404
+        return _render_error_html('链接不存在或已失效', 404)
 
     # 统一使用数据库规范 ID（支持自定义 slug 访问）
     link_id = link['id']
 
     if not is_verified(link_id, link):
         conn.close()
-        return '请先验证通行证', 403
+        return _render_error_html('请先验证通行证', 403)
 
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
-        return err, 429
+        return _render_error_html(err, 429, '请求过于频繁，请稍后重试')
 
     ok, err = _check_public_link_token(link_id, link, for_share=False)
     if not ok:
         conn.close()
-        return err, 401
+        return _render_error_html(err, 401, '请返回收集页刷新后重试')
 
     if not link['allow_preview_download']:
         conn.close()
-        return '预览功能未开启', 403
+        return _render_error_html('预览功能未开启', 403, '当前收集链接未启用文件预览功能')
 
     record = conn.execute(
         "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -4164,14 +4214,14 @@ def preview_record(link_id, record_id):
     ).fetchone()
     conn.close()
     if not record:
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     # require_uploader 模式下只允许预览自己的文件
     if link['require_uploader']:
         uploader_name = (session.get(f'uploader_{link_id}') or '').strip()
         rec_uploader = (record['uploader_name'] or '').strip()
         if uploader_name and rec_uploader and rec_uploader != uploader_name:
-            return '无权访问此文件', 403
+            return _render_error_html('无权访问此文件', 403, '您只能预览自己上传的文件')
 
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -4223,28 +4273,28 @@ def download_record(link_id, record_id):
     ).fetchone()
     if not link:
         conn.close()
-        return '链接不存在或已失效', 404
+        return _render_error_html('链接不存在或已失效', 404)
 
     # 统一使用数据库规范 ID（支持自定义 slug 访问）
     link_id = link['id']
 
     if not is_verified(link_id, link):
         conn.close()
-        return '请先验证通行证', 403
+        return _render_error_html('请先验证通行证', 403)
 
     ok, err = _check_download_rate_limit()
     if not ok:
         conn.close()
-        return err, 429
+        return _render_error_html(err, 429, '请求过于频繁，请稍后重试')
 
     ok, err = _check_public_link_token(link_id, link, for_share=False)
     if not ok:
         conn.close()
-        return err, 401
+        return _render_error_html(err, 401, '请返回收集页刷新后重试')
 
     if not link['allow_preview_download']:
         conn.close()
-        return '下载功能未开启', 403
+        return _render_error_html('下载功能未开启', 403, '当前收集链接未启用文件下载功能')
 
     record = conn.execute(
         "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
@@ -4253,7 +4303,7 @@ def download_record(link_id, record_id):
 
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     # require_uploader 模式下只允许下载自己的文件
     if link['require_uploader']:
@@ -4261,7 +4311,7 @@ def download_record(link_id, record_id):
         rec_uploader = (record['uploader_name'] or '').strip()
         if uploader_name and rec_uploader and rec_uploader != uploader_name:
             conn.close()
-            return '无权下载此文件', 403
+            return _render_error_html('无权下载此文件', 403, '您只能下载自己上传的文件')
 
     conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
     conn.commit()
@@ -7235,20 +7285,35 @@ _ERROR_HTML = '''<!DOCTYPE html>
 <title>{title}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}}
-.e{{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:32px 28px;text-align:center;max-width:400px;width:100%}}
-.e-icon{{font-size:48px;margin-bottom:12px}}
-.e-title{{font-size:1.05rem;font-weight:600;color:#1f2937;margin-bottom:8px}}
-.e-desc{{font-size:.85rem;color:#6b7280;line-height:1.6}}
-.e-btn{{display:inline-block;margin-top:20px;padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;text-decoration:none}}
-.e-btn:hover{{background:#2563eb}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1a1b;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}}
+.e{{text-align:center;max-width:360px;width:100%;padding:24px}}
+.e-icon{{margin-bottom:18px}}
+.e-icon svg{{width:48px;height:48px}}
+.e-title{{font-size:1.15rem;font-weight:600;color:#f1f1f1;margin-bottom:10px}}
+.e-desc{{font-size:.85rem;color:rgba(255,255,255,.55);line-height:1.55;margin-bottom:22px}}
+.e-btn{{display:inline-block;padding:8px 24px;background:rgba(255,255,255,.1);color:#e0e0e0;border:1px solid rgba(255,255,255,.18);border-radius:6px;font-size:.84rem;cursor:pointer;text-decoration:none}}
 </style>
 </head>
-<body><div class="e"><div class="e-icon">&#128683;</div><div class="e-title">{title}</div><div class="e-desc">{desc}</div><a class="e-btn" href="javascript:history.back()">返回</a></div></body></html>'''
+<body><div class="e"><div class="e-icon">{icon}</div><div class="e-title">{title}</div><div class="e-desc">{desc}</div><a class="e-btn" href="javascript:history.back()">返回</a></div></body></html>'''
 
-def _render_error_html(msg, code=401):
-    desc = '请返回收集页刷新后重试' if code == 401 else '请先验证通行证后再访问'
-    return _ERROR_HTML.format(title=msg, desc=desc), code
+_ERROR_ICONS = {
+    400: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.2)"/><line x1="12" y1="8" x2="12" y2="12" stroke="rgba(255,255,255,.4)"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="rgba(255,255,255,.4)"/></svg>',
+    401: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" stroke="rgba(255,255,255,.2)"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="rgba(255,255,255,.25)"/><circle cx="12" cy="16" r="1" fill="rgba(255,255,255,.4)"/><line x1="12" y1="8.5" x2="12" y2="10.5" stroke="rgba(255,255,255,.4)"/></svg>',
+    403: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" stroke="rgba(255,255,255,.2)"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="rgba(255,255,255,.25)"/><circle cx="12" cy="16" r="1" fill="rgba(255,255,255,.4)"/><line x1="12" y1="18" x2="12" y2="19" stroke="rgba(255,255,255,.4)"/></svg>',
+    404: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.2)"/><line x1="8" y1="8" x2="16" y2="16" stroke="rgba(255,255,255,.35)"/><line x1="16" y1="8" x2="8" y2="16" stroke="rgba(255,255,255,.35)"/></svg>',
+}
+
+_DEFAULT_DESC = {
+    401: '请返回收集页刷新后重试',
+    403: '请先验证通行证后再访问',
+    404: '您访问的资源不存在或已被移除',
+}
+
+def _render_error_html(msg, code=401, desc=None):
+    if desc is None:
+        desc = _DEFAULT_DESC.get(code, _DEFAULT_DESC[403])
+    icon = _ERROR_ICONS.get(code, _ERROR_ICONS[403])
+    return _ERROR_HTML.format(title=msg, desc=desc, icon=icon), code
 
 @app.route('/collect/<link_id>/attachment')
 def collect_attachment(link_id):
@@ -7608,8 +7673,8 @@ def admin_records():
 def admin_download_record(record_id):
     """下载上传记录中的文件"""
     if not _check_record_ownership(record_id):
-        return '无权访问', 403
-    
+        return _render_error_html('无权访问', 403, '您没有权限下载该文件')
+
     conn = get_db()
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
@@ -7618,7 +7683,7 @@ def admin_download_record(record_id):
 
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
     conn.commit()
@@ -7632,7 +7697,7 @@ def admin_download_record(record_id):
 def admin_preview_image(record_id):
     """预览图片（HEIC 自动转为 JPEG 显示）"""
     if not _check_record_ownership(record_id):
-        return '无权访问', 403
+        return _render_error_html('无权访问', 403, '您没有权限预览该图片')
     conn = get_db()
     record = conn.execute(
         "SELECT stored_path, original_name FROM upload_records WHERE id = ?",
@@ -7640,7 +7705,7 @@ def admin_preview_image(record_id):
     ).fetchone()
     conn.close()
     if not record:
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
     
     ext = os.path.splitext(record['original_name'])[1].lower()
     
@@ -7665,7 +7730,7 @@ def admin_preview_image(record_id):
 def admin_download_logs(record_id):
     """查看文件下载日志"""
     if not _check_record_ownership(record_id):
-        return '无权访问', 403
+        return _render_error_html('无权访问', 403, '您没有权限查看该文件的下载日志')
 
     page = request.args.get('page', 1, type=int)
     if page < 1:
@@ -7678,7 +7743,7 @@ def admin_download_logs(record_id):
     ).fetchone()
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     total = conn.execute(
         "SELECT COUNT(*) FROM download_logs WHERE record_id = ?", (record_id,)
@@ -7712,7 +7777,7 @@ def admin_download_logs(record_id):
 def admin_upload_logs(record_id):
     """查看文件上传日志"""
     if not _check_record_ownership(record_id):
-        return '无权访问', 403
+        return _render_error_html('无权访问', 403, '您没有权限查看该文件的上传日志')
 
     page = request.args.get('page', 1, type=int)
     if page < 1:
@@ -7728,7 +7793,7 @@ def admin_upload_logs(record_id):
     ).fetchone()
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     total = conn.execute(
         "SELECT COUNT(*) FROM upload_logs WHERE record_id = ?", (record_id,)
@@ -7763,7 +7828,7 @@ def admin_upload_logs(record_id):
 def admin_link_upload_logs(link_id):
     """查看收集链接的上传日志"""
     if not _check_link_ownership(link_id):
-        return '无权访问', 403
+        return _render_error_html('无权访问', 403, '您没有权限查看该链接的上传日志')
 
     page = request.args.get('page', 1, type=int)
     if page < 1:
@@ -7774,7 +7839,7 @@ def admin_link_upload_logs(link_id):
     link = conn.execute("SELECT title, require_uploader FROM links WHERE id = ?", (link_id,)).fetchone()
     if not link:
         conn.close()
-        return '链接不存在', 404
+        return _render_error_html('链接不存在', 404)
 
     total = conn.execute(
         "SELECT COUNT(*) FROM upload_logs WHERE link_id = ?", (link_id,)
@@ -7820,7 +7885,7 @@ def admin_preview_file(record_id):
 
     if not record:
         conn.close()
-        return '文件不存在', 404
+        return _render_error_html('文件不存在', 404)
 
     conn.close()
 
@@ -8058,7 +8123,7 @@ def admin_batch_delete_records():
 def batch_download_records():
     """批量打包下载选中记录"""
     if not validate_csrf():
-        return '安全验证失败，请刷新页面重试', 403
+        return _render_error_html('安全验证失败', 403, '请返回原页面刷新后重试')
     ids = request.form.getlist('ids[]')
     if not ids:
         return '未选择任何记录', 400
@@ -9180,6 +9245,14 @@ def page_not_found(e):
         error_title='页面未找到',
         error_message='您访问的页面不存在或已被移除。'), 404
 
+@app.errorhandler(403)
+def forbidden(e):
+    """403 禁止访问 - 路径遍历攻击、CSRF 验证失败等"""
+    return render_template('error.html',
+        error_code=403,
+        error_title='禁止访问',
+        error_message='您没有权限访问该资源，或安全验证未通过。'), 403
+
 @app.errorhandler(410)
 def page_gone(e):
     return render_template('error.html',
@@ -9225,7 +9298,7 @@ if __name__ == '__main__':
         'bind': f'0.0.0.0:{PORT}',
         'workers': workers,
         'timeout': 0,  # 不限制超时，MAX_CONTENT_LENGTH 和频率限制已提供保护
-        'accesslog': '-',
+        'accesslog': None,   # 关闭 HTTP 200 访问日志，仅记录错误
         'errorlog': '-',
         'loglevel': 'info',
         'post_worker_init': post_worker_init,

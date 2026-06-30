@@ -1,0 +1,167 @@
+/* admin_users.html */
+/* 状态徽章 */
+.badge-status {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.badge-active {
+  background: none;
+  color: #059669;
+}
+.badge-inactive {
+  background: none;
+  color: #dc2626;
+}
+
+/* 角色徽章 */
+.badge-admin,
+.badge-user {
+  background: none;
+  color: #6b7280;
+}
+
+/* 更多操作按钮 */
+/* .btn-more-user 已统一为全局 .btn-more */
+
+/* 强化管理页按钮可见性 */
+.card .btn-outline {
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+}
+.card .btn-outline:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+.btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+.btn-danger:hover { background: #fecaca; color: #b91c1c; }
+.text-muted { color: #9ca3af; font-size: 0.875rem; }
+
+/* 移动端隐藏列 */
+@media (max-width: 640px) {
+  .col-hide-mobile { display: none !important; }
+  .admin-users-table th, .admin-users-table td { font-size: .82rem; padding: 8px 10px; }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-header h3 {
+    width: 100%;
+  }
+  .card-header .btn {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
+}
+
+/* 用户操作浮窗 */
+.user-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  min-width: 260px;
+  max-width: 320px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.25s ease;
+  pointer-events: auto;
+  overflow: hidden;
+}
+.user-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+}
+.user-popover-header strong { font-size: 0.92rem; color: var(--c-text); }
+.user-popover-close {
+  background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer;
+  padding: 0; width: 28px; height: 28px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; flex-shrink: 0;
+}
+.user-popover-close:hover { background: #f0f0f0; color: #666; }
+
+/* 用户信息概览区 */
+.user-popover-info {
+  padding: 10px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #f0f0f0;
+}
+.user-popover-info .info-line {
+  display: flex;
+  padding: 4px 0;
+  font-size: .78rem;
+  color: #666;
+}
+.user-popover-info .info-line .info-dot {
+  color: #aaa; width: 50px; flex-shrink: 0;
+}
+.user-popover-info .info-line .info-val {
+  color: #333; flex: 1; word-break: break-all;
+}
+.user-popover-body {
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.user-popover-row { display: contents; }
+/* 第二排上方加横线 */
+.user-popover-body > :nth-child(n+3) { border-top: 1px solid #f0f0f0; }
+/* 第二列加左边线 */
+.user-popover-body > :nth-child(even) { border-left: 1px solid #f0f0f0; }
+.user-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.user-popover-item:hover { background: #f5f7fa; }
+.user-popover-item.danger { color: #dc2626; }
+.user-popover-item.danger:hover { background: #fef2f2; }
+.user-popover-body form { margin: 0; min-width: 0; display: flex; }
+.user-popover-body form .user-popover-item { width: 100%; }
+
+/* 浮窗动画 */
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 浮窗遮罩 */
+.popover-overlay2 {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* modal 已提取到全局 style.css */
+
+@media (max-width: 640px) {
+  .user-popover { max-width: calc(100vw - 32px); min-width: 240px; border-radius: 18px; }
+  .user-popover-header { padding: 12px 14px; }
+  .user-popover-header strong { font-size: .88rem; }
+  .user-popover-item { padding: 11px 8px; font-size: .82rem; }
+  .user-popover-item svg { width: 14px; height: 14px; margin-right: 4px !important; }
+}

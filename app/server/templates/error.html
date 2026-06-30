@@ -10,9 +10,45 @@
 </head>
 <body class="error-page">
   <div class="error-card">
+    <div class="error-icon">
+      {% if error_code == 403 %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="11" width="18" height="11" rx="2" stroke="rgba(255,255,255,.2)"/>
+        <path d="M7 11V7a5 5 0 0110 0v4" stroke="rgba(255,255,255,.25)"/>
+        <circle cx="12" cy="16" r="1" fill="rgba(255,255,255,.4)"/>
+        <line x1="12" y1="18" x2="12" y2="19" stroke="rgba(255,255,255,.4)"/>
+      </svg>
+      {% elif error_code == 401 %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="11" width="18" height="11" rx="2" stroke="rgba(255,255,255,.2)"/>
+        <path d="M7 11V7a5 5 0 0110 0v4" stroke="rgba(255,255,255,.25)"/>
+        <circle cx="12" cy="16" r="1" fill="rgba(255,255,255,.4)"/>
+        <line x1="12" y1="8.5" x2="12" y2="10.5" stroke="rgba(255,255,255,.4)"/>
+      </svg>
+      {% elif error_code == 404 %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.2)"/>
+        <line x1="8" y1="8" x2="16" y2="16" stroke="rgba(255,255,255,.35)"/>
+        <line x1="16" y1="8" x2="8" y2="16" stroke="rgba(255,255,255,.35)"/>
+      </svg>
+      {% elif error_code == 410 %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.2)"/>
+        <path d="M12 8v4" stroke="rgba(255,255,255,.4)"/>
+        <circle cx="12" cy="16" r="1" fill="rgba(255,255,255,.4)"/>
+      </svg>
+      {% else %}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.2)"/>
+        <line x1="12" y1="8" x2="12" y2="12" stroke="rgba(255,255,255,.4)"/>
+        <line x1="12" y1="16" x2="12.01" y2="16" stroke="rgba(255,255,255,.4)"/>
+      </svg>
+      {% endif %}
+    </div>
     <div class="error-code">{{ error_code|default(404) }}</div>
     <h2>{{ error_title|default('页面未找到') }}</h2>
     <p>{{ error_message|default('您访问的页面不存在或已被移除。') }}</p>
+    <a class="error-back-btn" href="javascript:history.back()">返回</a>
   </div>
 </body>
 </html>

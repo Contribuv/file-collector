@@ -1,0 +1,108 @@
+/* admin_dashboard.html */
+.admin-table--records .col-name a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--c-primary);
+}
+
+/* .btn-more 已提取到全局 style.css */
+
+.detail-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  min-width: 280px;
+  max-width: 360px;
+  width: auto;
+  padding: 0;
+  animation: popoverCenterIn 0.2s ease;
+  pointer-events: auto;
+}
+@keyframes popoverCenterIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.detail-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.detail-popover-header strong {
+  font-size: 0.85rem;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+.detail-popover-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.detail-popover-close:hover { background: #f5f5f5; }
+.detail-popover-body { padding: 10px 14px; }
+.detail-popover-row {
+  display: flex;
+  padding: 5px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.detail-popover-row:not(:last-child) { border-bottom: 1px solid #f8f8f8; }
+.detail-popover-label { color: #999; min-width: 64px; flex-shrink: 0; }
+.detail-popover-value { color: #333; flex: 1; word-break: break-all; }
+
+.detail-popover-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.detail-popover-footer .btn { font-size: 0.8rem; }
+
+/* 浮窗遮罩 */
+.popover-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1099;
+  animation: overlayIn 0.2s ease;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .detail-popover {
+    max-width: calc(100vw - 40px);
+    min-width: 260px;
+  }
+}
+
+
+
+/* 自定义灯箱 */

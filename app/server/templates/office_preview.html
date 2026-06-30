@@ -4,57 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 <title>文件预览</title>
-<style>
-/* === 全局重置 === */
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;box-sizing:border-box}
-.shell,*,.shell *{box-sizing:border-box}
-.shell{display:flex;flex-direction:column;width:100%;height:100%}
-.stage{flex:1;position:relative;overflow:auto}
-flyfish-file-viewer{display:block;width:100%;height:100%}
-/* docxjs 依赖 content-box 计算图片坐标，只影响 docx 渲染内容 */
-flyfish-file-viewer [class*="docx"],
-flyfish-file-viewer [class*="docx"] *{box-sizing:content-box}
-.file-viewer-web-toolbar-group{border-radius:6px!important}
-/* 强制隐藏 flyfish Shadow DOM 内的错误提示 */
-flyfish-file-viewer::part(error),
-flyfish-file-viewer::part(fail),
-flyfish-file-viewer::part(status-error){display:none!important}
-
-/* === 通用加载状态（所有文件类型） === */
-.fv-loading-overlay{display:none;position:absolute;inset:0;z-index:500;flex-direction:column;align-items:center;justify-content:center;background:#fff}
-.fv-loading-overlay.show{display:flex}
-.fv-loading-spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:fv-spin .8s linear infinite;margin-bottom:20px}
-@keyframes fv-spin{to{transform:rotate(360deg)}}
-.fv-loading-text{font-size:.92rem;color:#4b5563;font-weight:500}
-.fv-loading-hint{font-size:.78rem;color:#9ca3af;margin-top:6px}
-
-/* === 错误提示遮罩 === */
-.fv-error-overlay{display:none;position:absolute;inset:0;background:#f8fafc;z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center}
-.fv-error-overlay.show{display:flex}
-.fv-error-icon{width:64px;height:64px;margin-bottom:16px;opacity:.5}
-.fv-error-icon svg{width:100%;height:100%}
-.fv-error-title{font-size:1.05rem;font-weight:600;color:#374151;margin-bottom:8px}
-.fv-error-desc{font-size:.85rem;color:#6b7280;max-width:360px;line-height:1.5;margin-bottom:16px}
-.fv-error-retry{display:inline-flex;align-items:center;padding:6px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;font-size:.82rem;cursor:pointer}
-.fv-error-retry:hover{background:#2563eb}
-.fv-error-close{display:block;margin-top:12px;font-size:.78rem;color:#9ca3af;cursor:pointer;background:none;border:none}
-.fv-error-close:hover{color:#6b7280}
-
-/* === DOCX 排版提示条（PC + 移动端自适应） === */
-.fv-docx-tip{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:12px;padding:12px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-width:520px;width:calc(100% - 32px);box-sizing:border-box}
-.fv-docx-tip-text{flex:1;font-size:.88rem;color:#4b5563;line-height:1.5;min-width:0}
-.fv-docx-tip-text strong{color:#1f2937}
-.fv-docx-tip-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.84rem;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
-.fv-docx-tip-btn:hover{background:#2563eb}
-.fv-docx-tip-close{flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;background:none;color:#9ca3af;font-size:1.1rem;cursor:pointer;border-radius:6px;padding:0;line-height:1}
-.fv-docx-tip-close:hover{background:#f3f4f6;color:#4b5563}
-@media (max-width:600px){
-  .fv-docx-tip{flex-wrap:wrap;gap:8px;padding:14px 36px 14px 16px;border-radius:8px}
-  .fv-docx-tip-text{font-size:.84rem;flex:1 1 100%;padding-right:0}
-  .fv-docx-tip-btn{font-size:.82rem;padding:9px 0;flex:1 1 100%;justify-content:center;border-radius:6px;text-align:center}
-  .fv-docx-tip-close{position:absolute;top:6px;right:6px;width:32px;height:32px;font-size:1.2rem}
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/office-preview-inline.css') }}">
 </head>
 <body>
 <div class="shell">
@@ -73,14 +23,12 @@ flyfish-file-viewer::part(status-error){display:none!important}
     <!-- 错误提示 -->
     <div class="fv-error-overlay" id="fv-err">
       <div class="fv-error-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12" stroke="rgba(255,255,255,.45)"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="rgba(255,255,255,.45)"/></svg>
       </div>
       <div class="fv-error-title" id="fv-err-title">预览失败</div>
       <div class="fv-error-desc" id="fv-err-desc">无法加载文件，请检查文件是否存在或稍后重试。</div>
-      {% if download_url %}
-      <a class="fv-error-retry" href="{{ download_url|safe }}" download>⬇ 下载文件</a>
-      {% endif %}
-      <button class="fv-error-close" onclick="this.parentElement.classList.remove('show')">关闭</button>
+
+      <button class="fv-error-close" onclick="window.close();setTimeout(function(){window.location.replace('about:blank')},150)">关闭</button>
     </div>
   </div>
 </div>
@@ -170,95 +118,6 @@ window.addEventListener('unhandledrejection', function(e) {
   });
 })();
 
-// 错误提示：监听 flyfish viewer-error 事件
-(function(){
-  var fv = document.getElementById('fv');
-  var errOverlay = document.getElementById('fv-err');
-  var errTitle = document.getElementById('fv-err-title');
-  var errDesc = document.getElementById('fv-err-desc');
-
-  // 隐藏 flyfish 内部错误提示（light DOM）
-  function hideFVError() {
-    if (!fv) return;
-    // 尝试隐藏 flyfish 错误状态的根级元素
-    var shell = fv.querySelector('.file-viewer-web-shell');
-    if (shell) {
-      var errDivs = shell.querySelectorAll('div');
-      errDivs.forEach(function(d) {
-        var h = d.textContent || '';
-        if (h.indexOf('预览失败') >= 0 || h.indexOf('PPTX') >= 0 ||
-            h.indexOf('解析失败') >= 0 || h.indexOf('central directory') >= 0) {
-          var p = d;
-          while (p && p !== shell) {
-            if (p.children.length > 0 && p.offsetHeight < shell.offsetHeight * 0.8) {
-              p.style.display = 'none'; break;
-            }
-            p = p.parentElement;
-          }
-          if (p === shell || !p) d.style.display = 'none';
-        }
-      });
-    }
-    // 备用：通用 class 匹配
-    var all = fv.querySelectorAll('*');
-    all.forEach(function(el) {
-      var c = el.className || '';
-      if (typeof c === 'string' && (c.indexOf('error') >= 0 || c.indexOf('Error') >= 0 || c.indexOf('fail') >= 0)) {
-        el.style.display = 'none';
-      }
-    });
-  }
-
-  // 根据错误信息推测具体原因
-  function parseError(detail) {
-    var msg = (detail && detail.message) || (detail && detail.toString()) || '';
-    var statusMatch = msg.match(/Failed to fetch file:\s*(\d+)/);
-    if (statusMatch) {
-      var code = parseInt(statusMatch[1], 10);
-      switch (code) {
-        case 401:
-          return { title: '访问已过期', desc: '文件访问令牌已过期，请返回原页面刷新后重新打开。' };
-        case 403:
-          return { title: '无法访问', desc: '没有权限访问此文件，预览功能可能未开启或您无权查看。' };
-        case 404:
-          return { title: '文件不存在', desc: '文件可能已被删除或链接已失效。' };
-        default:
-          return { title: '预览失败', desc: '文件加载出错（状态码 ' + code + '），请下载后查看。' };
-      }
-    }
-    if (msg.indexOf('central directory') >= 0)
-      return { title: '无法访问', desc: '文件获取失败，可能是权限问题或链接已过期。请返回原页面刷新后重试。' };
-    if (msg.indexOf('401') >= 0 || msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('令牌') >= 0)
-      return { title: '访问已过期', desc: '文件访问令牌已过期，请返回原页面刷新后重新打开。' };
-    if (msg.indexOf('403') >= 0 || msg.indexOf('权限') >= 0 || msg.indexOf('无权') >= 0)
-      return { title: '无法访问', desc: '没有权限访问此文件，预览功能可能未开启或您无权查看。' };
-    if (msg.indexOf('404') >= 0)
-      return { title: '文件不存在', desc: '文件可能已被删除或链接已失效。' };
-    return { title: '预览失败', desc: '无法加载文件，请检查文件格式或下载后查看。' };
-  }
-
-  var errorShown = false;
-  fv.addEventListener('viewer-error', function(e) {
-    var info = parseError(e.detail);
-    errTitle.textContent = info.title;
-    errDesc.textContent = info.desc;
-    errOverlay.classList.add('show');
-    errorShown = true;
-    hideFVError();
-  });
-
-  fv.addEventListener('viewer-load-complete', function() {
-    errOverlay.classList.remove('show');
-    errorShown = false;
-  });
-
-  // MutationObserver 持续扫描 flyfish 内部新出现的错误元素
-  var obsError = new MutationObserver(function() {
-    if (errorShown) hideFVError();
-  });
-  obsError.observe(fv, {childList:true,subtree:true,attributes:true});
-})();
-
 // DOCX 排版提示：加载完成后显示
 {% if filename and filename.lower().endswith(('.docx', '.doc')) %}
 (function(){
@@ -294,5 +153,6 @@ window.addEventListener('unhandledrejection', function(e) {
 })();
 {% endif %}
 </script>
+<script src="{{ url_for('static', filename='js/office-preview-error.js') }}"></script>
 </body>
 </html>

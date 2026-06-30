@@ -9,47 +9,8 @@
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collect.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
-
-  <style>
-  /* 自定义灯箱样式 */
-  #custom-lightbox { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; }
-  #custom-lightbox .lb-backdrop { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); }
-  #custom-lightbox .lb-close { position:absolute; top:12px; right:18px; z-index:10; font-size:40px; color:#fff; background:none; border:none; cursor:pointer; line-height:1; padding:0 8px; opacity:0.8; }
-  #custom-lightbox .lb-close:hover { opacity:1; }
-  #custom-lightbox .lb-prev, #custom-lightbox .lb-next { position:absolute; top:50%; transform:translateY(-50%); z-index:10; font-size:44px; color:#fff; background:rgba(255,255,255,0.12); border:none; cursor:pointer; padding:8px 14px; border-radius:6px; line-height:1; }
-  #custom-lightbox .lb-prev:hover, #custom-lightbox .lb-next:hover { background:rgba(255,255,255,0.25); }
-  #custom-lightbox .lb-prev { left:16px; }
-  #custom-lightbox .lb-next { right:16px; }
-  #custom-lightbox .lb-content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  #custom-lightbox .lb-content img { max-width:92vw; max-height:86vh; object-fit:contain; border-radius:4px; }
-  #custom-lightbox .lb-content video { max-width:92vw; max-height:86vh; border-radius:4px; }
-  #custom-lightbox .lb-content .lb-audio-wrap {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 32px 40px; background: rgba(255,255,255,0.06); border-radius: 16px;
-    min-width: 340px; max-width: 520px; width: 80vw;
-  }
-  #custom-lightbox .lb-content .lb-audio-icon {
-    width: 80px; height: 80px; border-radius: 12px;
-    background: rgba(255,255,255,0.1); display: flex; align-items: center;
-    justify-content: center; margin-bottom: 16px;
-  }
-  #custom-lightbox .lb-content .lb-audio-icon svg { width: 40px; height: 40px; color: #fff; opacity: 0.7; }
-  #custom-lightbox .lb-content .lb-audio-title {
-    color: #fff; font-size: .95rem; font-weight: 500; margin-bottom: 6px;
-    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  #custom-lightbox .lb-content .lb-audio-sub {
-    color: rgba(255,255,255,0.45); font-size: .78rem; margin-bottom: 18px;
-  }
-  #custom-lightbox .lb-content audio { width: 100%; outline: none; }
-  #custom-lightbox .lb-content .lb-title-bar {
-    position: absolute; top: 0; left: 0; right: 0;
-    padding: 10px 48px 10px 18px; text-align: center;
-    color: rgba(255,255,255,0.8); font-size: .85rem;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    pointer-events: none;
-  }
-</style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_preview-error.css') }}">
 </head>
 <body>
 
@@ -373,6 +334,7 @@
 } %}
 
 <script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
+<script src="{{ url_for('static', filename='js/lightbox-error.js') }}"></script>
 <script>
 var _C = JSON.parse(document.getElementById('js-config').textContent);
 const linkId = _C.linkId;
@@ -1902,6 +1864,7 @@ function renderLightbox() {
     vid.appendChild(src);
     vid.load();
     vid.play();
+    vid.onerror = function(){ lightboxMediaError(event, 'video'); };
   } else if (item.type === 'audio') {
     if (aud && audWrap) {
       audWrap.style.display = 'flex';
@@ -1913,12 +1876,14 @@ function renderLightbox() {
       aud.appendChild(aSrc);
       aud.load();
       aud.play();
+      aud.onerror = function(){ lightboxMediaError(event, 'audio'); };
     }
   } else {
     vid.pause();
     vid.removeAttribute('src');
     if (aud) { aud.pause(); aud.removeAttribute('src'); }
     img.style.display = 'block';
+    img.onerror = lightboxImgError;
     img.src = item.href;
   }
   // 更新导航按钮可见性

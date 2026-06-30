@@ -1,0 +1,50 @@
+/* office_preview.html */
+/* === 全局重置 === */
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;box-sizing:border-box}
+.shell,*,.shell *{box-sizing:border-box}
+.shell{display:flex;flex-direction:column;width:100%;height:100%}
+.stage{flex:1;position:relative;overflow:auto}
+flyfish-file-viewer{display:block;width:100%;height:100%}
+/* docxjs 依赖 content-box 计算图片坐标，只影响 docx 渲染内容 */
+flyfish-file-viewer [class*="docx"],
+flyfish-file-viewer [class*="docx"] *{box-sizing:content-box}
+.file-viewer-web-toolbar-group{border-radius:6px!important}
+/* 强制隐藏 flyfish Shadow DOM 内的错误提示 */
+flyfish-file-viewer::part(error),
+flyfish-file-viewer::part(fail),
+flyfish-file-viewer::part(status-error){display:none!important}
+
+/* === 通用加载状态（所有文件类型） === */
+.fv-loading-overlay{display:none;position:absolute;inset:0;z-index:500;flex-direction:column;align-items:center;justify-content:center;background:#fff}
+.fv-loading-overlay.show{display:flex}
+.fv-loading-spinner{width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:fv-spin .8s linear infinite;margin-bottom:20px}
+@keyframes fv-spin{to{transform:rotate(360deg)}}
+.fv-loading-text{font-size:.92rem;color:#4b5563;font-weight:500}
+.fv-loading-hint{font-size:.78rem;color:#9ca3af;margin-top:6px}
+
+/* === 错误提示遮罩（深色主题，与 PDF 错误页一致） === */
+.fv-error-overlay{display:none;position:absolute;inset:0;background:#1a1a1b;z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center}
+.fv-error-overlay.show{display:flex}
+.fv-error-icon{width:64px;height:64px;margin-bottom:20px;opacity:.45}
+.fv-error-icon svg{width:100%;height:100%}
+.fv-error-title{font-size:1.15rem;font-weight:600;color:#f1f1f1;margin-bottom:10px}
+.fv-error-desc{font-size:.85rem;color:rgba(255,255,255,.55);max-width:360px;line-height:1.55;margin-bottom:20px}
+.fv-error-retry{display:inline-flex;align-items:center;padding:8px 20px;background:rgba(59,130,246,.35);color:#e0e0e0;border:1px solid rgba(59,130,246,.5);border-radius:6px;font-size:.84rem;cursor:pointer;text-decoration:none;gap:5px;transition:background .15s}
+.fv-error-retry:hover{background:rgba(59,130,246,.5)}
+.fv-error-close{background:rgba(255,255,255,.1);color:#e0e0e0;border:1px solid rgba(255,255,255,.18);padding:8px 24px;border-radius:6px;font-size:.84rem;cursor:pointer;transition:background .15s}
+.fv-error-close:hover{background:rgba(255,255,255,.2)}
+
+/* === DOCX 排版提示条（PC + 移动端自适应） === */
+.fv-docx-tip{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:12px;padding:12px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-width:520px;width:calc(100% - 32px);box-sizing:border-box}
+.fv-docx-tip-text{flex:1;font-size:.88rem;color:#4b5563;line-height:1.5;min-width:0}
+.fv-docx-tip-text strong{color:#1f2937}
+.fv-docx-tip-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.84rem;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
+.fv-docx-tip-btn:hover{background:#2563eb}
+.fv-docx-tip-close{flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;background:none;color:#9ca3af;font-size:1.1rem;cursor:pointer;border-radius:6px;padding:0;line-height:1}
+.fv-docx-tip-close:hover{background:#f3f4f6;color:#4b5563}
+@media (max-width:600px){
+  .fv-docx-tip{flex-wrap:wrap;gap:8px;padding:14px 36px 14px 16px;border-radius:8px}
+  .fv-docx-tip-text{font-size:.84rem;flex:1 1 100%;padding-right:0}
+  .fv-docx-tip-btn{font-size:.82rem;padding:9px 0;flex:1 1 100%;justify-content:center;border-radius:6px;text-align:center}
+  .fv-docx-tip-close{position:absolute;top:6px;right:6px;width:32px;height:32px;font-size:1.2rem}
+}

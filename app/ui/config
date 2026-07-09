@@ -3,10 +3,11 @@
         "file-collector.main": {
             "title": "文件收集器",
             "icon": "images/icon-{0}.png",
-            "type": "url",
-            "protocol": "http",
-            "port": "${wizard_app_port}",
-            "url": "/admin",
+            "type": "iframe",
+            "protocol": "",
+            "gatewaySocket": "app.sock",
+            "gatewayPrefix": "/app/file-collector",
+            "url": "/app/file-collector/gateway",
             "allUsers": true
         }
     }

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.17-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.18-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -145,7 +145,10 @@ file-collector/
 ├── app/
 │   ├── server/
 │   │   ├── app.py              # Flask 主应用（路由、数据库、业务逻辑）
-│   │   ├── templates/           # Jinja2 模板（10 个页面）
+│   │   ├── gateway_api.py       # 飞牛统一网关反代管理 API（独立 Blueprint）
+│   │   ├── rproxy_manager.py    # Go 反向代理管理器（HTTPS + HTTP→HTTPS 301）
+│   │   ├── cert_manager.py      # 飞牛证书管理模块
+│   │   ├── templates/           # Jinja2 模板（含 gateway.html）
 │   │   └── static/              # CSS、图片、图标
 │   └── ui/                      # 桌面图标资源
 ├── cmd/
@@ -307,6 +310,15 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.18
+- **飞牛统一网关（Gateway）**：新增独立 Gateway 反代管理页面，集成于飞牛桌面统一网关入口
+- **Gateway 反代 API**：`gateway_api.py` 独立 Blueprint，无需登录（飞牛统一网关已做认证），支持启动/停止/日志/端口检测
+- **Unix Socket 反代**：通过 `gateway_socket = app.sock` 声明，支持飞牛统一网关的反代通道
+- **单端口 HTTP→HTTPS 301**：Go 反代引擎通过 TCP 协议嗅探实现同端口双协议，明文 HTTP 自动 301 跳转到 HTTPS
+- **HSTS 安全头**：HTTPS 响应自动携带 `Strict-Transport-Security`，浏览器强制 HTTPS 访问
+- **SVG 图标全面替换**：Gateway 页面所有 Emoji 图标替换为统一的 SVG 图标，视觉更专业
+- **修复**：`gateway_bp` 导入顺序错误导致应用启动失败
 
 ### v2.3.17
 - **去除 Office 预览**：移除 Word/Excel/PPT 在线预览（JIT Viewer / flyfish file-viewer），简化依赖

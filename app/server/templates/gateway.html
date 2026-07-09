@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>文件收集器 · 公网访问</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css') }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png') }}">
+</head>
+<body>
+<div class="gateway-page">
+    <div class="gateway-content">
+        <div class="gateway-grid">
+            <!-- 配置卡片 -->
+            <div class="gateway-card config-card">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                    </svg>
+                    反向代理配置
+                </h2>
+                <div class="form-item">
+                    <label class="form-label">域名</label>
+                    <select class="form-select" id="domainSelect">
+                        <option value="">加载中...</option>
+                    </select>
+                    <div class="form-hint-warning" style="margin-top:6px;font-size:11px;">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
+                </div>
+                <div class="form-item">
+                    <label class="form-label">HTTPS 端口</label>
+                    <div class="port-input-row">
+                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
+                        <span class="port-status port-status-checking" id="portStatus">
+                            <span class="port-status-dot"></span>
+                            <span class="port-status-text" id="portStatusText">检测中...</span>
+                        </span>
+                    </div>
+                    <div class="port-suggest" id="portSuggest" style="display:none;">
+                        <span class="port-suggest-text">端口被占用，试试：</span>
+                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
+                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
+                    </div>
+                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
+                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
+                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
+                </div>
+            </div>
+
+            <!-- 状态卡片 -->
+            <div class="gateway-card status-card">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    运行状态
+                </h2>
+                <div class="status-row">
+                    <div class="status-label">状态</div>
+                    <div class="status-value">
+                        <span class="status-stopped" id="statusText">
+                            <span class="status-dot"></span>未启动
+                        </span>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">内网地址</div>
+                    <div class="status-value">
+                        <a class="url-link" id="localUrl" href="http://{{ local_ip }}:{{ local_port }}/admin" target="_blank">
+                            http://{{ local_ip }}:{{ local_port }}/admin ↗
+                        </a>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">公网地址</div>
+                    <div class="status-value">
+                        <div class="url-box" id="urlBox" style="display:none;">
+                            <span id="proxyUrl">--</span>
+                            <button class="copy-btn" onclick="copyUrl()">复制</button>
+                        </div>
+                        <span id="noUrl" style="color:#8c8c8c;">启动后显示</span>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">操作</div>
+                    <div class="status-value">
+                        <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开管理后台 ↗</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 帮助说明卡片 -->
+        <div class="gateway-card help-card" id="helpCard">
+            <h2>
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                为什么需要配置反向代理？
+            </h2>
+            <div class="info-box">
+                <ul>
+                    <li>文件收集器默认监听内网端口，仅局域网可访问</li>
+                    <li>通过反向代理，可将服务暴露到公网，支持 HTTPS 加密</li>
+                    <li>证书自动从飞牛系统获取，无需手动申请</li>
+                    <li>支持多终端同时在线协作</li>
+                </ul>
+            </div>
+            <p class="help-note">
+                请确保路由器已配置端口转发，将 HTTPS 端口映射到本机。
+            </p>
+        </div>
+
+        <!-- 日志卡片 -->
+        <div class="gateway-card log-card">
+            <h2>
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                实时日志
+            </h2>
+            <div class="log-box" id="logBox">
+                <div class="log-line log-info">[系统] 等待反向代理启动...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// 全局变量
+// ============================================================
+const gatewayPrefix = '{{ gateway_prefix }}';
+let isRunning = false;
+let currentDomain = '';
+let currentPort = {{ config.port or 7786 }};
+let lastLogCount = 0;
+let portCheckTimer = null;
+
+// ============================================================
+// API 路径
+// ============================================================
+function apiPath(suffix) {
+    if (window.location.pathname.indexOf(gatewayPrefix) === 0) {
+        return gatewayPrefix + '/gateway' + suffix;
+    }
+    return '/gateway' + suffix;
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadCerts();
+    loadStatus();
+    setInterval(loadStatus, 5000);
+    setInterval(loadLogs, 3000);
+    initPortCheck();
+});
+
+function initPortCheck() {
+    const portInput = document.getElementById('portInput');
+    if (!portInput) return;
+
+    portInput.addEventListener('input', function() {
+        if (isRunning) return;
+        if (portCheckTimer) clearTimeout(portCheckTimer);
+        setPortStatus('checking', '检测中...');
+        portCheckTimer = setTimeout(() => {
+            const port = parseInt(portInput.value);
+            if (port && port > 0 && port <= 65535) {
+                checkPort(port);
+            } else {
+                setPortStatus('invalid', '端口无效');
+            }
+        }, 300);
+    });
+
+    // 初始检测
+    setTimeout(() => {
+        if (!isRunning) {
+            const port = parseInt(portInput.value);
+            if (port && port > 0 && port <= 65535) checkPort(port);
+        }
+    }, 500);
+
+    const suggestBtn1 = document.getElementById('suggestBtn1');
+    const suggestBtn2 = document.getElementById('suggestBtn2');
+    if (suggestBtn1) {
+        suggestBtn1.addEventListener('click', function() {
+            if (isRunning) return;
+            const port = parseInt(this.textContent);
+            portInput.value = port;
+            checkPort(port);
+        });
+    }
+    if (suggestBtn2) {
+        suggestBtn2.addEventListener('click', function() {
+            if (isRunning) return;
+            const port = parseInt(this.textContent);
+            portInput.value = port;
+            checkPort(port);
+        });
+    }
+}
+
+// ============================================================
+// 证书加载
+// ============================================================
+async function loadCerts() {
+    try {
+        const res = await fetch(apiPath('/api/certs')).then(r => r.json());
+        const select = document.getElementById('domainSelect');
+        select.innerHTML = '';
+        if (res.certs && res.certs.length > 0) {
+            const seen = new Set();
+            res.certs.forEach(cert => {
+                const sans = cert.sans || [];
+                sans.forEach(san => {
+                    if (!seen.has(san)) {
+                        seen.add(san);
+                        const opt = document.createElement('option');
+                        opt.value = san;
+                        opt.textContent = san + (cert.expired ? ' (已过期)' : '');
+                        select.appendChild(opt);
+                    }
+                });
+            });
+            // 如果有当前配置的域名，选中它
+            if (currentDomain) {
+                select.value = currentDomain;
+            }
+        } else {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '暂无可用证书，请先在飞牛系统中申请';
+            select.appendChild(opt);
+        }
+    } catch(e) {
+        console.error('加载证书失败', e);
+    }
+}
+
+async function refreshCerts() {
+    await loadCerts();
+    addLog('success', '证书列表已刷新');
+}
+
+// ============================================================
+// 状态加载
+// ============================================================
+async function loadStatus() {
+    try {
+        const res = await fetch(apiPath('/api/status')).then(r => r.json());
+        const wasRunning = isRunning;
+        isRunning = res.running || false;
+        currentDomain = res.domain || '';
+        currentPort = res.port || 7786;
+        updateUI();
+        if (isRunning && !wasRunning) {
+            loadLogs();
+        }
+    } catch(e) {
+        console.error('加载状态失败', e);
+    }
+}
+
+function updateUI() {
+    const statusText = document.getElementById('statusText');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const urlBox = document.getElementById('urlBox');
+    const noUrl = document.getElementById('noUrl');
+    const openBtn = document.getElementById('openBtn');
+    const portInput = document.getElementById('portInput');
+
+    if (isRunning) {
+        portInput.value = currentPort;
+        portInput.disabled = true;
+        statusText.className = 'status-running';
+        statusText.innerHTML = '<span class="status-dot"></span>运行中';
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-flex';
+        urlBox.style.display = 'flex';
+        noUrl.style.display = 'none';
+        openBtn.style.display = 'inline-flex';
+
+        setPortStatus('available', '反代运行中');
+        hideSuggest();
+
+        const url = `https://${currentDomain}:${currentPort}`;
+        document.getElementById('proxyUrl').textContent = url;
+    } else {
+        portInput.disabled = false;
+        statusText.className = 'status-stopped';
+        statusText.innerHTML = '<span class="status-dot"></span>未启动';
+        startBtn.style.display = 'inline-flex';
+        stopBtn.style.display = 'none';
+        urlBox.style.display = 'none';
+        noUrl.style.display = 'inline';
+        openBtn.style.display = 'none';
+    }
+}
+
+// ============================================================
+// 端口检测
+// ============================================================
+async function checkPort(port) {
+    if (isRunning) {
+        setPortStatus('available', '反代运行中');
+        hideSuggest();
+        return;
+    }
+    try {
+        const res = await fetch(apiPath('/api/check-port?port=' + port)).then(r => r.json());
+        if (isRunning) {
+            setPortStatus('available', '反代运行中');
+            hideSuggest();
+            return;
+        }
+        if (res.available) {
+            setPortStatus('available', '端口可用');
+            hideSuggest();
+        } else {
+            setPortStatus('unavailable', res.message || '端口被占用');
+            if (res.suggested_port) {
+                showSuggest(res.suggested_port);
+            } else {
+                hideSuggest();
+            }
+        }
+    } catch(e) {
+        setPortStatus('unknown', '检测失败');
+        hideSuggest();
+    }
+}
+
+function setPortStatus(status, text) {
+    const statusEl = document.getElementById('portStatus');
+    const textEl = document.getElementById('portStatusText');
+    if (!statusEl || !textEl) return;
+    statusEl.className = 'port-status port-status-' + status;
+    textEl.textContent = text;
+}
+
+function showSuggest(suggestedPort) {
+    const suggestEl = document.getElementById('portSuggest');
+    const btn1 = document.getElementById('suggestBtn1');
+    const btn2 = document.getElementById('suggestBtn2');
+    if (!suggestEl) return;
+    suggestEl.style.display = 'flex';
+    if (btn1) { btn1.textContent = suggestedPort; btn1.style.display = 'inline-block'; }
+    if (btn2) { btn2.textContent = suggestedPort + 1; btn2.style.display = 'inline-block'; }
+}
+
+function hideSuggest() {
+    const suggestEl = document.getElementById('portSuggest');
+    if (suggestEl) suggestEl.style.display = 'none';
+}
+
+// ============================================================
+// 启动 / 停止
+// ============================================================
+async function startProxy() {
+    const domain = document.getElementById('domainSelect').value;
+    const port = parseInt(document.getElementById('portInput').value) || 7786;
+
+    if (!domain) { alert('请选择域名'); return; }
+    if (!port || port < 1 || port > 65535) { alert('请输入有效的端口号'); return; }
+
+    setPortStatus('checking', '启动中...');
+
+    try {
+        const res = await fetch(apiPath('/api/start'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, port })
+        }).then(r => r.json());
+
+        if (res.success) {
+            addLog('info', '反向代理启动中...');
+            setTimeout(() => { loadStatus(); loadLogs(); }, 1000);
+        } else {
+            const msg = res.message || '未知错误';
+            alert('启动失败：' + msg);
+            addLog('error', '启动失败：' + msg);
+            setPortStatus('unavailable', msg);
+            checkPort(port);
+        }
+    } catch(e) {
+        alert('启动请求失败');
+        setPortStatus('unknown', '请求失败');
+    }
+}
+
+async function stopProxy() {
+    if (!confirm('确定停止反向代理？')) return;
+
+    try {
+        const res = await fetch(apiPath('/api/stop'), { method: 'POST' }).then(r => r.json());
+        if (res.success) {
+            addLog('info', '反向代理已停止');
+            setTimeout(() => {
+                loadStatus();
+                loadLogs();
+                const port = parseInt(document.getElementById('portInput').value);
+                if (port) checkPort(port);
+            }, 500);
+        }
+    } catch(e) {
+        console.error('停止失败', e);
+    }
+}
+
+// ============================================================
+// 日志
+// ============================================================
+async function loadLogs() {
+    try {
+        const res = await fetch(apiPath('/api/logs?limit=50')).then(r => r.json());
+        if (!res.logs) return;
+        const logBox = document.getElementById('logBox');
+        if (!logBox) return;
+
+        if (res.logs.length === 0 && isRunning) {
+            logBox.innerHTML = '';
+            addLog('success', '反向代理运行中');
+            return;
+        }
+
+        if (res.logs.length !== lastLogCount) {
+            lastLogCount = res.logs.length;
+            logBox.innerHTML = '';
+            res.logs.forEach(entry => {
+                const rawLevel = (entry.level || entry.Level || 'INFO').toUpperCase();
+                let type = 'info';
+                if (rawLevel === 'ERROR') type = 'error';
+                else if (rawLevel === 'SUCCESS' || rawLevel === 'WARN') type = rawLevel.toLowerCase();
+                const msg = entry.msg || entry.Msg || entry.message || '';
+                const time = entry.time || entry.Time || '';
+                appendLogLine(type, msg, time);
+            });
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    } catch(e) { /* 静默失败 */ }
+}
+
+function appendLogLine(type, msg, time) {
+    const logBox = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.className = 'log-line log-' + type;
+    line.textContent = time ? `[${time}] ${msg}` : msg;
+    logBox.appendChild(line);
+}
+
+function addLog(type, msg) {
+    const logBox = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.className = 'log-line log-' + type;
+    const time = new Date().toLocaleTimeString();
+    line.textContent = `[${time}] ${msg}`;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+// ============================================================
+// 辅助函数
+// ============================================================
+function copyUrl() {
+    const url = document.getElementById('proxyUrl').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+        addLog('success', '地址已复制到剪贴板');
+    });
+}
+
+function openAdmin() {
+    const url = document.getElementById('proxyUrl').textContent;
+    window.open(url + '/admin', '_blank');
+}
+</script>
+</body>
+</html>

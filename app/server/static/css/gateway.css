@@ -1,0 +1,499 @@
+/* ============================================================
+   Gateway 公网访问配置页面样式
+   文件收集器 - 独立模块
+   ============================================================ */
+
+/* ---- 基础重置 ---- */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #f0f2f5;
+    color: #1f1f1f;
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+/* ---- 页面容器 ---- */
+.gateway-page {
+    min-height: 100vh;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- 标题栏 ---- */
+.gateway-header {
+    background: #001529;
+    color: #fff;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.gateway-header .logo {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* ---- 内容区 ---- */
+.gateway-content {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 100%;
+}
+
+/* ---- 两栏网格 ---- */
+.gateway-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* ---- 卡片 ---- */
+.gateway-card {
+    background: #fff;
+    border-radius: 6px;
+    padding: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.gateway-card h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f1f1f;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gateway-card .card-icon {
+    width: 16px;
+    height: 16px;
+    color: #1890ff;
+    flex-shrink: 0;
+}
+
+/* ---- 表单 ---- */
+.form-item {
+    margin-bottom: 10px;
+}
+
+.form-label {
+    display: block;
+    font-size: 13px;
+    color: #595959;
+    margin-bottom: 4px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #1f1f1f;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24,144,255,0.1);
+}
+
+.form-input:disabled {
+    background: #f5f5f5;
+    color: #8c8c8c;
+}
+
+.form-select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #1f1f1f;
+    background: #fff;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    appearance: auto;
+}
+
+.form-select:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24,144,255,0.1);
+}
+
+.form-hint-warning {
+    margin-top: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #ff4d4f;
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+    border-radius: 3px;
+    line-height: 1.5;
+}
+
+/* ---- 帮助说明 ---- */
+.info-box {
+    background: #e6f7ff;
+    border: 1px solid #91d5ff;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+
+.info-box ul {
+    margin: 4px 0 0 0;
+    padding-left: 18px;
+    color: #0050b3;
+    line-height: 1.8;
+}
+
+.info-box li {
+    font-size: 12px;
+}
+
+.help-note {
+    font-size: 12px;
+    color: #ff4d4f;
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+    border-radius: 3px;
+    padding: 6px 10px;
+    line-height: 1.5;
+}
+
+/* ---- 状态行 ---- */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.status-row:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    width: 60px;
+    color: #8c8c8c;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.status-value {
+    flex: 1;
+    color: #1f1f1f;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 0;
+}
+
+.status-running {
+    color: #52c41a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-stopped {
+    color: #8c8c8c;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+/* ---- URL 展示 ---- */
+.url-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f5f5f5;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #1f1f1f;
+    word-break: break-all;
+}
+
+.url-box .copy-btn {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    font-size: 11px;
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #595959;
+}
+
+.url-box .copy-btn:hover {
+    color: #1890ff;
+    border-color: #1890ff;
+}
+
+.url-link {
+    color: #1890ff;
+    text-decoration: none;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.url-link:hover {
+    color: #40a9ff;
+    text-decoration: underline;
+}
+
+/* ---- 按钮 ---- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 5px 14px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    line-height: 1.4;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #40a9ff;
+    border-color: #40a9ff;
+}
+
+.btn-danger {
+    background: #ff4d4f;
+    border-color: #ff4d4f;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #ff7875;
+    border-color: #ff7875;
+}
+
+.btn-default {
+    background: #fff;
+    border-color: #d9d9d9;
+    color: #595959;
+}
+
+.btn-default:hover {
+    color: #1890ff;
+    border-color: #1890ff;
+}
+
+.btn-sm {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+
+.action-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+/* ---- 端口输入行 ---- */
+.port-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.port-input {
+    flex: 1;
+}
+
+.port-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 3px;
+}
+
+.port-status-checking {
+    color: #faad14;
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+}
+
+.port-status-available {
+    color: #52c41a;
+    background: #f6ffed;
+    border: 1px solid #b7eb8f;
+}
+
+.port-status-unavailable {
+    color: #ff4d4f;
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+}
+
+.port-status-invalid {
+    color: #faad14;
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+}
+
+.port-status-unknown {
+    color: #8c8c8c;
+    background: #f5f5f5;
+    border: 1px solid #d9d9d9;
+}
+
+.port-status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.port-suggest {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #d46b08;
+}
+
+.port-suggest-text {
+    flex-shrink: 0;
+}
+
+.port-suggest-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    background: #fff;
+    border: 1px solid #ffd591;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #d46b08;
+    transition: all 0.2s;
+}
+
+.port-suggest-btn:hover {
+    background: #fff7e6;
+    border-color: #fa8c16;
+    color: #fa8c16;
+}
+
+/* ---- 日志 ---- */
+.log-box {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.log-box .log-line {
+    margin-bottom: 2px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.log-box .log-info {
+    color: #4fc1ff;
+}
+
+.log-box .log-error {
+    color: #f48771;
+}
+
+.log-box .log-success {
+    color: #89d185;
+}
+
+.log-box .log-warn {
+    color: #ffd700;
+}
+
+/* ---- 响应式 ---- */
+@media (max-width: 640px) {
+    .gateway-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .gateway-content {
+        padding: 8px;
+    }
+
+    .gateway-card {
+        padding: 12px;
+    }
+
+    .status-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .status-label {
+        width: auto;
+    }
+
+    .port-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .port-status {
+        justify-content: center;
+    }
+}

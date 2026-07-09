@@ -189,3 +189,7 @@ cython_debug/
 # Build artifacts
 *.fpk
 *.msi
+package/
+
+# IDE
+.vscode/

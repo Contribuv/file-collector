@@ -246,40 +246,4 @@
   object-fit: contain;
 }
 
-/* 反向代理教程 */
-.proxy-guide-hint {
-  font-size: 0.87rem;
-  color: var(--c-primary);
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin: 0 0 16px;
-}
-.proxy-guide-title {
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--c-text);
-  margin: 0 0 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--c-border);
-}
-.proxy-guide-divider {
-  margin: 20px 0 16px;
-  border: none;
-  border-top: 1px dashed var(--c-border);
-}
-.proxy-guide-steps {
-  margin: 8px 0 12px;
-  padding-left: 20px;
-  font-size: 0.85rem;
-  line-height: 1.7;
-  color: var(--c-text);
-}
-.proxy-guide-steps ul {
-  margin: 4px 0 4px 16px;
-  padding-left: 0;
-}
-.proxy-guide-steps li {
-  margin-bottom: 6px;
-}
+

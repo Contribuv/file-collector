@@ -361,6 +361,41 @@ start() {
         rm -f "$PID_FILE"
     }
 
+    # ---- 配置统一网关（飞牛桌面入口） ----
+    # 官方文档: 网关转发到 /var/apps/{appname}/target/{gatewaySocket}
+    # 优先使用飞牛系统提供的 UNIX_SOCKET 环境变量
+    export GATEWAY_PREFIX="/app/file-collector"
+
+    if [ -n "$UNIX_SOCKET" ]; then
+        export GATEWAY_SOCKET="$UNIX_SOCKET"
+        log "  统一网关(飞牛系统): ${GATEWAY_PREFIX} → ${UNIX_SOCKET}"
+    else
+        # 直接在网关查找路径 /var/apps/file-collector/target/app.sock 创建 socket
+        VAR_APPS_SOCK="/var/apps/file-collector/target/app.sock"
+        VAR_APPS_DIR="$(dirname "$VAR_APPS_SOCK")"
+        mkdir -p "$VAR_APPS_DIR" 2>/dev/null || true
+        if [ -w "$VAR_APPS_DIR" ]; then
+            export GATEWAY_SOCKET="$VAR_APPS_SOCK"
+            log "  统一网关: ${GATEWAY_PREFIX} → ${VAR_APPS_SOCK}"
+        elif [ -n "$TRIM_APPDEST" ] && [ -d "$TRIM_APPDEST" ]; then
+            TARGET_DIR="${TRIM_APPDEST}/target"
+            mkdir -p "$TARGET_DIR" 2>/dev/null || true
+            if [ -w "$TARGET_DIR" ]; then
+                export GATEWAY_SOCKET="${TARGET_DIR}/app.sock"
+                log "  统一网关(回退): ${GATEWAY_PREFIX} → ${TARGET_DIR}/app.sock"
+            else
+                log "  INFO: 无可写 socket 目录，跳过统一网关"
+            fi
+        fi
+    fi
+
+    # 创建 /var/apps/file-collector 符号链接指向 TRIM_APPDEST
+    if [ -n "$TRIM_APPDEST" ] && [ ! -e "/var/apps/file-collector" ]; then
+        ln -sf "$TRIM_APPDEST" "/var/apps/file-collector" 2>/dev/null && \
+            log "  已创建符号链接: /var/apps/file-collector → $TRIM_APPDEST" || \
+            log "  WARN: 无法创建符号链接 /var/apps/file-collector"
+    fi
+
     log "  监听端口: ${APP_PORT}"
 
     python app.py >> "${LOG_FILE}" 2>&1 &
@@ -406,6 +441,11 @@ stop() {
         rm -f "$PID_FILE"
         log "  已停止 PID=${PID}"
     }
+    # 清理 Unix Socket 文件
+    rm -f "/var/apps/file-collector/target/app.sock" 2>/dev/null || true
+    if [ -n "$TRIM_APPDEST" ]; then
+        rm -f "${TRIM_APPDEST}/target/app.sock" 2>/dev/null || true
+    fi
     exit 0
 }
 

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.17"
+VERSION = "2.3.18"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -147,6 +147,20 @@ app.register_blueprint(pdf_bp)
 # TXT 预览模块
 from txt import txt_bp
 app.register_blueprint(txt_bp)
+
+# Gateway 反代管理模块（无需登录，飞牛统一网关已做认证）
+# 注意：gateway_api 依赖 rproxy_manager 和 cert_manager，
+# 这些模块可能在部分环境加载失败，因此用 try/except 保护
+gateway_bp = None
+try:
+    from gateway_api import gateway_bp as _bp
+    app.register_blueprint(_bp, url_prefix='/gateway')
+    gateway_bp = _bp
+    print("[file_collector] Gateway 模块已加载")
+except Exception as e:
+    print(f"[file_collector] Gateway 模块加载失败（应用仍可正常运行）: {e}")
+    import traceback as _tb
+    _tb.print_exc()
 
 # 预编译常用模板到 Jinja2 缓存，避免首次访问时的 I/O 和编译延迟
 _PRECOMPILE_TEMPLATES = [
@@ -2249,7 +2263,7 @@ def add_security_headers(response):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     # 安全头
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     csp = "default-src 'self' blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://github.com blob:; worker-src 'self' blob:"
@@ -8747,6 +8761,12 @@ def admin_settings():
         'data_dir': os.path.basename(DATA_DIR) or DATA_DIR,
         'port': str(PORT),
     }
+    # 安全判断 gateway 模块是否可用（避免模板里 url_for 抛 BuildError 导致 500）
+    try:
+        gateway_url = url_for('gateway.gateway_index') if gateway_bp else None
+    except Exception:
+        gateway_url = None
+
     return render_template('admin_settings.html',
         defaults=defaults,
         admin_username=admin_user,
@@ -8754,134 +8774,10 @@ def admin_settings():
         admin_nickname=admin_nickname,
         custom_upload_path=custom_upload_path,
         sys_info=sys_info,
+        gateway_prefix=os.environ.get('GATEWAY_PREFIX', '/app/file-collector'),
+        gateway_url=gateway_url,
         rp_status=RPROXY_PM.status(),
         version=VERSION)
-
-
-# ============================================================
-# 内置反向代理路由
-# ============================================================
-
-def _rp_get_pm():
-    return RPROXY_PM
-
-@app.route('/admin/settings/reverse-proxy')
-@admin_required
-def admin_reverse_proxy():
-    """反向代理配置页面"""
-    pm = _rp_get_pm()
-    certs = CertManager.get_certs_for_display()
-    config = pm.get_config()
-    status = pm.status()
-    logs = pm.get_logs(50)
-    return render_template('admin_reverse_proxy.html',
-        certs=certs,
-        config=config,
-        status=status,
-        logs=logs,
-        all_certs_json=json.dumps(certs, ensure_ascii=False),
-        csrf_token=session.get('csrf_token', ''))
-
-
-@app.route('/api/reverse-proxy/status')
-@admin_required
-def api_reverse_proxy_status():
-    return jsonify(_rp_get_pm().status())
-
-
-@app.route('/api/reverse-proxy/certs')
-@admin_required
-def api_reverse_proxy_certs():
-    return jsonify({'certs': CertManager.get_certs_for_display()})
-
-
-@app.route('/api/reverse-proxy/start', methods=['POST'])
-@admin_required
-def api_reverse_proxy_start():
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'})
-    domain = request.form.get('domain', '').strip()
-    port = request.form.get('port', '7786').strip()
-    gzip_enabled = request.form.get('gzip', '1') == '1'
-    hsts_enabled = request.form.get('hsts', '1') == '1'
-    timeout = request.form.get('timeout', '600').strip()
-    if not domain:
-        return jsonify({'success': False, 'message': '请选择域名'})
-    try:
-        port = int(port)
-        timeout = int(timeout)
-    except ValueError:
-        return jsonify({'success': False, 'message': '端口或超时格式错误'})
-    if port < 1 or port > 65535:
-        return jsonify({'success': False, 'message': '端口范围 1-65535'})
-    if port in (80, 443, 8080):
-        return jsonify({'success': False, 'message': f'端口 {port} 已被飞牛系统占用，请使用其他端口（如 7786）'})
-    certs = CertManager.load_certs()
-    cert_path = None
-    key_path = None
-    for cert in certs:
-        sans = cert.get('san', [])
-        if domain in sans or domain == cert.get('domain'):
-            cert_path = cert.get('fullchain') or cert.get('certificate')
-            key_path = cert.get('privateKey')
-            break
-    if not cert_path:
-        return jsonify({'success': False, 'message': f'未找到域名 {domain} 的证书'})
-
-    success, msg = RPROXY_PM.start(
-        domain, port, cert_path, key_path,
-        f'http://127.0.0.1:{PORT}',
-        gzip_enabled, hsts_enabled, timeout
-    )
-    return jsonify({'success': success, 'message': msg})
-
-
-@app.route('/api/reverse-proxy/stop', methods=['POST'])
-@admin_required
-def api_reverse_proxy_stop():
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'})
-    success, msg = _rp_get_pm().stop()
-    return jsonify({'success': success, 'message': msg})
-
-
-@app.route('/api/reverse-proxy/reload-cert', methods=['POST'])
-@admin_required
-def api_reverse_proxy_reload_cert():
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'})
-    success, msg = _rp_get_pm().reload_cert()
-    return jsonify({'success': success, 'message': msg})
-
-
-@app.route('/api/reverse-proxy/logs')
-@admin_required
-def api_reverse_proxy_logs():
-    return jsonify({'logs': _rp_get_pm().get_logs(200)})
-
-
-@app.route('/api/reverse-proxy/logs/clear', methods=['POST'])
-@admin_required
-def api_reverse_proxy_clear_logs():
-    if not validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败'})
-    _rp_get_pm().clear_logs()
-    return jsonify({'success': True})
-
-
-@app.route('/api/reverse-proxy/logs/export')
-@admin_required
-def api_reverse_proxy_export_logs():
-    from flask import Response
-    logs = _rp_get_pm().get_logs(9999)
-    content = '\n'.join(
-        f"[{l['time']}] {l['level']} {l['msg']}" for l in logs
-    )
-    return Response(
-        content,
-        mimetype='text/plain',
-        headers={'Content-Disposition': 'attachment; filename=reverse_proxy_logs.txt'}
-    )
 
 
 @app.route('/admin/settings/test-smtp', methods=['POST'])
@@ -9318,6 +9214,148 @@ if __name__ == '__main__':
         'loglevel': 'info',
         'post_worker_init': post_worker_init,
     }
+
+    # ---- 启动 Unix Socket 代理（飞牛统一网关） ----
+    # 飞牛 nginx 网关通过 /var/apps/file-collector/target/app.sock 转发请求
+    # 应用需要在这个路径上监听 Unix Socket 并转发到 Gunicorn HTTP 端口
+    def _start_unix_socket_proxy():
+        import socket
+        import threading
+        import urllib.request
+        import urllib.error
+
+        gateway_prefix = os.environ.get('GATEWAY_PREFIX', '/app/file-collector')
+        sock_paths = []
+
+        # 路径1: 飞牛网关标准路径 /var/apps/file-collector/target/app.sock
+        var_sock = "/var/apps/file-collector/target/app.sock"
+        var_dir = os.path.dirname(var_sock)
+        try:
+            os.makedirs(var_dir, exist_ok=True)
+            if os.access(var_dir, os.W_OK):
+                sock_paths.append(var_sock)
+        except Exception:
+            pass
+
+        # 路径2: TRIM_APPDEST 回退路径
+        appdest = os.environ.get('TRIM_APPDEST', '')
+        if appdest:
+            alt_sock = os.path.join(appdest, 'target', 'app.sock')
+            alt_dir = os.path.dirname(alt_sock)
+            try:
+                os.makedirs(alt_dir, exist_ok=True)
+                if os.access(alt_dir, os.W_OK) and alt_sock != var_sock:
+                    sock_paths.append(alt_sock)
+            except Exception:
+                pass
+
+        if not sock_paths:
+            logger.info("[UnixSocket] 无可写路径，跳过 Unix Socket 代理")
+            return
+
+        for sock_path in sock_paths:
+            try:
+                if os.path.exists(sock_path):
+                    os.unlink(sock_path)
+            except Exception:
+                pass
+
+            try:
+                server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                server.bind(sock_path)
+                os.chmod(sock_path, 0o666)
+                server.listen(128)
+            except Exception as e:
+                logger.warning(f"[UnixSocket] 绑定失败: {sock_path} -> {e}")
+                continue
+
+            def _handle_conn(conn, prefix):
+                """处理单个 Unix Socket 连接，剥离前缀后转发到 Gunicorn HTTP"""
+                try:
+                    data = b''
+                    while True:
+                        chunk = conn.recv(4096)
+                        if not chunk:
+                            break
+                        data += chunk
+                        # 简单判断：读取到完整 HTTP 请求头后即转发
+                        if b'\r\n\r\n' in data:
+                            break
+
+                    if not data:
+                        conn.close()
+                        return
+
+                    # 解析请求行
+                    lines = data.split(b'\r\n')
+                    request_line = lines[0].decode('utf-8', errors='replace')
+                    parts = request_line.split(' ')
+                    if len(parts) < 2:
+                        conn.close()
+                        return
+
+                    method = parts[0]
+                    raw_path = parts[1]
+
+                    # 剥离网关前缀
+                    if raw_path.startswith(prefix):
+                        path = raw_path[len(prefix):]
+                        if not path:
+                            path = '/'
+                    else:
+                        path = raw_path
+
+                    # 重建请求（替换路径 + 添加 X-Forwarded-Prefix 头让 ProxyFix 正确设置 SCRIPT_NAME）
+                    # 注意：不添加 X-Forwarded-Proto，避免与网关传入的该头冲突导致
+                    # Werkzeug 抛出 "Contradictory scheme headers"
+                    new_request_line = f"{method} {path} HTTP/1.0\r\n"
+                    extra_headers = f"X-Forwarded-Prefix: {prefix}\r\n".encode('utf-8')
+                    rest = data.split(b'\r\n', 1)[1] if len(data.split(b'\r\n', 1)) > 1 else b''
+                    new_data = new_request_line.encode('utf-8') + extra_headers + rest
+
+                    # 转发到 Gunicorn HTTP
+                    try:
+                        http_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        http_conn.settimeout(30)
+                        http_conn.connect(('127.0.0.1', PORT))
+                        http_conn.sendall(new_data)
+
+                        # 读取响应并转发回客户端
+                        while True:
+                            resp = http_conn.recv(65536)
+                            if not resp:
+                                break
+                            try:
+                                conn.sendall(resp)
+                            except Exception:
+                                break
+                        http_conn.close()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+            def _serve(srv, path, prefix):
+                while True:
+                    try:
+                        conn, _ = srv.accept()
+                        t = threading.Thread(target=_handle_conn, args=(conn, prefix))
+                        t.daemon = True
+                        t.start()
+                    except Exception:
+                        break
+
+            t = threading.Thread(target=_serve, args=(server, sock_path, gateway_prefix))
+            t.daemon = True
+            t.start()
+            logger.info(f"[UnixSocket] 监听: {sock_path} (前缀: {gateway_prefix})")
+
+    _start_unix_socket_proxy()
 
     logger.info(f"文件收集器 v{VERSION} 启动中 (Gunicorn)...")
     logger.info(f"数据目录: {DATA_DIR}")

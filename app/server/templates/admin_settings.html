@@ -122,17 +122,17 @@
             </div>
             <div class="form-group">
               <label class="form-label" for="public_url">公网网址</label>
-              {% if rp_status and rp_status.running %}
+              {% if rp_status and rp_status.running and rp_status.public_url %}
               <input type="text" id="public_url" name="public_url" class="form-input form-input-sm" readonly
-                     value="{{ rp_status.public_url or defaults.public_url or '' }}" style="background:#f3f4f6;color:#6b7280;">
+                     value="{{ rp_status.public_url }}" style="background:#f3f4f6;color:#6b7280;">
               <div class="form-hint" style="color:#059669;" id="rp-url-hint">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:-2px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg>
-                反代已接管，分享链接使用 <strong id="rp-public-url-text">{{ rp_status.public_url }}</strong>
+                反向代理已接管，分享链接使用 <strong id="rp-public-url-text">{{ rp_status.public_url }}</strong>
               </div>
               {% else %}
               <input type="text" id="public_url" name="public_url" class="form-input form-input-sm"
                      value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
-              <div class="form-hint" id="rp-url-hint"><a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a> · 如已开启内置反代，此处自动使用反代域名</div>
+              <div class="form-hint" id="rp-url-hint">{% if gateway_url %}通过「<a href="{{ gateway_url }}" target="_blank">统一网关</a>」配置反向代理后，此处将自动使用反代域名。也可手动填写第三方反代地址。{% else %}可手动填写公网访问地址（如反代域名）。{% endif %}</div>
               {% endif %}
             </div>
             <div class="form-row">
@@ -157,31 +157,6 @@
         </div>
       </div>
 
-
-      <!-- 反向代理 -->
-      <div class="card card-compact">
-        <div class="card-header"><h3>反向代理（外网访问）</h3></div>
-        <div class="card-body">
-          <div id="rp-card-status">
-          {% if rp_status and rp_status.running %}
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
-            <span style="font-size:.85rem;font-weight:500;">运行中</span>
-            <code style="font-size:.8rem;background:#ecfdf5;padding:2px 8px;border-radius:4px;" id="rp-card-url">{{ rp_status.public_url }}</code>
-          </div>
-          {% else %}
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;"></span>
-            <span style="font-size:.85rem;color:#6b7280;">已停止</span>
-          </div>
-          {% endif %}
-          </div>
-          <p style="font-size:.78rem;color:#6b7280;margin:0 0 12px;">
-            该项目内置反向代理，自动获取飞牛证书进行 HTTPS 反代。启用后，分享/收集链接将自动使用反代域名，无需手动填写公网网址。
-          </p>
-          <a href="{{ url_for('admin_reverse_proxy') }}" class="btn btn-primary btn-sm">开始配置 →</a>
-        </div>
-      </div>
 
 
       <!-- 默认设置 -->
@@ -423,81 +398,6 @@
   </div>
 </div>
 
-<!-- 反向代理设置方法弹窗 -->
-<div class="modal-overlay" id="proxy-modal" style="display:none;">
-  <div class="modal-content modal-lg">
-    <div class="modal-header">
-      <h3>反向代理设置方法</h3>
-      <button class="modal-close" onclick="closeProxyModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p class="proxy-guide-hint" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:8px 12px;color:#065f46;">
-        💡 <strong>推荐使用项目内置反代</strong>，自动获取飞牛证书，分享链接自动使用域名，无需手动填写公网网址。
-      </p>
-
-      <!-- 方式一（推荐）：项目内置反向代理 -->
-      <h4 class="proxy-guide-title">方式一（推荐）：项目内置反向代理</h4>
-      <p>无需安装额外应用，自动获取飞牛系统证书进行 HTTPS 反代。</p>
-      <ol class="proxy-guide-steps">
-        <li>在本页面下方「<b>反向代理</b>」卡片中点击「<b>开始配置</b>」</li>
-        <li>选择已配置证书的 DDNS 域名，设置外网端口</li>
-        <li>点击「<b>开始反代</b>」，一键启动</li>
-        <li>分享/收集链接将自动使用 <code>https://域名:端口</code>，无需手动填写公网网址</li>
-      </ol>
-
-      <hr class="proxy-guide-divider">
-
-      <!-- 方式二：反向代理服务器 (laok) -->
-      <h4 class="proxy-guide-title">方式二：反向代理服务器（laok 开发）</h4>
-      <p>在飞牛应用中心下载 <b>反向代理服务器</b>，由 <b>laok</b> 大佬开发。<br>如果反代出现问题，请到飞牛社区找 <a href="https://club.fnnas.com/forum.php?mod=viewthread&tid=61219&highlight=" target="_blank" rel="noopener">laok 大佬反馈</a>。</p>
-      <p>打开反向代理服务器，进入「来源设置」页面：</p>
-      <ol class="proxy-guide-steps">
-        <li>点击 <b>「添加规则」</b></li>
-        <li><b>来源设置：</b>
-          <ul>
-            <li>协议选择 <b>HTTPS</b></li>
-            <li>主机名填写 <code>127.0.0.1</code></li>
-            <li>端口填写外网端口（如 <code>7786</code>）</li>
-            <li>域名留空，不填</li>
-          </ul>
-        </li>
-        <li><b>目标设置：</b>
-          <ul>
-            <li>主机名/IP 填写文件收集器内网地址和端口，如 <code>127.0.0.1:5557</code></li>
-          </ul>
-        </li>
-        <li><b>高级设置：</b>启用 HSTS、强制跳转 HTTPS、保留原始主机头，全部打钩</li>
-      </ol>
-
-      <hr class="proxy-guide-divider">
-
-      <!-- 方式二：Lucky 反向代理 -->
-      <h4 class="proxy-guide-title">方式二：Lucky 反向代理</h4>
-      <p>Lucky 支持反向代理、DDNS、SSL 证书自动续签。<a href="https://release.66666.host/%E9%A3%9E%E7%89%9B%E7%A6%BB%E7%BA%BF%E5%AE%89%E8%A3%85%E5%8C%85/?sort=namedirfirst&order=asc" target="_blank" rel="noopener">下载 Lucky</a> 安装后：</p>
-      <ol class="proxy-guide-steps">
-        <li>打开 Lucky 后台（默认 <code>16601</code>），点击左侧 <b>「Web 服务」</b></li>
-        <li>点击 <b>「添加 Web 服务规则」</b></li>
-        <li>填写规则配置：
-          <ul>
-            <li><b>监听端口：</b>填写外网访问端口，如 <code>7786</code></li>
-            <li><b>启用 TLS：</b>开启，选择飞牛证书或 Lucky 自动申请</li>
-            <li><b>前端域名：</b>填写 DDNS 域名，如 <code>nas.fons.com</code></li>
-          </ul>
-        </li>
-        <li>切换至「后端」标签：
-          <ul>
-            <li><b>后端地址：</b><code>http://127.0.0.1:5557</code></li>
-            <li><b>后端类型：</b>选择 <code>proxy</code></li>
-          </ul>
-        </li>
-        <li>点击 <b>「添加」</b> 保存，等待生效</li>
-      </ol>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" onclick="closeProxyModal()">关闭</button>
-    </div>
-  </div>
-</div>
 
 <!-- 打赏弹窗 -->
 <div class="modal-overlay" id="donate-modal" style="display:none;">
@@ -522,14 +422,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-settings-inline.css') }}">
 
 <script>
-function showProxyGuide() {
-  document.getElementById('proxy-modal').style.display = 'flex';
-}
-
-function closeProxyModal() {
-  document.getElementById('proxy-modal').style.display = 'none';
-}
-
 function openDonateModal() {
   document.getElementById('donate-modal').style.display = 'flex';
 }
@@ -586,14 +478,6 @@ function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
 
 // 点击遮罩层关闭弹窗
 document.addEventListener('DOMContentLoaded', function() {
-  var modal = document.getElementById('proxy-modal');
-  if (modal) {
-    modal.addEventListener('click', function(e) {
-      if (e.target === modal) {
-        closeProxyModal();
-      }
-    });
-  }
   var donateModal = document.getElementById('donate-modal');
   if (donateModal) {
     donateModal.addEventListener('click', function(e) {
@@ -789,27 +673,28 @@ document.addEventListener('DOMContentLoaded', function() {
   // 单文件上限 MB/GB 切换
   (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
 
-  // ====== 反向代理状态轮询，保持卡片和公网网址实时同步 ======
+  // ====== 反向代理状态轮询，保持公网网址实时同步 ======
   (function() {
-    var rpStatusUrl = '{{ url_for("api_reverse_proxy_status") }}';
     var lastRunning = {{ 'true' if (rp_status and rp_status.running) else 'false' }};
     var publicUrlInput = document.getElementById('public_url');
     var rpUrlHint = document.getElementById('rp-url-hint');
-    var rpCardStatus = document.getElementById('rp-card-status');
-    var rpCardUrl = document.getElementById('rp-card-url');
     var rpUrlText = document.getElementById('rp-public-url-text');
     var firstLoad = true;
 
     function pollRpStatus() {
-      fetch(rpStatusUrl).then(function(r){return r.json();}).then(function(d){
+      // 兼容统一网关前缀和直接访问
+      var apiUrl = window.location.pathname.indexOf('{{ gateway_prefix or "/app/file-collector" }}') === 0
+        ? '{{ gateway_prefix or "/app/file-collector" }}/gateway/api/status'
+        : '/gateway/api/status';
+      fetch(apiUrl).then(function(r){return r.json();}).then(function(d){
         var nowRunning = d.running;
         if (firstLoad || nowRunning !== lastRunning || (nowRunning && rpUrlText && rpUrlText.textContent !== d.public_url)) {
           lastRunning = nowRunning;
           firstLoad = false;
           // 更新公网网址输入框
           if (publicUrlInput) {
-            if (nowRunning) {
-              publicUrlInput.value = d.public_url || '';
+            if (nowRunning && d.public_url) {
+              publicUrlInput.value = d.public_url;
               publicUrlInput.readOnly = true;
               publicUrlInput.style.background = '#f3f4f6';
               publicUrlInput.style.color = '#6b7280';
@@ -817,33 +702,17 @@ document.addEventListener('DOMContentLoaded', function() {
               publicUrlInput.readOnly = false;
               publicUrlInput.style.background = '';
               publicUrlInput.style.color = '';
-              publicUrlInput.placeholder = '例：https://file.fnos.com:8080';
             }
           }
           // 更新公网网址提示
           if (rpUrlHint) {
-            if (nowRunning) {
+            if (nowRunning && d.public_url) {
               rpUrlHint.style.color = '#059669';
-              rpUrlHint.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:-2px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg> 反代已接管，分享链接使用 <strong id="rp-public-url-text">' + (d.public_url || '') + '</strong>';
+              rpUrlHint.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:-2px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg> 反向代理已接管，分享链接使用 <strong id="rp-public-url-text">' + (d.public_url || '') + '</strong>';
               rpUrlText = document.getElementById('rp-public-url-text');
             } else {
               rpUrlHint.style.cssText = '';
-              rpUrlHint.innerHTML = '<a href="javascript:void(0)" onclick="showProxyGuide()">查看反向代理设置方法</a> · 如已开启内置反代，此处自动使用反代域名';
-            }
-          }
-          // 更新反向代理卡片
-          if (rpCardStatus) {
-            if (nowRunning) {
-              rpCardStatus.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-                '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>' +
-                '<span style="font-size:.85rem;font-weight:500;">运行中</span>' +
-                '<code style="font-size:.8rem;background:#ecfdf5;padding:2px 8px;border-radius:4px;" id="rp-card-url">' + (d.public_url || '') + '</code></div>';
-              rpCardUrl = document.getElementById('rp-card-url');
-            } else {
-              rpCardStatus.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
-                '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;"></span>' +
-                '<span style="font-size:.85rem;color:#6b7280;">已停止</span></div>';
-              rpCardUrl = null;
+              rpUrlHint.innerHTML = '{% if gateway_url %}通过「<a href="{{ gateway_url }}" target="_blank">统一网关</a>」配置反向代理后，此处将自动使用反代域名。也可手动填写第三方反代地址。{% else %}可手动填写公网访问地址（如反代域名）。{% endif %}';
             }
           }
         }

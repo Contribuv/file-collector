@@ -4,7 +4,7 @@
         "items": [
             {
                 "type": "tips",
-                "helpText": "<strong>欢迎使用文件收集器</strong><br><br>基于 Flask + SQLite 的多用户文件收集与分享系统。<br><br>【核心功能】<br>• 创建收集链接，分享给他人即可接收文件<br>• 大文件 TUS 断点续传上传，网络中断不丢进度<br>• Office（Word/Excel/PPT）在线预览，无需下载<br>• 图片、PDF、视频、文本等多格式预览<br>• 多用户体系（管理员/普通用户，邀请码注册）<br>• 通行证保护 + 有效期控制<br>• 数据库一键备份与恢复<br>• 支持 x86 / ARM 平台<br><br>点击下一步设置管理员账号和端口。"
+                "helpText": "<strong>欢迎使用文件收集器</strong><br><br>基于 Flask + SQLite 的多用户文件收集与分享系统。<br><br>【核心功能】<br>• 创建收集链接，分享给他人即可接收文件<br>• 大文件 TUS 断点续传上传，网络中断不丢进度<br>• 图片、PDF、视频、音频、TXT（小说阅读器）在线预览<br>• 多用户体系（管理员/普通用户，邀请码注册）<br>• 通行证保护 + 有效期控制<br>• 数据库一键备份与恢复<br>• 内置反向代理（HTTPS + 公网访问 + HTTP 自动跳转）<br>• 飞牛统一网关集成，桌面图标一键直达<br>• 支持 x86 / ARM 平台<br><br>点击下一步设置管理员账号和端口。"
             }
         ]
     },
@@ -46,7 +46,7 @@
             },
             {
                 "type": "tips",
-                "helpText": "<div style=\"background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-top:8px;\"><div style=\"color:#92400e;font-weight:600;font-size:15px;margin-bottom:6px;\">重要提醒</div><div style=\"color:#78350f;font-size:13px;line-height:1.6;\"><strong>安装完成后，第一次访问请务必使用 <span style=\"color:#dc2626;\">飞牛IP + 端口号</span> 的方式访问！</strong>例如：<code style=\"background:#fef9c3;padding:2px 6px;border-radius:4px;\">http://192.168.1.100:5557</code><br>首次不要通过飞牛桌面的应用图标直接打开（应用内置反向代理，设置反代后然后将URL填入此应用中心自定义URL即可实现桌面图标访问）</div></div>"
+                "helpText": "<div style=\"background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-top:8px;\"><div style=\"color:#92400e;font-weight:600;font-size:15px;margin-bottom:6px;\">重要提醒</div><div style=\"color:#78350f;font-size:13px;line-height:1.6;\">安装完成后，首次访问可通过 <strong>飞牛桌面应用图标</strong> 一键打开，进入「<strong>公网访问</strong>」页面配置反向代理，实现 HTTPS + 域名访问。<br>也可直接使用 <strong style=\"color:#dc2626;\">飞牛IP + 端口号</strong> 访问管理后台，例如：<code style=\"background:#fef9c3;padding:2px 6px;border-radius:4px;\">http://192.168.1.100:5557/admin</code></div></div>"
             }
         ]
     }

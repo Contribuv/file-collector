@@ -317,7 +317,6 @@ GET /api/status
 - Go 反代 TLS 扫描器噪音降为 DEBUG 级别日志
 - 同端口 HTTP→HTTPS 重定向启动日志提示
 - 修复网关页状态与日志加载不同步问题
-- manifest desc 去 AI 味，简洁直白
 
 ### v2.3.18
 - 飞牛统一网关（Gateway）：新增独立 Gateway 反代管理页面，集成于飞牛桌面统一网关入口

@@ -90,6 +90,19 @@
                         <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开管理后台 ↗</button>
                     </div>
                 </div>
+                <div class="status-row status-version-row">
+                    <div class="status-label">版本</div>
+                    <div class="status-value status-version-value">
+                        <span class="version-tag">v{{ version }}</span>
+                    </div>
+                </div>
+                <div class="status-row status-feedback-row">
+                    <div class="status-label">反馈Bug：</div>
+                    <div class="status-value">
+                        <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
+                        <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -142,8 +155,9 @@ const gatewayPrefix = '{{ gateway_prefix }}';
 let isRunning = false;
 let currentDomain = '';
 let currentPort = {{ config.port or 7786 }};
-let lastLogCount = 0;
 let portCheckTimer = null;
+let uiLocked = false;       // UI 锁定：启动/停止后短时间内不覆盖状态
+let uiLockTimer = null;
 
 // ============================================================
 // API 路径
@@ -160,11 +174,37 @@ function apiPath(suffix) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     loadCerts();
-    loadStatus();
-    setInterval(loadStatus, 5000);
-    setInterval(loadLogs, 3000);
+    // 统一轮询：先加载状态再加载日志，保证 isRunning 与日志渲染时序一致
+    poll();
+    setInterval(poll, 3000);
     initPortCheck();
+
+    // 微信复制点击事件
+    const wechatEl = document.getElementById('wechatCopy');
+    if (wechatEl) {
+        wechatEl.addEventListener('click', copyWechat);
+    }
 });
+
+// 统一轮询：状态 → 日志，串行执行避免竞态
+let polling = false;
+async function poll() {
+    if (polling) return;  // 防重入：上一次还没完成就跳过
+    polling = true;
+    try {
+        await loadStatus();
+        await loadLogs();
+    } finally {
+        polling = false;
+    }
+}
+
+// UI 锁定：启动/停止后短时间内不让 poll 覆盖状态，避免 UI 反复跳
+function lockUI(seconds) {
+    uiLocked = true;
+    if (uiLockTimer) clearTimeout(uiLockTimer);
+    uiLockTimer = setTimeout(() => { uiLocked = false; }, seconds * 1000);
+}
 
 function initPortCheck() {
     const portInput = document.getElementById('portInput');
@@ -260,16 +300,20 @@ async function refreshCerts() {
 async function loadStatus() {
     try {
         const res = await fetch(apiPath('/api/status')).then(r => r.json());
+        // UI 锁定期间不覆盖状态，避免启动/停止后 UI 反复跳
+        if (uiLocked) return;
         const wasRunning = isRunning;
         isRunning = res.running || false;
         currentDomain = res.domain || '';
         currentPort = res.port || 7786;
         updateUI();
-        if (isRunning && !wasRunning) {
-            loadLogs();
+        // 状态变化时强制刷新日志
+        if (isRunning !== wasRunning) {
+            lastLogSignature = '';
         }
     } catch(e) {
         console.error('加载状态失败', e);
+        // 网络抖动时不降级 UI，保持当前状态
     }
 }
 
@@ -386,8 +430,20 @@ async function startProxy() {
         }).then(r => r.json());
 
         if (res.success) {
+            // 立即乐观更新 UI，不用等 loadStatus
+            isRunning = true;
+            currentDomain = domain;
+            currentPort = port;
+            updateUI();
+            // 锁定 UI 8 秒，期间 poll 不覆盖状态
+            lockUI(8);
+            // 清空日志框，准备接收干净的启动日志
+            const logBox = document.getElementById('logBox');
+            logBox.innerHTML = '';
             addLog('info', '反向代理启动中...');
-            setTimeout(() => { loadStatus(); loadLogs(); }, 1000);
+            lastLogSignature = 'empty';
+            // 立即触发一次轮询拉取真实状态和日志
+            poll();
         } else {
             const msg = res.message || '未知错误';
             alert('启动失败：' + msg);
@@ -407,13 +463,21 @@ async function stopProxy() {
     try {
         const res = await fetch(apiPath('/api/stop'), { method: 'POST' }).then(r => r.json());
         if (res.success) {
+            // 立即更新 UI
+            isRunning = false;
+            updateUI();
+            // 锁定 UI 8 秒，期间 poll 不覆盖状态
+            lockUI(8);
+            // 清空日志框，显示停止提示；后端已清空 Go 日志队列
+            const logBox = document.getElementById('logBox');
+            logBox.innerHTML = '';
             addLog('info', '反向代理已停止');
+            lastLogSignature = 'empty';
+            // 延迟检测端口可用性（给操作系统时间释放端口）
             setTimeout(() => {
-                loadStatus();
-                loadLogs();
                 const port = parseInt(document.getElementById('portInput').value);
                 if (port) checkPort(port);
-            }, 500);
+            }, 2000);
         }
     } catch(e) {
         console.error('停止失败', e);
@@ -423,6 +487,15 @@ async function stopProxy() {
 // ============================================================
 // 日志
 // ============================================================
+// 用最后一条日志的 time|msg 作为签名，相同则跳过渲染，避免闪烁
+let lastLogSignature = 'empty';
+
+function logSignature(logs) {
+    if (!logs || logs.length === 0) return 'empty';
+    const last = logs[logs.length - 1];
+    return (last.time || last.Time || '') + '|' + (last.msg || last.Msg || '');
+}
+
 async function loadLogs() {
     try {
         const res = await fetch(apiPath('/api/logs?limit=50')).then(r => r.json());
@@ -430,39 +503,47 @@ async function loadLogs() {
         const logBox = document.getElementById('logBox');
         if (!logBox) return;
 
-        if (res.logs.length === 0 && isRunning) {
-            logBox.innerHTML = '';
-            addLog('success', '反向代理运行中');
-            return;
-        }
+        const sig = logSignature(res.logs);
+        // 签名相同说明日志无变化，跳过
+        if (sig === lastLogSignature) return;
+        lastLogSignature = sig;
 
-        if (res.logs.length !== lastLogCount) {
-            lastLogCount = res.logs.length;
-            logBox.innerHTML = '';
-            res.logs.forEach(entry => {
-                const rawLevel = (entry.level || entry.Level || 'INFO').toUpperCase();
-                let type = 'info';
-                if (rawLevel === 'ERROR') type = 'error';
-                else if (rawLevel === 'SUCCESS' || rawLevel === 'WARN') type = rawLevel.toLowerCase();
-                const msg = entry.msg || entry.Msg || entry.message || '';
-                const time = entry.time || entry.Time || '';
-                appendLogLine(type, msg, time);
-            });
-            logBox.scrollTop = logBox.scrollHeight;
+        // 全量重渲染：清空后重新画
+        logBox.innerHTML = '';
+        if (res.logs.length === 0) {
+            const line = document.createElement('div');
+            line.className = isRunning ? 'log-line log-info' : 'log-line';
+            line.textContent = isRunning ? '[系统] 反向代理运行中...' : '[系统] 等待反向代理启动...';
+            logBox.appendChild(line);
+        } else {
+            res.logs.forEach(entry => appendLogEntry(logBox, entry));
         }
+        logBox.scrollTop = logBox.scrollHeight;
     } catch(e) { /* 静默失败 */ }
 }
 
-function appendLogLine(type, msg, time) {
-    const logBox = document.getElementById('logBox');
+function appendLogEntry(logBox, entry) {
+    const rawLevel = (entry.level || entry.Level || 'INFO').toUpperCase();
+    let type = 'info';
+    if (rawLevel === 'ERROR') type = 'error';
+    else if (rawLevel === 'SUCCESS') type = 'success';
+    else if (rawLevel === 'WARN') type = 'warn';
+    else if (rawLevel === 'DEBUG') type = 'debug';
+    const msg = entry.msg || entry.Msg || entry.message || '';
+    const time = entry.time || entry.Time || '';
     const line = document.createElement('div');
     line.className = 'log-line log-' + type;
     line.textContent = time ? `[${time}] ${msg}` : msg;
     logBox.appendChild(line);
 }
 
+// 本地添加一条日志（不进入签名比对，下次全量刷新会被替换）
 function addLog(type, msg) {
     const logBox = document.getElementById('logBox');
+    // 移除占位行（如果存在）
+    if (logBox.children.length === 1 && logBox.children[0].textContent.indexOf('[系统]') === 0) {
+        logBox.innerHTML = '';
+    }
     const line = document.createElement('div');
     line.className = 'log-line log-' + type;
     const time = new Date().toLocaleTimeString();
@@ -478,6 +559,14 @@ function copyUrl() {
     const url = document.getElementById('proxyUrl').textContent;
     navigator.clipboard.writeText(url).then(() => {
         addLog('success', '地址已复制到剪贴板');
+    });
+}
+
+function copyWechat() {
+    navigator.clipboard.writeText('CQGGTF').then(() => {
+        const tip = document.getElementById('copyTip');
+        tip.style.display = 'inline';
+        setTimeout(() => { tip.style.display = 'none'; }, 2000);
     });
 }
 

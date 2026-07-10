@@ -206,6 +206,40 @@ body {
     min-width: 0;
 }
 
+/* ---- 版本 & 反馈 ---- */
+.status-version-row,
+.status-feedback-row {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.version-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    background: #e6f7ff;
+    color: #1890ff;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.feedback-wechat {
+    color: #52c41a;
+    cursor: pointer;
+    user-select: all;
+    transition: opacity 0.15s;
+}
+
+.feedback-wechat:hover {
+    opacity: 0.7;
+}
+
+.copy-tip {
+    color: #52c41a;
+    font-size: 11px;
+    margin-left: 6px;
+    font-weight: 400;
+}
+
 .status-running {
     color: #52c41a;
     display: flex;

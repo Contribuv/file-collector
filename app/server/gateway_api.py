@@ -89,9 +89,10 @@ def _get_local_ip():
 
 
 def _check_port_available(port):
-    """检测端口是否可用"""
+    """检测端口是否可用（使用 SO_REUSEADDR 避免 TIME_WAIT 干扰）"""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('0.0.0.0', port))
         s.close()
         return True
@@ -118,6 +119,14 @@ def gateway_index():
     status = RPROXY_PM.status() if RPROXY_PM else {'running': False, 'message': '模块未加载'}
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
 
+    # 获取版本号（与 manifest 同步）
+    version = "2.3.19"
+    try:
+        from app import VERSION
+        version = VERSION
+    except Exception:
+        pass
+
     return render_template('gateway.html',
         local_ip=local_ip,
         local_port=local_port,
@@ -125,6 +134,7 @@ def gateway_index():
         certs=certs,
         status=status,
         config=config,
+        version=version,
         all_certs_json=json.dumps(certs, ensure_ascii=False))
 
 

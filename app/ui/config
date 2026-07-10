@@ -8,7 +8,10 @@
             "gatewaySocket": "app.sock",
             "gatewayPrefix": "/app/file-collector",
             "url": "/app/file-collector/gateway",
-            "allUsers": true
+            "allUsers": true,
+            "control": {
+                "accessPerm": "hidden"
+            }
         }
     }
 }

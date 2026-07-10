@@ -121,6 +121,7 @@ func (rp *ReverseProxy) Start() error {
 
 	rp.logger.Add("INFO", fmt.Sprintf("反向代理已启动: https://%s:%d", rp.config.Domain, rp.config.Port))
 	rp.logger.Add("INFO", fmt.Sprintf("后端地址: %s", rp.config.BackendAddr))
+	rp.logger.Add("INFO", fmt.Sprintf("HTTP→HTTPS 自动重定向已启用（同端口 %d）", rp.config.Port))
 
 	go rp.serve()
 
@@ -159,7 +160,15 @@ func (rp *ReverseProxy) handleConn(conn net.Conn) {
 	if peek[0] == 0x16 {
 		tlsConn := tls.Server(&peekConn{Conn: conn, peek: peek}, rp.tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
-			rp.logger.Add("ERROR", fmt.Sprintf("TLS handshake failed: %v", err))
+			// 降级日志：connection reset 通常是扫描器探测，静默忽略
+			errStr := err.Error()
+			if strings.Contains(errStr, "connection reset") ||
+				strings.Contains(errStr, "EOF") ||
+				strings.Contains(errStr, "unsupported versions") {
+				rp.logger.Add("DEBUG", fmt.Sprintf("TLS handshake: %v", err))
+			} else {
+				rp.logger.Add("ERROR", fmt.Sprintf("TLS handshake failed: %v", err))
+			}
 			return
 		}
 

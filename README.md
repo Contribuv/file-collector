@@ -311,14 +311,22 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.3.19
+- 网关页运行状态卡片显示版本号（与 manifest 同步）
+- 反馈 Bug 微信可一键复制（CQGGTF）
+- Go 反代 TLS 扫描器噪音降为 DEBUG 级别日志
+- 同端口 HTTP→HTTPS 重定向启动日志提示
+- 修复网关页状态与日志加载不同步问题
+- manifest desc 去 AI 味，简洁直白
+
 ### v2.3.18
-- **飞牛统一网关（Gateway）**：新增独立 Gateway 反代管理页面，集成于飞牛桌面统一网关入口
-- **Gateway 反代 API**：`gateway_api.py` 独立 Blueprint，无需登录（飞牛统一网关已做认证），支持启动/停止/日志/端口检测
-- **Unix Socket 反代**：通过 `gateway_socket = app.sock` 声明，支持飞牛统一网关的反代通道
-- **单端口 HTTP→HTTPS 301**：Go 反代引擎通过 TCP 协议嗅探实现同端口双协议，明文 HTTP 自动 301 跳转到 HTTPS
-- **HSTS 安全头**：HTTPS 响应自动携带 `Strict-Transport-Security`，浏览器强制 HTTPS 访问
-- **SVG 图标全面替换**：Gateway 页面所有 Emoji 图标替换为统一的 SVG 图标，视觉更专业
-- **修复**：`gateway_bp` 导入顺序错误导致应用启动失败
+- 飞牛统一网关（Gateway）：新增独立 Gateway 反代管理页面，集成于飞牛桌面统一网关入口
+- Gateway 反代 API：`gateway_api.py` 独立 Blueprint，无需登录（飞牛统一网关已做认证）
+- Unix Socket 反代：通过 `gateway_socket = app.sock` 声明，支持飞牛统一网关的反代通道
+- 单端口 HTTP→HTTPS 301：Go 反代引擎 TCP 协议嗅探，同端口双协议，明文 HTTP 自动 301 跳转 HTTPS
+- HSTS 安全头：HTTPS 响应自动携带 `Strict-Transport-Security`
+- SVG 图标全面替换：Gateway 页面 Emoji 图标替换为统一 SVG 图标
+- 修复：`gateway_bp` 导入顺序错误导致应用启动失败
 
 ### v2.3.17
 - **去除 Office 预览**：移除 Word/Excel/PPT 在线预览（JIT Viewer / flyfish file-viewer），简化依赖

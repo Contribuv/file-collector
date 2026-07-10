@@ -188,6 +188,10 @@ class GoRProxyManager:
         if not state:
             return False
 
+        # 跨 worker 同步：如果其他 worker 执行了 stop，不恢复
+        if state.get('stopped'):
+            return False
+
         api_port = state.get('api_port')
         pid = state.get('pid')
         config = state.get('config')
@@ -225,6 +229,7 @@ class GoRProxyManager:
 
     def _ensure_process(self):
         if self.process and self.process.poll() is None:
+            self._running = True
             return True
 
         if self._try_recover_from_state():
@@ -408,23 +413,50 @@ class GoRProxyManager:
 
     def stop(self):
         if not self._running or not self.api_base:
+            # 本 worker 认为未运行，但仍写 stopped 标志通知其他 worker
+            state = self._load_state_file() or {}
+            state['stopped'] = True
+            self._save_state_file(state)
             self._start_requested = False
             self._current_cert_sum = ''
             self._recovered_pid = None
-            self._clear_state_file()
+            self._running = False
             return True, '反代未运行'
 
-        success, result = self._api_request_no_start('POST', '/stop')
+        # 第一时间设 _running=False，避免并发 status() 读到 True
+        api_base = self.api_base
+        self._running = False
         self._start_requested = False
         self._current_cert_sum = ''
         self._recovered_pid = None
-        self._clear_state_file()
 
-        if success:
+        # 写 stopped 标志到状态文件，通知所有 worker 已停止
+        state = self._load_state_file() or {}
+        state['stopped'] = True
+        self._save_state_file(state)
+
+        # 直接请求 Go /stop（绕过 _api_request_no_start，因为 _running 已 False）
+        stop_ok = False
+        try:
+            req = urllib.request.Request(f'{api_base}/stop', method='POST')
+            resp = urllib.request.urlopen(req, timeout=5)
+            result = json.loads(resp.read().decode('utf-8'))
+            stop_ok = result.get('success', False)
+        except Exception:
+            pass
+
+        # 清空日志队列
+        try:
+            req = urllib.request.Request(f'{api_base}/logs/clear', method='POST')
+            urllib.request.urlopen(req, timeout=3)
+        except Exception:
+            pass
+
+        if stop_ok:
             return True, '反代已停止'
         else:
-            # 尝试杀进程（支持从状态文件恢复的进程）
-            pid_to_kill = self.process.pid if self.process else self._recovered_pid
+            # /stop 失败，杀进程
+            pid_to_kill = self.process.pid if self.process else None
             try:
                 if pid_to_kill:
                     os.kill(pid_to_kill, signal.SIGTERM)
@@ -441,14 +473,11 @@ class GoRProxyManager:
                         self.process.kill()
                 except Exception:
                     pass
-            # 兜底：通过 PID 强杀
             try:
                 if pid_to_kill and not (self.process and self.process.poll() is None):
                     os.kill(pid_to_kill, 9)
             except Exception:
                 pass
-            self._running = False
-            self._recovered_pid = None
             return True, '反代已停止'
 
     def reload_cert(self):
@@ -508,47 +537,131 @@ class GoRProxyManager:
             return True
         return False
 
+    def _check_go_health(self):
+        """检查 Go 进程 API 是否可达，只读不写状态"""
+        if not self.api_base:
+            return False
+        try:
+            req = urllib.request.Request(f'{self.api_base}/health', method='GET')
+            resp = urllib.request.urlopen(req, timeout=2)
+            return resp.status == 200
+        except Exception:
+            return False
+
+    def _ensure_running_flag(self):
+        """确保 _running 标志与真实进程/API 状态一致，避免启动过程中误判"""
+        if not self._running:
+            # 未运行状态下尝试恢复
+            if self._try_recover_from_state():
+                return
+            return
+
+        # _running 为 True 时，先检查进程是否还活着
+        if self._is_process_running():
+            # 进程活着，再看 API 是否通
+            if self.api_base and self._check_go_health():
+                return
+            # 进程活着但 API 暂时没响应：可能是启动中或短暂繁忙
+            # 尝试从状态文件恢复 api_base（如果 self.api_base 为空）
+            if not self.api_base:
+                self._try_recover_from_state()
+            return
+
+        # 进程确实不在，尝试从状态文件恢复
+        if self._try_recover_from_state():
+            return
+
+        # 都失败，标记为未运行
+        self._running = False
+
+    def _sync_from_state(self):
+        """从状态文件同步状态到内存（跨 worker 同步，解决多进程状态不一致）"""
+        state = self._load_state_file()
+
+        # stopped 标志 → 已停止
+        if state and state.get('stopped'):
+            self._running = False
+            self._start_requested = False
+            return False
+
+        pid = state.get('pid') if state else None
+        api_port = state.get('api_port') if state else None
+
+        if not pid or not api_port:
+            self._running = False
+            return False
+
+        # 检查进程存活
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            self._running = False
+            return False
+
+        # 进程活着，同步状态到内存
+        self.api_port = api_port
+        self.api_base = f'http://127.0.0.1:{api_port}'
+        self._running = True
+        self._recovered_pid = pid
+        self._recovered = True
+        config = state.get('config')
+        if config:
+            self._last_config = config
+        self._start_requested = config is not None
+        self._current_cert_sum = state.get('cert_sum', '')
+        return True
+
     def status(self):
-        if not self._running or not self.api_base:
-            if not self._try_recover_from_state():
-                return {
-                    'running': False,
-                    'port': 0,
-                    'domain': '',
-                    'pid': None,
-                    'started_at': '',
-                    'public_url': '',
-                    'cert_changed': False,
-                }
+        # 完全基于状态文件 + 进程存活判断，不依赖内存 _running/_recovered
+        running = self._sync_from_state()
 
-        success, result = self._api_request_no_start('GET', '/status')
-        if success:
-            if isinstance(result, dict):
-                pid = result.get('pid') or self._active_pid()
-                result['pid'] = pid
-                result['public_url'] = self.get_public_url()
-                result['cert_changed'] = CertManager.check_cert_change(self._current_cert_sum)
-                return result
+        if not running:
+            return {
+                'running': False,
+                'port': 0,
+                'domain': '',
+                'pid': None,
+                'started_at': '',
+                'public_url': '',
+                'cert_changed': False,
+            }
 
-        # API 调用失败 — 用进程存活检测兜底
-        running = self._is_process_running()
+        # 尝试从 Go 获取额外信息（domain, port, started_at），失败不影响 running
+        go_status = {}
+        if self.api_base:
+            try:
+                req = urllib.request.Request(f'{self.api_base}/status', method='GET')
+                resp = urllib.request.urlopen(req, timeout=2)
+                go_status = json.loads(resp.read().decode('utf-8'))
+            except Exception:
+                pass
+
         return {
-            'running': running,
-            'port': self._last_config.get('port', 0) if running and self._last_config else 0,
-            'domain': self._last_config.get('domain', '') if running and self._last_config else '',
+            'running': True,
+            'port': go_status.get('port') or (self._last_config.get('port', 0) if self._last_config else 0),
+            'domain': go_status.get('domain') or (self._last_config.get('domain', '') if self._last_config else ''),
             'pid': self._active_pid(),
-            'started_at': '',
-            'public_url': self.get_public_url() if running else '',
-            'cert_changed': CertManager.check_cert_change(self._current_cert_sum) if running else False,
+            'started_at': go_status.get('started_at', ''),
+            'public_url': self.get_public_url(),
+            'cert_changed': CertManager.check_cert_change(self._current_cert_sum),
         }
 
     def get_logs(self, limit=200):
-        if not self._running:
+        # 确保 api_base 有值（多 worker 下可能未设置）
+        if not self.api_base:
+            self._sync_from_state()
+        if not self.api_base:
             return []
-
-        success, result = self._api_request_no_start('GET', f'/logs?limit={limit}')
-        if success and isinstance(result, dict):
-            return result.get('logs', [])
+        try:
+            url = f'{self.api_base}/logs?limit={limit}'
+            req = urllib.request.Request(url, method='GET')
+            resp = urllib.request.urlopen(req, timeout=3)
+            body = resp.read().decode('utf-8')
+            result = json.loads(body)
+            if isinstance(result, dict):
+                return result.get('logs', [])
+        except Exception:
+            pass
         return []
 
     def clear_logs(self):

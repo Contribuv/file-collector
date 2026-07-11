@@ -26,6 +26,29 @@
   grid-template-columns: 1fr 1fr;
   gap: 0 24px;
 }
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-border, #f0f0f0);
+}
+.info-label {
+  font-size: 0.8rem;
+  color: var(--c-text-soft);
+}
+.info-value {
+  font-size: 0.8rem;
+  color: var(--c-text);
+  text-align: right;
+}
+.info-value a {
+  color: var(--c-primary);
+  text-decoration: none;
+}
+.info-value a:hover {
+  text-decoration: underline;
+}
 @media (max-width: 768px) {
   .settings-grid { column-count: 1; }
   .info-grid { grid-template-columns: 1fr; }
@@ -82,168 +105,5 @@
   margin-top: 8px;
 }
 
-/* 反馈与感谢双栏 */
-.footer-dual-row {
-  display: flex;
-  gap: 20px;
-}
-.footer-dual-col {
-  flex: 1;
-  min-width: 0;
-}
-.footer-dual-col:first-child {
-  padding-right: 20px;
-  border-right: 1px solid var(--c-border, #e5e7eb);
-}
-@media (max-width: 768px) {
-  .footer-dual-row {
-    flex-direction: column;
-  }
-  .footer-dual-col:first-child {
-    padding-right: 0;
-    border-right: none;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--c-border, #e5e7eb);
-  }
-}
-
-/* 感谢使用卡片 */
-.thanks-section {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-.thanks-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #fffbeb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.thanks-body {
-  flex: 1;
-  min-width: 0;
-}
-.thanks-desc {
-  font-size: 0.83rem;
-  color: var(--c-text);
-  line-height: 1.6;
-  margin: 0 0 10px;
-}
-.thanks-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-.thanks-star-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #92400e;
-  text-decoration: none;
-  transition: background .15s;
-}
-.thanks-star-btn:hover {
-  background: #fde68a;
-  text-decoration: none;
-  color: #78350f;
-}
-.thanks-donate-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  background: #fce7f3;
-  border: 1px solid #f9a8d4;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #9d174d;
-  cursor: pointer;
-  transition: background .15s;
-  font-family: inherit;
-}
-.thanks-donate-btn:hover {
-  background: #fbcfe8;
-  color: #831843;
-}
-.thanks-meta {
-  font-size: 0.75rem;
-  color: var(--c-text-soft);
-}
-.thanks-meta a {
-  color: var(--c-primary);
-  text-decoration: none;
-}
-.thanks-meta a:hover {
-  text-decoration: underline;
-}
-
-/* 反馈卡片 */
-.feedback-section {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-.feedback-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #eef2ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.feedback-body {
-  flex: 1;
-  min-width: 0;
-}
-.feedback-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--c-text);
-  margin-bottom: 3px;
-}
-.feedback-desc {
-  font-size: 0.73rem;
-  color: var(--c-text-soft);
-  line-height: 1.55;
-}
-.feedback-error-msg {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  color: #dc2626;
-  font-size: 0.75rem;
-  line-height: 1.55;
-}
-
-/* 打赏二维码 */
-.donate-qr-wrap {
-  display: inline-block;
-  padding: 10px;
-  background: #fff;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
-}
-.donate-qr-img {
-  display: block;
-  width: 200px;
-  height: 200px;
-  object-fit: contain;
-}
 
 

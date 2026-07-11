@@ -17,15 +17,34 @@ class CertManager:
     """飞牛证书发现与管理"""
 
     @staticmethod
+    def _should_exclude(cert):
+        """判断证书是否应被排除（fnOS 内置证书和 *.fnos.net 动态域名证书）"""
+        domain = cert.get('domain', '')
+        if domain == 'fnOS':
+            return True
+        sans = cert.get('san', [])
+        if not sans:
+            sans = [domain]
+        for s in sans:
+            if 'fnos.net' in s:
+                return True
+        if 'fnos.net' in domain:
+            return True
+        return False
+
+    @staticmethod
     def load_certs():
-        """从飞牛系统配置读取所有证书"""
+        """从飞牛系统配置读取所有证书（排除 fnOS 内置和 *.fnos.net 证书）"""
         if not os.path.exists(FLYFISH_CERT_CONF):
             return []
         try:
             import json
             with open(FLYFISH_CERT_CONF, 'r') as f:
                 data = json.load(f)
-            return data if isinstance(data, list) else []
+            if not isinstance(data, list):
+                return []
+            # 排除 fnOS 内置证书和 *.fnos.net 动态域名证书
+            return [c for c in data if not CertManager._should_exclude(c)]
         except Exception as e:
             logger.error(f"读取证书配置失败: {e}")
             return []

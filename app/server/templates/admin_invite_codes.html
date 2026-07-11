@@ -50,10 +50,14 @@
               </td>
               <td>{{ code.used_by_name or '-' }}</td>
               <td class="col-created">{{ code.created_at }}</td>
-              <td>
+              <td class="col-actions">
                 {% if not is_used and not is_expired %}
                 <button class="btn btn-sm btn-outline" onclick="copyCode('{{ code.code }}')" title="复制邀请码">复制</button>
                 {% endif %}
+                <form method="POST" action="{{ url_for('delete_invite_code', code_id=code.id) }}" class="delete-form" onsubmit="return confirm('确定删除此邀请码？');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-danger" title="删除邀请码">删除</button>
+                </form>
               </td>
             </tr>
             {% endfor %}
@@ -87,9 +91,15 @@
                   {% endif %}
                 </div>
               </div>
-              {% if not is_used and not is_expired %}
-              <button class="btn btn-sm btn-outline" style="flex-shrink:0;" onclick="copyCode('{{ code.code }}')">复制</button>
-              {% endif %}
+              <div class="mobile-actions">
+                {% if not is_used and not is_expired %}
+                <button class="btn btn-sm btn-outline" style="flex-shrink:0;" onclick="copyCode('{{ code.code }}')">复制</button>
+                {% endif %}
+                <form method="POST" action="{{ url_for('delete_invite_code', code_id=code.id) }}" class="delete-form" style="flex-shrink:0;" onsubmit="return confirm('确定删除此邀请码？');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                </form>
+              </div>
             </div>
           </div>
         </div>

@@ -59,6 +59,74 @@
   height: 20px;
 }
 
+/* ===== 操作列按钮 ===== */
+/* PC 表格：复制 + 删除 同行，间距 8px */
+.admin-table .col-actions {
+  white-space: nowrap;
+}
+.admin-table .col-actions form.delete-form {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+/* 复制按钮（PC）：青色调，hover 加深 + 轻微放大 */
+.invite-table-pc .col-actions button.btn-outline {
+  color: #0891b2;
+  border-color: #cffafe;
+  background: #ecfeff;
+  transition: all 0.18s ease;
+}
+.invite-table-pc .col-actions button.btn-outline:hover {
+  color: #fff;
+  background: #0891b2;
+  border-color: #0891b2;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(8,145,178,0.25);
+}
+
+/* 删除按钮：hover 加深 + 轻微放大 */
+.invite-table-pc .col-actions button.btn-danger,
+.invite-table-pc .col-actions form.delete-form button.btn-danger {
+  transition: all 0.18s ease;
+}
+.invite-table-pc .col-actions button.btn-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(220,38,38,0.3);
+}
+
+/* 移动端：复制 + 删除 横向排列，间距 6px */
+.mobile-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 移动端复制按钮：青色调 */
+.invite-cards-mobile .mobile-actions button.btn-outline {
+  color: #0891b2;
+  border-color: #cffafe;
+  background: #ecfeff;
+  transition: all 0.18s ease;
+}
+.invite-cards-mobile .mobile-actions button.btn-outline:hover {
+  color: #fff;
+  background: #0891b2;
+  border-color: #0891b2;
+}
+.invite-cards-mobile .mobile-actions form.delete-form {
+  display: inline-block;
+}
+.invite-cards-mobile .mobile-actions button.btn-danger {
+  transition: all 0.18s ease;
+}
+.invite-cards-mobile .mobile-actions button.btn-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
 /* ===== 移动端卡片列表（复用全局 record-card） ===== */
 .invite-cards-mobile { display: none; }
 

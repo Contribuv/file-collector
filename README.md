@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.18-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.20-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -310,6 +310,14 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.20
+- 网关页 macOS 风格全新重构：侧边栏导航（配置/状态/日志/帮助）+ 主题切换按钮
+- 网关页支持亮色/暗色主题切换，自动检测飞牛系统主题（URL/localStorage/body theme-mode）
+- 证书列表改为显示全部证书（不再仅显示 used=true），排除 fnOS 内置和 *.fnos.net 动态域名证书
+- 移动端登录/注册页样式优化：卡片式布局、圆角输入框、iOS 风格视觉
+- 设置页移除「反馈与感谢」卡片及打赏弹窗，清理相关 CSS/图片资源
+- 邀请码管理页操作列新增「删除」功能（PC 表格 + 移动端卡片）
 
 ### v2.3.19
 - 网关页运行状态卡片显示版本号（与 manifest 同步）

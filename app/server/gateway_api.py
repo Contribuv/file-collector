@@ -112,9 +112,8 @@ def gateway_index():
     local_port = os.environ.get('PORT', '5557')
     gateway_prefix = os.environ.get('GATEWAY_PREFIX', '/app/file-collector')
 
-    # 只取当前正在使用的证书（used: true）
-    all_certs = CertManager.get_certs_for_display() if CertManager else []
-    certs = [c for c in all_certs if c.get('used')]
+    # 获取所有证书（排除规则已在 load_certs 层处理）
+    certs = CertManager.get_certs_for_display() if CertManager else []
 
     status = RPROXY_PM.status() if RPROXY_PM else {'running': False, 'message': '模块未加载'}
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
@@ -151,12 +150,10 @@ def api_gateway_status():
 
 @gateway_bp.route('/api/certs')
 def api_gateway_certs():
-    """获取飞牛证书列表（只返回正在使用的证书）"""
+    """获取飞牛证书列表（返回所有证书，排除规则已在 load_certs 层处理）"""
     if CertManager is None:
         return jsonify({'certs': [], 'domains': []})
-    all_certs = CertManager.get_certs_for_display()
-    # 只返回 used=true 的证书
-    certs = [c for c in all_certs if c.get('used')]
+    certs = CertManager.get_certs_for_display()
     domains = []
     for cert in certs:
         sans = cert.get('sans', [])

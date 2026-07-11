@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.19"
+VERSION = "2.3.20"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -5647,6 +5647,31 @@ def generate_invite_code_route():
         flash(f'邀请码已生成: {code}')
     else:
         flash('邀请码生成失败')
+    return redirect(url_for('admin_invite_codes'))
+
+@admin_required
+@app.route('/admin/invite_codes/<code_id>/delete', methods=['POST'])
+def delete_invite_code(code_id):
+    """删除邀请码"""
+    if not validate_csrf():
+        flash('安全验证失败')
+        return redirect(url_for('admin_invite_codes'))
+
+    conn = get_db()
+    try:
+        invite = conn.execute("SELECT id FROM invite_codes WHERE id = ?", (code_id,)).fetchone()
+        if not invite:
+            flash('邀请码不存在')
+            conn.close()
+            return redirect(url_for('admin_invite_codes'))
+
+        conn.execute("DELETE FROM invite_codes WHERE id = ?", (code_id,))
+        conn.commit()
+        flash('邀请码已删除')
+    except Exception as e:
+        logger.error(f"删除邀请码失败: {e}")
+        flash('操作失败')
+    conn.close()
     return redirect(url_for('admin_invite_codes'))
 
 @admin_required

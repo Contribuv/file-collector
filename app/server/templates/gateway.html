@@ -8,13 +8,102 @@
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png') }}">
 </head>
 <body>
+<script>
+// 主题检测：放在 body 最前面，确保 document.body 可用
+// 飞牛官方机制：亮色=无theme-mode属性，暗色=body[theme-mode="dark"]
+// 检测顺序：URL ?theme= > localStorage > body[theme-mode] > 默认浅色
+(function() {
+    try {
+        var searchParams = new URLSearchParams(window.location.search);
+        var urlTheme = (searchParams.get('theme') || '').trim().toLowerCase();
+        var saved = localStorage.getItem('gw-theme');
+        var bodyTheme = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+
+        var theme;
+        if (urlTheme === 'dark' || urlTheme === 'light') {
+            theme = urlTheme;
+        } else if (saved === 'dark' || saved === 'light') {
+            theme = saved;
+        } else if (bodyTheme === 'dark') {
+            // 飞牛在暗色模式设置 body[theme-mode="dark"]
+            theme = 'dark';
+        } else {
+            // 无 theme-mode 属性 = 亮色模式
+            theme = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+})();
+</script>
 <div class="gateway-page">
-    <div class="gateway-content">
-        <div class="gateway-grid">
-            <!-- 配置卡片 -->
-            <div class="gateway-card config-card">
+
+    <div class="mac-body">
+
+        <!-- 侧边栏 -->
+        <div class="mac-sidebar">
+            <div class="mac-sidebar-item active" onclick="switchSection('config')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+                反向代理
+            </div>
+            <div class="mac-sidebar-item" onclick="switchSection('status')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                运行状态
+            </div>
+            <div class="mac-sidebar-item" onclick="switchSection('logs')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                实时日志
+            </div>
+            <div class="mac-sidebar-item" onclick="switchSection('help')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                帮助说明
+            </div>
+            <div class="mac-sidebar-item" onclick="toggleTheme()">
+                <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <span id="themeLabel">切换主题</span>
+            </div>
+            <div class="mac-sidebar-divider"></div>
+            <div class="mac-sidebar-version">
+                <span class="version-tag">v{{ version }}</span>
+            </div>
+            <div class="mac-sidebar-feedback">
+                <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
+                <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="mac-main">
+
+            <!-- 反向代理配置 -->
+            <div class="mac-section active" id="section-config">
                 <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3"/>
                         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
                     </svg>
@@ -50,10 +139,10 @@
                 </div>
             </div>
 
-            <!-- 状态卡片 -->
-            <div class="gateway-card status-card">
+            <!-- 运行状态 -->
+            <div class="mac-section" id="section-status">
                 <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
                     运行状态
@@ -81,7 +170,7 @@
                             <span id="proxyUrl">--</span>
                             <button class="copy-btn" onclick="copyUrl()">复制</button>
                         </div>
-                        <span id="noUrl" style="color:#8c8c8c;">启动后显示</span>
+                        <span id="noUrl" style="color:var(--gw-text-tertiary);">启动后显示</span>
                     </div>
                 </div>
                 <div class="status-row">
@@ -90,64 +179,94 @@
                         <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开管理后台 ↗</button>
                     </div>
                 </div>
-                <div class="status-row status-version-row">
-                    <div class="status-label">版本</div>
-                    <div class="status-value status-version-value">
-                        <span class="version-tag">v{{ version }}</span>
-                    </div>
-                </div>
-                <div class="status-row status-feedback-row">
-                    <div class="status-label">反馈Bug：</div>
-                    <div class="status-value">
-                        <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
-                        <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
-                    </div>
-                </div>
             </div>
-        </div>
 
-        <!-- 帮助说明卡片 -->
-        <div class="gateway-card help-card" id="helpCard">
-            <h2>
-                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="16" x2="12" y2="12"/>
-                    <line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-                为什么需要配置反向代理？
-            </h2>
-            <div class="info-box">
-                <ul>
-                    <li>文件收集器默认监听内网端口，仅局域网可访问</li>
-                    <li>通过反向代理，可将服务暴露到公网，支持 HTTPS 加密</li>
-                    <li>证书自动从飞牛系统获取，无需手动申请</li>
-                    <li>支持多终端同时在线协作</li>
-                </ul>
+            <!-- 实时日志 -->
+            <div class="mac-section" id="section-logs">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    实时日志
+                </h2>
+                <div class="log-box" id="logBox">
+                    <div class="log-line log-info">[系统] 等待反向代理启动...</div>
+                </div>
             </div>
-            <p class="help-note">
-                请确保路由器已配置端口转发，将 HTTPS 端口映射到本机。
-            </p>
-        </div>
 
-        <!-- 日志卡片 -->
-        <div class="gateway-card log-card">
-            <h2>
-                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                </svg>
-                实时日志
-            </h2>
-            <div class="log-box" id="logBox">
-                <div class="log-line log-info">[系统] 等待反向代理启动...</div>
+            <!-- 帮助说明 -->
+            <div class="mac-section" id="section-help">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    为什么需要配置反向代理？
+                </h2>
+                <div class="info-box">
+                    <ul>
+                        <li>文件收集器默认监听内网端口，仅局域网可访问</li>
+                        <li>通过反向代理，可将服务暴露到公网，支持 HTTPS 加密</li>
+                        <li>证书自动从飞牛系统获取，无需手动申请</li>
+                        <li>支持多终端同时在线协作</li>
+                    </ul>
+                </div>
+                <p class="help-note">
+                    请确保路由器已配置端口转发，将 HTTPS 端口映射到此飞牛NAS。
+                </p>
             </div>
+
         </div>
     </div>
 </div>
 
 <script>
+// ============================================================
+// 侧边栏切换
+// ============================================================
+function switchSection(name) {
+    document.querySelectorAll('.mac-section').forEach(s => s.classList.remove('active'));
+    // 只清除前 4 个侧边栏项的 active（主题按钮不参与）
+    const items = document.querySelectorAll('.mac-sidebar-item');
+    for (var i = 0; i < 4 && i < items.length; i++) {
+        items[i].classList.remove('active');
+    }
+    const section = document.getElementById('section-' + name);
+    if (section) section.classList.add('active');
+    const map = ['config', 'status', 'logs', 'help'];
+    const idx = map.indexOf(name);
+    if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+}
+
+// 主题切换
+function toggleTheme() {
+    var html = document.documentElement;
+    var current = html.getAttribute('data-theme') || 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('gw-theme', next);
+    updateThemeIcon(next);
+}
+
+function updateThemeIcon(theme) {
+    var icon = document.getElementById('themeIcon');
+    var label = document.getElementById('themeLabel');
+    if (!icon || !label) return;
+    if (theme === 'dark') {
+        // 月亮图标
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+        label.textContent = '亮色模式';
+    } else {
+        // 太阳图标
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+        label.textContent = '暗色模式';
+    }
+}
+
 // ============================================================
 // 全局变量
 // ============================================================
@@ -156,7 +275,7 @@ let isRunning = false;
 let currentDomain = '';
 let currentPort = {{ config.port or 7786 }};
 let portCheckTimer = null;
-let uiLocked = false;       // UI 锁定：启动/停止后短时间内不覆盖状态
+let uiLocked = false;
 let uiLockTimer = null;
 
 // ============================================================
@@ -174,22 +293,56 @@ function apiPath(suffix) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     loadCerts();
-    // 统一轮询：先加载状态再加载日志，保证 isRunning 与日志渲染时序一致
     poll();
     setInterval(poll, 3000);
     initPortCheck();
+    updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
 
-    // 微信复制点击事件
+    // 监听 body[theme-mode] 变化（飞牛桌面切换主题时触发）
+    // 飞牛机制：暗色=设 theme-mode="dark"，亮色=移除 theme-mode 属性
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+        var observer = new MutationObserver(function() {
+            if (!localStorage.getItem('gw-theme')) {
+                var urlTheme = new URLSearchParams(window.location.search).get('theme');
+                if (urlTheme !== 'dark' && urlTheme !== 'light') {
+                    var t = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+                    var newTheme = (t === 'dark') ? 'dark' : 'light';
+                    var current = document.documentElement.getAttribute('data-theme');
+                    if (newTheme !== current) {
+                        document.documentElement.setAttribute('data-theme', newTheme);
+                        updateThemeIcon(newTheme);
+                    }
+                }
+            }
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['theme-mode'] });
+    }
+
+    // 轮询备份：每 2 秒检查 body[theme-mode]
+    setInterval(function() {
+        if (!localStorage.getItem('gw-theme')) {
+            var urlTheme = new URLSearchParams(window.location.search).get('theme');
+            if (urlTheme !== 'dark' && urlTheme !== 'light') {
+                var t = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+                var newTheme = (t === 'dark') ? 'dark' : 'light';
+                var current = document.documentElement.getAttribute('data-theme');
+                if (newTheme !== current) {
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    updateThemeIcon(newTheme);
+                }
+            }
+        }
+    }, 2000);
+
     const wechatEl = document.getElementById('wechatCopy');
     if (wechatEl) {
         wechatEl.addEventListener('click', copyWechat);
     }
 });
 
-// 统一轮询：状态 → 日志，串行执行避免竞态
 let polling = false;
 async function poll() {
-    if (polling) return;  // 防重入：上一次还没完成就跳过
+    if (polling) return;
     polling = true;
     try {
         await loadStatus();
@@ -199,7 +352,6 @@ async function poll() {
     }
 }
 
-// UI 锁定：启动/停止后短时间内不让 poll 覆盖状态，避免 UI 反复跳
 function lockUI(seconds) {
     uiLocked = true;
     if (uiLockTimer) clearTimeout(uiLockTimer);
@@ -224,7 +376,6 @@ function initPortCheck() {
         }, 300);
     });
 
-    // 初始检测
     setTimeout(() => {
         if (!isRunning) {
             const port = parseInt(portInput.value);
@@ -274,7 +425,6 @@ async function loadCerts() {
                     }
                 });
             });
-            // 如果有当前配置的域名，选中它
             if (currentDomain) {
                 select.value = currentDomain;
             }
@@ -300,20 +450,17 @@ async function refreshCerts() {
 async function loadStatus() {
     try {
         const res = await fetch(apiPath('/api/status')).then(r => r.json());
-        // UI 锁定期间不覆盖状态，避免启动/停止后 UI 反复跳
         if (uiLocked) return;
         const wasRunning = isRunning;
         isRunning = res.running || false;
         currentDomain = res.domain || '';
         currentPort = res.port || 7786;
         updateUI();
-        // 状态变化时强制刷新日志
         if (isRunning !== wasRunning) {
             lastLogSignature = '';
         }
     } catch(e) {
         console.error('加载状态失败', e);
-        // 网络抖动时不降级 UI，保持当前状态
     }
 }
 
@@ -430,19 +577,15 @@ async function startProxy() {
         }).then(r => r.json());
 
         if (res.success) {
-            // 立即乐观更新 UI，不用等 loadStatus
             isRunning = true;
             currentDomain = domain;
             currentPort = port;
             updateUI();
-            // 锁定 UI 8 秒，期间 poll 不覆盖状态
             lockUI(8);
-            // 清空日志框，准备接收干净的启动日志
             const logBox = document.getElementById('logBox');
             logBox.innerHTML = '';
             addLog('info', '反向代理启动中...');
             lastLogSignature = 'empty';
-            // 立即触发一次轮询拉取真实状态和日志
             poll();
         } else {
             const msg = res.message || '未知错误';
@@ -463,17 +606,13 @@ async function stopProxy() {
     try {
         const res = await fetch(apiPath('/api/stop'), { method: 'POST' }).then(r => r.json());
         if (res.success) {
-            // 立即更新 UI
             isRunning = false;
             updateUI();
-            // 锁定 UI 8 秒，期间 poll 不覆盖状态
             lockUI(8);
-            // 清空日志框，显示停止提示；后端已清空 Go 日志队列
             const logBox = document.getElementById('logBox');
             logBox.innerHTML = '';
             addLog('info', '反向代理已停止');
             lastLogSignature = 'empty';
-            // 延迟检测端口可用性（给操作系统时间释放端口）
             setTimeout(() => {
                 const port = parseInt(document.getElementById('portInput').value);
                 if (port) checkPort(port);
@@ -487,7 +626,6 @@ async function stopProxy() {
 // ============================================================
 // 日志
 // ============================================================
-// 用最后一条日志的 time|msg 作为签名，相同则跳过渲染，避免闪烁
 let lastLogSignature = 'empty';
 
 function logSignature(logs) {
@@ -504,11 +642,9 @@ async function loadLogs() {
         if (!logBox) return;
 
         const sig = logSignature(res.logs);
-        // 签名相同说明日志无变化，跳过
         if (sig === lastLogSignature) return;
         lastLogSignature = sig;
 
-        // 全量重渲染：清空后重新画
         logBox.innerHTML = '';
         if (res.logs.length === 0) {
             const line = document.createElement('div');
@@ -537,10 +673,8 @@ function appendLogEntry(logBox, entry) {
     logBox.appendChild(line);
 }
 
-// 本地添加一条日志（不进入签名比对，下次全量刷新会被替换）
 function addLog(type, msg) {
     const logBox = document.getElementById('logBox');
-    // 移除占位行（如果存在）
     if (logBox.children.length === 1 && logBox.children[0].textContent.indexOf('[系统]') === 0) {
         logBox.innerHTML = '';
     }

@@ -328,58 +328,6 @@
         </div>
       </div>
 
-      <!-- 反馈与感谢（合并卡片） -->
-      <div class="card card-compact card-full-width">
-        <div class="card-header"><h3>反馈与感谢</h3></div>
-        <div class="card-body">
-          <div class="footer-dual-row">
-            <!-- 左：反馈 -->
-            <div class="footer-dual-col">
-              <div class="feedback-section">
-                <div class="feedback-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.8" width="20" height="20">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="16" x2="15" y2="16"/>
-                  </svg>
-                </div>
-                <div class="feedback-body">
-                  <div class="feedback-title">有问题或建议？</div>
-                  <div class="feedback-desc">前往 GitHub Issues 提交反馈，可查看自己和他人的反馈与建议。需有 GitHub 账号。</div>
-                  <button id="feedback-btn" class="btn btn-outline btn-sm" onclick="openFeedback()" style="margin-top:8px;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:4px;vertical-align:-2px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    提交反馈到 GitHub Issues
-                  </button>
-                  <div id="feedback-error" style="display:none;"></div>
-                </div>
-              </div>
-            </div>
-            <!-- 右：感谢 -->
-            <div class="footer-dual-col">
-              <div class="thanks-section">
-                <div class="thanks-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.8" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                </div>
-                <div class="thanks-body">
-                  <p class="thanks-desc">文件收集器：基于 Flask + SQLite 的多用户文件收集与分享系统，支持 PDF 在线预览，专为飞牛 fnOS 打造。</p>
-                  <div class="thanks-actions">
-                    <a href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener" class="thanks-star-btn">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                      Star 支持开发者
-                    </a>
-                    <button type="button" class="thanks-donate-btn" onclick="openDonateModal()">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M16 8h-4a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-4"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
-                      打赏
-                    </button>
-                    <span class="thanks-meta">
-                      开发者 <a href="https://github.com/Contribuv" target="_blank" rel="noopener">豪子</a> · MIT License
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
     <!-- 系统信息 -->
     <div class="card card-compact card-full-width">
       <div class="card-header"><h3>系统信息</h3></div>
@@ -398,38 +346,9 @@
   </div>
 </div>
 
-
-<!-- 打赏弹窗 -->
-<div class="modal-overlay" id="donate-modal" style="display:none;">
-  <div class="modal-content modal-sm">
-    <div class="modal-header">
-      <h3>赞赏支持</h3>
-      <button class="modal-close" onclick="closeDonateModal()">&times;</button>
-    </div>
-    <div class="modal-body" style="text-align:center;">
-      <p style="margin:0 0 12px;font-size:.85rem;color:var(--c-text-soft);">如果这个工具帮到了您，欢迎扫码打赏支持开发者</p>
-      <div class="donate-qr-wrap">
-        <img src="{{ url_for('static', filename='img/wechat_qr.png') }}" alt="微信打赏二维码" class="donate-qr-img">
-      </div>
-      <p style="margin:10px 0 0;font-size:.75rem;color:var(--c-text-soft);">微信扫码 · 感谢支持 ❤</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-primary" onclick="closeDonateModal()">关闭</button>
-    </div>
-  </div>
-</div>
-
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-settings-inline.css') }}">
 
 <script>
-function openDonateModal() {
-  document.getElementById('donate-modal').style.display = 'flex';
-}
-
-function closeDonateModal() {
-  document.getElementById('donate-modal').style.display = 'none';
-}
-
 // 单文件上限 MB/GB 切换
 function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
   var valEl = document.getElementById(valId);
@@ -476,18 +395,7 @@ function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
   unitEl.addEventListener('change', onUnitChange);
 }
 
-// 点击遮罩层关闭弹窗
-document.addEventListener('DOMContentLoaded', function() {
-  var donateModal = document.getElementById('donate-modal');
-  if (donateModal) {
-    donateModal.addEventListener('click', function(e) {
-      if (e.target === donateModal) {
-        closeDonateModal();
-      }
-    });
-  }
-});
-
+// 单文件上限 MB/GB 切换
 (function() {
   // 实时拦截：整数输入框禁止输入小数点
   ['default_max_files', 'passcode_ttl_minutes', 'default_link_expire_days', 'links_per_page_val', 'records_per_page_val', 'upload_batch_limit'].forEach(function(id) {
@@ -628,6 +536,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 单文件上限 MB/GB 切换
+  (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
+
   // 异步检查版本更新
   var updateLink = document.getElementById('update-link');
   if (updateLink) {
@@ -639,39 +550,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }).catch(function() {});
   }
-
-  // Bug 反馈：检测 GitHub 连通性后跳转
-  var FEEDBACK_URL = 'https://github.com/Contribuv/file-collector/issues';
-  window.openFeedback = function() {
-    var btn = document.getElementById('feedback-btn');
-    var errorDiv = document.getElementById('feedback-error');
-    if (!btn || !errorDiv) return;
-
-    btn.disabled = true;
-    btn.textContent = '检测网络中...';
-    errorDiv.style.display = 'none';
-
-    var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); }, 6000);
-
-    fetch('https://github.com', { mode: 'no-cors', signal: controller.signal })
-      .then(function() {
-        clearTimeout(timeoutId);
-        window.open(FEEDBACK_URL, '_blank', 'noopener,noreferrer');
-      })
-      .catch(function() {
-        clearTimeout(timeoutId);
-        errorDiv.style.display = 'block';
-        errorDiv.innerHTML = '<div class="feedback-error-msg">GitHub 网络不可达，<br>您的网络不支持访问 GitHub，请检查网络后重试。</div>';
-      })
-      .finally(function() {
-        btn.disabled = false;
-        btn.textContent = '提交反馈到 GitHub Issues';
-      });
-  };
-
-  // 单文件上限 MB/GB 切换
-  (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', {{ defaults.max_file_size_gb or 1 }}); })();
 
   // ====== 反向代理状态轮询，保持公网网址实时同步 ======
   (function() {

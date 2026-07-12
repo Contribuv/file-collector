@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>基于 Flask + SQLite 的多用户文件收集与分享系统 | 支持 PDF/图片/视频/音频/TXT 在线预览 | 专为飞牛 fnOS 打造</strong>
+  <strong>基于 Flask + SQLite 的多用户文件收集与分享系统 | 支持 Office/PDF/图片/视频/音频/TXT 在线预览 | 专为飞牛 fnOS 打造</strong>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 
 ## 📖 简介
 
-文件收集器是一个功能完备的轻量级 Web 应用，支持**多用户体系**、**多媒体在线预览**和**双模式分享**。管理员可在后台创建多个独立的收集链接，每个链接自动生成**收集页**（上传）和**分享页**（浏览下载）两种模式——两者拥有**各自独立的通行证**（可分别设为密码保护或公开访问），以及独立的上传限制、有效期和自定义短链接。支持上传者身份识别、按上传者分文件夹存储，0.01-64 GB 大文件断点续传（TUS 协议）。内置邀请码注册系统，支持管理员和普通用户两种角色。支持 PDF（PDF.js 官方渲染）、图片、视频、音频、TXT（小说阅读器）在线预览。非常适合团队协作、作业收集、资料汇总、文件分发等场景。
+文件收集器是一个功能完备的轻量级 Web 应用，支持**多用户体系**、**多媒体在线预览**和**双模式分享**。管理员可在后台创建多个独立的收集链接，每个链接自动生成**收集页**（上传）和**分享页**（浏览下载）两种模式——两者拥有**各自独立的通行证**（可分别设为密码保护或公开访问），以及独立的上传限制、有效期和自定义短链接。支持上传者身份识别、按上传者分文件夹存储，0.01-64 GB 大文件断点续传（TUS 协议）。内置邀请码注册系统，支持管理员和普通用户两种角色。支持 **Office 文档（DOCX/XLSX/PPTX/CSV）** 基于 OnlyOffice WASM 纯前端渲染、PDF（PDF.js 官方渲染）、图片、视频、音频、TXT（小说阅读器）在线预览，所有预览均为离线本地处理，文件不上传第三方服务器。非常适合团队协作、作业收集、资料汇总、文件分发等场景。
 
 **适用平台：** [飞牛 fnOS](https://www.fnnas.com/) **独占** Native 应用（.fpk 格式），不支持 Docker 部署（已停止更新）。支持 **x86 / ARM** 平台。
 
@@ -47,13 +47,15 @@
 |------|------|
 | 👥 **多用户系统** | 支持管理员与普通用户角色，邀请码注册，用户启用/停用/编辑/重置密码 |
 | 📄 **PDF 预览** | PDF.js 官方渲染，支持缩放/旋转/搜索/缩略图/大纲导航 |
+| 📝 **Office 预览** | DOCX/XLSX/PPTX/CSV 在线预览，OnlyOffice WASM 纯前端渲染，离线本地处理 |
+| 📖 **小说预览** | TXT 文本在线预览，章节自动识别、暗色/亮色主题、字号行宽可调 |
 | 🔗 **多链接管理** | 创建/编辑/启用/禁用/删除，支持**自定义短链接 ID**（3-32 位字母数字） |
 | 🔑 **双通行证** | 收集页和分享页各自独立的通行证，分别可设为密码保护或空通行证（公开访问） |
 | 🔓 **公开收集** | 勾选「空通行证」即可开放公开访问，无密码也可上传/下载 |
 | 📤 **文件收集** | 多文件拖拽 + 点击上传，进度条实时显示，支持 TUS 断点续传大文件 |
 | 📥 **文件分享** | 同一链接生成分享页（只读模式），可浏览和下载文件，按上传者登记展示 |
 | 👤 **上传者身份** | 要求上传者填写昵称，按上传者分文件夹存储，每人独立上传配额 |
-| 🎬 **多媒体预览** | 图片/PDF/视频/音频/TXT 文本（小说阅读器，章节识别）在线预览 |
+| 🎬 **多媒体预览** | 图片/视频/音频在线预览，支持 jpg/png/gif/webp/heic/mp4/mov/mp3/flac 等 |
 | 📏 **文件限制** | 自定义单文件大小上限（0.01-64 GB）和上传数量上限（0=不限制） |
 | ⏱️ **有效期控制** | 收集页和分享页各自的独立有效期，到期自动失效 |
 | 📋 **上传历史** | 收集者和管理员均可查看/下载/预览已提交文件 |
@@ -149,7 +151,8 @@ file-collector/
 │   │   ├── rproxy_manager.py    # Go 反向代理管理器（HTTPS + HTTP→HTTPS 301）
 │   │   ├── cert_manager.py      # 飞牛证书管理模块
 │   │   ├── templates/           # Jinja2 模板（含 gateway.html）
-│   │   └── static/              # CSS、图片、图标
+│   │   ├── static/              # CSS、图片、图标
+│   │   └── office/              # OnlyOffice WASM 静态资源（离线预览）
 │   └── ui/                      # 桌面图标资源
 ├── cmd/
 │   ├── main                     # 生命周期管理（start/stop/status/uninstall）
@@ -172,6 +175,7 @@ file-collector/
 | 密码哈希 | Werkzeug Security | bcrypt 级别安全存储 |
 | 断点续传 | TUS 协议 | 5MB 分片 + 3 并发 + 自动恢复 |
 | PDF 预览 | PDF.js (Mozilla) | 官方渲染引擎，缩放/搜索/旋转 |
+| Office 预览 | OnlyOffice WASM | 纯前端渲染 DOCX/XLSX/PPTX/CSV，离线本地处理，零网络依赖 |
 | TXT 预览 | 自研小说阅读器 | 章节识别、黑暗/明亮主题、字号行宽调节 |
 | 生产部署 | Gunicorn | 多 worker 进程，Nginx 反代 |
 | Python | 3.11+ | 飞牛 fnOS 系统原生内置 |
@@ -290,7 +294,7 @@ GET /api/status
 | `POST` | `/collect/<link_id>/upload` | 上传文件（multipart） |
 | `GET` | `/collect/<link_id>/records` | 获取上传历史（JSON） |
 | `GET` | `/collect/<link_id>/download/<record_id>` | 下载已上传文件 |
-| `GET` | `/collect/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/音频/TXT） |
+| `GET` | `/collect/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/音频/TXT/Office） |
 | `GET` | `/collect/<link_id>/preview_file/<record_id>` | 获取文件原始内容（JIT SDK 调用） |
 | `POST` | `/collect/<link_id>/delete_record/<record_id>` | 删除单条记录 |
 
@@ -303,7 +307,7 @@ GET /api/status
 | `POST` | `/share/<link_id>/logout` | 退出通行证 |
 | `GET` | `/share/<link_id>/records` | 获取文件列表（JSON） |
 | `GET` | `/share/<link_id>/download/<record_id>` | 下载文件 |
-| `GET` | `/share/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/音频/TXT） |
+| `GET` | `/share/<link_id>/preview/<record_id>` | 在线预览文件（图片/PDF/视频/音频/TXT/Office） |
 | `GET` | `/share/<link_id>/preview_file/<record_id>` | 获取文件原始内容（JIT SDK 调用） |
 | `POST` | `/share/<link_id>/delete_record/<record_id>` | 删除单条记录 |
 
@@ -709,7 +713,7 @@ GET /api/status
 
 **文件收集与分享**：收集页（上传）+ 分享页（浏览下载）双模式、拖拽上传、批量上传、进度条显示、同名文件冲突提示、禁止上传类型配置、上传者身份记录
 
-**在线预览**：图片/PDF/视频/音频/文本在线预览（PDF.js、小说阅读器）
+**在线预览**：Office 文档（DOCX/XLSX/PPTX/CSV，OnlyOffice WASM 离线渲染）、图片/PDF/视频/音频/文本在线预览（PDF.js、小说阅读器）
 
 **安全防护**：CSRF 保护、XSS 防护、频率限制、通行证哈希存储、路径遍历防护、CSP 安全响应头、危险文件拦截
 
@@ -753,6 +757,7 @@ GET /api/status
 <details>
 <summary><b>支持哪些文件类型预览？</b></summary>
 
+- **Office**：DOCX/XLSX/PPTX/CSV，基于 OnlyOffice WASM 纯前端渲染，离线本地处理，文件不上传第三方服务器
 - **PDF**：PDF.js 官方渲染，支持缩放/旋转/搜索/缩略图/大纲
 - **TXT**：小说阅读器，支持章节自动识别、暗色/亮色主题、字号行宽调节
 - **图片**：jpg、png、gif、webp、svg、bmp、heic、heif

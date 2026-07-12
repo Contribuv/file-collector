@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.20"
+VERSION = "2.3.22"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -147,6 +147,10 @@ app.register_blueprint(pdf_bp)
 # TXT 预览模块
 from txt import txt_bp
 app.register_blueprint(txt_bp)
+
+# Office 文档预览模块（DOCX/XLSX/PPTX/CSV，基于 OnlyOffice WASM）
+from office import office_bp
+app.register_blueprint(office_bp)
 
 # Gateway 反代管理模块（无需登录，飞牛统一网关已做认证）
 # 注意：gateway_api 依赖 rproxy_manager 和 cert_manager，
@@ -2266,7 +2270,26 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-    csp = "default-src 'self' blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://github.com blob:; worker-src 'self' blob:"
+    # OnlyOffice WASM 预览需要 unsafe-eval + wasm-unsafe-eval，仅对 /office-v /wasm /sdkjs /web-apps 等路径放宽
+    req_path = request.path or ''
+    _office_paths = ('/office-v/', '/wasm/', '/sdkjs/', '/web-apps/', '/fonts/', '/img/',
+                     '/ran-fonts/', '/ranui-iife/', '/convert/', '/open/', '/libs/', '/zh-CN/')
+    if any(req_path.startswith(p) for p in _office_paths):
+        csp = ("default-src 'self' blob:; "
+               "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; "
+               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+               "font-src 'self' https://fonts.gstatic.com blob: data:; "
+               "img-src 'self' data: blob:; "
+               "connect-src 'self' https://api.github.com https://github.com blob:; "
+               "worker-src 'self' blob:;")
+    else:
+        csp = ("default-src 'self' blob:; "
+               "script-src 'self' 'unsafe-inline' blob:; "
+               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+               "font-src 'self' https://fonts.gstatic.com; "
+               "img-src 'self' data: blob:; "
+               "connect-src 'self' https://api.github.com https://github.com blob:; "
+               "worker-src 'self' blob:")
     response.headers['Content-Security-Policy'] = csp
     return response
 

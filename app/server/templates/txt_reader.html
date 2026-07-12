@@ -222,6 +222,9 @@ function applySettings() {
   document.documentElement.style.setProperty('--font-size', _fontSize + 'px');
   document.documentElement.style.setProperty('--line-height', _lineHeights[_lhIdx]);
   document.documentElement.style.setProperty('--content-width', _widths[_widthIdx]);
+  // 排版变化后章节元素位置失效，清空缓存
+  _chapterPosCache = [];
+  _lastScrollY = -1;
 }
 
 function changeFontSize(delta) {
@@ -242,27 +245,101 @@ function toggleTheme() {
 // ===== Chapter detection =====
 var _CHAPTER_RE = /^[  \t]*(?:第[零〇一二三四五六七八九十百千0-9]+[章节卷部篇]|第?\s*[0-9]{1,4}\s*[章节卷部篇]|[Cc]hapter\s+[0-9IVXivx]+|(?:序章|楔子|尾声|番外[篇]?|后记|前言|引言|尾声|终章|跋|附录))/m;
 
-function parseChapters(text) {
-  var lines = text.split('\n');
-  var chapters = [];
-  var contentEl = document.getElementById('content');
-  var html = '';
+var _allLines = [];          // 分割后的所有行
+var _lineToChapter = {};     // 行号 -> 章节索引
+var _renderedIdx = 0;        // 已渲染到第几行
+var _BATCH_SIZE = 300;       // 每批渲染行数（减小以降低单次布局开销）
+var _RENDER_THRESHOLD = 200; // 距底部多少行时触发下一批
+var _chapterScanDone = false; // 章节扫描是否完成
+var _chapterScanIdx = 0;     // 章节扫描进度
+var _SCAN_CHUNK = 4000;      // 每次空闲扫描的行数
+var _chapterPosCache = [];   // 章节元素 offsetTop 缓存，避免反复触发回流
 
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    var m = line.match(_CHAPTER_RE);
-    if (m) {
-      var title = line.trim().substring(0, 40);
-      var anchorId = 'ch-' + chapters.length;
-      chapters.push({ id: anchorId, title: title, line: i });
-      html += '<span class="chapter-heading" id="' + anchorId + '">' + escapeHtml(title) + '</span>\n';
+function parseChaptersAsync(text, onDone) {
+  _allLines = text.split('\n');
+  _chapters = [];
+  _lineToChapter = {};
+  _chapterScanDone = false;
+  _chapterScanIdx = 0;
+
+  // 先渲染第一批内容，让页面立即可见
+  _renderedIdx = 0;
+  renderBatch();
+
+  // 分块扫描章节，避免长时间阻塞主线程
+  function scanChunk() {
+    var start = _chapterScanIdx;
+    var end = Math.min(start + _SCAN_CHUNK, _allLines.length);
+    for (var i = start; i < end; i++) {
+      var m = _allLines[i].match(_CHAPTER_RE);
+      if (m) {
+        var title = _allLines[i].trim().substring(0, 40);
+        var anchorId = 'ch-line-' + i;  // 与渲染时的 ID 一致
+        _chapters.push({ id: anchorId, title: title, line: i });
+        _lineToChapter[i] = _chapters.length - 1;
+      }
+    }
+    _chapterScanIdx = end;
+
+    var progressEl = document.getElementById('progress');
+    if (_chapterScanIdx < _allLines.length) {
+      var pct = Math.round(_chapterScanIdx / _allLines.length * 100);
+      if (progressEl) {
+        progressEl.textContent = '正在解析章节 ' + pct + '%（' + _chapterScanIdx + '/' + _allLines.length + ' 行）';
+      }
+      // 用 setTimeout(0) 让出主线程，保持页面响应
+      setTimeout(scanChunk, 0);
     } else {
-      html += escapeHtml(line) + '\n';
+      _chapterScanDone = true;
+      if (progressEl) progressEl.textContent = '';
+      onDone();
     }
   }
+  setTimeout(scanChunk, 0);
+}
 
-  contentEl.innerHTML = html;
-  return chapters;
+function renderBatch() {
+  var contentEl = document.getElementById('content');
+  var end = Math.min(_renderedIdx + _BATCH_SIZE, _allLines.length);
+  // 用 DocumentFragment 批量插入
+  var frag = document.createDocumentFragment();
+  for (var i = _renderedIdx; i < end; i++) {
+    var line = _allLines[i];
+    // 渲染时即时判断是否章节标题，不依赖异步扫描状态
+    var isChapter = _CHAPTER_RE.test(line);
+    if (isChapter) {
+      var span = document.createElement('span');
+      span.className = 'chapter-heading';
+      span.id = 'ch-line-' + i;  // 用行号作 ID，扫描前后一致
+      span.textContent = line.trim().substring(0, 40);
+      frag.appendChild(span);
+      frag.appendChild(document.createTextNode('\n'));
+    } else {
+      frag.appendChild(document.createTextNode(line));
+      frag.appendChild(document.createTextNode('\n'));
+    }
+  }
+  contentEl.appendChild(frag);
+  _renderedIdx = end;
+
+  // 更新进度
+  if (_renderedIdx < _allLines.length) {
+    var pct = Math.round(_renderedIdx / _allLines.length * 100);
+    var progressEl = document.getElementById('progress');
+    if (progressEl && !_chapterScanDone) {
+      progressEl.textContent = '已加载 ' + pct + '%（' + _renderedIdx + '/' + _allLines.length + ' 行）';
+    }
+  }
+}
+
+function checkScrollLoad() {
+  if (_renderedIdx >= _allLines.length) return;
+  var scrollPos = window.scrollY + window.innerHeight;
+  var docHeight = document.documentElement.scrollHeight;
+  // 距底部不到 800px 时加载下一批
+  if (docHeight - scrollPos < 800) {
+    renderBatch();
+  }
 }
 
 function escapeHtml(s) {
@@ -319,18 +396,29 @@ function toggleToc() {
 
 // ===== Highlight current chapter on scroll =====
 var _scrollTimer;
+var _lastScrollY = -1;
 function onContentScroll() {
   clearTimeout(_scrollTimer);
-  _scrollTimer = setTimeout(updateActiveChapter, 100);
+  _scrollTimer = setTimeout(updateActiveChapter, 150);
 }
 
 function updateActiveChapter() {
-  if (_chapters.length === 0) return;
+  if (_chapters.length === 0 || !_chapterScanDone) return;
   var top = window.scrollY + 120; // a bit below top bar
+  // 跳过相同的滚动位置，避免重复计算
+  if (Math.abs(top - _lastScrollY) < 20) return;
+  _lastScrollY = top;
+
+  // 用二分查找章节元素位置（缓存 offsetTop 避免反复回流）
   var active = null;
   for (var i = _chapters.length - 1; i >= 0; i--) {
-    var el = document.getElementById(_chapters[i].id);
-    if (el && el.offsetTop <= top) { active = _chapters[i]; break; }
+    var offset = _chapterPosCache[i];
+    if (offset === undefined) {
+      var el = document.getElementById(_chapters[i].id);
+      offset = el ? el.offsetTop : 0;
+      _chapterPosCache[i] = offset;
+    }
+    if (offset <= top) { active = _chapters[i]; break; }
   }
   if (!active) active = _chapters[0];
   var links = document.querySelectorAll('#toc-list a');
@@ -356,15 +444,25 @@ function updateActiveChapter() {
   };
 
   xhr.onload = function() {
-    document.getElementById('loading').classList.add('hidden');
     if (xhr.status === 200) {
       var text = xhr.responseText;
-      if (text.indexOf('\uFFFD') > text.length * 0.1) {
+      // 采样检测编码：统计前 10000 字符中替换字符的比例
+      // 原 indexOf 位置判断对大文件失效（GBK 文件首个 \uFFFD 位置远小于 length*0.1）
+      var sampleLen = Math.min(text.length, 10000);
+      var fffdCount = 0;
+      for (var i = 0; i < sampleLen; i++) {
+        if (text.charCodeAt(i) === 0xFFFD) fffdCount++;
+      }
+      if (sampleLen > 0 && fffdCount / sampleLen > 0.05) {
+        // 疑似 GBK 编码，保持 loading 显示并重新解码
+        document.getElementById('progress').textContent = '检测到 GBK 编码，正在重新解码...';
         tryReloadAsGBK();
         return;
       }
+      document.getElementById('loading').classList.add('hidden');
       displayContent(text);
     } else {
+      document.getElementById('loading').classList.add('hidden');
       showError('服务器返回 ' + xhr.status);
     }
   };
@@ -382,13 +480,23 @@ function tryReloadAsGBK() {
   xhr.open('GET', _fileUrl);
   xhr.responseType = 'arraybuffer';
 
+  xhr.onprogress = function(e) {
+    if (e.lengthComputable) {
+      var pct = Math.round(e.loaded / e.total * 100);
+      document.getElementById('progress').textContent =
+        'GBK 重新解码中 ' + pct + '%';
+    }
+  };
+
   xhr.onload = function() {
-    document.getElementById('loading').classList.add('hidden');
     if (xhr.status === 200) {
+      document.getElementById('progress').textContent = '正在解析内容...';
       var decoder = new TextDecoder('gbk');
       var text = decoder.decode(new Uint8Array(xhr.response));
+      document.getElementById('loading').classList.add('hidden');
       displayContent(text);
     } else {
+      document.getElementById('loading').classList.add('hidden');
       showError('服务器返回 ' + xhr.status);
     }
   };
@@ -398,16 +506,21 @@ function tryReloadAsGBK() {
     showError('网络错误');
   };
 
-  document.getElementById('progress').textContent = '正在重新解码...';
+  document.getElementById('progress').textContent = '检测到 GBK 编码，正在重新下载...';
   xhr.send();
 }
 
 function displayContent(text) {
   var content = document.getElementById('content');
-  _chapters = parseChapters(text);
-  buildToc();
+  // 显示内容容器（首批渲染在 parseChaptersAsync 内完成）
   content.classList.remove('hidden');
-  window.addEventListener('scroll', onContentScroll, {passive: true});
+  parseChaptersAsync(text, function() {
+    buildToc();
+  });
+  window.addEventListener('scroll', function() {
+    onContentScroll();
+    checkScrollLoad();
+  }, {passive: true});
 }
 
 function showError(msg) {

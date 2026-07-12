@@ -1,0 +1,33 @@
+# Cloudflare Pages headers (copied into dist/ by the build).
+# Pin the caching contract explicitly instead of relying on Pages defaults.
+# The failure mode being prevented: a stale HTML referencing hashed assets
+# that no longer exist after a deploy ("Refused to apply style… text/html").
+
+# Hashed build outputs: the filename changes every deploy → cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker must never be cached, or clients keep running an old
+# version (and its old caching strategy) long after a deploy.
+/sw.js
+  Cache-Control: no-cache
+
+# Unhashed, deploy-coupled files: stable filenames whose content changes with
+# deploys — browsers must revalidate so they always match the current HTML.
+/home.css
+  Cache-Control: no-cache
+/landing.css
+  Cache-Control: no-cache
+/ran-tokens.css
+  Cache-Control: no-cache
+/lang-switch.js
+  Cache-Control: no-cache
+/onlyoffice-v7-iframe-patch.js
+  Cache-Control: no-cache
+/ranui-iife/*
+  Cache-Control: no-cache
+
+# Self-hosted fonts: unhashed but they only change with a ranui release; a
+# week of browser cache with revalidation after is a fine trade.
+/ran-fonts/*
+  Cache-Control: public, max-age=604800, must-revalidate

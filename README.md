@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.20-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.22-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -310,6 +310,27 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.22
+- Office 预览修复：CSP 添加 `unsafe-eval`/`wasm-unsafe-eval`，解决 x2t WASM 模块无法实例化
+- Office 预览修复：`getInitials`/`hasTabInvisible` 空值崩溃（只读模式下 user/toolbar 未初始化）
+- Office 预览修复：拦截 `file:///` 系统字体加载，消除大量控制台错误
+- Office 预览修复：禁用 ServiceWorker 注册，消除 SW 更新失败错误
+- Office 预览修复：中文文件名被截断（Flask ASCII 回退名问题），支持 `filename*=UTF-8''` 解码
+- Office 预览安全：`/office-v/index.html` 禁止直接访问，必须通过 `/doc` 路由权限校验后进入
+- Office 预览页面初始标题改为"Office 文件正在加载中"
+- 隐藏 OnlyOffice viewer 右下角 FAB 菜单按钮及菜单引导提示
+- 网关页侧边栏调整：运行状态移至反向代理上方，微信反馈移至运行状态卡片内
+
+### v2.3.21
+- 恢复 Office 文档在线预览（DOCX/XLSX/PPTX/CSV），基于 OnlyOffice WASM 纯前端渲染
+- 离线集成，零网络依赖，WASM 本地处理，文件不上传第三方服务器
+- 集成思源黑体 + 思源宋体（OFL-1.1 开源字体），中文字体合规无侵权风险
+- 新增 `office.py` 模块 + `/doc` 预览路由，复用现有权限校验体系（通行证/HMAC 令牌/归属校验）
+- OnlyOffice 静态资源置于 `app/server/office/` 目录，独立管理
+- 权限失败时显示友好错误页（与 PDF 预览体验一致）
+- OnlyOffice viewer 加载文件失败时前端展示错误覆盖层
+- 支持移动端 Office 预览
 
 ### v2.3.20
 - 网关页 macOS 风格全新重构：侧边栏导航（配置/状态/日志/帮助）+ 主题切换按钮

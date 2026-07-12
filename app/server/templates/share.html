@@ -500,6 +500,7 @@ function goBackToUploaderList() {
 /* --- Flat list for single uploader (no pagination) --- */
 function renderFlatListForUploader(records, isMobile) {
   var jitExts = ['pdf', 'txt'];
+  var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','csv'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -520,7 +521,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
+      var canPrevM = (jitExts.includes(extM) || officeExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -538,7 +539,7 @@ function renderFlatListForUploader(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
+      var canPrevD = (jitExts.includes(extD) || officeExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -555,6 +556,7 @@ function renderFlatListForUploader(records, isMobile) {
 /* --- Flat list (requireUploader = false) --- */
 function renderFlatList(records, isMobile) {
   var jitExts = ['pdf', 'txt'];
+  var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','csv'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -575,7 +577,7 @@ function renderFlatList(records, isMobile) {
       var rm = records[j];
       var extM = rm.original_name.split('.').pop().toLowerCase();
       var fiM = getFileIcon(extM);
-      var canPrevM = (jitExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
+      var canPrevM = (jitExts.includes(extM) || officeExts.includes(extM) || imgExtsP.includes(extM) || vidExtsP.includes(extM) || audExtsP.includes(extM));
       html += buildFileRow(rm, extM, fiM, canPrevM, false, 'sel-m' + selSuffix, selSuffix);
     }
     html += '</div>';
@@ -594,7 +596,7 @@ function renderFlatList(records, isMobile) {
       var rd = records[k];
       var extD = rd.original_name.split('.').pop().toLowerCase();
       var fiD = getFileIcon(extD);
-      var canPrevD = (jitExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
+      var canPrevD = (jitExts.includes(extD) || officeExts.includes(extD) || imgExtsP.includes(extD) || vidExtsP.includes(extD) || audExtsP.includes(extD));
       html += buildFileRow(rd, extD, fiD, canPrevD, true, 'sel-d' + selSuffix, selSuffix);
     }
     html += '</tbody></table></div>';
@@ -611,6 +613,7 @@ function renderFlatList(records, isMobile) {
 /* ==== Accordion: 上传者分组折叠 ==== */
 function buildAccordionGroups(isMobile) {
   var jitExts = ['pdf', 'txt'];
+  var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','csv'];
   var imgExtsP = ['jpg','jpeg','png','gif','webp','bmp','svg','heic','heif'];
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
@@ -646,7 +649,7 @@ function buildAccordionGroups(isMobile) {
         var rr = files[fj];
         var ext2 = rr.original_name.split('.').pop().toLowerCase();
         var ficon2 = getFileIcon(ext2);
-        var canPrev2 = (jitExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2));
+        var canPrev2 = (jitExts.includes(ext2) || officeExts.includes(ext2) || imgExtsP.includes(ext2) || vidExtsP.includes(ext2) || audExtsP.includes(ext2));
         html += buildFileRow(rr, ext2, ficon2, canPrev2, false, 'sel-m' + selSuffix, selSuffix);
       }
       html += '</div>';
@@ -665,7 +668,7 @@ function buildAccordionGroups(isMobile) {
         var r = files[fi];
         var ext = r.original_name.split('.').pop().toLowerCase();
         var ficon = getFileIcon(ext);
-        var canPreview = (jitExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext));
+        var canPreview = (jitExts.includes(ext) || officeExts.includes(ext) || imgExtsP.includes(ext) || vidExtsP.includes(ext) || audExtsP.includes(ext));
         html += buildFileRow(r, ext, ficon, canPreview, true, 'sel-d' + selSuffix, selSuffix);
       }
       html += '</tbody></table></div>';
@@ -970,12 +973,19 @@ function previewFile(recordId, fileName, fileSize) {
 
   var ext = fileName.split('.').pop().toLowerCase();
   var jitExts = ['pdf', 'txt'];
+  var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','csv'];
 
   if (jitExts.includes(ext)) {
     var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
     var route = ext === 'txt' ? '/txt?' : '/office?';
     window.open(route + qs, '_blank');
+    return;
+  }
+  if (officeExts.includes(ext)) {
+    var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
+    if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
+    window.open('/doc?' + qs, '_blank');
     return;
   }
 

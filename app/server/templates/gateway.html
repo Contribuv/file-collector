@@ -43,18 +43,18 @@
 
         <!-- 侧边栏 -->
         <div class="mac-sidebar">
-            <div class="mac-sidebar-item active" onclick="switchSection('config')">
+            <div class="mac-sidebar-item active" onclick="switchSection('status')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                运行状态
+            </div>
+            <div class="mac-sidebar-item" onclick="switchSection('config')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
                 </svg>
                 反向代理
-            </div>
-            <div class="mac-sidebar-item" onclick="switchSection('status')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                </svg>
-                运行状态
             </div>
             <div class="mac-sidebar-item" onclick="switchSection('logs')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -91,56 +91,13 @@
             <div class="mac-sidebar-version">
                 <span class="version-tag">v{{ version }}</span>
             </div>
-            <div class="mac-sidebar-feedback">
-                <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
-                <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
-            </div>
         </div>
 
         <!-- 主内容区 -->
         <div class="mac-main">
 
-            <!-- 反向代理配置 -->
-            <div class="mac-section active" id="section-config">
-                <h2>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                    </svg>
-                    反向代理配置
-                </h2>
-                <div class="form-item">
-                    <label class="form-label">域名</label>
-                    <select class="form-select" id="domainSelect">
-                        <option value="">加载中...</option>
-                    </select>
-                    <div class="form-hint-warning" style="margin-top:6px;font-size:11px;">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
-                </div>
-                <div class="form-item">
-                    <label class="form-label">HTTPS 端口</label>
-                    <div class="port-input-row">
-                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
-                        <span class="port-status port-status-checking" id="portStatus">
-                            <span class="port-status-dot"></span>
-                            <span class="port-status-text" id="portStatusText">检测中...</span>
-                        </span>
-                    </div>
-                    <div class="port-suggest" id="portSuggest" style="display:none;">
-                        <span class="port-suggest-text">端口被占用，试试：</span>
-                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
-                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
-                    </div>
-                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
-                </div>
-                <div class="action-row">
-                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
-                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
-                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
-                </div>
-            </div>
-
             <!-- 运行状态 -->
-            <div class="mac-section" id="section-status">
+            <div class="mac-section active" id="section-status">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -178,6 +135,52 @@
                     <div class="status-value">
                         <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开管理后台 ↗</button>
                     </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">联系反馈</div>
+                    <div class="status-value">
+                        <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
+                        <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 反向代理配置 -->
+            <div class="mac-section" id="section-config">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                    </svg>
+                    反向代理配置
+                </h2>
+                <div class="form-item">
+                    <label class="form-label">域名</label>
+                    <select class="form-select" id="domainSelect">
+                        <option value="">加载中...</option>
+                    </select>
+                    <div class="form-hint-warning" style="margin-top:6px;font-size:11px;">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
+                </div>
+                <div class="form-item">
+                    <label class="form-label">HTTPS 端口</label>
+                    <div class="port-input-row">
+                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
+                        <span class="port-status port-status-checking" id="portStatus">
+                            <span class="port-status-dot"></span>
+                            <span class="port-status-text" id="portStatusText">检测中...</span>
+                        </span>
+                    </div>
+                    <div class="port-suggest" id="portSuggest" style="display:none;">
+                        <span class="port-suggest-text">端口被占用，试试：</span>
+                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
+                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
+                    </div>
+                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
+                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
+                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
                 </div>
             </div>
 
@@ -237,7 +240,7 @@ function switchSection(name) {
     }
     const section = document.getElementById('section-' + name);
     if (section) section.classList.add('active');
-    const map = ['config', 'status', 'logs', 'help'];
+    const map = ['status', 'config', 'logs', 'help'];
     const idx = map.indexOf(name);
     if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 }

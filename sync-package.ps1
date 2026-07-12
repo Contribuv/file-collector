@@ -34,6 +34,13 @@ if (Test-Path $rproxyDir) {
     Write-Host "  Cleaned rproxy source files"
 }
 
+# 清理 Python 字节码缓存
+Get-ChildItem -Path $PackageDir -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
+    ForEach-Object { Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue }
+Get-ChildItem -Path $PackageDir -Recurse -Force -Include "*.pyc","*.pyo" -ErrorAction SilentlyContinue |
+    ForEach-Object { Remove-Item -Force $_.FullName -ErrorAction SilentlyContinue }
+Write-Host "  Cleaned __pycache__ / *.pyc"
+
 foreach ($file in $filesToSync) {
     $src = Join-Path $SourceDir $file
     $dst = Join-Path $PackageDir $file

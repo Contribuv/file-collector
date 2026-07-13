@@ -275,6 +275,14 @@
               </label>
               <div class="form-hint" style="margin-left:54px;">开启后访问首页显示介绍页</div>
             </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label class="toggle-switch">
+                <input type="checkbox" name="root_folder_enabled" value="1"{{ ' checked' if defaults.root_folder_enabled == '1' else '' }}>
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">根目录创建文件夹</span>
+              </label>
+              <div class="form-hint" style="margin-left:54px;">开启后新建收集时，文件夹以收集名称直接在根目录创建，不再按用户名分层（即使开启上传者登记，也不创建上传者子文件夹）</div>
+            </div>
             <button type="submit" name="action" value="feature_toggles" class="btn btn-primary btn-sm">保存</button>
           </form>
         </div>

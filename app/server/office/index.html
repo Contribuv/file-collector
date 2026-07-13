@@ -257,6 +257,29 @@
       }
     })();
     </script>
+    <style>
+      /* OnlyOffice 动态创建的隐藏 file input 用 visibility:hidden 仍占布局空间，
+         导致页面底部出现一排空白。用 position:absolute + 零尺寸彻底移出布局流，
+         同时保留其可被 JS 调用 click() 的能力。 */
+      body > input[type="file"][accept*="docx"],
+      body > input[type="file"][accept*="xlsx"],
+      body > input[type="file"][accept*="pptx"],
+      body > input[type="file"][accept*=".doc"],
+      body > input[type="file"][accept*=".xls"],
+      body > input[type="file"][accept*=".ppt"],
+      body > input[type="file"][accept*=".csv"] {
+        position: absolute !important;
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 0 !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        clip-path: inset(50%) !important;
+        white-space: nowrap !important;
+      }
+    </style>
   </head>
 
   <body>

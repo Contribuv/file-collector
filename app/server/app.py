@@ -128,14 +128,16 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.22"
+VERSION = "2.3.23"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
-app.config['TEMPLATES_AUTO_RELOAD'] = False  # 生产环境关闭，避免每次请求都 stat 模板文件
+# TEMPLATES_AUTO_RELOAD: 不显式设置
+# - debug=True 时 Flask 自动启用模板自动重载（开发用）
+# - debug=False（生产打包）时 Flask 默认关闭，避免每次请求 stat 模板文件
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24 * 7  # 静态资源缓存 7 天
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
@@ -819,6 +821,17 @@ def init_db():
             logger.info("已为 links 表添加 require_uploader 字段")
     except Exception as e:
         logger.error(f"数据库迁移错误(require_uploader): {e}")
+
+    # 为 links 表添加 use_root_folder 列（根目录模式：跳过用户名层级，直接 UPLOAD_BASE/<folder_name>/）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'use_root_folder' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN use_root_folder INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已为 links 表添加 use_root_folder 字段")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(use_root_folder): {e}")
 
     # 为 links 表添加 collect_slug 和 share_slug 列（自定义链接 ID）
     try:
@@ -1672,7 +1685,12 @@ def get_link_by_id(link_id):
 def get_link_folder(link_id, user_id=None):
     """获取链接的文件存储目录（兼容新旧数据）"""
     link = get_link_by_id(link_id)
-    
+
+    if link and link.get('use_root_folder') == 1:
+        # 根目录模式：UPLOAD_BASE/<folder_name>/
+        folder_name = link.get('folder_name', '') or link_id
+        return os.path.join(get_upload_base(), folder_name)
+
     if link and link.get('user_id'):
         # 有用户归属：UPLOAD_BASE/<username>/<folder_name>/
         user = get_user_by_id(link['user_id'])
@@ -1680,7 +1698,7 @@ def get_link_folder(link_id, user_id=None):
             safe_username = re.sub(r'[^\w\-]', '_', user['username'])
             folder_name = link.get('folder_name', '') or link_id
             return os.path.join(get_upload_base(), safe_username, folder_name)
-    
+
     # 旧数据：保持原位置
     return os.path.join(get_upload_base(), link_id)
 
@@ -1701,15 +1719,20 @@ def scan_link_folder(link_id, conn=None):
     try:
         # 从已有连接获取 link 信息（避免额外 DB 连接）
         link = conn.execute(
-            "SELECT id, user_id, folder_name FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
+            "SELECT id, user_id, folder_name, use_root_folder FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
             (link_id, link_id, link_id)
         ).fetchone()
         if not link:
             return []
-        
+
         user_id = link['user_id']
+        use_root = bool(link['use_root_folder']) if 'use_root_folder' in link.keys() and link['use_root_folder'] else False
         # 直接构建文件夹路径（内联 get_link_folder 逻辑）
-        if user_id:
+        if use_root:
+            # 根目录模式：UPLOAD_BASE/<folder_name>/
+            folder_name = link['folder_name'] or link_id
+            folder_path = os.path.join(get_upload_base(), folder_name)
+        elif user_id:
             user = get_user_by_id(user_id)
             if user:
                 safe_username = re.sub(r'[^\w\-]', '_', user['username'])
@@ -2424,6 +2447,40 @@ def safe_filename_unicode(filename):
         filename = name[:251 - len(ext)] + ext
     return filename
 
+def safe_relpath(relpath):
+    """安全处理文件夹上传的相对路径，保留子目录结构"""
+    if not relpath:
+        return ''
+    relpath = unicodedata.normalize('NFC', relpath)
+    relpath = relpath.replace('\\', '/').replace('\x00', '')
+    parts = relpath.split('/')
+    safe_parts = []
+    for part in parts:
+        part = part.strip().strip('.')
+        if not part or part in ('.', '..'):
+            continue
+        if len(part) > 255:
+            name, ext = os.path.splitext(part)
+            part = name[:251 - len(ext)] + ext
+        safe_parts.append(part)
+    return '/'.join(safe_parts)
+
+def build_stored_path(upload_dir, stored_name, relpath=''):
+    """构建存储路径，支持子目录。返回 (absolute_path, relative_name)。
+    有 relpath 时按子目录存储并创建子目录，无 relpath 时平铺到 upload_dir 下。"""
+    if relpath:
+        safe_rel = safe_relpath(relpath)
+        if safe_rel and safe_rel != stored_name:
+            full_path = os.path.join(upload_dir, safe_rel)
+            real_full = os.path.realpath(full_path)
+            real_base = os.path.realpath(upload_dir)
+            if real_full.startswith(real_base + os.sep) or real_full == real_base:
+                sub_dir = os.path.dirname(full_path)
+                if sub_dir and not os.path.exists(sub_dir):
+                    os.makedirs(sub_dir, mode=0o755, exist_ok=True)
+                return full_path, safe_rel
+    return os.path.join(upload_dir, stored_name), stored_name
+
 def allowed_file(filename):
     """允许所有文件类型上传，但禁止用户配置的危险扩展名"""
     blocked = get_blocked_extensions()
@@ -2667,14 +2724,20 @@ def create_upload_dir(link_id, uploader_name=''):
     如果提供了 uploader_name，则在其下创建子文件夹：<...>/<folder_name>/<uploader_name>/"""
     conn = get_db()
     link = conn.execute(
-        "SELECT id, title, user_id, folder_name FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
+        "SELECT id, title, user_id, folder_name, use_root_folder FROM links WHERE (collect_slug = ? OR share_slug = ? OR id = ?)",
         (link_id, link_id, link_id)
     ).fetchone()
     conn.close()
 
     canonical_id = link['id'] if link else link_id
+    use_root = bool(link['use_root_folder']) if link and 'use_root_folder' in link.keys() and link['use_root_folder'] else False
 
-    if not link:
+    if use_root:
+        # 根目录模式：UPLOAD_BASE/<folder_name>/，跳过用户名层级
+        folder_name = link['folder_name'] or canonical_id
+        folder_name = os.path.normpath(folder_name).lstrip(os.sep).lstrip('.') or 'unnamed'
+        upload_dir = os.path.join(UPLOAD_BASE, folder_name)
+    elif not link:
         upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', canonical_id)
     elif link['user_id']:
         # 有用户归属：UPLOAD_BASE/<username>/<folder_name>/
@@ -2702,8 +2765,8 @@ def create_upload_dir(link_id, uploader_name=''):
         upload_dir = os.path.join(UPLOAD_BASE, 'unnamed', canonical_id)
         real_dir = os.path.realpath(upload_dir)
 
-    # 上传者子文件夹
-    if uploader_name:
+    # 上传者子文件夹（根目录模式不创建，文件平铺在收集文件夹下）
+    if uploader_name and not use_root:
         safe_uploader = _sanitize_uploader_name(uploader_name)
         real_dir = os.path.join(real_dir, safe_uploader)
         # 再次安全检查
@@ -4821,6 +4884,7 @@ def upload_file(link_id):
             if not file or not file.filename:
                 continue
 
+            relpath = request.form.get('relpath', '')
             result = {'filename': file.filename, 'success': True}
 
             if not allowed_file(file.filename):
@@ -4848,8 +4912,7 @@ def upload_file(link_id):
             safe_name = safe_filename_unicode(file.filename)
             if not safe_name:
                 safe_name = 'unnamed_file'
-            stored_name = safe_name
-            stored_path = os.path.join(upload_dir, stored_name)
+            stored_path, stored_name = build_stored_path(upload_dir, safe_name, relpath)
             if os.path.exists(stored_path):
                 result.update({
                     'success': False,
@@ -5044,6 +5107,12 @@ def _tus_complete_upload(conn, upload_id, link, link_id, uploader_name, temp_pat
     """完成 Tus 上传：移动文件、写入记录、日志"""
     stored_path = os.path.join(upload_dir, stored_name)
 
+    # 文件夹上传：stored_name 可能含子目录路径，先创建子目录
+    if '/' in stored_name or '\\' in stored_name:
+        sub_dir = os.path.dirname(stored_path)
+        if sub_dir and not os.path.exists(sub_dir):
+            os.makedirs(sub_dir, mode=0o755, exist_ok=True)
+
     # 文件名冲突检查（创建会话时已预检，此处为并发兜底）
     if os.path.exists(stored_path):
         raise FileExistsError(f'「{original_name}」已存在，请改名后上传')
@@ -5183,8 +5252,12 @@ def tus_create(link_id):
             safe_name = 'unnamed_file'
         upload_dir = create_upload_dir(link_id, uploader_name)
 
+        # 文件夹上传：用 relpath 构建含子目录的存储路径
+        relpath = metadata.get('relpath', '') or ''
+        stored_path, stored_name = build_stored_path(upload_dir, safe_name, relpath)
+
         # 检查文件名是否已存在（提前拦截，避免传完大文件才发现冲突）
-        if os.path.exists(os.path.join(upload_dir, safe_name)):
+        if os.path.exists(stored_path):
             return _tus_error(409, f'「{filename}」已存在，请改名后上传')
 
         # 清理过期临时文件
@@ -5221,7 +5294,7 @@ def tus_create(link_id):
                 total_size, uploaded_offset, status, temp_path,
                 uploader_ip, uploader_name)
                VALUES (?, ?, ?, ?, ?, ?, 0, 'uploading', ?, ?, ?)""",
-            (upload_id, link_id, link.get('user_id', '') or '', filename, safe_name,
+            (upload_id, link_id, link.get('user_id', '') or '', filename, stored_name,
              total_size, temp_path, client_ip, uploader_name)
         )
         conn.commit()
@@ -6980,12 +7053,14 @@ def create_link():
     folder_name = folder_name.strip().lstrip('.')
     if not folder_name:
         folder_name = link_id
-    # 检查是否与已有文件夹重名，重名则加后缀
+    # 根目录模式：跳过用户名层级，重名检测基路径改为 UPLOAD_BASE
+    use_root_folder = 1 if get_setting('root_folder_enabled', '0') == '1' else 0
     user_folder = get_user_folder(user_id)
-    if user_folder:
+    check_base = UPLOAD_BASE if use_root_folder else user_folder
+    if check_base:
         base_name = folder_name
         counter = 1
-        while os.path.exists(os.path.join(user_folder, folder_name)):
+        while os.path.exists(os.path.join(check_base, folder_name)):
             counter += 1
             folder_name = f"{base_name}_{counter}"
     
@@ -7055,12 +7130,12 @@ def create_link():
                max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
                share_description, share_expires_at, collect_enabled, require_uploader, 
-               folder_name, collect_slug, share_slug)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               folder_name, collect_slug, share_slug, use_root_folder)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, empty_passcode,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
              share_description, share_expires_at, collect_enabled, require_uploader, 
-             folder_name, collect_slug, share_slug)
+             folder_name, collect_slug, share_slug, use_root_folder)
         )
         conn.commit()
         conn.close()
@@ -8705,11 +8780,13 @@ def admin_settings():
             flash('有效期设置已保存')
 
         elif action == 'feature_toggles':
-            # 用户注册 + 首页设置
+            # 用户注册 + 首页设置 + 根目录模式
             allow_reg = request.form.get('allow_registration', '0')
             set_setting('allow_registration', allow_reg)
             enabled = request.form.get('landing_page_enabled', '0')
             set_setting('landing_page_enabled', enabled)
+            root_folder = request.form.get('root_folder_enabled', '0')
+            set_setting('root_folder_enabled', root_folder)
             flash('功能开关已保存')
 
         elif action == 'smtp_config':
@@ -8791,6 +8868,7 @@ def admin_settings():
         'passcode_ttl_minutes': get_setting('passcode_ttl_minutes', '120'),
         'blocked_extensions': get_setting('blocked_extensions', ''),
         'allow_registration': get_setting('allow_registration', '0'),
+        'root_folder_enabled': get_setting('root_folder_enabled', '0'),
         'default_invite_expire_days': get_setting('default_invite_expire_days', '7'),
         'default_link_expire_days': get_setting('default_link_expire_days', '30'),
         'links_per_page': get_setting('links_per_page', '50'),

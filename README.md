@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.22-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.23-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,16 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.23
+- 收集页上传区改为文件/文件夹双列分区，拖拽自动识别类型（文件走普通上传，文件夹走 webkitdirectory）
+- 支持上传文件夹并保留完整目录路径（含顶层文件夹名），后端自动创建子目录
+- 修复文件夹上传时顶层文件夹路径丢失问题（之前会截断第一层文件夹名）
+- 上传区提示信息（支持断点续传/单次上限/续传说明）移出 dropzone 到独立区域，compact/full/上传中状态同步
+- 断点续传提示改为默认展开，移除收起按钮和折叠逻辑
+- dropzone 样式优化：hover 灰色特效（边框加深+浅灰底）、图标上浮放大、链接 hover 颜色加深无下划线
+- 移除历史面板与 tab 标签重复的文件计数文案
+- 卡片内边距调整（桌面端上 20px，移动端 15px）
 
 ### v2.3.22
 - Office 预览修复：CSP 添加 `unsafe-eval`/`wasm-unsafe-eval`，解决 x2t WASM 模块无法实例化

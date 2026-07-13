@@ -6,7 +6,7 @@ TXT 文件预览模块
 """
 import os
 from urllib.parse import quote
-from flask import Blueprint, render_template, request, abort, session, redirect
+from flask import Blueprint, render_template, request, abort, session, redirect, make_response
 
 txt_bp = Blueprint('txt_preview', __name__)
 
@@ -63,6 +63,10 @@ def txt_preview():
         if not file_url:
             abort(400)
 
-    return render_template('txt_reader.html',
+    resp = make_response(render_template('txt_reader.html',
         file_url=file_url,
-        filename=filename)
+        filename=filename))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp

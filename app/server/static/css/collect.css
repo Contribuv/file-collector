@@ -450,21 +450,22 @@ body {
 .cp-drop {
   border: 2px dashed #d1d5db;
   border-radius: 12px;
-  padding: 16px 16px;
+  padding: 18px 16px;
   text-align: center;
   cursor: pointer;
   background: #ffffff;
-  transition: all .2s ease;
   position: relative;
+  transition: border-color .18s ease, background-color .18s ease;
 }
+/* 鼠标悬停：边框微微加深，背景浅灰，与卡片 hover 一致 */
 .cp-drop:hover {
-  border-color: #3b82f6;
-  background: #f8fafc;
+  border-color: #9ca3af;
+  background: #fafbfc;
 }
-.cp-drop:active,
+/* 拖拽悬停时高亮边框，作为放置反馈 */
 .cp-drop.dragover {
-  border-color: #3b82f6;
-  background: #eff6ff;
+  border-color: #6b7280;
+  background: #f3f4f6;
   border-style: solid;
 }
 
@@ -473,21 +474,45 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+/* 图标：Win11 风格黄色文件夹 SVG，不使用圆形背景，保持清晰边缘 */
+.cp-drop-zone .cp-drop-icon {
+  display: block;
+  width: 48px;
+  height: 48px;
+  transition: transform .2s ease;
+}
+/* dropzone hover 时图标轻微上浮放大 */
+.cp-drop:hover .cp-drop-zone .cp-drop-icon {
+  transform: translateY(-2px) scale(1.06);
+}
+/* 链接样式 */
+.cp-drop-zone .cp-drop-text-wrap a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color .15s;
+}
+.cp-drop-zone .cp-drop-text-wrap a:hover {
+  color: #1d4ed8;
+}
+/* 移动端：图标略小 */
+@media (max-width: 640px) {
+  .cp-drop-zone .cp-drop-icon { width: 40px; height: 40px; }
 }
 
-/* 上传图标 */
-.cp-drop-icon {
-  color: #9ca3af;
-  transition: all .2s ease;
+/* 提示区（dropzone 下方独立区域）*/
+.cp-drop-hints {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
-.cp-drop:hover .cp-drop-icon {
-  color: #3b82f6;
-}
-.cp-drop.dragover .cp-drop-icon {
-  color: #3b82f6;
-  transform: scale(1.05);
-}
+/* compact / full 态：隐藏提示区（与 dropzone 同步）*/
+.cp-drop-hints.compact { display: none; }
+.cp-drop-hints.full { display: none; }
 
 /* 文字区域 */
 .cp-drop-text-wrap {
@@ -580,6 +605,7 @@ body {
   background: #f8fafc;
 }
 .cp-drop.compact .cp-drop-icon { display: none !important; }
+.cp-drop.compact .cp-drop-zone { display: none !important; }
 .cp-drop.compact .cp-hint-resume { display: none !important; }
 .cp-drop.compact .cp-drop-full-hint { display: none !important; }
 .cp-drop.compact .cp-drop-batch-hint { display: none !important; }
@@ -1206,6 +1232,7 @@ body {
 @media (max-width: 480px) {
   :root { --cp-pad: 12px; }
   .cp-wrap { padding: 12px var(--cp-pad) 65px; }
+  .cp-card-body { padding: 15px 12px; }
   .cp-header { margin-bottom: 14px; }
   .cp-header h1 { font-size: 1rem; }
   .cp-header .cp-desc { font-size: .8rem; }

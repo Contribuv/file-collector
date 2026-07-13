@@ -18,11 +18,23 @@
             <div class="form-col form-col--left" id="form-col-left">
 
           <div class="form-group">
-            <label class="form-label" for="title">收集名称 *</label>
+            <label class="form-label" for="title">收集名称 *{% if edit_link %} <span style="display:inline-block;padding:1px 7px;background:#dc2626;color:#fff;border-radius:4px;font-size:.68rem;font-weight:500;letter-spacing:.5px;vertical-align:middle;">已锁定</span>{% endif %}</label>
             <input type="text" id="title" name="title" class="form-input"
                    value="{{ edit_link['title'] if edit_link and edit_link.get('title') else '' }}"
-                   placeholder="例：项目A文件收集" maxlength="20" required>
-                   <div class="form-hint">这是文件夹和收集链接名称，建议不要超过7个字。</div>
+                   placeholder="例：项目A文件收集" maxlength="20" required
+                   {% if edit_link %}readonly style="background:var(--c-input-muted,var(--c-bg-alt,#f5f5f5));color:var(--c-text-muted);cursor:not-allowed;border-color:#fecaca;"{% endif %}>
+            {% if edit_link %}
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.18);border-radius:6px;font-size:.78rem;color:#dc2626;display:flex;align-items:flex-start;gap:6px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span><strong>收集名称已锁定</strong>，创建后不可修改。如需修改请删除后重新创建。</span>
+            </div>
+            {% else %}
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;font-size:.78rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>这是文件夹和收集链接名称，<strong>创建后不可修改</strong>，请谨慎填写。</span>
+            </div>
+            <div class="form-hint">字数上限 20 字。</div>
+            {% endif %}
           </div>
 
           <div class="form-group">

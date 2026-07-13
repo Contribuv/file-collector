@@ -141,26 +141,38 @@
       <div class="cp-card-body">
         <div class="cp-drop" id="dropzone">
           <div class="cp-drop-zone">
-            <svg class="cp-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            <svg class="cp-drop-icon" viewBox="0 0 32 32" width="48" height="48" aria-hidden="true">
+              <defs>
+                <linearGradient id="cpFolderBack" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#FFD064"/>
+                  <stop offset="1" stop-color="#FFC046"/>
+                </linearGradient>
+                <linearGradient id="cpFolderFront" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#FFE08A"/>
+                  <stop offset="1" stop-color="#FFCE5C"/>
+                </linearGradient>
+              </defs>
+              <path d="M3 7.5a2.5 2.5 0 0 1 2.5-2.5h6.2c.66 0 1.3.27 1.77.73l1.06 1.02c.47.46.66.75 1.33.75h7.64A2.5 2.5 0 0 1 26 9.5v3.5H3V7.5z" fill="url(#cpFolderBack)"/>
+              <path d="M3 12h26v12.5a2.5 2.5 0 0 1-2.5 2.5h-21A2.5 2.5 0 0 1 3 24.5V12z" fill="url(#cpFolderFront)"/>
+              <path d="M3 12h26v.8H3z" fill="#000000" opacity="0.06"/>
             </svg>
             <div class="cp-drop-text-wrap">
-              <h3>拖拽文件到此处上传</h3>
-              <p>或点击选择文件</p>
+              <h3>拖拽文件或文件夹到此处</h3>
+              <p>或 <a href="javascript:void(0)" id="pick-file-link">选择文件</a> &nbsp;·&nbsp; <a href="javascript:void(0)" id="pick-folder-link">选择文件夹</a></p>
             </div>
           </div>
+          <span class="cp-drop-compact-text">+ 继续添加文件</span>
+          <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
+        </div>
+        <div class="cp-drop-hints" id="drop-hints">
           <div class="cp-drop-tags">
             <span class="cp-drop-tag">支持断点续传</span>
             <span class="cp-drop-tag">单次上限 {{ upload_batch_limit }} 个</span>
           </div>
-          <span class="cp-drop-compact-text">+ 继续添加文件</span>
-          <p class="cp-drop-full-hint">{% if max_files > 0 %}已达到上传上限（最多 {{ max_files }} 个）{% endif %}</p>
-          <p class="cp-hint-resume">
-            <span class="cp-hint-full">上传失败或中断？重新选择同一文件将自动断点续传</span>
-            <span class="cp-hint-toggle" onclick="var p=this.closest('.cp-hint-resume');p.classList.toggle('expanded');this.textContent=p.classList.contains('expanded')?'收起 ▴':'展开 ▾';event.stopPropagation()">展开 ▾</span>
-          </p>
+          <p class="cp-hint-resume">上传失败或中断？重新选择同一文件将自动断点续传</p>
         </div>
         <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)">
+        <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none" onchange="handleFiles(this.files)">
 
         <div class="cp-actions" id="upload-actions" style="display:none">
           <span class="cp-count" id="upload-count">已选择 0 个文件</span>
@@ -185,9 +197,8 @@
 
     {# History Panel #}
     <div class="cp-tab-panel" id="panel-history">
+      {% if allow_delete %}
       <div class="cp-history-toolbar">
-        <span class="cp-file-count" id="file-total-count">上传 0 个文件</span>
-        {% if allow_delete %}
         <div class="cp-card-actions">
           <button class="cp-btn cp-btn-outline cp-batch-toggle" id="batch-toggle-btn" onclick="toggleBatchMode()" title="批量操作">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -198,8 +209,8 @@
             清空文件
           </button>
         </div>
-        {% endif %}
       </div>
+      {% endif %}
       <div class="cp-card-body cp-card-body--flush">
         <div id="history-wrap">
           <div class="cp-skeleton-list">
@@ -670,16 +681,22 @@ function isBlockedFile(name) {
 
 function setUploadAreaDisabled(disabled) {
   var dz = document.getElementById('dropzone');
+  var dh = document.getElementById('drop-hints');
   var fi = document.getElementById('file-input');
   if (dz) {
     dz.classList.toggle('full', disabled);
     // 达到上传上限时显示灰色禁用状态，不隐藏上传区域
-    // 上传中时才隐藏上传区域
+    // 上传中时才隐藏上传区域和提示区
     if (isUploading) {
       dz.style.display = 'none';
     } else {
       dz.style.display = '';
     }
+  }
+  if (dh) {
+    dh.classList.toggle('full', disabled);
+    if (isUploading) dh.style.display = 'none';
+    else dh.style.display = '';
   }
   if (fi) fi.disabled = disabled;
 }
@@ -736,46 +753,58 @@ function handleFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     if (added >= effLimit) break;
+    // 计算相对路径：优先用已有 _relPath（拖拽文件夹时由 _readDroppedFolder 设置）
+    // 其次用 webkitRelativePath（input.webkitdirectory 选择时由浏览器设置）
+    var relPath = '';
+    if (f._relPath) {
+      relPath = f._relPath;
+    } else if (f.webkitRelativePath && f.webkitRelativePath.indexOf('/') !== -1) {
+      relPath = f.webkitRelativePath;
+    } else {
+      relPath = f.name;
+    }
+    f._relPath = relPath;
     if (isBlockedFile(f.name)) { showToast(f.name + ' 文件类型被禁止上传'); continue; }
     if (f.size > MAX_FILE_SIZE) { showToast(f.name + ' 超过大小限制'); continue; }
-    if (selectedFiles.some(function(sf){ return sf.name === f.name && sf.size === f.size; })) continue;
+    if (selectedFiles.some(function(sf){ return (sf._relPath || sf.name) === f._relPath; })) continue;
     selectedFiles.push(f);
     added++;
   }
   renderFileList();
   updateRemainingDisplay();
   document.getElementById('file-input').value = '';
+  document.getElementById('folder-input').value = '';
 }
 
 function renderFileList() {
   var list = document.getElementById('file-list');
   var actions = document.getElementById('upload-actions');
   var dz = document.getElementById('dropzone');
-  
-  // 获取标题和副标题元素（安全检查）
-  var dropH3 = dz ? dz.querySelector('h3') : null;
-  var dropP = dz ? dz.querySelector('.cp-drop-text-wrap p') : null;
-  
+  var dh = document.getElementById('drop-hints');
+
   if (selectedFiles.length === 0) {
-    list.innerHTML = ''; 
-    actions.style.display = 'none'; 
+    list.innerHTML = '';
+    actions.style.display = 'none';
     if (dz) {
-      dz.classList.remove('compact'); 
-      dz.style.display = ''; // 恢复显示
-      // 恢复原始文案
-      if (dropH3) dropH3.textContent = '拖拽文件到此处上传';
-      if (dropP) dropP.textContent = '或点击选择文件';
+      dz.classList.remove('compact');
+      dz.style.display = '';
     }
-    updateRemainingDisplay(); 
-    return; 
+    if (dh) { dh.classList.remove('compact'); dh.style.display = ''; }
+    updateRemainingDisplay();
+    return;
   }
-  
+
   actions.style.display = 'flex';
   // 上传中时保持上传区域隐藏
   if (dz && !isUploading) {
-    dz.style.display = ''; // 确保显示
+    dz.style.display = '';
     var isFull = dz.classList.contains('full');
     dz.classList.toggle('compact', !isFull);
+    if (dh) {
+      dh.style.display = '';
+      var dhFull = dh.classList.contains('full');
+      dh.classList.toggle('compact', !dhFull);
+    }
   }
   
   document.getElementById('upload-count').textContent = '已选择 ' + selectedFiles.length + ' 个文件';
@@ -783,13 +812,15 @@ function renderFileList() {
     var status = f._uploadStatus || '';
     var progress = f._uploadProgress || 0;
     var speed = f._uploadSpeed || 0;
-    // 使用文件名+大小作为唯一标识，避免索引变化导致的问题
-    var fileKey = f.name + '_' + f.size;
+    // 显示名称：文件夹上传时显示相对路径，普通上传显示文件名
+    var displayName = f._relPath || f.name;
+    // 使用相对路径+大小作为唯一标识，避免索引变化导致的问题
+    var fileKey = displayName + '_' + f.size;
     // 格式化速度显示
     var speedText = speed > 0 ? formatSize(speed) + '/s' : '';
     return '<div class="cp-file cp-file--' + status + '" data-file-key="' + escapeHtml(fileKey) + '">' +
       '<div class="cp-file-progress-bg" style="width:' + progress + '%"></div>' +
-      '<div class="cp-file-info"><div class="cp-file-name">' + escapeHtml(f.name) + '</div><div class="cp-file-size">' + formatSize(f.size) + '</div></div>' +
+      '<div class="cp-file-info"><div class="cp-file-name">' + escapeHtml(displayName) + '</div><div class="cp-file-size">' + formatSize(f.size) + '</div></div>' +
       '<span class="cp-file-speed">' + (status === 'uploading' ? speedText : '') + '</span>' +
       '<span class="cp-file-progress-text">' + (status === 'uploading' ? progress + '%' : '') + '</span>' +
       '<button class="cp-file-del" onclick="removeFile(' + i + ')" title="移除">&times;</button></div>';
@@ -843,7 +874,7 @@ function showResultClearBtn() {
 }
 
 function getFileKey(file) {
-  return file.name + '_' + file.size;
+  return (file._relPath || file.name) + '_' + file.size;
 }
 
 function updateFileProgress(file, progress, speed) {
@@ -883,20 +914,85 @@ function _onFileSuccess(f) {
   loadHistory();
 }
 
+/* 单 dropzone：拖拽自动识别文件/文件夹；点击默认选文件，链接分别选文件/文件夹 */
 var dropzone = document.getElementById('dropzone');
 if (dropzone) {
   ['dragenter','dragover'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.add('dragover'); }); });
   ['dragleave','drop'].forEach(function(e){ dropzone.addEventListener(e, function(ev){ ev.preventDefault(); dropzone.classList.remove('dragover'); }); });
-  dropzone.addEventListener('drop', function(e){ 
+  dropzone.addEventListener('drop', function(e){
     if (isUploading) return;
-    handleFiles(e.dataTransfer.files); 
-  });
-  dropzone.addEventListener('click', function(e){
-    if (isUploading) {
-      showToast('正在上传中，请等待完成');
-      return;
+    var items = e.dataTransfer.items;
+    // 拖拽自动判断：第一个条目是文件夹则走文件夹模式，否则按文件处理
+    if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+      var entry = items[0].webkitGetAsEntry();
+      if (entry && entry.isDirectory) {
+        _readDroppedFolder(entry, entry.name).then(function(fileList) {
+          handleFiles(fileList);
+        });
+        return;
+      }
     }
+    handleFiles(e.dataTransfer.files);
+  });
+  // 点击 dropzone 默认选择文件
+  dropzone.addEventListener('click', function(e) {
+    // 点击链接时不触发默认行为（链接自己处理）
+    if (e.target.closest('a')) return;
+    if (isUploading) { showToast('正在上传中，请等待完成'); return; }
     document.getElementById('file-input').click();
+  });
+}
+// 两个链接：选择文件 / 选择文件夹
+var pickFileLink = document.getElementById('pick-file-link');
+if (pickFileLink) {
+  pickFileLink.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (isUploading) { showToast('正在上传中，请等待完成'); return; }
+    document.getElementById('file-input').click();
+  });
+}
+var pickFolderLink = document.getElementById('pick-folder-link');
+if (pickFolderLink) {
+  pickFolderLink.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (isUploading) { showToast('正在上传中，请等待完成'); return; }
+    document.getElementById('folder-input').click();
+  });
+}
+
+/* 递归读取拖拽的文件夹，为每个 File 设置 _relPath（含顶层文件夹名） */
+function _readDroppedFolder(entry, basePath) {
+  return new Promise(function(resolve) {
+    var files = [];
+    var reader = entry.createReader();
+    function readEntries() {
+      reader.readEntries(function(entries) {
+        if (!entries.length) {
+          resolve(files);
+          return;
+        }
+        var pending = entries.length;
+        entries.forEach(function(child) {
+          if (child.isFile) {
+            child.file(function(file) {
+              // fullPath 格式 "/子目录/文件.txt"，拼上 basePath 得到 "文件夹名/子目录/文件.txt"
+              var rel = basePath + child.fullPath;
+              file._relPath = rel;
+              files.push(file);
+              if (--pending === 0) readEntries();
+            });
+          } else if (child.isDirectory) {
+            _readDroppedFolder(child, basePath).then(function(subFiles) {
+              files = files.concat(subFiles);
+              if (--pending === 0) readEntries();
+            });
+          } else {
+            if (--pending === 0) readEntries();
+          }
+        });
+      });
+    }
+    readEntries();
   });
 }
 
@@ -1050,7 +1146,8 @@ function uploadFileWithTus(file, fileIdx, totalFiles) {
         retryDelays: [0, 1000, 3000, 5000, 10000, 15000, 30000],
         metadata: {
           filename: file.name,
-          filetype: file.type || 'application/octet-stream'
+          filetype: file.type || 'application/octet-stream',
+          relpath: file._relPath || file.name
         },
         headers: { 'X-CSRFToken': csrfToken },
         removeFingerprintOnSuccess: true,
@@ -1266,7 +1363,7 @@ async function startUpload() {
       continue;
     }
 
-    var formData = new FormData(); formData.append('file', f);
+    var formData = new FormData(); formData.append('file', f); formData.append('relpath', f._relPath || f.name);
     try {
       var _lastLoaded = -1;
       var _uploadOk = false;
@@ -1662,7 +1759,6 @@ async function loadHistory(page) {
     totalUploaded = data.total_uploaded || 0;
     _cacheData = data;
     updateRemainingDisplay();
-    document.getElementById('file-total-count').textContent = '上传 ' + totalUploaded + ' 个文件';
     updateTabBarVisibility();
     clearSelection();
     renderHistoryFromData(data);

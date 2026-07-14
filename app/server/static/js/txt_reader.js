@@ -1,7 +1,13 @@
 /*!
  * TXT Reader — 纯原生小说阅读器
- * 支持：流式下载、编码检测、章节目录、CSS multi-column 分页、移动端 tap 翻页
+ * 支持：流式下载、编码检测、章节目录、增量渲染、移动端 tap 翻页
  * 无第三方依赖，PC + 移动端通用
+ *
+ * 性能优化要点：
+ * 1. scroll 模式增量渲染——只渲染首屏 + 滚动接近底部时追加，避免 DOM 节点爆炸
+ * 2. 增量切行——用 lastIndexOf('\n') 只处理新文本块，不重复 split 全量
+ * 3. TOC 延迟重建——扫描期间每 10 chunk 才更新 UI，完成时最终构建
+ * 4. paged 溢出检查——一次移除多行，减少 reflow 次数
  */
 (function () {
   'use strict';
@@ -51,13 +57,14 @@
   var fileUrl = window.__FILE_URL__ || window.__TXT_FILE_URL__ || '';
   var filename = window.__FILENAME__ || window.__TXT_FILENAME__ || '文本文件';
 
-  var fullText = '';
   var allLines = [];
+  var pendingLine = '';        // 增量切行：上一个不完整行的剩余
   var chapters = [];
-  var renderedIdx = 0;
+  var renderedIdx = 0;        // 已渲染到的行号
   var scanIdx = 0;
   var scanDone = false;
   var firstRenderDone = false;
+  var renderingMore = false;  // 防止 ensureVisibleRendered 重入
 
   var mode = 'scroll'; // 'scroll' | 'paged'
   var curPage = 0;
@@ -103,7 +110,6 @@
 
   // ============ 编码检测 ============
   function detectEncoding(sample) {
-    // 采样前 10000 字符统计 \uFFFD 占比
     var len = Math.min(sample.length, 10000);
     if (len === 0) return 'utf-8';
     var bad = 0;
@@ -116,7 +122,6 @@
   // ============ 流式下载 + 解码 ============
   function fetchStream(onProgress, onChunk, onDone, onError) {
     if (typeof fetch !== 'function') {
-      // 老浏览器回退到 XHR
       fetchXHR(onProgress, onChunk, onDone, onError);
       return;
     }
@@ -127,7 +132,6 @@
         return;
       }
       var ct = res.headers.get('Content-Type') || '';
-      // 如果返回的是 HTML，说明是错误页
       if (ct.indexOf('text/html') !== -1) {
         onError(new Error('服务器返回了错误页面（可能未登录或文件不存在）'));
         return;
@@ -169,7 +173,6 @@
 
           if (firstChunk) {
             firstChunk = false;
-            // 用 utf-8 试解码首块做编码检测
             var sampleDec = new TextDecoder('utf-8');
             var sample = sampleDec.decode(value.slice(0, Math.min(value.length, 65536)), { stream: true });
             var enc = detectEncoding(sample);
@@ -187,7 +190,6 @@
     }).catch(onError);
   }
 
-  // 老浏览器 XHR 回退
   function fetchXHR(onProgress, onChunk, onDone, onError) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', fileUrl, true);
@@ -203,7 +205,6 @@
       }
       var buf = xhr.response;
       var bytes = new Uint8Array(buf);
-      // 检测编码
       var sampleLen = Math.min(bytes.length, 65536);
       var sample = new TextDecoder('utf-8').decode(bytes.slice(0, sampleLen));
       var enc = detectEncoding(sample);
@@ -215,10 +216,35 @@
     xhr.send();
   }
 
-  // ============ 章节扫描（分块异步） ============
+  // ============ 增量切行 ============
+  // 只处理新文本块，不重复 split 全量文本
+  function appendText(text) {
+    var combined = pendingLine + text;
+    var lastNL = combined.lastIndexOf('\n');
+    if (lastNL >= 0) {
+      var complete = combined.substring(0, lastNL);
+      pendingLine = combined.substring(lastNL + 1);
+      var newLines = complete.split('\n');
+      for (var i = 0; i < newLines.length; i++) {
+        allLines.push(newLines[i]);
+      }
+    } else {
+      pendingLine = combined;
+    }
+  }
+
+  function flushPendingLine() {
+    if (pendingLine) {
+      allLines.push(pendingLine);
+      pendingLine = '';
+    }
+  }
+
+  // ============ 章节扫描（分块异步，TOC 延迟重建） ============
   function parseChaptersAsync(startLine) {
     if (scanDone) return;
     scanIdx = startLine || 0;
+    var chunkCount = 0;
 
     function scanChunk() {
       var start = scanIdx;
@@ -235,15 +261,17 @@
         }
       }
       scanIdx = end;
+      chunkCount++;
 
-      // 增量更新 TOC UI
-      buildTocUI();
+      if (els.progress && !firstRenderDone) {
+        var pct = Math.round(scanIdx / allLines.length * 100);
+        els.progress.textContent = '正在解析章节 ' + pct + '%（' + scanIdx + '/' + allLines.length + ' 行）';
+      }
 
       if (scanIdx < allLines.length) {
-        // 更新进度
-        if (els.progress && !firstRenderDone) {
-          var pct = Math.round(scanIdx / allLines.length * 100);
-          els.progress.textContent = '正在解析章节 ' + pct + '%（' + scanIdx + '/' + allLines.length + ' 行）';
+        // 每 10 个 chunk 才更新一次 TOC UI，避免频繁重建 DOM
+        if (chunkCount % 10 === 0) {
+          buildTocUI();
         }
         setTimeout(scanChunk, 0);
       } else {
@@ -267,7 +295,6 @@
       }
     }
     els.tocList.innerHTML = html;
-    // 绑定点击
     var links = els.tocList.querySelectorAll('a');
     for (var j = 0; j < links.length; j++) {
       links[j].addEventListener('click', onTocClick);
@@ -282,14 +309,15 @@
       var el = document.getElementById('ch-line-' + line);
       if (el) {
         els.view.scrollTop = el.offsetTop - 10;
+        ensureVisibleRendered();
       } else {
         renderUntilLine(line, function () {
           var el2 = document.getElementById('ch-line-' + line);
           if (el2) els.view.scrollTop = el2.offsetTop - 10;
+          ensureVisibleRendered();
         });
       }
     } else {
-      // paged 模式：跳到包含该行的页
       goToLine(line);
     }
   }
@@ -338,22 +366,32 @@
     renderBatch(0, end);
     firstRenderDone = true;
     hideLoading();
-    // 后台继续渲染剩余
-    renderAllRemaining();
+    // 不再全量后台渲染，只确保首屏填满
+    ensureVisibleRendered();
   }
 
-  function renderAllRemaining() {
-    if (mode === 'paged') return; // 翻页模式不后台渲染全部
+  // 增量渲染：当用户滚动接近底部时追加渲染下一批
+  // 避免一次性渲染数万行导致 DOM 节点爆炸 + 点击卡死
+  function ensureVisibleRendered() {
+    if (mode !== 'scroll') return;
+    if (renderingMore) return;
     if (renderedIdx >= allLines.length) {
       if (!scanDone) parseChaptersAsync(0);
       return;
     }
-    var end = Math.min(renderedIdx + RENDER_BATCH, allLines.length);
-    renderBatch(renderedIdx, end);
-    if (renderedIdx < allLines.length) {
-      setTimeout(renderAllRemaining, 0);
-    } else {
-      if (!scanDone) parseChaptersAsync(0);
+    var viewH = els.view.clientHeight;
+    var scrollBottom = els.view.scrollTop + viewH;
+    var contentHeight = els.content.scrollHeight;
+    // 距离底部小于 2 屏时追加
+    if (contentHeight - scrollBottom < viewH * 2) {
+      renderingMore = true;
+      var end = Math.min(renderedIdx + RENDER_BATCH, allLines.length);
+      renderBatch(renderedIdx, end);
+      renderingMore = false;
+      // 如果一屏仍不够填满，继续追加
+      if (els.content.scrollHeight - (els.view.scrollTop + viewH) < viewH && renderedIdx < allLines.length) {
+        setTimeout(ensureVisibleRendered, 0);
+      }
     }
   }
 
@@ -361,7 +399,7 @@
   var linesPerPage = 0;
   var currentLine = 0;
   var currentEnd = 0;
-  var pageStarts = [0]; // 历史栈：每页起始行
+  var pageStarts = [0];
 
   function calcLinesPerPage() {
     var lh = settings.lineHeights[settings.lhIdx] * settings.fontSize;
@@ -371,7 +409,6 @@
 
   function togglePaged() {
     if (mode === 'scroll') {
-      // 切换到翻页模式
       mode = 'paged';
       els.body.dataset.mode = 'paged';
       els.btnMode.textContent = '滚动';
@@ -380,7 +417,6 @@
       pageStarts = [currentLine || 0];
       renderCurrentPage(currentLine || 0);
     } else {
-      // 切换回滚动模式
       mode = 'scroll';
       els.body.dataset.mode = 'scroll';
       els.btnMode.textContent = '翻页';
@@ -393,26 +429,29 @@
         renderUntilLine(currentLine, function () {
           var el = document.getElementById('ch-line-' + currentLine);
           if (el) els.view.scrollTop = el.offsetTop - 10;
+          ensureVisibleRendered();
         });
       }
     }
   }
 
-  // 渲染指定起始行的当前页，溢出时自动减少行数
+  // 渲染指定起始行的当前页，溢出时批量减少行数
   function renderCurrentPage(start) {
     if (mode !== 'paged' || linesPerPage <= 0) return;
     var end = Math.min(start + linesPerPage, allLines.length);
     els.content.innerHTML = '';
     renderBatch(start, end);
 
-    // 溢出检查：移除多余行确保底部不截断
+    // 溢出检查：一次移除 10% 行，减少 reflow 次数
     var viewH = els.view.clientHeight;
     var safety = 0;
-    while (els.content.scrollHeight > viewH && end > start + 1 && safety < 100) {
-      // 移除最后 2 个节点（textNode + textNode 或 span + textNode）
-      if (els.content.lastChild) els.content.removeChild(els.content.lastChild);
-      if (els.content.lastChild) els.content.removeChild(els.content.lastChild);
-      end--;
+    while (els.content.scrollHeight > viewH && end > start + 1 && safety < 20) {
+      var removeCount = Math.max(1, Math.ceil((end - start) * 0.1));
+      for (var r = 0; r < removeCount && end > start + 1; r++) {
+        if (els.content.lastChild) els.content.removeChild(els.content.lastChild);
+        if (els.content.lastChild) els.content.removeChild(els.content.lastChild);
+        end--;
+      }
       safety++;
     }
 
@@ -455,7 +494,6 @@
       els.chapterLabel.textContent = '';
       return;
     }
-    // 根据 currentLine 找当前章节
     var found = null;
     for (var i = chapters.length - 1; i >= 0; i--) {
       if (chapters[i].line <= currentLine) {
@@ -533,7 +571,6 @@
 
   function setTheme(theme) {
     settings.theme = theme;
-    // 更新主题按钮 active 状态
     els.themeBtns.forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
     });
@@ -551,7 +588,6 @@
   function openSettings() {
     els.settingsOverlay.classList.add('open');
     els.settings.classList.add('open');
-    // 同步当前值
     if (els.fsValue) els.fsValue.textContent = settings.fontSize;
     if (els.lhBtn) els.lhBtn.textContent = settings.lineHeights[settings.lhIdx];
     els.themeBtns.forEach(function (btn) {
@@ -565,7 +601,6 @@
 
   // ============ 事件绑定 ============
   function bindEvents() {
-    // 工具栏按钮
     if (els.btnPrev) els.btnPrev.addEventListener('click', prevPage);
     if (els.btnNext) els.btnNext.addEventListener('click', nextPage);
     if (els.btnFontMinus) els.btnFontMinus.addEventListener('click', function () { changeFontSize(-1); });
@@ -576,15 +611,12 @@
     if (els.btnTheme) els.btnTheme.addEventListener('click', cycleTheme);
     if (els.btnSettings) els.btnSettings.addEventListener('click', openSettings);
 
-    // 目录关闭
     if (els.tocClose) els.tocClose.addEventListener('click', closeToc);
     if (els.tocOverlay) els.tocOverlay.addEventListener('click', closeToc);
 
-    // 设置关闭
     if (els.settingsClose) els.settingsClose.addEventListener('click', closeSettings);
     if (els.settingsOverlay) els.settingsOverlay.addEventListener('click', closeSettings);
 
-    // 设置面板内按钮
     if (els.fsMinus) els.fsMinus.addEventListener('click', function () { changeFontSize(-1); });
     if (els.fsPlus) els.fsPlus.addEventListener('click', function () { changeFontSize(1); });
     if (els.lhBtn) els.lhBtn.addEventListener('click', cycleLineHeight);
@@ -594,11 +626,9 @@
       });
     });
 
-    // tap zone 翻页
     if (els.tapLeft) els.tapLeft.addEventListener('click', prevPage);
     if (els.tapRight) els.tapRight.addEventListener('click', nextPage);
 
-    // 键盘翻页
     document.addEventListener('keydown', function (e) {
       if (mode !== 'paged') return;
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
@@ -610,17 +640,20 @@
       }
     });
 
-    // 滚动模式：滚动时更新章节标签
+    // scroll 模式：滚动时更新章节标签 + 增量渲染
     if (els.view) {
       var scrollTimer = null;
       els.view.addEventListener('scroll', function () {
-        if (mode !== 'scroll') return;
         if (scrollTimer) clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(updateChapterLabelScroll, 100);
+        scrollTimer = setTimeout(function () {
+          if (mode === 'scroll') {
+            updateChapterLabelScroll();
+            ensureVisibleRendered();
+          }
+        }, 100);
       });
     }
 
-    // 窗口 resize：debounce 重算分页
     var resizeTimer = null;
     window.addEventListener('resize', function () {
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -641,7 +674,6 @@
       var el = document.getElementById(chapters[i].id);
       if (el && el.offsetTop - 20 <= scrollTop) {
         found = chapters[i];
-        // 记录当前阅读位置（章节起始行）
         currentLine = chapters[i].line;
         break;
       }
@@ -657,7 +689,6 @@
       return;
     }
 
-    // 加载设置
     loadSettings();
     applySettings();
     if (els.fn) els.fn.textContent = filename;
@@ -668,7 +699,6 @@
 
     fetchStream(
       function (loaded, total) {
-        // 进度
         if (els.progress) {
           if (total > 0) {
             var kb = Math.round(loaded / 1024);
@@ -681,29 +711,21 @@
         }
       },
       function (text) {
-        // 收到文本块
-        fullText += text;
-        if (!firstChunkDone && fullText.length > 0) {
+        // 增量切行：只处理新文本块，不重复 split 全量
+        appendText(text);
+        if (!firstChunkDone && allLines.length > 0) {
           firstChunkDone = true;
-          // 首次有数据：切行 + 立即渲染首屏
-          allLines = fullText.split('\n');
           renderFirst(true);
-        } else {
-          // 后续块：追加行
-          allLines = fullText.split('\n');
         }
       },
       function () {
-        // 下载完成
-        allLines = fullText.split('\n');
-        if (!firstRenderDone) {
+        // 下载完成：把最后不完整的行加入
+        flushPendingLine();
+        if (!firstRenderDone && allLines.length > 0) {
           renderFirst(true);
         }
-        // 确保 TOC 至少有占位
-        if (chapters.length === 0 && scanDone === false) {
-          // 启动章节扫描
-          if (!scanDone) parseChaptersAsync(0);
-        }
+        if (!scanDone) parseChaptersAsync(0);
+        ensureVisibleRendered();
       },
       function (err) {
         console.error('TXT 加载失败:', err);
@@ -718,7 +740,6 @@
     start();
   }
 
-  // DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

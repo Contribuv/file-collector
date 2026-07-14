@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.23-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.24-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,13 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.24
+- TXT 阅读器性能优化：scroll 模式增量渲染，只渲染首屏 300 行，滚动接近底部才追加
+- 增量切行替代全量 re-split，解决 O(n²) 复杂度
+- 章节目录延迟重建，每 10 个 chunk 才更新 TOC DOM
+- paged 溢出检查批量移除，减少 reflow 次数（100→20）
+- 章节跳转/模式切换后自动追加渲染后续内容
 
 ### v2.3.23
 - 收集页上传区改为文件/文件夹双列分区，拖拽自动识别类型（文件走普通上传，文件夹走 webkitdirectory）

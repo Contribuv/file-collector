@@ -315,6 +315,22 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.3.25
+- 反向代理稳定性大幅修复，解决运行一段时间后静默停止的问题
+- 修复 Go 进程 stdout 管道从未读取，缓冲区满后进程阻塞卡死（核心根因）
+- 修复 Python `_drain_stdout` 方法代码断裂导致 `_api_request` 被吞掉，反代无法正常通信
+- `WriteTimeout`/`ReadTimeout` 改为 0（不限制），避免大文件上传/下载超时断开
+- `handleHTTPRedirect` 添加 10s 读取超时，防止恶意连接阻塞 goroutine
+- API Server `WriteTimeout` 改为 0，避免 SSE 日志流被 30s 断开
+- `serve()`/`handleConn` 添加 panic recover，防止 panic 导致整个进程崩溃且无日志
+- `Start`/`Stop`/`GetStatus`/`ReloadCert` 添加互斥锁，修复并发数据竞争
+- `Accept` 连续错误添加退出机制（>10 次退出 + 100ms 间隔），避免死循环
+- 新增 `proxy.ErrorHandler`，后端请求失败不再静默
+- `_drain_stdout` 将 Go panic/fatal 输出到 Gunicorn errorlog，崩溃原因可追溯
+- 修复 `_recovered` 标志永不重置，Go 崩溃后无法重新恢复
+- 修复 `start()` 保存状态时 `pid` 可能为 None，导致后续误判反代未运行
+- 优化日志噪音：客户端正常断开（context canceled/EOF）降级为 DEBUG，不再记为 ERROR
+
 ### v2.3.24
 - TXT 阅读器性能优化：scroll 模式增量渲染，只渲染首屏 300 行，滚动接近底部才追加
 - 增量切行替代全量 re-split，解决 O(n²) 复杂度

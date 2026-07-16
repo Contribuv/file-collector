@@ -37,7 +37,7 @@ func NewAPIServer(proxy *ReverseProxy, logger *LogManager, apiPort int) *APIServ
 	api.server = &http.Server{
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 0, // 不限制写入时间，避免 SSE 日志流被断开
 		IdleTimeout:  120 * time.Second,
 	}
 

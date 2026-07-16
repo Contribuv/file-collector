@@ -16,6 +16,7 @@ import (
 )
 
 type ReverseProxy struct {
+	mu        sync.Mutex
 	config    ProxyConfig
 	server    *http.Server
 	tlsConfig *tls.Config
@@ -30,17 +31,13 @@ func NewReverseProxy(cfg ProxyConfig, logger *LogManager) *ReverseProxy {
 	return &ReverseProxy{
 		config: cfg,
 		logger: logger,
-		transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 20,
-			IdleConnTimeout:     90 * time.Second,
-			DisableCompression:  false,
-			ForceAttemptHTTP2:   true,
-		},
 	}
 }
 
 func (rp *ReverseProxy) Start() error {
+	rp.mu.Lock()
+	defer rp.mu.Unlock()
+
 	if rp.running {
 		return fmt.Errorf("proxy already running")
 	}
@@ -50,9 +47,37 @@ func (rp *ReverseProxy) Start() error {
 		return fmt.Errorf("invalid backend addr: %v", err)
 	}
 
+	// 每次启动重建 Transport，使用最新配置
+	timeout := rp.config.Timeout
+	if timeout <= 0 {
+		timeout = 600
+	}
+	rp.transport = &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   20,
+		IdleConnTimeout:       90 * time.Second,
+		DisableCompression:    false,
+		ForceAttemptHTTP2:     true,
+		ResponseHeaderTimeout: time.Duration(timeout) * time.Second,
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(backendURL)
 	proxy.Transport = rp.transport
 	proxy.FlushInterval = 100 * time.Millisecond
+
+	// 记录后端代理错误，避免静默失败
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		// context canceled 是客户端主动断开（页面刷新/导航），不是真正的错误
+		errStr := err.Error()
+		if strings.Contains(errStr, "context canceled") ||
+			strings.Contains(errStr, "EOF") ||
+			strings.Contains(errStr, "connection reset") {
+			rp.logger.Add("DEBUG", fmt.Sprintf("客户端断开: %s %s", r.Method, r.URL.Path))
+		} else {
+			rp.logger.Add("ERROR", fmt.Sprintf("后端请求失败: %s %s → %v", r.Method, r.URL.Path, err))
+		}
+		http.Error(w, "Bad Gateway", http.StatusBadGateway)
+	}
 
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -92,10 +117,14 @@ func (rp *ReverseProxy) Start() error {
 		proxy.ServeHTTP(w, r)
 	})
 
+	// ReadTimeout=0: 不限制读取时间，避免大文件上传（TUS 续传等）被强制断开
+	// WriteTimeout=0: 不限制写入时间，避免大文件下载/流式响应被强制断开
+	// 超时由 Transport 层面的 ResponseHeaderTimeout 控制后端响应
+	// 连接级超时由 handleConn 中的 SetReadDeadline 控制
 	rp.server = &http.Server{
 		Handler:      mux,
-		ReadTimeout:  time.Duration(rp.config.Timeout) * time.Second,
-		WriteTimeout: time.Duration(rp.config.Timeout) * time.Second,
+		ReadTimeout:  0,
+		WriteTimeout: 0,
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -130,23 +159,42 @@ func (rp *ReverseProxy) Start() error {
 
 func (rp *ReverseProxy) serve() {
 	defer func() {
+		if r := recover(); r != nil {
+			rp.logger.Add("ERROR", fmt.Sprintf("serve() panic: %v", r))
+		}
 		rp.running = false
+		rp.logger.Add("WARN", "反代 serve() 循环已退出，不再接受新连接")
 	}()
 
+	acceptErrors := 0
 	for {
 		conn, err := rp.listener.Accept()
 		if err != nil {
 			if !rp.running {
 				return
 			}
-			rp.logger.Add("ERROR", fmt.Sprintf("accept error: %v", err))
+			// 连续 Accept 错误超过阈值，判定 listener 已损坏，退出循环
+			acceptErrors++
+			if acceptErrors > 10 {
+				rp.logger.Add("ERROR", fmt.Sprintf("Accept 连续失败 %d 次，反代停止: %v", acceptErrors, err))
+				rp.running = false
+				return
+			}
+			rp.logger.Add("ERROR", fmt.Sprintf("accept error (%d): %v", acceptErrors, err))
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
+		acceptErrors = 0
 		go rp.handleConn(conn)
 	}
 }
 
 func (rp *ReverseProxy) handleConn(conn net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			rp.logger.Add("ERROR", fmt.Sprintf("handleConn panic: %v", r))
+		}
+	}()
 	defer conn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -181,7 +229,13 @@ func (rp *ReverseProxy) handleConn(conn net.Conn) {
 		}
 
 		listener := &singleConnListener{conn: wrappedConn}
-		rp.server.Serve(listener)
+		if err := rp.server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			// 只记录非正常关闭的错误，正常连接结束的 "closed" 不记录（避免日志噪音）
+			errStr := err.Error()
+			if !strings.Contains(errStr, "closed") {
+				rp.logger.Add("DEBUG", fmt.Sprintf("连接处理异常: %v", err))
+			}
+		}
 
 		wg.Wait()
 	} else {
@@ -235,8 +289,15 @@ func (c *waitCloseConn) Close() error {
 }
 
 func (rp *ReverseProxy) handleHTTPRedirect(conn net.Conn, _ []byte) {
+	// 设置读取超时，防止恶意连接阻塞 goroutine
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	defer conn.SetReadDeadline(time.Time{})
+
 	buf := make([]byte, 4096)
 	n, _ := conn.Read(buf)
+	if n == 0 {
+		return
+	}
 
 	path := "/"
 	lines := strings.Split(string(buf[:n]), "\r\n")
@@ -262,6 +323,9 @@ func (rp *ReverseProxy) handleHTTPRedirect(conn net.Conn, _ []byte) {
 }
 
 func (rp *ReverseProxy) Stop() error {
+	rp.mu.Lock()
+	defer rp.mu.Unlock()
+
 	if !rp.running {
 		return nil
 	}
@@ -277,6 +341,9 @@ func (rp *ReverseProxy) Stop() error {
 }
 
 func (rp *ReverseProxy) ReloadCert(certPath, keyPath string) error {
+	rp.mu.Lock()
+	defer rp.mu.Unlock()
+
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
 		return fmt.Errorf("load cert failed: %v", err)
@@ -289,6 +356,8 @@ func (rp *ReverseProxy) ReloadCert(certPath, keyPath string) error {
 }
 
 func (rp *ReverseProxy) GetStatus() Status {
+	rp.mu.Lock()
+	defer rp.mu.Unlock()
 	return Status{
 		Running:   rp.running,
 		Domain:    rp.config.Domain,

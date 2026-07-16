@@ -259,6 +259,10 @@ class GoRProxyManager:
             )
             self._running = True
 
+            # 启动后台线程持续读取 Go 进程 stdout，防止管道满导致进程阻塞
+            t = threading.Thread(target=self._drain_stdout, daemon=True)
+            t.start()
+
             for _ in range(30):
                 try:
                     req = urllib.request.Request(f'{self.api_base}/health', method='GET')
@@ -274,6 +278,26 @@ class GoRProxyManager:
         except Exception as e:
             print(f'[GoRProxy] 启动失败: {e}')
             return False
+
+    def _drain_stdout(self):
+        """持续读取 Go 进程 stdout/stderr，防止管道缓冲区满导致进程阻塞。
+        同时将 Go 进程的关键输出（panic 等）记录到 Python 日志，便于排查崩溃原因。"""
+        proc = self.process
+        if not proc or not proc.stdout:
+            return
+        try:
+            for line in iter(proc.stdout.readline, ''):
+                line = line.strip()
+                if not line:
+                    continue
+                # panic/fatal/error 输出到 Python 侧（被 Gunicorn errorlog 捕获）
+                low = line.lower()
+                if 'panic' in low or 'fatal' in low or 'goroutine' in low:
+                    print(f'[fc-rproxy CRITICAL] {line}', flush=True)
+                elif 'error' in low or 'shutting down' in low:
+                    print(f'[fc-rproxy] {line}', flush=True)
+        except Exception:
+            pass
 
     def _api_request(self, method, path, data=None, timeout=5):
         if not self._ensure_process():
@@ -383,9 +407,17 @@ class GoRProxyManager:
                     self._current_cert_sum = cert_sum
                     break
 
+            # 获取实际 PID：优先 self.process.pid，回退到 recovered_pid 或状态文件
+            actual_pid = None
+            if self.process and self.process.poll() is None:
+                actual_pid = self.process.pid
+            elif self._recovered_pid:
+                actual_pid = self._recovered_pid
+
+            # 清除 stopped 标志，写入新状态
             state = {
                 'api_port': self.api_port,
-                'pid': self.process.pid if self.process else None,
+                'pid': actual_pid,
                 'config': config,
                 'cert_sum': cert_sum,
             }
@@ -400,9 +432,14 @@ class GoRProxyManager:
                     if success2 and result2.get('success'):
                         self._start_requested = True
                         self._last_config = config
+                        actual_pid = None
+                        if self.process and self.process.poll() is None:
+                            actual_pid = self.process.pid
+                        elif self._recovered_pid:
+                            actual_pid = self._recovered_pid
                         state = {
                             'api_port': self.api_port,
-                            'pid': self.process.pid if self.process else None,
+                            'pid': actual_pid,
                             'config': config,
                             'cert_sum': self._current_cert_sum,
                         }
@@ -420,6 +457,7 @@ class GoRProxyManager:
             self._start_requested = False
             self._current_cert_sum = ''
             self._recovered_pid = None
+            self._recovered = False
             self._running = False
             return True, '反代未运行'
 
@@ -429,6 +467,7 @@ class GoRProxyManager:
         self._start_requested = False
         self._current_cert_sum = ''
         self._recovered_pid = None
+        self._recovered = False
 
         # 写 stopped 标志到状态文件，通知所有 worker 已停止
         state = self._load_state_file() or {}

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.25"
+VERSION = "2.3.27"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -9330,6 +9330,30 @@ if __name__ == '__main__':
         current_base = get_upload_base()
         _migrate_stored_paths(current_base, current_base)
         start_bg_scanner(interval=30)
+
+        # 反代自动恢复：NAS 重启后用保存的配置自动重启反代
+        # 用文件锁确保只一个 worker 执行（多 worker 场景）
+        import fcntl
+        lock_path = os.path.join(DATA_DIR, '.rproxy_recover.lock')
+        try:
+            lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+            # 非阻塞获取排他锁，只有一个 worker 能成功
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            got_lock = True
+        except (IOError, OSError):
+            got_lock = False
+
+        if got_lock:
+            import threading
+            def _delayed_auto_recover():
+                time.sleep(3)  # 等待 Flask 完全初始化
+                try:
+                    if RPROXY_PM and RPROXY_PM.is_available():
+                        RPROXY_PM.auto_recover()
+                except Exception as e:
+                    logger.warning(f'反代自动恢复异常: {e}')
+            t = threading.Thread(target=_delayed_auto_recover, daemon=True)
+            t.start()
 
     options = {
         'bind': f'0.0.0.0:{PORT}',

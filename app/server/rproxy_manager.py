@@ -154,6 +154,78 @@ class GoRProxyManager:
                 pass
         return True
 
+    def auto_recover(self):
+        """应用启动时自动恢复反代。
+        
+        场景：NAS 重启后，Go 进程已不存在，但状态文件中保存了上次的配置。
+        检查状态文件，如果上次反代是运行的（非主动停止），则用保存的配置自动重启。
+        只由一个 worker 执行（通过文件锁保证）。
+        """
+        if not self.is_available():
+            return False
+
+        state = self._load_state_file()
+        if not state:
+            return False
+
+        # 主动停止的，不恢复
+        if state.get('stopped'):
+            return False
+
+        config = state.get('config')
+        if not config:
+            return False
+
+        # 如果 Go 进程还活着（非重启场景），走正常恢复流程
+        pid = state.get('pid')
+        if pid:
+            try:
+                os.kill(pid, 0)
+                # 进程活着，走 _try_recover_from_state
+                if self._try_recover_from_state():
+                    return True
+            except OSError:
+                pass  # 进程不在，需要重新启动
+
+        # NAS 重启场景：Go 进程已死，用保存的配置重新启动反代
+        domain = config.get('domain', '')
+        port = config.get('port', 0)
+        cert_path = config.get('cert_path', '')
+        key_path = config.get('key_path', '')
+        backend_addr = config.get('backend_addr', '')
+        gzip_enabled = config.get('gzip_enabled', True)
+        hsts_enabled = config.get('hsts_enabled', True)
+        timeout = config.get('timeout', 600)
+
+        if not domain or not port or not cert_path or not key_path or not backend_addr:
+            self._clear_state_file()
+            return False
+
+        # 检查证书文件是否还存在
+        if not os.path.exists(cert_path) or not os.path.exists(key_path):
+            self._clear_state_file()
+            return False
+
+        try:
+            success, msg = self.start(
+                domain, port, cert_path, key_path, backend_addr,
+                gzip_enabled=gzip_enabled, hsts_enabled=hsts_enabled, timeout=timeout
+            )
+            if success:
+                # 清除 stopped 标志（start 已写入新状态，但确保 stopped 被清除）
+                state = self._load_state_file() or {}
+                if state.get('stopped'):
+                    state.pop('stopped', None)
+                    self._save_state_file(state)
+                print(f'[GoRProxy] 反代自动恢复成功: {msg}', flush=True)
+                return True
+            else:
+                print(f'[GoRProxy] 反代自动恢复失败: {msg}', flush=True)
+                return False
+        except Exception as e:
+            print(f'[GoRProxy] 反代自动恢复异常: {e}', flush=True)
+            return False
+
     def _load_state_file(self):
         path = _state_file_path()
         if not os.path.exists(path):
@@ -203,7 +275,7 @@ class GoRProxyManager:
         try:
             os.kill(pid, 0)
         except OSError:
-            self._clear_state_file()
+            # 进程不存在：不清除状态文件（保留 config 供 auto_recover 使用）
             return False
 
         api_base = f'http://127.0.0.1:{api_port}'
@@ -214,7 +286,7 @@ class GoRProxyManager:
                 self._clear_state_file()
                 return False
         except Exception:
-            self._clear_state_file()
+            # 进程存在但 API 不可达：不清除状态文件（保留 config 供 auto_recover 使用）
             return False
 
         self.api_port = api_port

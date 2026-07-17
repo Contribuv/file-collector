@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.24-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.27-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">

@@ -226,10 +226,15 @@
 </div>
 
 {# ---------- 批量操作栏 ---------- #}
-{% if allow_delete %}
+{% if allow_delete or allow_download %}
 <div class="cp-batch-bar" id="batch-bar">
   <span class="cp-batch-info" id="batch-info">已选 0 个文件</span>
+  {% if allow_download %}
+  <button class="cp-batch-btn cp-batch-btn-primary" id="batch-dl-btn" onclick="batchDownload()">批量下载</button>
+  {% endif %}
+  {% if allow_delete %}
   <button class="cp-batch-btn cp-batch-btn-accent" id="batch-del-btn" onclick="batchDelete()">批量删除</button>
+  {% endif %}
   <button class="cp-batch-btn cp-batch-btn-cancel" onclick="clearSelection()">取消选择</button>
 </div>
 {% endif %}
@@ -239,6 +244,15 @@
 </div>
 
 <div class="cp-toast" id="toast"></div>
+
+{# ---------- 批量下载等待浮窗 ---------- #}
+<div class="cp-loading-overlay" id="loading-overlay" style="display:none;">
+  <div class="cp-loading-card">
+    <div class="cp-loading-spinner"></div>
+    <div class="cp-loading-text" id="loading-text">正在打包文件，请稍候...</div>
+    <div class="cp-loading-sub" id="loading-sub">文件较多时可能需要一些时间</div>
+  </div>
+</div>
 
 {# ---------- 自定义灯箱（JS 动态创建） ---------- #}
 
@@ -327,6 +341,7 @@
     'linkId': link_id,
     'allowDelete': allow_delete,
     'allowPreviewDownload': allow_preview_download,
+    'allowDownload': allow_download,
     'requireUploader': require_uploader,
     'uploaderName': uploader_name,
     'dlToken': dl_token,
@@ -351,6 +366,7 @@ var _C = JSON.parse(document.getElementById('js-config').textContent);
 const linkId = _C.linkId;
 var allowDelete = _C.allowDelete;
 var allowPreviewDownload = _C.allowPreviewDownload;
+var allowDownload = _C.allowDownload;
 var requireUploader = _C.requireUploader;
 var _dlToken = _C.dlToken;
 var _dlExpires = _C.dlExpires;
@@ -1626,6 +1642,7 @@ function renderHistoryFromData(data) {
 
   var canDelete = allowDelete && (data.allow_delete === true);
   var canPreviewDownload = allowPreviewDownload && (data.allow_preview_download === true);
+  var canDownload = allowDownload && (data.allow_download === true);
   var showBatch = canDelete && _isBatchMode;  // 只有开启批量模式且允许删除时才显示复选框
 
   // 每次渲染时重新构建可预览列表（图片、视频、音频）
@@ -1666,12 +1683,17 @@ function renderHistoryFromData(data) {
           '</div>' +
           '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
         '</div>';
-      if (canDelete) {
+      if (canDelete || canDownload) {
         html += '<div class="cp-card-actions">';
         if (canPreviewDownload && canPreviewExt(ext)) {
           html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
         }
-        html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+        if (canDownload) {
+          html += '<button class="cp-act-dl-txt" onclick="downloadFile(' + r.id + ')" style="margin-right:8px;">下载</button>';
+        }
+        if (canDelete) {
+          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+        }
         html += '</div>';
       }
       html += '</div>';
@@ -1707,12 +1729,17 @@ function renderHistoryFromData(data) {
       if (requireUploader) {
         html += '<td class="cp-file-uploader">' + escapeHtml(rd.uploader_name || '——') + '</td>';
       }
-      if (canDelete) {
+      if (canDelete || canDownload) {
         html += '<td class="cp-file-act">';
         if (canPreviewDownload && canPreviewExt(extD)) {
           html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
         }
-        html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + rd.id + ')">删除</button>';
+        if (canDownload) {
+          html += '<button class="cp-act-dl-txt" onclick="downloadFile(' + rd.id + ')" style="margin-right:8px;">下载</button>';
+        }
+        if (canDelete) {
+          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + rd.id + ')">删除</button>';
+        }
         html += '</td>';
       }
       html += '</tr>';
@@ -1787,6 +1814,20 @@ async function deleteRecord(recordId) {
     if (data.success) { showToast('已删除'); loadHistory(); }
     else { showToast(data.message || '删除失败'); }
   } catch(e) { showToast('网络错误'); }
+}
+
+async function downloadFile(recordId) {
+  try {
+    var url = '/collect/' + linkId + '/download_record/' + recordId + '?token=' + encodeURIComponent(_dlToken);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch(e) {
+    showToast('下载失败');
+  }
 }
 
 /* ========== Batch Delete ========== */
@@ -1872,6 +1913,49 @@ async function batchDelete() {
     if (data.success) { _selectedIds.clear(); loadHistory(); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
     else if (btn) { btn.disabled = false; btn.textContent = '批量删除'; }
   } catch(e) { showToast('网络错误'); if (btn) { btn.disabled = false; btn.textContent = '批量删除'; } }
+}
+
+async function batchDownload() {
+  if (_selectedIds.size === 0) return;
+  var ids = Array.from(_selectedIds);
+  var btn = document.getElementById('batch-dl-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '打包中...'; }
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  try {
+    var res = await fetch('/collect/' + linkId + '/batch_download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: JSON.stringify({ record_ids: ids })
+    });
+    if (!res.ok) {
+      if (overlay) overlay.style.display = 'none';
+      var err = await res.json().catch(function(){ return {message:'请求失败'}; });
+      showToast(err.message || '下载失败');
+      if (btn) { btn.disabled = false; btn.textContent = '批量下载'; }
+      return;
+    }
+    var loadingText = document.getElementById('loading-text');
+    var loadingSub = document.getElementById('loading-sub');
+    if (loadingText) loadingText.textContent = '文件已打包，正在传输...';
+    if (loadingSub) loadingSub.textContent = '大文件传输可能需要一些时间';
+    var blob = await res.blob();
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'files_' + new Date().toISOString().slice(0,19).replace(/[-T:]/g,'') + '.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    if (overlay) overlay.style.display = 'none';
+    showToast('下载已开始');
+  } catch(e) {
+    if (overlay) overlay.style.display = 'none';
+    showToast('网络错误');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '批量下载'; }
+  }
 }
 
 async function deleteAllRecords() {

@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.27"
+VERSION = "2.3.28"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -847,6 +847,17 @@ def init_db():
             logger.info("已为 links 表添加 share_slug 字段")
     except Exception as e:
         logger.error(f"数据库迁移错误(collect_slug/share_slug): {e}")
+
+    # 为 links 表添加 allow_download 列（收集页显示下载按钮）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'allow_download' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN allow_download INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已为 links 表添加 allow_download 字段")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(allow_download): {e}")
 
     # 为 upload_records 表添加 uploader_name 列（记录上传者身份）
     try:
@@ -2995,6 +3006,7 @@ def collect_page(link_id):
         max_files=link['max_files'],
         allow_delete=bool(link['allow_delete']),
         allow_preview_download=bool(link['allow_preview_download']),
+        allow_download=bool(link.get('allow_download', 0)),
         site_title=get_user_setting(link_owner_id, 'site_title', '文件收集器'),
         collect_footer_text=get_user_setting(link_owner_id, 'collect_footer_text', ''),
         public_url=_resolve_public_url(link_owner_id),
@@ -4274,6 +4286,7 @@ def get_upload_records(link_id):
         'success': True,
         'allow_delete': bool(link['allow_delete']),
         'allow_preview_download': bool(link['allow_preview_download']),
+        'allow_download': bool(link['allow_download'] if 'allow_download' in link.keys() else 0),
         'max_files': link['max_files'],
         'total_uploaded': total_uploaded,
         'require_uploader': require_uploader,
@@ -4371,7 +4384,7 @@ def preview_record(link_id, record_id):
         return send_from_directory(directory, filename, as_attachment=True)
 
 
-@app.route('/collect/<link_id>/download/<int:record_id>', methods=['GET'])
+@app.route('/collect/<link_id>/download_record/<int:record_id>', methods=['GET'])
 def download_record(link_id, record_id):
     """下载上传历史记录中的文件"""
     conn = get_db()
@@ -4399,7 +4412,7 @@ def download_record(link_id, record_id):
         conn.close()
         return _render_error_html(err, 401, '请返回收集页刷新后重试')
 
-    if not link['allow_preview_download']:
+    if not (link['allow_download'] if 'allow_download' in link.keys() else 0):
         conn.close()
         return _render_error_html('下载功能未开启', 403, '当前收集链接未启用文件下载功能')
 
@@ -4744,6 +4757,140 @@ def batch_delete_records(link_id):
         'deleted': deleted,
         'skipped': skipped
     })
+
+@app.route('/collect/<link_id>/batch_download', methods=['POST'])
+def batch_download_collect_records(link_id):
+    """批量下载选中的文件（打包成 ZIP）"""
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'", (link_id, link_id)
+    ).fetchone()
+
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id_db = link['id']
+
+    if not is_verified(link_id_db, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
+
+    if not (link['allow_download'] if 'allow_download' in link.keys() else 0):
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接不允许下载文件'}), 403
+
+    data = request.get_json(silent=True) or {}
+    record_ids = data.get('record_ids', [])
+    if not record_ids or not isinstance(record_ids, list):
+        return jsonify({'success': False, 'message': '请提供要下载的记录ID列表'}), 400
+
+    # 限制每次最多下载 100 个文件
+    record_ids = record_ids[:100]
+
+    uploader_name = session.get(f'uploader_{link_id_db}', '').strip()
+    require_uploader = bool(link['require_uploader'])
+
+    # 收集文件路径
+    files_to_zip = []
+    skipped = 0
+    for rid in record_ids:
+        try:
+            rid = int(rid)
+        except (ValueError, TypeError):
+            skipped += 1
+            continue
+
+        record = conn.execute(
+            "SELECT id, stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
+            (rid, link_id_db)
+        ).fetchone()
+
+        if not record:
+            skipped += 1
+            continue
+
+        # require_uploader 模式下只允许下载自己的文件
+        if require_uploader and uploader_name:
+            rec_uploader = (record['uploader_name'] or '').strip()
+            if rec_uploader and rec_uploader != uploader_name:
+                skipped += 1
+                continue
+
+        stored_path = record['stored_path']
+        if os.path.isfile(stored_path):
+            files_to_zip.append({
+                'path': stored_path,
+                'name': record['original_name']
+            })
+        else:
+            skipped += 1
+
+    conn.close()
+
+    if not files_to_zip:
+        return jsonify({'success': False, 'message': '没有可下载的文件'}), 400
+
+    # 创建 ZIP 文件
+    import zipfile
+    import tempfile
+    from datetime import datetime
+
+    # 获取链接标题，用于 zip 文件名和内部文件夹
+    link_title = (link['title'] or '').strip()
+    safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title) if link_title else link_id
+    zip_filename = f'{safe_title}.zip'
+
+    # 使用临时文件，避免大文件撑爆内存
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    tmp_path = tmp.name
+    try:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
+            used_names = {}
+            for file_info in files_to_zip:
+                file_path = file_info['path']
+                if not os.path.isfile(file_path):
+                    continue
+                original_name = file_info['name']
+                arcname = f"{safe_title}/{original_name}"
+                if arcname in used_names:
+                    used_names[arcname] += 1
+                    base, ext = os.path.splitext(arcname)
+                    arcname = f"{base}({used_names[arcname]}){ext}"
+                else:
+                    used_names[arcname] = 0
+                # 智能压缩：已压缩格式只存储不重新压缩
+                compress_type = _get_zip_compress_type(original_name)
+                zf.write(file_path, arcname=arcname, compress_type=compress_type)
+
+        tmp.close()
+
+        @after_this_request
+        def cleanup_collect_zip(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            tmp_path,
+            download_name=zip_filename,
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"collect批量下载打包失败: {e}")
+        try:
+            tmp.close()
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': '文件打包失败，请稍后重试'}), 500
 
 @app.route('/collect/<link_id>/delete_all', methods=['POST'])
 def delete_all_records(link_id):
@@ -7127,12 +7274,12 @@ def create_link():
         conn = get_db()
         conn.execute(
             """INSERT INTO links (id, user_id, title, description, passcode, passcode_plain,
-               max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, passcode_empty,
+               max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, allow_download, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
                share_description, share_expires_at, collect_enabled, require_uploader, 
                folder_name, collect_slug, share_slug, use_root_folder)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, empty_passcode,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download, empty_passcode,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
              share_description, share_expires_at, collect_enabled, require_uploader, 
              folder_name, collect_slug, share_slug, use_root_folder)
@@ -7237,6 +7384,8 @@ def edit_link(link_id):
         conn = get_db()
         allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
         allow_preview_download = 1 if request.form.get('allow_preview_download') == '1' else 0
+        allow_download = 1 if request.form.get('allow_download') == '1' else 0
+        allow_download = 1 if request.form.get('allow_download') == '1' else 0
 
         # 分享页设置
         share_enabled = 1 if request.form.get('share_enabled') == '1' else 0
@@ -7304,21 +7453,21 @@ def edit_link(link_id):
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=1,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=1,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
                        share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                      share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=1,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=1,
                        share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
         elif passcode:
@@ -7328,21 +7477,21 @@ def edit_link(link_id):
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=0,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=0,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
                        share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                      share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, passcode_empty=0,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=0,
                        share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
         else:
@@ -7350,21 +7499,21 @@ def edit_link(link_id):
             if share_changed:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
                        share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                      share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
-                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?,
+                       max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?,
                        share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
-                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
+                    (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
                 )
 

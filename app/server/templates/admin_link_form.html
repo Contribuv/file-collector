@@ -165,6 +165,14 @@
                 </span>
                 <span>收集页显示预览按钮</span>
               </label>
+              <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="allow_download" name="allow_download" value="1"
+                       {{ 'checked' if edit_link and edit_link.get('allow_download') else '' }}>
+                <span class="switch-track">
+                  <span class="switch-thumb"></span>
+                </span>
+                <span>收集页显示下载按钮</span>
+              </label>
             </div>
           </div>
 

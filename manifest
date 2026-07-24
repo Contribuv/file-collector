@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.27
+version               = 2.3.28
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -16,4 +16,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://github.com/Contribuv/file-collector
-changelog             = v2.3.24 - TXT阅读器性能优化(scroll模式增量渲染替代全量后台渲染解决大文件点击按钮卡死、增量切行替代全量re-split解决O(n²)复杂度、TOC延迟重建每10chunk才更新UI、paged溢出检查批量移除减少reflow)<br>v2.3.23 - 收集页上传区文件/文件夹双列分区(拖拽自动识别)、支持上传文件夹并保留完整目录路径、修复顶层文件夹路径丢失、提示信息移出dropzone独立区域、断点续传提示默认展开、dropzone样式优化(hover灰色特效/图标上浮放大/链接颜色加深)、移除历史面板与tab重复计数、卡片内边距调整<br>v2.3.22 - Office预览修复(CSP/WASM/字体/中文文件名)、/office-v/index.html禁止直接访问、网关页侧边栏调整<br>v2.3.21 - 恢复Office文档在线预览(DOCX/XLSX/PPTX/CSV)、OnlyOffice WASM纯前端离线渲染、集成思源字体(OFL-1.1)、新增office.py模块
+changelog             = v2.3.28 - 新增收集页下载按钮开关(独立于预览权限)、支持单文件下载和批量打包下载、数据库新增allow_download字段、下载接口权限校验优化<br>v2.3.27 - 修复启动崩溃(SyncWorker无worker_age属性)、改用fcntl.flock文件锁确保多worker下只一个执行反代自动恢复<br>v2.3.26 - 新增反代自动恢复(NAS重启后自动用上次保存的配置重启反代)<br>v2.3.25 - 反向代理稳定性大幅修复(Go进程stdout管道阻塞卡死、_drain_stdout代码断裂)

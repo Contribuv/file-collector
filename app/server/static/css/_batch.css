@@ -88,9 +88,13 @@
   font-size: .78rem; font-weight: 500; cursor: pointer;
   font-family: inherit; transition: all .12s; white-space: nowrap;
 }
+.cp-batch-btn-primary {
+  background: #3b82f6; color: #fff; border-color: #3b82f6;
+}
+.cp-batch-btn-primary:hover { filter: brightness(.88); }
 .cp-batch-btn-accent {
   background: var(--batch-accent, var(--c-primary));
-  color: #fff; border-color: var(--batch-accent, var(--c-primary));
+  color: #dd1616; border-color: var(--batch-accent, var(--c-primary));
 }
 .cp-batch-btn-accent:hover { filter: brightness(.88); }
 .cp-batch-btn-cancel {

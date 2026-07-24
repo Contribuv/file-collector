@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.30-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.31-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,11 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.31
+- 修复收集页单文件下载缺少 `expires` 参数导致无通行证时下载失败的问题
+- downloadFile 函数现在正确传递 `token` 和 `expires` 两个参数
+- 确保公开链接（无通行证）下载时令牌校验通过
 
 ### v2.3.30
 - 修复 `create_link` 函数中 `allow_download` 变量未定义导致创建链接失败的问题

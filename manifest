@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.30
+version               = 2.3.31
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -16,4 +16,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://github.com/Contribuv/file-collector
-changelog             = v2.3.30 - 修复create_link函数中allow_download变量未定义导致创建链接失败、完善下载权限逻辑<br>v2.3.29 - 新增收集页下载按钮开关(独立于预览权限)、支持单文件下载和批量打包下载、数据库新增allow_download字段<br>v2.3.28 - 收集页上传区文件/文件夹双列分区、支持上传文件夹并保留完整目录路径、TXT阅读器性能优化<br>v2.3.27 - 修复启动崩溃(SyncWorker无worker_age属性)、改用fcntl.flock文件锁确保多worker下只一个执行反代自动恢复
+changelog             = v2.3.31 - 修复收集页单文件下载缺少expires参数导致无通行证时下载失败<br>v2.3.30 - 新增收集页下载按钮开关(独立于预览权限)、支持单文件下载和批量打包下载、数据库新增allow_download字段<br>v2.3.28 - 收集页上传区文件/文件夹双列分区、支持上传文件夹并保留完整目录路径、TXT阅读器性能优化<br>v2.3.27 - 修复启动崩溃(SyncWorker无worker_age属性)、改用fcntl.flock文件锁确保多worker下只一个执行反代自动恢复

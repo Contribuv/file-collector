@@ -1818,7 +1818,7 @@ async function deleteRecord(recordId) {
 
 async function downloadFile(recordId) {
   try {
-    var url = '/collect/' + linkId + '/download_record/' + recordId + '?token=' + encodeURIComponent(_dlToken);
+    var url = '/collect/' + linkId + '/download_record/' + recordId + '?token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
     var a = document.createElement('a');
     a.href = url;
     a.download = '';

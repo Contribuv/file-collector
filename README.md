@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.28-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.30-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -315,13 +315,25 @@ GET /api/status
 
 ## 📋 更新日志
 
-### v2.3.28
+### v2.3.30
+- 修复 `create_link` 函数中 `allow_download` 变量未定义导致创建链接失败的问题
+- 完善下载权限逻辑：确保 create_link 和 edit_link 中都正确处理 allow_download 参数
+- SQL 参数校验：CREATE_LINK INSERT 和所有 EDIT_LINK UPDATE 语句参数数量匹配验证通过
+
+### v2.3.29
 - 新增收集页下载按钮开关：在创建/编辑收集时可独立开启下载权限（默认关闭），与预览权限分离
 - 支持单文件下载：开启下载开关后，文件列表每行显示下载按钮
 - 支持批量打包下载：批量选择文件后可打包成 ZIP 下载
 - 数据库新增 `allow_download` 字段（INTEGER DEFAULT 0）
 - 下载接口权限校验改为检查 `allow_download` 字段，而非共享的 `allow_preview_download`
 - 后端新增 `/collect/<link_id>/batch_download` 接口，支持批量打包下载
+
+### v2.3.28
+- 收集页上传区文件/文件夹双列分区（拖拽自动识别文件/文件夹）
+- 支持上传文件夹并保留完整目录路径
+- 修复顶层文件夹路径丢失问题
+- 提示信息移出 dropzone 独立区域，断点续传提示默认展开
+- TXT 阅读器性能优化：scroll 模式增量渲染、增量切行、TOC 延迟重建、paged 溢出检查批量移除
 
 ### v2.3.27
 - 修复 v2.3.26 引入的启动崩溃：`SyncWorker` 无 `worker_age` 属性导致所有 worker 启动失败

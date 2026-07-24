@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.28"
+VERSION = "2.3.30"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -7213,6 +7213,7 @@ def create_link():
     
     allow_delete = 1 if request.form.get('allow_delete') == '1' else 0
     allow_preview_download = 1 if request.form.get('allow_preview_download') == '1' else 0
+    allow_download = 1 if request.form.get('allow_download') == '1' else 0
     if passcode:
         passcode_hash = generate_password_hash(passcode)
         passcode_plain = passcode

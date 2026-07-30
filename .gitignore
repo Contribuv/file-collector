@@ -197,3 +197,8 @@ package/
 
 # Runtime data
 data/
+
+# Local scripts and temp files
+push_r.txt
+sync-package.ps1
+.codebuddy/

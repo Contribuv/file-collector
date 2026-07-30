@@ -160,6 +160,7 @@ html[data-theme="dark"] .settings-grid textarea.form-textarea {
   border-color: var(--c-gray-200) !important;
   color: var(--c-text) !important;
   -webkit-appearance: none !important;
+  appearance: none !important;
 }
 html[data-theme="dark"] .settings-grid .form-textarea::placeholder {
   color: var(--c-text-muted) !important;

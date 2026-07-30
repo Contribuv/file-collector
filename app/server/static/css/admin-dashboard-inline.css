@@ -16,7 +16,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 1100;
-  background: #fff;
+  background: var(--c-white);
   border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
   min-width: 280px;
@@ -35,7 +35,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--c-gray-100);
 }
 .detail-popover-header strong {
   font-size: 0.85rem;
@@ -60,7 +60,7 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
-.detail-popover-close:hover { background: #f5f5f5; }
+.detail-popover-close:hover { background: var(--c-gray-100); }
 .detail-popover-body { padding: 10px 14px; }
 .detail-popover-row {
   display: flex;
@@ -74,7 +74,7 @@
 
 .detail-popover-footer {
   padding: 10px 14px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--c-gray-100);
   text-align: center;
   display: flex;
   gap: 6px;
@@ -106,3 +106,24 @@
 
 
 /* 自定义灯箱 */
+
+/* ============================================================
+   暗色模式覆盖 — admin_dashboard.html
+   详情浮窗、遮罩
+   ============================================================ */
+html[data-theme="dark"] .detail-popover {
+  background: var(--c-white);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  border: 1px solid var(--c-border);
+}
+html[data-theme="dark"] .detail-popover-header {
+  border-bottom-color: var(--c-border);
+}
+html[data-theme="dark"] .detail-popover-header strong { color: var(--c-text); }
+html[data-theme="dark"] .detail-popover-close { color: var(--c-text-soft); }
+html[data-theme="dark"] .detail-popover-close:hover { background: var(--c-gray-100); }
+html[data-theme="dark"] .detail-popover-row:not(:last-child) { border-bottom-color: var(--c-border-soft); }
+html[data-theme="dark"] .detail-popover-label { color: var(--c-gray-300); }
+html[data-theme="dark"] .detail-popover-value { color: var(--c-text); }
+html[data-theme="dark"] .detail-popover-footer { border-top-color: var(--c-border); }
+html[data-theme="dark"] .popover-overlay { background: rgba(0,0,0,.75); }

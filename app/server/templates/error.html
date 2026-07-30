@@ -6,7 +6,31 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>{{ error_title|default('出错了') }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <script>
+    (function(){
+      try {
+        var saved = localStorage.getItem('fc-theme');
+        var url = new URL(window.location.href);
+        var param = (url.searchParams.get('theme') || '').trim().toLowerCase();
+        var fnOS = (document.body && document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+        var mode;
+        if (saved === 'dark' || saved === 'light') {
+          mode = saved;
+        } else if (param === 'dark' || param === 'light') {
+          mode = param;
+        } else if (fnOS === 'dark') {
+          mode = 'dark';
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          mode = 'dark';
+        } else {
+          mode = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', mode);
+      } catch(e) { document.documentElement.setAttribute('data-theme','light'); }
+    })();
+  </script>
 </head>
 <body class="error-page">
   <div class="error-card">

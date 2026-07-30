@@ -1,8 +1,29 @@
+/* ============================================================
+   File Collector — Landing 浅色 + 暗色
+   ============================================================ */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+
+html[data-theme="dark"] body {
+  background: linear-gradient(180deg, var(--bg-page) 0%, #161924 100%) !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme="dark"] .landing-card h1 { color: var(--text-primary) !important; }
+html[data-theme="dark"] .landing-card p { color: var(--text-secondary) !important; }
+html[data-theme="dark"] .landing-footer { color: var(--text-muted) !important; }
+html[data-theme="dark"] .landing-btn {
+  background: var(--accent) !important;
+  box-shadow: 0 4px 16px rgba(94,161,255,.35) !important;
+}
+html[data-theme="dark"] .landing-btn:hover { background: var(--accent-hover) !important; }
+html[data-theme="dark"] .landing-btn:active {
+  background: #409cff !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
-  color: #1a1a2e;
+  color: var(--text-primary);
   background: linear-gradient(180deg, #f0f4ff 0%, #f2f3f5 50%);
   min-height: 100vh;
   min-height: 100dvh;
@@ -29,12 +50,12 @@ body {
   font-size: 1.5rem;
   font-weight: 800;
   margin-bottom: 8px;
-  color: #1a1a2e;
+  color: var(--text-primary);
   letter-spacing: -.4px;
 }
 .landing-card p {
   font-size: .9rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 32px;
 }
@@ -48,7 +69,7 @@ body {
   font-weight: 600;
   font-family: inherit;
   color: #fff;
-  background: #3b82f6;
+  background: var(--accent);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -56,14 +77,15 @@ body {
   transition: all .15s;
   box-shadow: 0 4px 16px rgba(59,130,246,.25);
 }
+.landing-btn:hover { background: var(--accent-hover); }
 .landing-btn:active {
-  background: #2563eb;
+  background: var(--accent-hover);
   transform: scale(.96);
 }
 .landing-footer {
   margin-top: 40px;
   font-size: .75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 @media (max-width: 480px) {

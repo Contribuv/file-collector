@@ -1,0 +1,604 @@
+/* ============================================================
+   File Collector — 唯一主题变量来源
+   浅色模式（默认） + 深色模式 data-theme="dark"
+   统一 theme.css / style.css / collect.css / share.css 的颜色体系
+   ============================================================ */
+
+/* ---- 浅色模式默认值 ---- */
+:root,
+html:not([data-theme="dark"]) {
+  /* 页面与背景 */
+  --bg-page: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fafbfc;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #fafbfc;
+  --bg-surface-alt: #fafbfc;
+  --bg-topbar: rgba(255,255,255,.92);
+  --bg-input: #ffffff;
+  --bg-overlay: rgba(0,0,0,.35);
+
+  /* 文字 */
+  --text-primary: #1a1d28;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+  --text-link: #2563eb;
+  --text-link-hover: #1d4ed8;
+
+  /* 边框 */
+  --border: #e4e6eb;
+  --border-light: #eceef0;
+
+  /* 主题色与语义色 */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-bg: rgba(37,99,235,.1);
+  --accent-border: rgba(37,99,235,.25);
+  --success: #059669;
+  --success-bg: #ecfdf5;
+  --success-border: #bbf7d0;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --danger: #dc2626;
+  --danger-hover: #ef4444;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+
+  /* 阴影 */
+  --shadow: 0 4px 12px rgba(0,0,0,.08);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+
+  /* 滚动条 */
+  --scrollbar: #d1d5db;
+  --scrollbar-thumb: #9ca3af;
+
+  /* 玻璃拟态 */
+  --glass-bg: rgba(255,255,255,.92);
+  --glass-border: rgba(229,231,235,.5);
+
+  /* 代码/日志 */
+  --code-bg: #1e1e1e;
+  --code-text: #d4d4d4;
+
+  /* 紫色系（扩展） */
+  --purple-bg: rgba(124,58,237,.15);
+  --purple-text: #7c3aed;
+
+  /* === style.css --c-* 变量（与上方变量值完全一致） === */
+  --c-primary: #2563eb;
+  --c-primary-hover: #1d4ed8;
+  --c-primary-light: #eff6ff;
+  --c-primary-border: #bfdbfe;
+  --c-primary-text-on: #ffffff;
+  --c-success: #059669;
+  --c-success-light: #ecfdf5;
+  --c-success-border: #bbf7d0;
+  --c-warning: #d97706;
+  --c-warning-light: #fffbeb;
+  --c-warning-border: #fde68a;
+  --c-danger: #dc2626;
+  --c-danger-light: #fef2f2;
+  --c-danger-border: #fecaca;
+  --c-purple: #7c3aed;
+  --c-purple-light: #f5f0ff;
+  --c-purple-border: #e2d8f5;
+  --c-info: #06b6d4;
+  --c-gray-50: #f9fafb;
+  --c-gray-100: #f3f4f6;
+  --c-gray-200: #e5e7eb;
+  --c-gray-300: #d1d5db;
+  --c-gray-400: #9ca3af;
+  --c-gray-500: #6b7280;
+  --c-gray-600: #4b5563;
+  --c-gray-700: #374151;
+  --c-gray-900: #111827;
+  --c-bg: #f0f2f5;
+  --c-bg-elev: #fafbfc;
+  --c-white: #ffffff;
+  --c-border: #e4e6eb;
+  --c-border-soft: #eceef0;
+  --c-text: #1a1d28;
+  --c-text-soft: #4b5563;
+  --c-text-muted: #9ca3af;
+  --c-bg-hover: #fafbfc;
+}
+
+/* ---- 深色模式 ---- */
+html[data-theme="dark"] {
+  /* 页面与背景 */
+  --bg-page: #0f1117;
+  --bg-card: #1d2230;
+  --bg-card-hover: #262a38;
+  --bg-surface: #1d2230;
+  --bg-surface-hover: #262a38;
+  --bg-surface-alt: #161924;
+  --bg-topbar: rgba(22,25,36,.92);
+  --bg-input: #1d2230;
+  --bg-overlay: rgba(0,0,0,.75);
+
+  /* 文字 */
+  --text-primary: #e8eaf2;
+  --text-secondary: #8e94a6;
+  --text-muted: #6b7184;
+  --text-inverse: #0f1117;
+  --text-link: #5ea1ff;
+  --text-link-hover: #7ab4ff;
+
+  /* 边框 */
+  --border: #2d3344;
+  --border-light: #232838;
+
+  /* 主题色与语义色 */
+  --accent: #5ea1ff;
+  --accent-hover: #7ab4ff;
+  --accent-bg: rgba(94,161,255,.14);
+  --accent-border: rgba(94,161,255,.32);
+  --success: #34d27a;
+  --success-bg: rgba(52,210,122,.14);
+  --success-border: rgba(52,210,122,.32);
+  --warning: #ffb13c;
+  --warning-bg: rgba(255,177,60,.14);
+  --warning-border: rgba(255,177,60,.32);
+  --danger: #ff5d52;
+  --danger-hover: #ff6961;
+  --danger-bg: rgba(255,93,82,.14);
+  --danger-border: rgba(255,93,82,.32);
+
+  /* 阴影 */
+  --shadow: 0 6px 16px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.25);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+
+  /* 滚动条 */
+  --scrollbar: #2d3344;
+  --scrollbar-thumb: #5a6072;
+
+  /* 玻璃拟态 */
+  --glass-bg: rgba(22,25,36,.92);
+  --glass-border: rgba(45,51,68,.8);
+
+  /* 代码/日志 */
+  --code-bg: #161924;
+  --code-text: #d0d4e0;
+
+  /* 紫色系（扩展） */
+  --purple-bg: rgba(139,92,246,.2);
+  --purple-text: #b794f6;
+
+  /* === style.css --c-* 变量（与上方变量值完全一致） === */
+  --c-primary: #5ea1ff;
+  --c-primary-hover: #7ab4ff;
+  --c-primary-light: rgba(94,161,255,.14);
+  --c-primary-border: rgba(94,161,255,.32);
+  --c-primary-text-on: #ffffff;
+  --c-success: #34d27a;
+  --c-success-light: rgba(52,210,122,.14);
+  --c-success-border: rgba(52,210,122,.32);
+  --c-warning: #ffb13c;
+  --c-warning-light: rgba(255,177,60,.14);
+  --c-warning-border: rgba(255,177,60,.32);
+  --c-danger: #ff5d52;
+  --c-danger-light: rgba(255,93,82,.14);
+  --c-danger-border: rgba(255,93,82,.32);
+  --c-purple: #b794f6;
+  --c-purple-light: rgba(183,148,246,.14);
+  --c-purple-border: rgba(183,148,246,.32);
+  --c-info: #4ed4e3;
+  --c-gray-50: #1f2330;
+  --c-gray-100: #262a38;
+  --c-gray-200: #353a4a;
+  --c-gray-300: #5a6072;
+  --c-gray-400: #8e94a6;
+  --c-gray-500: #b0b6c8;
+  --c-gray-600: #d0d4e0;
+  --c-gray-700: #e8eaf2;
+  --c-gray-900: #f5f7fa;
+  --c-bg: #0f1117;
+  --c-bg-elev: #161924;
+  --c-white: #1d2230;
+  --c-border: #2d3344;
+  --c-border-soft: #232838;
+  --c-text: #e8eaf2;
+  --c-text-soft: #8e94a6;
+  --c-text-muted: #6b7184;
+  --c-bg-hover: #262a38;
+}
+
+/* ============================================================
+   以下：覆盖独立页面（collect / share / gateway）的硬编码颜色
+   通过 CSS 变量替换实现暗色适配
+   ============================================================ */
+
+/* ---- 收集页 & 分享页：body & topbar ---- */
+body {
+  background: var(--bg-page) !important;
+  color: var(--text-primary) !important;
+}
+
+.cp-topbar {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: .5px solid var(--glass-border) !important;
+}
+.cp-topbar-inner span {
+  color: var(--text-primary) !important;
+}
+
+/* ---- 微信提示 ---- */
+.wechat-warn {
+  background: var(--warning-bg) !important;
+  border-bottom-color: var(--warning-border) !important;
+  color: var(--warning) !important;
+}
+
+/* ---- 页面标题 & 描述 ---- */
+.cp-header h1 {
+  color: var(--text-primary) !important;
+}
+.cp-header .cp-desc {
+  color: var(--text-secondary) !important;
+}
+.cp-header .cp-desc a {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent-bg) !important;
+}
+.cp-header .cp-desc a:hover {
+  border-bottom-color: var(--accent) !important;
+}
+
+/* ---- 信息卡片 ---- */
+.cp-meta-tile {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+.cp-meta-tile:hover {
+  background: var(--bg-card-hover) !important;
+}
+.cp-meta-tile-label {
+  color: var(--text-muted) !important;
+}
+.cp-meta-tile-value {
+  color: var(--text-primary) !important;
+}
+
+/* ---- 信息卡片图标背景（覆盖 collect/share 硬编码值） ---- */
+.cp-meta-grid .cp-meta-tile:nth-child(1) .cp-meta-tile-icon {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
+}
+.cp-meta-grid .cp-meta-tile:nth-child(2) .cp-meta-tile-icon {
+  background: var(--purple-bg) !important;
+  color: var(--purple-text) !important;
+}
+.cp-meta-tile--expire.normal .cp-meta-tile-icon {
+  background: var(--success-bg) !important;
+  color: var(--success) !important;
+}
+.cp-meta-tile--expire.warn .cp-meta-tile-icon {
+  background: var(--warning-bg) !important;
+  color: var(--warning) !important;
+}
+.cp-meta-tile--expire.danger .cp-meta-tile-icon {
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+.cp-meta-tile--expire.forever .cp-meta-tile-icon {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
+}
+.cp-meta-tile--expire.normal .cp-meta-tile-value { color: var(--success) !important; }
+.cp-meta-tile--expire.warn .cp-meta-tile-value { color: var(--warning) !important; }
+.cp-meta-tile--expire.danger .cp-meta-tile-value { color: var(--danger) !important; }
+.cp-meta-tile--expire.forever .cp-meta-tile-value { color: var(--accent) !important; }
+
+/* 剩余名额 */
+.cp-meta-tile--slots .cp-meta-tile-icon {
+  background: var(--success-bg) !important;
+  color: var(--success) !important;
+}
+.cp-meta-tile--slots .cp-meta-tile-value { color: var(--success) !important; }
+.cp-meta-tile--slots.warn .cp-meta-tile-icon {
+  background: var(--warning-bg) !important;
+  color: var(--warning) !important;
+}
+.cp-meta-tile--slots.danger .cp-meta-tile-icon {
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+.cp-meta-tile--slots.warn .cp-meta-tile-value { color: var(--warning) !important; }
+.cp-meta-tile--slots.danger .cp-meta-tile-value { color: var(--danger) !important; }
+
+/* ---- 附件卡片 ---- */
+.cp-card {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+.cp-card-head {
+  background: var(--bg-surface-alt) !important;
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border-light) !important;
+}
+.cp-card-head h2 {
+  color: var(--text-secondary) !important;
+}
+
+/* ---- 会话信息栏 ---- */
+.cp-info-line {
+  color: var(--text-muted) !important;
+  border-bottom-color: var(--border-light) !important;
+}
+.cp-info-item { color: var(--text-muted) !important; }
+.cp-info-item:hover { opacity: .7; }
+
+/* ---- Passcode 指示器 ---- */
+.cp-passcode-indicator {
+  background: var(--accent-bg) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--accent) !important;
+}
+.cp-passcode-indicator:hover {
+  background: var(--accent-border) !important;
+}
+
+/* ---- 文件列表区域 ---- */
+.cp-file-list {
+  border-color: var(--border) !important;
+}
+.cp-file-item {
+  background: var(--bg-card) !important;
+  border-bottom-color: var(--border-light) !important;
+}
+.cp-file-item:hover {
+  background: var(--bg-card-hover) !important;
+}
+.cp-file-name { color: var(--text-primary) !important; }
+.cp-file-meta { color: var(--text-muted) !important; }
+
+/* ---- 上传区 ---- */
+.cp-upload-area {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+.cp-upload-area:hover {
+  border-color: var(--accent) !important;
+  background: var(--accent-bg) !important;
+}
+.cp-upload-icon { color: var(--text-muted) !important; }
+.cp-upload-text { color: var(--text-secondary) !important; }
+.cp-upload-text strong { color: var(--accent) !important; }
+
+/* ---- 输入框（通行码/密码等） ---- */
+.cp-passcode-input input,
+.cp-passcode-input input[type="text"],
+.cp-passcode-input input[type="password"] {
+  background: var(--bg-input) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.cp-passcode-input input:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}
+
+/* ---- 按钮 ---- */
+.cp-btn {
+  background: var(--accent) !important;
+  color: var(--c-primary-text-on) !important;
+  border-color: transparent !important;
+}
+.cp-btn:hover { opacity: .9; }
+.cp-btn:active { opacity: .8; }
+.cp-btn-outline {
+  background: transparent !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.cp-btn-outline:hover {
+  background: var(--accent-bg) !important;
+}
+.cp-btn-danger {
+  background: var(--danger) !important;
+  color: var(--c-primary-text-on) !important;
+  border-color: transparent !important;
+}
+.cp-btn-danger:hover { opacity: .9; }
+
+/* ---- Tab ---- */
+.cp-tabs {
+  background: var(--bg-card) !important;
+  border-bottom-color: var(--border) !important;
+}
+.cp-tab {
+  color: var(--text-muted) !important;
+}
+.cp-tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* ---- 加载动画 ---- */
+.cp-loading-spinner {
+  border-color: var(--border) !important;
+  border-top-color: var(--accent) !important;
+}
+
+/* ---- 提示 & 错误消息 ---- */
+.cp-msg {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.cp-msg-error {
+  background: var(--danger-bg) !important;
+  border-color: var(--danger-border) !important;
+  color: var(--danger) !important;
+}
+.cp-msg-success {
+  background: var(--success-bg) !important;
+  border-color: var(--success-border) !important;
+  color: var(--success) !important;
+}
+
+/* ---- 进度条 ---- */
+.cp-progress-bar {
+  background: var(--border-light) !important;
+}
+.cp-progress-fill {
+  background: var(--accent) !important;
+}
+
+/* ---- Toast ---- */
+.toast,
+#toast {
+  background: var(--text-primary) !important;
+  color: var(--text-inverse) !important;
+}
+
+/* ---- Flash Toast（base.html 通用） ---- */
+.flash-toast-item {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow) !important;
+}
+.flash-toast-success {
+  border-left: 3px solid var(--success) !important;
+}
+.flash-toast-error {
+  border-left: 3px solid var(--danger) !important;
+}
+.flash-toast-warning {
+  border-left: 3px solid var(--warning) !important;
+}
+.flash-toast-info {
+  border-left: 3px solid var(--accent) !important;
+}
+
+/* ---- 分页 ---- */
+.cp-pagination {
+  color: var(--text-secondary) !important;
+}
+.cp-page-btn {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+.cp-page-btn:hover {
+  background: var(--bg-card-hover) !important;
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.cp-page-btn.active {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--c-primary-text-on) !important;
+}
+
+/* ---- 滚动条美化 ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ---- 代码/日志区（gateway 用） ---- */
+.gw-log-view {
+  background: var(--code-bg);
+  color: var(--code-text);
+}
+
+/* ---- admin inline pages ---- */
+.admin-page {
+  background: var(--bg-page) !important;
+}
+.admin-card {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+.admin-card-header {
+  background: var(--bg-surface-alt) !important;
+  border-bottom-color: var(--border-light) !important;
+  color: var(--text-secondary) !important;
+}
+.admin-table th {
+  background: var(--bg-surface-alt) !important;
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border) !important;
+}
+.admin-table td {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-light) !important;
+}
+.admin-table tr:hover td {
+  background: var(--bg-card-hover) !important;
+}
+.admin-input,
+.admin-textarea,
+.admin-select {
+  background: var(--bg-input) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.admin-input:focus,
+.admin-textarea:focus,
+.admin-select:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}
+.admin-sidebar {
+  background: var(--bg-card) !important;
+  border-right-color: var(--border) !important;
+}
+.admin-sidebar-link {
+  color: var(--text-secondary) !important;
+}
+.admin-sidebar-link:hover,
+.admin-sidebar-link.active {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
+}
+
+/* ---- 登录页 & 注册页 ---- */
+.login-page,
+.register-page {
+  background: var(--bg-page) !important;
+}
+.login-card,
+.register-card {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+.login-title,
+.register-title {
+  color: var(--text-primary) !important;
+}
+.login-subtitle {
+  color: var(--text-secondary) !important;
+}
+.login-label,
+.register-label {
+  color: var(--text-secondary) !important;
+}
+.login-input,
+.register-input {
+  background: var(--bg-input) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.login-input:focus,
+.register-input:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}

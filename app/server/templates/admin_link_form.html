@@ -18,18 +18,18 @@
             <div class="form-col form-col--left" id="form-col-left">
 
           <div class="form-group">
-            <label class="form-label" for="title">收集名称 *{% if edit_link %} <span style="display:inline-block;padding:1px 7px;background:#dc2626;color:#fff;border-radius:4px;font-size:.68rem;font-weight:500;letter-spacing:.5px;vertical-align:middle;">已锁定</span>{% endif %}</label>
+            <label class="form-label" for="title">收集名称 *{% if edit_link %} <span style="display:inline-block;padding:1px 7px;background:var(--c-danger);color:#fff;border-radius:4px;font-size:.68rem;font-weight:500;letter-spacing:.5px;vertical-align:middle;">已锁定</span>{% endif %}</label>
             <input type="text" id="title" name="title" class="form-input"
                    value="{{ edit_link['title'] if edit_link and edit_link.get('title') else '' }}"
                    placeholder="例：项目A文件收集" maxlength="20" required
-                   {% if edit_link %}readonly style="background:var(--c-input-muted,var(--c-bg-alt,#f5f5f5));color:var(--c-text-muted);cursor:not-allowed;border-color:#fecaca;"{% endif %}>
+                   {% if edit_link %}readonly style="background:var(--c-input-muted,var(--c-bg-alt,#f5f5f5));color:var(--c-text-muted);cursor:not-allowed;border-color:var(--c-danger-border);"{% endif %}>
             {% if edit_link %}
-            <div style="margin-top:8px;padding:8px 10px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.18);border-radius:6px;font-size:.78rem;color:#dc2626;display:flex;align-items:flex-start;gap:6px;">
+            <div style="margin-top:8px;padding:8px 10px;background:var(--c-danger-light);border:1px solid var(--c-danger-border);border-radius:6px;font-size:.78rem;color:var(--c-danger);display:flex;align-items:flex-start;gap:6px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span><strong>收集名称已锁定</strong>，创建后不可修改。如需修改请删除后重新创建。</span>
             </div>
             {% else %}
-            <div style="margin-top:8px;padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:6px;font-size:.78rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+            <div style="margin-top:8px;padding:8px 10px;background:var(--c-warning-light);border:1px solid var(--c-warning-border);border-radius:6px;font-size:.78rem;color:var(--c-warning);display:flex;align-items:flex-start;gap:6px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <span>这是文件夹和收集链接名称，<strong>创建后不可修改</strong>，请谨慎填写。</span>
             </div>
@@ -88,7 +88,7 @@
                      style="flex:1;">
             </div>
             <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
-            <div style="margin-top:6px;padding:8px 10px;background:rgba(251,191,36,.08);border-radius:6px;font-size:.82rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+            <div style="margin-top:6px;padding:8px 10px;background:var(--c-warning-light);border-radius:6px;font-size:.82rem;color:var(--c-warning);display:flex;align-items:flex-start;gap:6px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <span>一旦设置将无法修改，请谨慎填写。</span>
             </div>
@@ -138,7 +138,7 @@
               <div class="form-hint">点击右侧下拉框选择单位（天/小时/分钟）</div>
             </div>
             <div class="form-group">
-              <label class="form-label" for="expires_at_display">截止日期和时间 <span style="color:#dc2626;font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
+              <label class="form-label" for="expires_at_display">截止日期和时间 <span style="color:var(--c-danger);font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
               <input type="text" id="expires_at_display" class="form-input field-muted" readonly
                      value="{{ edit_link['_expires_display'] if edit_link else '' }}"
                      placeholder="根据有效期自动计算">
@@ -176,28 +176,28 @@
             </div>
           </div>
 
-          <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
+          <hr style="border: none; border-top: 1px solid var(--c-border); margin: 20px 0;">
 
           <!-- 通行证设置 -->
-          <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">通行证设置</h4>
+          <h4 style="font-size:.95rem;margin-bottom:12px;">通行证设置</h4>
           <div class="form-group">
-            <label class="form-label" {% if not edit_link %}style="color:#dc2626;"{% endif %}>收集页通行证 {% if not edit_link %}*{% endif %}</label>
-            <div class="passcode-radio-group" id="passcode-radio-group" style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;">
+            <label class="form-label" {% if not edit_link %}style="color:var(--c-danger);"{% endif %}>收集页通行证 {% if not edit_link %}*{% endif %}</label>
+            <div class="passcode-radio-group" id="passcode-radio-group" style="border:1px solid var(--c-border);border-radius:8px;padding:12px 16px;">
               {% if edit_link %}
               <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                 <input type="radio" name="passcode_mode" value="keep" {% if edit_link.get('passcode_empty', 0) != 1 or edit_link.get('passcode_plain') %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
                 <div>
                   <div style="font-size:.85rem;font-weight:500;">保持原有设置不变</div>
                   {% if edit_link.get('passcode_empty', 0) == 1 %}
-                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
+                  <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
                   {% elif edit_link.get('passcode_plain') %}
-                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：已设置通行证</div>
+                  <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：已设置通行证</div>
                   {% else %}
-                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：无通行证</div>
+                  <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：无通行证</div>
                   {% endif %}
                 </div>
               </label>
-              <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+              <hr style="border:none;border-top:1px dashed var(--c-border);margin:6px 0;">
               {% endif %}
               <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                 <input type="radio" name="passcode_mode" value="set" {% if not edit_link %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
@@ -209,12 +209,12 @@
                   </div>
                 </div>
               </label>
-              <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+              <hr style="border:none;border-top:1px dashed var(--c-border);margin:6px 0;">
               <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                 <input type="radio" name="passcode_mode" value="empty" {% if edit_link and edit_link.get('passcode_empty', 0) == 1 and not edit_link.get('passcode_plain') %}checked{% endif %} onchange="onPasscodeModeChange()" style="margin-top:3px;">
                 <div>
                   <div style="font-size:.85rem;font-weight:500;">空通行证（任何人可直接访问）</div>
-                  <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">无需输入密码即可进入收集页</div>
+                  <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">无需输入密码即可进入收集页</div>
                 </div>
               </label>
             </div>
@@ -223,12 +223,12 @@
 
           <!-- 上传者开关 -->
           {% if not edit_link %}
-          <div id="uploader-section" style="padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:4px;font-size:.74rem;color:#92400e;">
+          <div id="uploader-section" style="padding:12px 16px;border:1px solid var(--c-border);border-radius:8px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:var(--c-warning-light);border:1px solid var(--c-warning-border);border-radius:4px;font-size:.74rem;color:var(--c-warning);">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
               </svg>
-              <span style="flex:1;">此设置创建后将<strong style="color:#b45309;">不可修改</strong>，请谨慎选择</span>
+              <span style="flex:1;">此设置创建后将<strong>不可修改</strong>，请谨慎选择</span>
             </div>
             <div class="form-group" style="margin:0;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -246,15 +246,15 @@
           </div>
           {% elif edit_link.get('require_uploader') %}
           <input type="hidden" name="require_uploader" value="1">
-          <div id="uploader-section" style="padding:12px 16px;border:1px solid #86efac;border-radius:8px;margin-bottom:8px;background:#f0fdf4;">
+          <div id="uploader-section" style="padding:12px 16px;border:1px solid var(--c-success-border);border-radius:8px;margin-bottom:8px;background:var(--c-success-light);">
             <div class="form-group" style="margin:0;">
               <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--c-success)" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 <div style="flex:1;">
-                  <div style="font-size:.85rem;font-weight:600;color:#15803d;">上传者登记 · 已开启</div>
-                  <div style="font-size:.72rem;color:#16a34a;margin-top:2px;">上传者需填写昵称身份，文件按上传者分文件夹存放</div>
+                  <div style="font-size:.85rem;font-weight:600;color:var(--c-success);">上传者登记 · 已开启</div>
+                  <div style="font-size:.72rem;color:var(--c-success);margin-top:2px;">上传者需填写昵称身份，文件按上传者分文件夹存放</div>
                 </div>
-                <span style="font-size:.68rem;color:#9ca3af;white-space:nowrap;">创建时设定，不可修改</span>
+                <span style="font-size:.68rem;color:var(--c-text-muted);white-space:nowrap;">创建时设定，不可修改</span>
               </div>
             </div>
           </div>
@@ -262,10 +262,10 @@
           <input type="hidden" name="require_uploader" value="0">
           {% endif %}
 
-          <hr style="border: none; border-top: 1px solid #e8e8e8; margin: 20px 0;">
+          <hr style="border: none; border-top: 1px solid var(--c-border); margin: 20px 0;">
 
           <!-- 分享页设置 -->
-          <h4 style="font-size:.95rem;margin-bottom:12px;color:#333;">分享页设置</h4>
+          <h4 style="font-size:.95rem;margin-bottom:12px;">分享页设置</h4>
           <div class="form-group">
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -310,32 +310,32 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" {% if not edit_link %}style="color:#dc2626;"{% endif %}>分享页通行证 {% if not edit_link %}*{% endif %}</label>
-              <div class="passcode-radio-group" id="share-passcode-radio-group" style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;">
+              <label class="form-label" {% if not edit_link %}style="color:var(--c-danger);"{% endif %}>分享页通行证 {% if not edit_link %}*{% endif %}</label>
+              <div class="passcode-radio-group" id="share-passcode-radio-group" style="border:1px solid var(--c-border);border-radius:8px;padding:12px 16px;">
                 {% if edit_link %}
                 <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                   <input type="radio" name="share_passcode_mode" value="keep" {% if edit_link.get('share_passcode_empty') or edit_link.get('share_passcode_plain') %}checked{% endif %} onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
                   <div>
                     <div style="font-size:.85rem;font-weight:500;">保持原有设置不变</div>
                     {% if edit_link.get('share_passcode_empty') %}
-                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
+                    <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：空通行证（任何人可直接访问）</div>
                     {% elif edit_link.get('share_passcode_plain') %}
-                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：已设置通行证</div>
+                    <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：已设置通行证</div>
                     {% else %}
-                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">当前：无通行证（复用收集页通行证）</div>
+                    <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">当前：无通行证（复用收集页通行证）</div>
                     {% endif %}
                   </div>
                 </label>
-                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                <hr style="border:none;border-top:1px dashed var(--c-border);margin:6px 0;">
                 {% endif %}
                 <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                   <input type="radio" name="share_passcode_mode" value="inherit" {% if not edit_link or (edit_link and not edit_link.get('share_passcode_empty') and not edit_link.get('share_passcode_plain')) %}checked{% endif %} onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
                   <div>
                     <div style="font-size:.85rem;font-weight:500;">复用收集页通行证</div>
-                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">使用收集页的通行证设置，如收集页为空通行证，分享页也将公开访问</div>
+                    <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">使用收集页的通行证设置，如收集页为空通行证，分享页也将公开访问</div>
                   </div>
                 </label>
-                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                <hr style="border:none;border-top:1px dashed var(--c-border);margin:6px 0;">
                 <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                   <input type="radio" name="share_passcode_mode" value="set" onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
                   <div style="flex:1;">
@@ -346,19 +346,19 @@
                     </div>
                   </div>
                 </label>
-                <hr style="border:none;border-top:1px dashed #e5e7eb;margin:6px 0;">
+                <hr style="border:none;border-top:1px dashed var(--c-border);margin:6px 0;">
                 <label class="passcode-radio-option" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:6px 0;">
                   <input type="radio" name="share_passcode_mode" value="empty" onchange="onSharePasscodeModeChange()" style="margin-top:3px;">
                   <div>
                     <div style="font-size:.85rem;font-weight:500;">空通行证（任何人可直接访问）</div>
-                    <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">无需输入密码即可进入分享页</div>
+                    <div style="font-size:.72rem;color:var(--c-text-muted);margin-top:2px;">无需输入密码即可进入分享页</div>
                   </div>
                 </label>
               </div>
               <input type="hidden" id="share_passcode_empty" name="share_passcode_empty" value="0">
             </div>
 
-            <hr style="border: none; border-top: 1px dashed #e5e7eb; margin: 14px 0;">
+            <hr style="border: none; border-top: 1px dashed var(--c-border); margin: 14px 0;">
 
             <div class="form-group">
               <label class="form-label" for="share_description">分享页描述</label>
@@ -381,7 +381,7 @@
                        style="flex:1;">
               </div>
               <div class="form-hint">3-32位，支持字母、数字、- 和 _，必须以字母或数字开头</div>
-              <div style="margin-top:6px;padding:8px 10px;background:rgba(251,191,36,.08);border-radius:6px;font-size:.82rem;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
+              <div style="margin-top:6px;padding:8px 10px;background:var(--c-warning-light);border-radius:6px;font-size:.82rem;color:var(--c-warning);display:flex;align-items:flex-start;gap:6px;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" flex-shrink="0" style="margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 <span>一旦设置将无法修改，请谨慎填写。</span>
               </div>
@@ -407,7 +407,7 @@
                 <div class="form-hint">点击右侧下拉框选择单位（天/小时/分钟）</div>
               </div>
               <div class="form-group">
-                <label class="form-label" for="share_expires_at_display">分享页截止日期 <span style="color:#dc2626;font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
+                <label class="form-label" for="share_expires_at_display">分享页截止日期 <span style="color:var(--c-danger);font-size:.72rem;font-weight:400;">仅展示，不能选择</span></label>
                 <input type="text" id="share_expires_at_display" class="form-input field-muted" readonly
                        value="{{ edit_link['_share_expires_display'] if edit_link else '' }}"
                        placeholder="根据有效期自动计算">
@@ -617,7 +617,7 @@ function calcExpireDisplay(daysId, unitId, displayId) {
   var maxMinutes = maxDays * 1440;
   if (minutes > maxMinutes) {
     displayEl.value = '超出最大 ' + maxDays + ' 天限制';
-    daysEl.style.borderColor = '#dc2626';
+    daysEl.style.borderColor = 'var(--c-danger)';
     return;
   }
   daysEl.style.borderColor = '';
@@ -723,7 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function validateForm() {
   var title = document.getElementById('title');
   if (title && !title.value.trim()) {
-    title.style.borderColor = '#dc2626';
+    title.style.borderColor = 'var(--c-danger)';
     title.focus();
     showToast('请输入收集名称');
     return false;
@@ -734,7 +734,7 @@ function validateForm() {
   if (maxFiles) {
     var mf = parseInt(maxFiles.value);
     if (isNaN(mf) || mf < 0) {
-      maxFiles.style.borderColor = '#dc2626';
+      maxFiles.style.borderColor = 'var(--c-danger)';
       maxFiles.focus();
       showToast('最大文件数量必须为0或正整数');
       return false;
@@ -747,7 +747,7 @@ function validateForm() {
     var ms = parseFloat(maxSizeGB.value);
     if (isNaN(ms) || ms < 0.01 || ms > 64) {
       var maxSizeVal = document.getElementById('max_file_size_val');
-      if (maxSizeVal) { maxSizeVal.style.borderColor = '#dc2626'; }
+      if (maxSizeVal) { maxSizeVal.style.borderColor = 'var(--c-danger)'; }
       showToast('单文件上限必须在 0.01-64 GB 之间');
       return false;
     }
@@ -757,14 +757,14 @@ function validateForm() {
 
   // 检查收集页有效期是否超出限制（红色状态）
   var expireDays = document.getElementById('expire_days');
-  if (expireDays && (expireDays.style.borderColor === '#dc2626' || expireDays.style.borderColor === 'rgb(220, 38, 38)')) {
+  if (expireDays && (expireDays.style.borderColor === 'var(--c-danger)' || expireDays.style.borderColor === '#dc2626' || expireDays.style.borderColor === 'rgb(220, 38, 38)')) {
     expireDays.focus();
     showToast('收集页有效期超过了最大天数限制');
     return false;
   }
   // 检查分享页有效期是否超出限制（红色状态）
   var shareExpireDays = document.getElementById('share_expire_days');
-  if (shareExpireDays && (shareExpireDays.style.borderColor === '#dc2626' || shareExpireDays.style.borderColor === 'rgb(220, 38, 38)')) {
+  if (shareExpireDays && (shareExpireDays.style.borderColor === 'var(--c-danger)' || shareExpireDays.style.borderColor === '#dc2626' || shareExpireDays.style.borderColor === 'rgb(220, 38, 38)')) {
     shareExpireDays.focus();
     showToast('分享页有效期超过了最大天数限制');
     return false;
@@ -780,7 +780,7 @@ function validateForm() {
   if (pcMode.value === 'set') {
     var pcInput = document.getElementById('passcode');
     if (pcInput && !pcInput.value.trim()) {
-      pcInput.style.borderColor = '#dc2626';
+      pcInput.style.borderColor = 'var(--c-danger)';
       pcInput.focus();
       showToast('请输入通行证密码');
       return false;
@@ -798,7 +798,7 @@ function validateForm() {
     if (spMode.value === 'set') {
       var spInput = document.getElementById('share_passcode');
       if (spInput && !spInput.value.trim()) {
-        spInput.style.borderColor = '#dc2626';
+        spInput.style.borderColor = 'var(--c-danger)';
         spInput.focus();
         showToast('请输入分享页通行证密码');
         return false;
@@ -812,7 +812,7 @@ function validateForm() {
   if (pcMode && pcMode.value === 'set') {
     var pcInput = document.getElementById('passcode');
     if (pcInput && !pcInput.value.trim()) {
-      pcInput.style.borderColor = '#dc2626';
+      pcInput.style.borderColor = 'var(--c-danger)';
       pcInput.focus();
       showToast('请输入通行证密码');
       return false;
@@ -823,7 +823,7 @@ function validateForm() {
   if (spMode && spMode.value === 'set') {
     var spInput = document.getElementById('share_passcode');
     if (spInput && !spInput.value.trim()) {
-      spInput.style.borderColor = '#dc2626';
+      spInput.style.borderColor = 'var(--c-danger)';
       spInput.focus();
       showToast('请输入分享页通行证密码');
       return false;
@@ -927,7 +927,7 @@ function showToast(msg) {
   var t = document.createElement('div');
   t.className = 'form-toast';
   t.textContent = msg;
-  t.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:8px 20px;border-radius:6px;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:formToastIn .2s ease;';
+  t.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);background:var(--c-danger);color:#fff;padding:8px 20px;border-radius:6px;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:formToastIn .2s ease;';
   document.body.appendChild(t);
   setTimeout(function() { t.remove(); }, 2500);
 }

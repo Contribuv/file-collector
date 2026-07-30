@@ -20,8 +20,8 @@ html {
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
-  color: #1a1d28;
-  background: #f0f2f5;
+  color: var(--text-primary);
+  background: var(--bg-page);
   line-height: 1.4;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
@@ -31,10 +31,10 @@ body {
 /* ---------- Topbar ---------- */
 .cp-topbar {
   height: 44px;
-  background: rgba(255,255,255,.92);
+  background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: .5px solid #e5e7eb;
+  border-bottom: .5px solid var(--border);
   display: flex;
   align-items: center;
   position: sticky;
@@ -51,7 +51,7 @@ body {
   gap: 8px;
 }
 .cp-topbar-logo { width: 26px; height: 26px; flex-shrink: 0; object-fit: contain; }
-.cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: #1a1d28; }
+.cp-topbar-inner span { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 
 /* ---------- Main Wrap ---------- */
 .cp-wrap {
@@ -63,12 +63,12 @@ body {
 
 /* ---------- WeChat ---------- */
 .wechat-warn {
-  background: #fff7e6;
-  border-bottom: 1px solid #ffd591;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
   text-align: center;
   padding: 6px 12px;
   font-size: .75rem;
-  color: #ad6800;
+  color: var(--warning);
   font-weight: 500;
 }
 
@@ -80,13 +80,13 @@ body {
 .cp-header h1 {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #1a1d28;
+  color: var(--text-primary);
   letter-spacing: -.2px;
   line-height: 1.35;
 }
 .cp-header .cp-desc {
   font-size: .85rem;
-  color: #4b5563;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-top: 6px;
   word-break: break-word;
@@ -95,13 +95,13 @@ body {
 .cp-header .cp-desc p { margin: 0 0 4px; }
 .cp-header .cp-desc p:last-child { margin-bottom: 0; }
 .cp-header .cp-desc a {
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: none;
   border-bottom: 1px solid rgba(37,99,235,.25);
   transition: border-color .15s;
 }
 .cp-header .cp-desc a:hover {
-  border-bottom-color: #2563eb;
+  border-bottom-color: var(--accent);
 }
 
 /* Meta grid — 信息卡片布局 */
@@ -119,11 +119,11 @@ body {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #fff;
-  border: 1px solid #e4e6eb;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   transition: background .15s;
 }
-.cp-meta-tile:hover { background: #fafbfc; }
+.cp-meta-tile:hover { background: var(--c-bg-hover); }
 
 .cp-meta-tile-icon {
   width: 34px; height: 34px;
@@ -143,29 +143,29 @@ body {
 
 .cp-meta-tile-label {
   font-size: .66rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   line-height: 1.3;
 }
 
 .cp-meta-tile-value {
   font-size: .88rem;
   font-weight: 600;
-  color: #1a1d28;
+  color: var(--text-primary);
   line-height: 1.3;
   word-break: break-all;
 }
 
 /* Expire urgency coloring */
-.cp-meta-tile--expire .cp-meta-tile-icon { background: #f5f6f8; color: #6b7280; }
-.cp-meta-tile--expire.normal .cp-meta-tile-icon { background: #ecfdf5; color: #059669; }
-.cp-meta-tile--expire.warn .cp-meta-tile-icon { background: #fff7e6; color: #d97706; }
-.cp-meta-tile--expire.danger .cp-meta-tile-icon { background: #fef2f2; color: #dc2626; }
-.cp-meta-tile--expire.forever .cp-meta-tile-icon { background: #eff6ff; color: #3b82f6; }
+.cp-meta-tile--expire .cp-meta-tile-icon { background: var(--c-gray-50); color: var(--c-text-soft); }
+.cp-meta-tile--expire.normal .cp-meta-tile-icon { background: var(--c-success-light); color: var(--success); }
+.cp-meta-tile--expire.warn .cp-meta-tile-icon { background: var(--warning-bg); color: var(--warning); }
+.cp-meta-tile--expire.danger .cp-meta-tile-icon { background: var(--c-danger-light); color: var(--danger); }
+.cp-meta-tile--expire.forever .cp-meta-tile-icon { background: var(--c-primary-light); color: var(--c-primary); }
 
-.cp-meta-tile--expire.normal .cp-meta-tile-value { color: #059669; }
-.cp-meta-tile--expire.warn .cp-meta-tile-value { color: #d97706; }
-.cp-meta-tile--expire.danger .cp-meta-tile-value { color: #dc2626; }
-.cp-meta-tile--expire.forever .cp-meta-tile-value { color: #3b82f6; }
+.cp-meta-tile--expire.normal .cp-meta-tile-value { color: var(--success); }
+.cp-meta-tile--expire.warn .cp-meta-tile-value { color: var(--warning); }
+.cp-meta-tile--expire.danger .cp-meta-tile-value { color: var(--danger); }
+.cp-meta-tile--expire.forever .cp-meta-tile-value { color: var(--c-primary); }
 
 /* ---------- Passcode indicator ---------- */
 .cp-passcode-indicator {
@@ -174,12 +174,12 @@ body {
   gap: 5px;
   margin-bottom: 8px;
   padding: 6px 12px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--c-primary-light);
+  border: 1px solid var(--c-primary-border);
   border-radius: 6px;
   font-size: .78rem;
   font-weight: 500;
-  color: #3b82f6;
+  color: var(--c-primary);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -188,24 +188,24 @@ body {
   text-overflow: ellipsis;
   transition: background .15s;
 }
-.cp-passcode-indicator:hover { background: #dbeafe; }
+.cp-passcode-indicator:hover { background: var(--c-primary-border); }
 .cp-passcode-indicator svg { flex-shrink: 0; width: 14px; height: 14px; }
 
 /* ---------- Card ---------- */
 .cp-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 5px;
   margin-bottom: 8px;
   overflow: hidden;
-  border: 1px solid #e4e6eb;
+  border: 1px solid var(--border);
 }
 .cp-card-head {
   padding: 7px 12px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--c-border-soft);
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fafbfc;
+  background: var(--c-bg-hover);
   flex-wrap: nowrap;
   justify-content: space-between;
 }
@@ -226,7 +226,7 @@ body {
   gap: 6px;
   flex-shrink: 0;
 }
-.cp-card-head h2 { font-size: .82rem; font-weight: 600; color: #1a1d28; display: flex; align-items: center; gap: 5px; }
+.cp-card-head h2 { font-size: .82rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 5px; }
 .cp-card-head h2 svg { width: 14px; height: 14px; flex-shrink: 0; }
 .cp-card-body { padding: 10px 12px; }
 .cp-card-body--flush { padding: 0; }
@@ -239,27 +239,27 @@ body {
 .cp-passcode-icon {
   width: 40px; height: 40px;
   margin: 0 auto 10px;
-  background: #eff6ff;
+  background: var(--c-primary-light);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.cp-passcode-icon svg { width: 20px; height: 20px; color: #3b82f6; }
-.cp-passcode-title { font-size: .95rem; font-weight: 600; color: #1a1d28; margin-bottom: 2px; }
-.cp-passcode-sub { font-size: .76rem; color: #6b7280; margin-bottom: 14px; }
+.cp-passcode-icon svg { width: 20px; height: 20px; color: var(--c-primary); }
+.cp-passcode-title { font-size: .95rem; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.cp-passcode-sub { font-size: .76rem; color: var(--c-text-soft); margin-bottom: 14px; }
 .cp-passcode-row {
   display: flex;
   align-items: center;
   max-width: 300px;
   margin: 0 auto;
-  background: #f5f6f8;
-  border: 1px solid #d1d5db;
+  background: var(--c-gray-50);
+  border: 1px solid var(--c-gray-300);
   border-radius: 4px;
   overflow: hidden;
   transition: border-color .15s;
 }
-.cp-passcode-row:focus-within { border-color: #3b82f6; background: #fff; }
+.cp-passcode-row:focus-within { border-color: var(--c-primary); background: var(--bg-card); }
 .cp-passcode-row input {
   flex: 1; min-width: 0;
   padding: 8px 8px 8px 12px;
@@ -267,15 +267,15 @@ body {
   border: none; outline: none;
   background: transparent;
   font-family: inherit;
-  color: #1a1d28;
+  color: var(--text-primary);
 }
-.cp-passcode-row input::placeholder { color: #9ca3af; }
+.cp-passcode-row input::placeholder { color: var(--text-muted); }
 .cp-passcode-btn {
   flex-shrink: 0;
   padding: 6px 14px;
   margin: 2px 2px 2px 0;
   border: none; border-radius: 3px;
-  background: #3b82f6;
+  background: var(--c-primary);
   color: #fff;
   cursor: pointer;
   font-size: .78rem; font-weight: 500;
@@ -285,11 +285,11 @@ body {
   gap: 3px;
   transition: background .12s;
 }
-.cp-passcode-btn:active { background: #2563eb; }
+.cp-passcode-btn:active { background: var(--c-primary-hover); }
 .cp-passcode-btn:disabled { opacity: .5; pointer-events: none; }
 .cp-passcode-msg { margin-top: 10px; font-size: .75rem; min-height: 16px; }
-.cp-passcode-msg.error { color: #ef4444; }
-.cp-passcode-msg.success { color: #10b981; }
+.cp-passcode-msg.error { color: var(--c-danger); }
+.cp-passcode-msg.success { color: var(--c-success); }
 
 @keyframes cp-shake {
   0%, 100% { transform: translateX(0); }
@@ -302,25 +302,25 @@ body {
 /* ---------- Badge ---------- */
 .cp-badge {
   font-size: .68rem; font-weight: 500;
-  color: #059669;
-  background: #ecfdf5;
+  color: var(--success);
+  background: var(--c-success-light);
   border-radius: 3px;
   padding: 1px 7px;
   cursor: pointer;
 }
-.cp-badge:active { background: #d1fae5; }
+.cp-badge:active { background: var(--c-success-border); }
 .cp-badge-uploader {
-  color: #0ea5e9;
-  background: #f0f9ff;
+  color: var(--c-info);
+  background: var(--c-primary-light);
   cursor: pointer;
 }
-.cp-badge-uploader:active { background: #e0f2fe; }
+.cp-badge-uploader:active { background: var(--c-primary-border); }
 
 /* 文件总数胶囊 */
 .cp-file-count {
     font-size: .75rem;
     font-weight: 500;
-    color: #10111299;
+    color: var(--c-text-muted);
     /* background: #ffffff; */
     /* border: 1px solid #71849c6b; */
     border-radius: 3px;
@@ -336,26 +336,26 @@ body {
   gap: 3px;
   padding: 6px 12px; font-size: .76rem; font-weight: 500;
   cursor: pointer; font-family: inherit;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--c-gray-300);
   border-radius: 3px;
-  background: #fff; color: #1a1d28;
+  background: var(--bg-card); color: var(--text-primary);
   transition: all .12s;
   text-decoration: none;
 }
-.cp-btn:active { background: #f3f4f6; }
-.cp-btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
-.cp-btn-primary:active { background: #2563eb; }
+.cp-btn:active { background: var(--c-gray-100); }
+.cp-btn-primary { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
+.cp-btn-primary:active { background: var(--c-primary-hover); }
 .cp-btn-sm { padding: 3px 8px; font-size: .7rem; }
-.cp-btn-outline { background: #fff; border: 1px solid #d1d5db; color: #1a1d28; }
+.cp-btn-outline { background: var(--bg-card); border: 1px solid var(--c-gray-300); color: var(--text-primary); }
 
 /* ---------- Text Action Buttons (collect style) ---------- */
 .cp-act-preview-txt,
 .cp-act-download-txt {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 10px;
-  border: 1px solid #e4e6eb; border-radius: 3px;
-  background: #fff;
-  color: #3b82f6;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-card);
+  color: var(--c-primary);
   font-size: .76rem; font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -365,17 +365,17 @@ body {
   white-space: nowrap;
 }
 .cp-act-preview-txt:hover,
-.cp-act-download-txt:hover { background: #eff6ff; border-color: #bfdbfe; }
+.cp-act-download-txt:hover { background: var(--c-primary-light); border-color: var(--c-primary-border); }
 .cp-act-preview-txt:active,
-.cp-act-download-txt:active { background: #dbeafe; }
+.cp-act-download-txt:active { background: var(--c-primary-border); }
 
 /* ---------- Text Delete Button ---------- */
 .cp-act-del-txt {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 10px;
-  border: 1px solid #e4e6eb; border-radius: 3px;
-  background: #fff;
-  color: #dc2626;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-card);
+  color: var(--danger);
   font-size: .76rem; font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -383,8 +383,8 @@ body {
   line-height: 1.3;
   white-space: nowrap;
 }
-.cp-act-del-txt:hover { background: #fef2f2; border-color: #fecaca; }
-.cp-act-del-txt:active { background: #fee2e2; }
+.cp-act-del-txt:hover { background: var(--c-danger-light); border-color: var(--c-danger-border); }
+.cp-act-del-txt:active { background: var(--c-danger-border); }
 
 /* ============================================================
    FILE TABLE — Desktop 文件管理器列表
@@ -395,26 +395,26 @@ body {
   table-layout: fixed;
 }
 .cp-table thead th {
-  background: #fafbfc;
+  background: var(--c-bg-hover);
   padding: 8px 10px;
   text-align: left;
   font-weight: 600;
   font-size: .7rem;
-  color: #808792;
+  color: var(--c-text-muted);
   text-transform: uppercase;
   letter-spacing: .3px;
   white-space: nowrap;
-  border-bottom: 1px solid #e4e6eb;
+  border-bottom: 1px solid var(--border);
   user-select: none;
 }
 .cp-table tbody td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f2f4f7;
+  border-bottom: 1px solid var(--c-border-soft);
   vertical-align: middle;
   font-size: .8rem;
 }
 .cp-table tbody tr:last-child td { border-bottom: none; }
-.cp-table tbody tr:hover { background: #fafbfc; }
+.cp-table tbody tr:hover { background: var(--c-bg-hover); }
 
 .cp-th-icon { width: 40px; text-align: center; }
 .cp-th-name { flex: 1; }
@@ -430,9 +430,9 @@ body {
   white-space: nowrap;
   font-weight: 500;
 }
-.cp-file-size { font-size: .76rem; color: #6b7280; white-space: nowrap; }
-.cp-file-time { font-size: .74rem; color: #6b7280; white-space: nowrap; }
-.cp-file-uploader { font-size: .74rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-file-size { font-size: .76rem; color: var(--c-text-soft); white-space: nowrap; }
+.cp-file-time { font-size: .74rem; color: var(--c-text-soft); white-space: nowrap; }
+.cp-file-uploader { font-size: .74rem; color: var(--c-text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cp-file-act {
   text-align: right;
   white-space: nowrap;
@@ -444,20 +444,20 @@ body {
 .cp-card-list { display: none; }
 .cp-card-item {
   padding: 8px 12px;
-  border-bottom: 1px solid #f2f4f7;
+  border-bottom: 1px solid var(--c-border-soft);
   display: flex;
   gap: 8px;
   align-items: center;
   transition: background .1s;
 }
 .cp-card-item:last-child { border-bottom: none; }
-.cp-card-item:hover { background: #fafbfc; }
+.cp-card-item:hover { background: var(--c-bg-hover); }
 
 .cp-card-icon {
   flex-shrink: 0;
   width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center;
-  background: #f5f6f8;
+  background: var(--c-gray-50);
   border-radius: 5px;
 }
 .cp-card-icon svg { width: 16px; height: 16px; }
@@ -481,7 +481,7 @@ body {
   min-width: 0;
   font-size: .82rem;
   font-weight: 500;
-  color: #1a1d28;
+  color: var(--text-primary);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -493,7 +493,7 @@ body {
   flex-wrap: wrap;
   gap: 3px 14px;
   font-size: .7rem;
-  color: #6b7280;
+  color: var(--c-text-soft);
 }
 .cp-card-meta span { white-space: nowrap; }
 .cp-card-uploader { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
@@ -509,11 +509,11 @@ body {
 .cp-empty {
   text-align: center;
   padding: 24px 14px;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: .78rem;
 }
-.cp-empty svg { width: 32px; height: 32px; color: #d0d5dd; margin-bottom: 6px; }
-.cp-empty p:first-child { font-weight: 500; color: #6b7280; margin-bottom: 1px; }
+.cp-empty svg { width: 32px; height: 32px; color: var(--c-gray-300); margin-bottom: 6px; }
+.cp-empty p:first-child { font-weight: 500; color: var(--c-text-soft); margin-bottom: 1px; }
 
 /* ---------- Toast ---------- */
 .cp-toast {
@@ -541,11 +541,11 @@ body {
   text-align: center;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   font-size: .7rem;
-  color: #9ca3af;
-  background: rgba(255,255,255,.88);
+  color: var(--text-muted);
+  background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-top: .5px solid #e5e7eb;
+  border-top: .5px solid var(--border);
   z-index: 50;
 }
 
@@ -553,7 +553,7 @@ body {
    ACCORDION — 上传者登记折叠
    ============================================================ */
 .cp-accordion-group {
-  border-bottom: 1px solid #e4e6eb;
+  border-bottom: 1px solid var(--border);
 }
 .cp-accordion-group:last-child { border-bottom: none; }
 
@@ -566,11 +566,11 @@ body {
   user-select: none;
   transition: background .12s;
 }
-.cp-accordion-header:hover { background: #f6f8fb; }
+.cp-accordion-header:hover { background: var(--c-gray-50); }
 
 .cp-accordion-arrow {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-muted);
   transition: transform .2s ease;
 }
 .cp-accordion-group.open .cp-accordion-arrow {
@@ -579,7 +579,7 @@ body {
 
 .cp-accordion-usericon {
   flex-shrink: 0;
-  color: #6b7280;
+  color: var(--c-text-soft);
 }
 
 .cp-accordion-name {
@@ -587,7 +587,7 @@ body {
   min-width: 0;
   font-size: .88rem;
   font-weight: 600;
-  color: #1a1d28;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -596,8 +596,8 @@ body {
 .cp-accordion-count {
   flex-shrink: 0;
   font-size: .72rem;
-  color: #9ca3af;
-  background: #f0f2f5;
+  color: var(--text-muted);
+  background: var(--bg-page);
   padding: 2px 8px;
   border-radius: 6px;
 }
@@ -606,12 +606,12 @@ body {
   flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;
-  border: 1px solid #e0e2e6; border-radius: 5px;
-  background: transparent; color: #6b7280;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: transparent; color: var(--c-text-soft);
   cursor: pointer; transition: all .12s;
   margin-left: 2px;
 }
-.cp-accordion-dl-btn:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.cp-accordion-dl-btn:hover { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
 .cp-accordion-dl-btn:active { filter: brightness(.88); }
 .cp-accordion-dl-btn:disabled { opacity: .4; pointer-events: none; }
 
@@ -626,8 +626,8 @@ body {
 }
 
 .cp-accordion-body .cp-table thead th {
-  background: #fafbfc;
-  border-bottom: 1px solid #e8eaef;
+  background: var(--c-bg-hover);
+  border-bottom: 1px solid var(--c-border-soft);
 }
 .cp-accordion-body .cp-table tbody td {
   padding: 6px 10px;
@@ -659,8 +659,8 @@ body {
   flex-wrap: wrap;
   padding: 12px 16px;
   margin: 12px 0 8px;
-  border-top: .5px solid var(--c-border, #e5e7eb);
-  background: #fafbfc;
+  border-top: .5px solid var(--border);
+  background: var(--c-bg-hover);
   border-radius: 0 0 8px 8px;
 }
 
@@ -672,34 +672,34 @@ body {
 }
 .cp-per-page-label {
   font-size: .8rem;
-  color: #999;
+  color: var(--c-text-muted);
 }
 .cp-per-page-input {
   width: 56px;
   padding: 4px 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--c-gray-300);
   border-radius: 4px;
   font-size: .85rem;
   text-align: center;
   font-family: inherit;
-  color: #374151;
-  background: #fff;
+  color: var(--c-text);
+  background: var(--bg-card);
   transition: border-color .15s;
 }
 .cp-per-page-input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--c-primary);
   box-shadow: 0 0 0 2px rgba(59,130,246,.15);
 }
 .cp-per-page-unit {
   font-size: .78rem;
-  color: #aaa;
+  color: var(--c-text-muted);
 }
 
 /* 分页按钮 —— 仿 iOS btn-sm 风格 */
 .pagination .page-info {
   font-size: .78rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   padding: 0 8px;
   white-space: nowrap;
 }
@@ -712,8 +712,8 @@ body {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  color: var(--c-text, #374151);
-  background: #f0f0f5;
+  color: var(--c-text);
+  background: var(--c-gray-100);
   border: 1.5px solid transparent;
   border-radius: 4px;
   white-space: nowrap;
@@ -721,8 +721,8 @@ body {
   transition: all .15s;
 }
 .pagination .page-btn:hover:not(:disabled) {
-  background: #e4e4ec;
-  color: var(--c-primary, #2563eb);
+  background: var(--c-gray-200);
+  color: var(--c-primary);
 }
 .pagination .page-btn:active:not(:disabled) {
   transform: scale(.96);
@@ -847,18 +847,18 @@ body {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  color: #4b5563;
+  color: var(--text-secondary);
   background: transparent;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--c-gray-300);
   border-radius: 4px;
   transition: all .12s;
 }
 .cp-back-btn:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  background: var(--c-gray-100);
+  border-color: var(--text-muted);
 }
 .cp-back-btn:active {
-  background: #e5e7eb;
+  background: var(--c-border);
 }
 .cp-back-btn svg {
   width: 14px;
@@ -869,14 +869,14 @@ body {
 .cp-batch-toggle {
   padding: 5px 10px !important;
   font-size: .78rem !important;
-  color: #4b5563 !important;
+  color: var(--text-secondary) !important;
   background: transparent !important;
-  border: 1px solid #d1d5db !important;
+  border: 1px solid var(--c-gray-300) !important;
   border-radius: 4px !important;
 }
 .cp-batch-toggle:hover {
-  background: #f3f4f6 !important;
-  border-color: #9ca3af !important;
+  background: var(--c-gray-100) !important;
+  border-color: var(--text-muted) !important;
 }
 
 /* 上传者文件夹列表 — 极简行内样式 */
@@ -896,7 +896,7 @@ body {
   border-radius: 6px;
 }
 .cp-uploader-folder-item:hover {
-  background: #f5f6f8;
+  background: var(--c-gray-50);
 }
 
 .cp-folder-icon-wrap {
@@ -910,7 +910,7 @@ body {
 .cp-folder-icon {
   width: 18px;
   height: 18px;
-  color: #6b7280;
+  color: var(--c-text-soft);
 }
 
 .cp-folder-info {
@@ -924,7 +924,7 @@ body {
 .cp-folder-name {
   font-size: .9rem;
   font-weight: 500;
-  color: #1a1d28;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -934,13 +934,13 @@ body {
 
 .cp-folder-count {
   font-size: .72rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .cp-folder-arrow {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-muted);
   transition: transform .15s;
 }
 .cp-uploader-folder-item:hover .cp-folder-arrow {
@@ -956,7 +956,7 @@ body {
 .cp-uploader-view-title {
   font-size: .95rem;
   font-weight: 600;
-  color: #1a1d28;
+  color: var(--text-primary);
 }
 
 /* 在移动端调整文件夹列表 */

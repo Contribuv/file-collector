@@ -36,33 +36,33 @@
 
 /* ---- CSS 变量：深色模式（通过 data-theme="dark" 切换） ---- */
 :root[data-theme="dark"] {
-    --gw-bg: #1a1a1a;
-    --gw-window-bg: #2c2c2e;
-    --gw-sidebar-bg: #1c1c1e;
-    --gw-card-bg: #3a3a3c;
-    --gw-text-primary: #f5f5f7;
-    --gw-text-secondary: #98989d;
-    --gw-text-tertiary: #636366;
-    --gw-border: #48484a;
-    --gw-border-light: #38383a;
-    --gw-accent: #0a84ff;
-    --gw-accent-hover: #409cff;
-    --gw-accent-bg: rgba(10,132,255,0.15);
-    --gw-danger: #ff453a;
+    --gw-bg: #0f1117;
+    --gw-window-bg: #1d2230;
+    --gw-sidebar-bg: #161924;
+    --gw-card-bg: #1d2230;
+    --gw-text-primary: #e8eaf2;
+    --gw-text-secondary: #8e94a6;
+    --gw-text-tertiary: #6b7184;
+    --gw-border: #2d3344;
+    --gw-border-light: #232838;
+    --gw-accent: #5ea1ff;
+    --gw-accent-hover: #7ab4ff;
+    --gw-accent-bg: rgba(94,161,255,.14);
+    --gw-danger: #ff5d52;
     --gw-danger-hover: #ff6961;
-    --gw-danger-bg: rgba(255,69,58,0.15);
-    --gw-success: #30d158;
-    --gw-success-bg: rgba(48,209,88,0.15);
-    --gw-warning: #ff9f0a;
-    --gw-warning-bg: rgba(255,159,10,0.15);
-    --gw-input-bg: #2c2c2e;
-    --gw-input-border: #48484a;
-    --gw-input-disabled-bg: #1c1c1e;
-    --gw-shadow: 0 2px 24px rgba(0,0,0,0.3);
-    --gw-status-bar-bg: #1c1c1e;
-    --gw-log-bg: #1a1a1a;
-    --gw-log-text: #d4d4d4;
-    --gw-scrollbar: #48484a;
+    --gw-danger-bg: rgba(255,93,82,.14);
+    --gw-success: #34d27a;
+    --gw-success-bg: rgba(52,210,122,.14);
+    --gw-warning: #ffb13c;
+    --gw-warning-bg: rgba(255,177,60,.14);
+    --gw-input-bg: #1d2230;
+    --gw-input-border: #2d3344;
+    --gw-input-disabled-bg: #161924;
+    --gw-shadow: 0 6px 16px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.25);
+    --gw-status-bar-bg: #161924;
+    --gw-log-bg: #161924;
+    --gw-log-text: #d0d4e0;
+    --gw-scrollbar: #2d3344;
 }
 
 /* ---- 基础重置 ---- */

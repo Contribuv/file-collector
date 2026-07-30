@@ -12,7 +12,7 @@
   position: relative;
   width: 44px;
   height: 24px;
-  background: #d1d5db;
+  background: var(--c-gray-300);
   border-radius: 12px;
   transition: background 0.2s;
   flex-shrink: 0;
@@ -24,7 +24,7 @@
   left: 2px;
   width: 20px;
   height: 20px;
-  background: #fff;
+  background: var(--c-white);
   border-radius: 50%;
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
@@ -34,7 +34,7 @@
 }
 .field-muted {
   opacity: 0.55;
-  background-color: #f3f4f6 !important;
+  background-color: var(--c-gray-100) !important;
   cursor: not-allowed;
 }
 
@@ -64,7 +64,7 @@
   padding: 20px;
 }
 .share-modal-panel {
-  background: #fff;
+  background: var(--c-white);
   border-radius: 0px 0px 0px 0px;
   max-width: 640px;
   width: 100%;
@@ -82,13 +82,13 @@
   border-bottom: 1px solid #e8e8ed;
   flex-shrink: 0;
 }
-.share-modal-header h3 { font-size: 1rem; font-weight: 600; margin: 0; color: #1a1a2e; }
+.share-modal-header h3 { font-size: 1rem; font-weight: 600; margin: 0; color: var(--c-text); }
 .share-modal-close {
   background: none; border: none; font-size: 22px; cursor: pointer;
   color: #9ca3af; padding: 2px 6px; border-radius: 4px; line-height: 1;
   transition: color .15s, background .15s;
 }
-.share-modal-close:hover { color: #374151; background: #f3f4f6; }
+.share-modal-close:hover { color: var(--c-text); background: var(--c-gray-100); }
 .share-modal-body {
   padding: 16px 20px;
   overflow-y: auto;
@@ -133,7 +133,7 @@
   gap: 6px 12px;
   padding: 8px 12px;
   margin-bottom: 8px;
-  background: #f0fdf4;
+  background: var(--c-success-light);
   border: 1px solid #86efac;
   border-radius: 6px;
   font-size: .82rem;
@@ -143,7 +143,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: #15803d;
+  color: var(--c-success);
 }
 .attach-current-name {
   font-weight: 500;
@@ -152,7 +152,7 @@
   white-space: nowrap;
 }
 .attach-current-size {
-  color: #6b7280;
+  color: var(--c-text-soft);
   font-size: .74rem;
   white-space: nowrap;
 }
@@ -162,7 +162,7 @@
   gap: 4px;
   background: none;
   border: 1px solid #fca5a5;
-  color: #dc2626;
+  color: var(--c-danger);
   padding: 3px 10px;
   border-radius: 4px;
   font-size: .76rem;
@@ -170,7 +170,7 @@
   white-space: nowrap;
   transition: background .15s;
 }
-.attach-remove-btn:hover { background: #fef2f2; }
+.attach-remove-btn:hover { background: var(--c-danger-light); }
 
 /* 附件上传进度条 */
 .attach-progress-wrap {
@@ -182,7 +182,7 @@
 .attach-progress-bar-bg {
   flex: 1;
   height: 6px;
-  background: #e5e7eb;
+  background: var(--c-border);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -195,7 +195,7 @@
 }
 .attach-progress-text {
   font-size: .74rem;
-  color: #6b7280;
+  color: var(--c-text-soft);
   min-width: 32px;
   text-align: right;
   white-space: nowrap;
@@ -204,4 +204,84 @@
 @keyframes formToastIn {
   from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ============================================================
+   暗色模式覆盖 — admin_link_form.html
+   开关、滑块、模态框、附件区、进度条
+   ============================================================ */
+html[data-theme="dark"] .switch-track { background: var(--c-gray-200); }
+html[data-theme="dark"] .form-switch input:checked + .switch-track { background: var(--c-primary); }
+html[data-theme="dark"] .field-muted { background-color: var(--c-gray-100) !important; }
+
+/* ===== 表单输入框暗色适配 ===== */
+html[data-theme="dark"] #link-form .form-input,
+html[data-theme="dark"] #link-form .form-select,
+html[data-theme="dark"] #link-form .form-textarea,
+html[data-theme="dark"] #link-form input.form-input,
+html[data-theme="dark"] #link-form input[type="text"].form-input,
+html[data-theme="dark"] #link-form input[type="password"].form-input,
+html[data-theme="dark"] #link-form input[type="email"].form-input,
+html[data-theme="dark"] #link-form input[type="number"].form-input,
+html[data-theme="dark"] #link-form .form-input-sm,
+html[data-theme="dark"] #link-form input.form-input-sm {
+  background: var(--c-gray-100) !important;
+  border-color: var(--c-gray-200) !important;
+  color: var(--c-text) !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+html[data-theme="dark"] #link-form .form-input::placeholder,
+html[data-theme="dark"] #link-form .form-input-sm::placeholder {
+  color: var(--c-text-muted) !important;
+  opacity: 1 !important;
+}
+html[data-theme="dark"] #link-form .form-input:focus,
+html[data-theme="dark"] #link-form .form-input-sm:focus {
+  background: var(--c-white) !important;
+  border-color: var(--c-primary) !important;
+  box-shadow: 0 0 0 3px rgba(94,161,255,.15);
+}
+html[data-theme="dark"] #link-form .form-input:-webkit-autofill,
+html[data-theme="dark"] #link-form .form-input-sm:-webkit-autofill {
+  -webkit-text-fill-color: var(--c-text) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--c-gray-100) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+html[data-theme="dark"] .share-modal-overlay { background: rgba(0,0,0,.75); }
+html[data-theme="dark"] .share-modal-panel {
+  background: var(--c-white);
+  box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  border: 1px solid var(--c-border);
+}
+html[data-theme="dark"] .share-modal-header {
+  border-bottom-color: var(--c-border);
+}
+html[data-theme="dark"] .share-modal-header h3 { color: var(--c-text); }
+html[data-theme="dark"] .share-modal-close { color: var(--c-text-soft); }
+html[data-theme="dark"] .share-modal-close:hover { color: var(--c-text); background: var(--c-gray-100); }
+html[data-theme="dark"] .share-modal-footer { border-top-color: var(--c-border); }
+
+html[data-theme="dark"] .attach-current {
+  background: rgba(52,210,122,.1);
+  border-color: rgba(52,210,122,.4);
+}
+html[data-theme="dark"] .attach-current-info { color: var(--c-success); }
+html[data-theme="dark"] .attach-current-size { color: var(--c-text-soft); }
+html[data-theme="dark"] .attach-remove-btn {
+  border-color: rgba(255,93,82,.4);
+  color: var(--c-danger);
+}
+html[data-theme="dark"] .attach-remove-btn:hover { background: rgba(255,93,82,.12); }
+
+html[data-theme="dark"] .attach-progress-bar-bg { background: var(--c-gray-200); }
+
+html[data-theme="dark"] #batch-upload-dropzone {
+  background: var(--c-bg-elev) !important;
+  border-color: var(--c-border) !important;
+}
+html[data-theme="dark"] #batch-upload-dropzone:hover {
+  border-color: var(--c-primary) !important;
+  background: rgba(94,161,255,.06) !important;
 }

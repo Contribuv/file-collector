@@ -112,19 +112,17 @@
           <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter, per_page=per_page) }}" class="btn btn-sm">下一页</a>
           {% endif %}
         </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <label style="font-size:.8rem;color:#999;">每页显示</label>
-          <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="200" step="1"
-                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
-          <span style="font-size:.78rem;color:#aaa;">条</span>
+        <div class="per-page-group">
+          <label class="per-page-label" for="per-page-input">每页显示</label>
+          <input type="number" id="per-page-input" class="per-page-input" value="{{ per_page }}" min="5" max="200" step="1">
+          <span class="per-page-unit">条</span>
         </div>
       </div>
       {% else %}
-      <div class="card-footer" style="padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:6px;">
-        <label style="font-size:.8rem;color:#999;">每页显示</label>
-        <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="200" step="1"
-               style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
-        <span style="font-size:.78rem;color:#aaa;">条</span>
+      <div class="card-footer per-page-group" style="padding:8px 16px;justify-content:center;">
+        <label class="per-page-label" for="per-page-input">每页显示</label>
+        <input type="number" id="per-page-input" class="per-page-input" value="{{ per_page }}" min="5" max="200" step="1">
+        <span class="per-page-unit">条</span>
       </div>{% endif %}
     </div>
   </div>

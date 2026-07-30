@@ -2,16 +2,14 @@
     ".url": {
         "file-collector.main": {
             "title": "文件收集器",
+            "desc": "收集文件的应用",
             "icon": "images/icon-{0}.png",
             "type": "iframe",
             "protocol": "",
             "gatewaySocket": "app.sock",
             "gatewayPrefix": "/app/file-collector",
             "url": "/app/file-collector/gateway",
-            "allUsers": true,
-            "control": {
-                "accessPerm": "hidden"
-            }
+            "allUsers": true
         }
     }
 }

@@ -4,6 +4,36 @@
 {% block content %}
 <style>
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  /* 暗色模式 — btn-primary 按钮 */
+  html[data-theme="dark"] .btn-primary {
+    background: #5ea1ff;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(94,161,255,.4);
+  }
+  html[data-theme="dark"] .btn-primary:hover {
+    background: #7ab4ff;
+    color: #fff !important;
+  }
+  html[data-theme="dark"] .btn-outline {
+    background: transparent;
+    border-color: #2d3344;
+    color: #e8eaf2;
+  }
+  html[data-theme="dark"] .btn-outline:hover {
+    background: rgba(94,161,255,.1);
+    color: #5ea1ff;
+  }
+  /* 暗色模式 — 上传区 */
+  html[data-theme="dark"] #batch-upload-dropzone {
+    background: #1d2230;
+    border-color: #2d3344;
+    color: #8e94a6;
+  }
+  html[data-theme="dark"] #batch-upload-dropzone:hover {
+    border-color: #5ea1ff;
+    background: rgba(94,161,255,.08);
+    color: #e8eaf2;
+  }
 </style>
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <div class="admin-layout">
@@ -15,9 +45,9 @@
         <a href="{{ url_for('admin_links') }}" class="btn btn-sm btn-outline">← 返回列表</a>
       </div>
       <div class="card-body" style="max-width:600px;margin:0 auto;padding:32px 24px;">
-        <div style="padding-bottom:24px;border-bottom:1px solid #e5e7eb;margin-bottom:24px;">
-          <h4 style="font-size:1rem;margin-bottom:16px;color:#333;">1. 下载模板</h4>
-          <p style="font-size:.875rem;color:#666;margin-bottom:16px;line-height:1.6;">
+        <div style="padding-bottom:24px;border-bottom:1px solid var(--c-border);margin-bottom:24px;">
+          <h4 style="font-size:1rem;margin-bottom:16px;">1. 下载模板</h4>
+          <p style="font-size:.875rem;color:var(--c-text-soft);margin-bottom:16px;line-height:1.6;">
             点击下方按钮下载Excel模板文件，填写收集链接信息后再上传导入。
           </p>
           <a href="{{ url_for('download_link_template') }}" class="btn btn-primary" download>
@@ -28,32 +58,32 @@
             </svg>
             下载模板文件
           </a>
-          <div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:.8rem;color:#166534;">
+          <div style="margin-top:16px;padding:12px;background:var(--c-success-light);border:1px solid var(--c-success-border);border-radius:8px;font-size:.8rem;color:var(--c-success);">
             <strong>提示：</strong>模板中包含两条演示数据（前两行），导入时不会被实际创建，请放心填写。
           </div>
         </div>
 
         <div>
-          <h4 style="font-size:1rem;margin-bottom:16px;color:#333;">2. 上传导入</h4>
-          <p style="font-size:.875rem;color:#666;margin-bottom:16px;line-height:1.6;">
+          <h4 style="font-size:1rem;margin-bottom:16px;">2. 上传导入</h4>
+          <p style="font-size:.875rem;color:var(--c-text-soft);margin-bottom:16px;line-height:1.6;">
             填写完模板后，点击下方区域上传Excel文件进行批量创建。
           </p>
-          <div id="batch-upload-dropzone" style="border:2px dashed #d1d5db;border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:#f9fafb;transition:all .2s;"
+          <div id="batch-upload-dropzone" style="border:2px dashed var(--c-border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--c-gray-50);transition:all .2s;"
                onclick="document.getElementById('batch-file-input').click()"
-               ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
-               ondragleave="this.style.borderColor='#d1d5db';this.style.background='#f9fafb'"
-               ondrop="event.preventDefault();this.style.borderColor='#d1d5db';this.style.background='#f9fafb';handleBatchDrop(event)">
+               ondragover="event.preventDefault();this.style.borderColor='var(--c-primary)';this.style.background='var(--c-primary-light)'"
+               ondragleave="this.style.borderColor='var(--c-border)';this.style.background='var(--c-gray-50)'"
+               ondrop="event.preventDefault();this.style.borderColor='var(--c-border)';this.style.background='var(--c-gray-50)';handleBatchDrop(event)">
             <input type="file" id="batch-file-input" style="display:none;" accept=".csv" onchange="handleBatchFileSelect(this)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40" style="margin:0 auto 12px;color:#9ca3af;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40" style="margin:0 auto 12px;color:var(--c-text-muted);">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <p style="color:#6b7280;font-size:.9rem;">点击或拖拽文件到此处</p>
-            <p style="color:#9ca3af;font-size:.8rem;margin-top:6px;">支持 .csv 格式（可用Excel打开编辑）</p>
+            <p style="color:var(--c-text-soft);font-size:.9rem;">点击或拖拽文件到此处</p>
+            <p style="color:var(--c-text-muted);font-size:.8rem;margin-top:6px;">支持 .csv 格式（可用Excel打开编辑）</p>
           </div>
 
-          <div style="margin-top:16px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.8rem;color:#92400e;">
+          <div style="margin-top:16px;padding:12px;background:var(--c-warning-light);border:1px solid var(--c-warning-border);border-radius:8px;font-size:.8rem;color:var(--c-warning);">
             <strong>重要说明：</strong>
             <ul style="margin:8px 0 0 20px;padding:0;list-style:disc;">
               <li>模板中为空的单元格将使用系统默认值</li>
@@ -65,40 +95,40 @@
 
         <div id="batch-upload-result" style="display:none;margin-top:24px;">
           <!-- 上传中状态 -->
-          <div id="batch-upload-loading" style="display:none;padding:20px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;text-align:center;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28" style="color:#3b82f6;animation:spin 1s linear infinite;">
+          <div id="batch-upload-loading" style="display:none;padding:20px;background:var(--c-primary-light);border:1px solid var(--c-primary-border);border-radius:8px;text-align:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28" style="color:var(--c-primary);animation:spin 1s linear infinite;">
               <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="8"/>
             </svg>
-            <p style="font-size:.85rem;color:#1e40af;margin:8px 0 0;">正在导入中，请稍候...</p>
+            <p style="font-size:.85rem;color:var(--c-primary);margin:8px 0 0;">正在导入中，请稍候...</p>
           </div>
           <!-- 成功状态（含行级错误详情） -->
-          <div id="batch-upload-success" style="display:none;padding:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">
+          <div id="batch-upload-success" style="display:none;padding:16px;background:var(--c-success-light);border:1px solid var(--c-success-border);border-radius:8px;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#22c55e;flex-shrink:0;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:var(--c-success);flex-shrink:0;">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="16 10 10 16 8 14"/>
               </svg>
               <div style="flex:1;min-width:0;">
-                <p style="font-weight:600;color:#166534;margin:0;font-size:.95rem;">导入完成</p>
-                <p id="batch-success-text" style="font-size:.82rem;color:#15803d;margin:4px 0 0;line-height:1.5;"></p>
+                <p style="font-weight:600;color:var(--c-success);margin:0;font-size:.95rem;">导入完成</p>
+                <p id="batch-success-text" style="font-size:.82rem;color:var(--c-success);margin:4px 0 0;line-height:1.5;"></p>
                 <div id="batch-success-details"></div>
-                <a href="{{ url_for('admin_links') }}" style="display:inline-block;margin-top:10px;font-size:.85rem;color:#3b82f6;text-decoration:none;">
+                <a href="{{ url_for('admin_links') }}" style="display:inline-block;margin-top:10px;font-size:.85rem;color:var(--c-primary);text-decoration:none;">
                   → 返回收集链接列表
                 </a>
               </div>
             </div>
           </div>
           <!-- 错误状态（整体导入失败） -->
-          <div id="batch-upload-error" style="display:none;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+          <div id="batch-upload-error" style="display:none;padding:16px;background:var(--c-danger-light);border:1px solid var(--c-danger-border);border-radius:8px;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:#ef4444;flex-shrink:0;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" style="color:var(--c-danger);flex-shrink:0;">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="15" y1="9" x2="9" y2="15"/>
                 <line x1="9" y1="9" x2="15" y2="15"/>
               </svg>
               <div style="flex:1;min-width:0;">
-                <p style="font-weight:600;color:#991b1b;margin:0;font-size:.95rem;">导入失败</p>
-                <p id="batch-error-text" style="font-size:.82rem;color:#b91c1c;margin:4px 0 0;line-height:1.5;"></p>
+                <p style="font-weight:600;color:var(--c-danger);margin:0;font-size:.95rem;">导入失败</p>
+                <p id="batch-error-text" style="font-size:.82rem;color:var(--c-danger);margin:4px 0 0;line-height:1.5;"></p>
               </div>
             </div>
           </div>
@@ -179,20 +209,20 @@ function showBatchSuccess(message, details) {
 
   if (details && details.length > 0) {
     // 有行级错误：显示详情列表
-    var html = '<p style="font-weight:600;color:#991b1b;margin:12px 0 6px;font-size:.85rem;">以下行存在问题，未被创建：</p>';
-    html += '<ul style="margin:0;padding:0 0 0 18px;font-size:.78rem;color:#b91c1c;line-height:1.7;max-height:200px;overflow-y:auto;">';
+    var html = '<p style="font-weight:600;color:var(--c-warning);margin:12px 0 6px;font-size:.85rem;">以下行存在问题，未被创建：</p>';
+    html += '<ul style="margin:0;padding:0 0 0 18px;font-size:.78rem;color:var(--c-warning);line-height:1.7;max-height:200px;overflow-y:auto;">';
     for (var i = 0; i < details.length; i++) {
       html += '<li>' + escapeHtml(details[i]) + '</li>';
     }
     html += '</ul>';
     detailsEl.innerHTML = html;
     // 变成警告样式
-    document.getElementById('batch-upload-success').style.background = '#fffbeb';
-    document.getElementById('batch-upload-success').style.borderColor = '#fde68a';
+    document.getElementById('batch-upload-success').style.background = 'var(--c-warning-light)';
+    document.getElementById('batch-upload-success').style.borderColor = 'var(--c-warning-border)';
   } else {
     // 全部成功，正常绿色样式
-    document.getElementById('batch-upload-success').style.background = '#f0fdf4';
-    document.getElementById('batch-upload-success').style.borderColor = '#86efac';
+    document.getElementById('batch-upload-success').style.background = '';
+    document.getElementById('batch-upload-success').style.borderColor = '';
   }
   textEl.textContent = message;
 }

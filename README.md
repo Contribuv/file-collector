@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.31-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.32-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,14 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.32
+- **暗色主题全面重构**：统一 CSS 变量系统，所有页面使用同一套颜色令牌
+- **表单输入框修复**：修复暗色模式下 input/select/textarea 背景色为白色的问题，增加浏览器自动填充覆盖
+- **按钮样式优化**：统一按钮暗色样式，修复 hover 状态颜色对比度不足
+- **浮窗组件适配**：修复用户操作浮窗、链接编辑浮窗在暗色模式下的颜色显示
+- **响应式改进**：修复移动端邀请码生成区控件高度不一致问题，统一为 28px
+- **代码精简**：删除 admin-inline CSS 中约 1000+ 行冗余暗色模式代码
 
 ### v2.3.31
 - 修复收集页单文件下载缺少 `expires` 参数导致无通行证时下载失败的问题

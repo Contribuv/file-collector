@@ -147,6 +147,7 @@ start() {
             log "  安装依赖..."
 
             # 国内镜像加速（离线 wheel 失败时回退用）
+            export PIP_CACHE_DIR="/tmp/pip-cache-$$"
             PIP_INDEX="https://pypi.tuna.tsinghua.edu.cn/simple"
             PIP_OPTS="-i $PIP_INDEX --no-cache-dir --timeout 60 --retries 3"
 

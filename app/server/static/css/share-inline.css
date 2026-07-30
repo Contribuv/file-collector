@@ -4,9 +4,18 @@
 :root{--batch-accent:#3b82f6}
 .cp-loading-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;animation:cpLoFadeIn .2s ease}
 @keyframes cpLoFadeIn{from{opacity:0}to{opacity:1}}
-.cp-loading-card{background:#fff;border-radius:12px;padding:32px 40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);max-width:320px;width:90%}
+.cp-loading-card{background:var(--c-white);border-radius:12px;padding:32px 40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);max-width:320px;width:90%}
 .cp-loading-spinner{width:40px;height:40px;margin:0 auto 16px;border:3px solid #e4e6eb;border-top-color:#3b82f6;border-radius:50%;animation:cpLoSpin .6s linear infinite}
 @keyframes cpLoSpin{to{transform:rotate(360deg)}}
-.cp-loading-text{font-size:.95rem;font-weight:600;color:#1a1d28;margin-bottom:6px}
+.cp-loading-text{font-size:.95rem;font-weight:600;color:var(--c-text);margin-bottom:6px}
 .cp-loading-sub{font-size:.78rem;color:#9ca3af}
 @media(max-width:768px){.cp-loading-card{padding:24px 28px}}
+
+/* ============================================================
+   暗色模式覆盖 — share.html 加载浮窗
+   ============================================================ */
+html[data-theme="dark"] .cp-loading-overlay { background: rgba(0,0,0,.75); }
+html[data-theme="dark"] .cp-loading-card { background: var(--c-white); box-shadow: 0 8px 32px rgba(0,0,0,.5); border: 1px solid var(--c-border); }
+html[data-theme="dark"] .cp-loading-spinner { border-color: var(--c-gray-200); border-top-color: var(--c-primary); }
+html[data-theme="dark"] .cp-loading-text { color: var(--c-text); }
+html[data-theme="dark"] .cp-loading-sub { color: var(--c-text-soft); }

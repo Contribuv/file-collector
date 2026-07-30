@@ -70,16 +70,15 @@
 
 {% block styles %}
 <style>
-.auth-logo { text-align: center; margin-bottom: 20px; }
-.auth-logo img { width: 48px; height: 48px; border-radius: 10px; }
+.auth-logo { display: none; }
 .auth-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
-.auth-subtitle { color: #86868b; margin-bottom: 28px; }
+.auth-subtitle { color: var(--c-text-soft); margin-bottom: 28px; }
 .auth-tip {
   margin-bottom: 20px; padding: 10px 14px; border-radius: 8px;
   font-size: .8rem; text-align: center; border: 1px solid;
 }
-.auth-tip--err { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.auth-tip--ok { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.auth-tip--err { background: var(--c-danger-light); color: var(--c-danger); border-color: var(--c-danger-border); }
+.auth-tip--ok { background: var(--c-success-light); color: var(--c-success); border-color: var(--c-success-border); }
 </style>
 {% endblock %}
 

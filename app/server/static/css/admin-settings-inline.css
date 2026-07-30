@@ -105,5 +105,142 @@
   margin-top: 8px;
 }
 
+/* ============================================================
+   暗色模式覆盖 — admin_settings.html
+   ============================================================ */
+html[data-theme="dark"] .settings-grid .card {
+  background: var(--c-white);
+  border-color: var(--c-border);
+}
+html[data-theme="dark"] .settings-grid .card-header {
+  background: var(--c-white);
+  border-bottom-color: var(--c-border);
+}
+html[data-theme="dark"] .settings-grid .card-header h3 {
+  color: var(--c-text);
+}
+html[data-theme="dark"] .settings-grid .card-body {
+  background: var(--c-white);
+}
+html[data-theme="dark"] .settings-grid .form-input,
+html[data-theme="dark"] .settings-grid input.form-input,
+html[data-theme="dark"] .settings-grid input[type="text"].form-input,
+html[data-theme="dark"] .settings-grid input[type="password"].form-input,
+html[data-theme="dark"] .settings-grid input[type="email"].form-input,
+html[data-theme="dark"] .settings-grid input[type="number"].form-input {
+  background: var(--c-gray-100) !important;
+  border-color: var(--c-gray-200) !important;
+  color: var(--c-text) !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+html[data-theme="dark"] .settings-grid .form-input::placeholder {
+  color: var(--c-text-muted) !important;
+  opacity: 1 !important;
+}
+html[data-theme="dark"] .settings-grid .form-input:focus,
+html[data-theme="dark"] .settings-grid input.form-input:focus {
+  background: var(--c-white) !important;
+  border-color: var(--c-primary) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(94,161,255,.15);
+}
+/* 覆盖浏览器自动填充样式 */
+html[data-theme="dark"] .settings-grid .form-input:-webkit-autofill,
+html[data-theme="dark"] .settings-grid .form-input:-webkit-autofill:hover,
+html[data-theme="dark"] .settings-grid .form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--c-text) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--c-gray-100) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: var(--c-text);
+}
+html[data-theme="dark"] .settings-grid .form-textarea,
+html[data-theme="dark"] .settings-grid textarea.form-textarea {
+  background: var(--c-gray-100) !important;
+  border-color: var(--c-gray-200) !important;
+  color: var(--c-text) !important;
+  -webkit-appearance: none !important;
+}
+html[data-theme="dark"] .settings-grid .form-textarea::placeholder {
+  color: var(--c-text-muted) !important;
+  opacity: 1 !important;
+}
+html[data-theme="dark"] .settings-grid .form-textarea:focus {
+  background: var(--c-white) !important;
+  border-color: var(--c-primary) !important;
+  outline: none;
+}
+html[data-theme="dark"] .settings-grid .form-label {
+  color: var(--c-text-soft);
+}
+html[data-theme="dark"] .settings-grid .form-hint {
+  color: #6b7184;
+}
+html[data-theme="dark"] .settings-grid .form-select {
+  background: var(--c-white);
+  border-color: var(--c-border);
+  color: var(--c-text);
+}
+html[data-theme="dark"] .settings-grid .form-select option {
+  background: var(--c-white);
+}
+html[data-theme="dark"] .settings-grid .form-select:focus {
+  border-color: var(--c-primary);
+  outline: none;
+}
+html[data-theme="dark"] .settings-grid .btn-primary {
+  background: var(--c-primary);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(94,161,255,.4);
+}
+html[data-theme="dark"] .settings-grid .btn-primary:hover {
+  background: var(--c-primary-hover);
+  color: #fff !important;
+}
+html[data-theme="dark"] .settings-grid .btn-outline {
+  background: transparent;
+  border-color: var(--c-border);
+  color: var(--c-text);
+}
+html[data-theme="dark"] .settings-grid .btn-outline:hover {
+  background: rgba(94,161,255,.1);
+  color: var(--c-primary);
+}
+html[data-theme="dark"] .settings-grid .btn-danger {
+  background: var(--c-danger);
+  color: #fff;
+}
+html[data-theme="dark"] .settings-grid .btn-danger:hover {
+  background: var(--c-danger);
+  color: #fff !important;
+}
+html[data-theme="dark"] .settings-grid .toggle-text {
+  color: var(--c-text);
+}
+html[data-theme="dark"] .info-row {
+  border-bottom-color: var(--c-border);
+}
+html[data-theme="dark"] .info-label {
+  color: var(--c-text-soft);
+}
+html[data-theme="dark"] .info-value {
+  color: var(--c-text);
+}
+html[data-theme="dark"] .db-section-icon {
+  background: var(--c-gray-100) !important;
+}
+html[data-theme="dark"] .db-divider {
+  background: var(--c-border);
+}
+html[data-theme="dark"] .db-section-title {
+  color: var(--c-text);
+}
+html[data-theme="dark"] .db-section-desc {
+  color: var(--c-text-soft);
+}
+html[data-theme="dark"] .db-section a {
+  color: var(--c-primary);
+}
+
 
 

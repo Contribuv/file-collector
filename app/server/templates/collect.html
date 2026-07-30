@@ -11,6 +11,30 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/_preview-error.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script>
+    (function(){
+      try {
+        var saved = localStorage.getItem('fc-theme');
+        var url = new URL(window.location.href);
+        var param = (url.searchParams.get('theme') || '').trim().toLowerCase();
+        var fnOS = (document.body && document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+        var mode;
+        if (saved === 'dark' || saved === 'light') {
+          mode = saved;
+        } else if (param === 'dark' || param === 'light') {
+          mode = param;
+        } else if (fnOS === 'dark') {
+          mode = 'dark';
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          mode = 'dark';
+        } else {
+          mode = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', mode);
+      } catch(e) { document.documentElement.setAttribute('data-theme','light'); }
+    })();
+  </script>
 </head>
 <body>
 
@@ -730,11 +754,11 @@ function updateRemainingDisplay() {
   tileEl.style.borderColor = '';
   if (totalUsed > MAX_FILES) {
     tileEl.classList.add('danger');
-    tileEl.style.borderColor = '#fecaca';
+    tileEl.style.borderColor = '';
     document.getElementById('upload-btn').disabled = true;
   } else if (totalUsed === MAX_FILES) {
     tileEl.classList.add('warn');
-    tileEl.style.borderColor = '#ffd591';
+    tileEl.style.borderColor = '';
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;
   } else {
     document.getElementById('upload-btn').disabled = selectedFiles.length === 0;

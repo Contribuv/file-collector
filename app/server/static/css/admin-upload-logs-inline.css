@@ -26,7 +26,7 @@
 .log-label {
   flex-shrink: 0;
   width: 38px;
-  color: #8e8e93;
+  color: var(--c-text-soft);
   font-size: .72rem;
   font-weight: 500;
 }
@@ -34,7 +34,7 @@
   flex: 1;
   min-width: 0;
   word-break: break-word;
-  color: #1c1c1e;
+  color: var(--c-text);
 }
 
 /* 摘要栏 */
@@ -43,7 +43,7 @@
   flex-wrap: wrap;
   gap: 6px 16px;
   padding: 8px 16px;
-  color: #666;
+  color: var(--c-text-soft);
   font-size: .8125rem;
   border-bottom: 1px solid #eee;
   line-height: 1.7;
@@ -89,8 +89,8 @@
   white-space: nowrap;
 }
 .admin-table--logs th {
-  background: #fafafa;
-  color: #666;
+  background: var(--c-gray-50);
+  color: var(--c-text-soft);
   font-weight: 600;
   font-size: .78rem;
 }

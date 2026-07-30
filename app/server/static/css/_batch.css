@@ -58,7 +58,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 10px; border-radius: 4px;
   border: 1px solid var(--c-gray-200);
-  background: #fff; color: var(--c-gray-500);
+  background: var(--c-white); color: var(--c-gray-500);
   font-size: .78rem; font-weight: 500;
   cursor: pointer; font-family: inherit;
   transition: all .12s; white-space: nowrap; flex-shrink: 0;
@@ -73,7 +73,7 @@
 /* 批量操作底栏 */
 .cp-batch-bar {
   position: fixed; bottom: 0; left: 0; right: 0;
-  background: #fff; border-top: 1px solid var(--c-gray-200);
+  background: var(--c-white); border-top: 1px solid var(--c-gray-200);
   box-shadow: 0 -2px 12px rgba(0,0,0,.08);
   padding: 10px var(--cp-pad);
   display: none; align-items: center; justify-content: center;
@@ -98,7 +98,7 @@
 }
 .cp-batch-btn-accent:hover { filter: brightness(.88); }
 .cp-batch-btn-cancel {
-  background: #fff; color: var(--c-gray-500); border-color: var(--c-gray-300);
+  background: var(--c-white); color: var(--c-gray-500); border-color: var(--c-gray-300);
 }
 .cp-batch-btn-cancel:hover { background: var(--c-bg); }
 

@@ -61,17 +61,17 @@
               <td class="col-title">{{ link['title'] }}</td>
               <td class="col-share">
                 {% if link['share_enabled'] and link['status'] == 'active' %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-success);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                   已开启
                 </span>
                 {% elif link['share_enabled'] and link['status'] != 'active' %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:#d97706;font-size:.82rem;white-space:nowrap;">
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-warning);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   随链接停用
                 </span>
                 {% else %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-text-muted);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                   未开启
                 </span>
@@ -82,12 +82,12 @@
               </td>
               <td class="col-status">
                 {% if link['status'] == 'active' %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:#059669;font-size:.82rem;white-space:nowrap;">
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-success);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
                   已启用
                 </span>
                 {% else %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:#999;font-size:.82rem;white-space:nowrap;">
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-text-muted);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                   已停用
                 </span>
@@ -151,18 +151,20 @@
           {% endif %}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <label style="font-size:.8rem;color:#999;">每页显示</label>
+          <label class="per-page-label">每页显示</label>
           <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
-                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
-          <span style="font-size:.78rem;color:#aaa;">条</span>
+                 style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;background:#fff;color:#1a1d28;"
+                 class="per-page-input">
+          <span class="per-page-unit">条</span>
         </div>
       </div>
       {% else %}
       <div class="card-footer" style="padding:8px 16px;display:flex;align-items:center;justify-content:center;gap:6px;">
-        <label style="font-size:.8rem;color:#999;">每页显示</label>
+        <label style="font-size:.8rem;color:var(--c-text-muted);">每页显示</label>
         <input type="number" id="per-page-input" value="{{ per_page }}" min="5" max="100" step="1"
-               style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:.85rem;text-align:center;">
-        <span style="font-size:.78rem;color:#aaa;">条</span>
+               style="width:56px;padding:4px 8px;border:1px solid var(--c-border);border-radius:4px;font-size:.85rem;text-align:center;background:var(--c-bg-input,var(--c-white));color:var(--c-text);"
+               class="per-page-input">
+        <span style="font-size:.78rem;color:var(--c-text-muted);">条</span>
       </div>{% endif %}
     </div>
   </div>
@@ -209,8 +211,8 @@
     </div>
     <div class="modal-body">
       <p id="batch-delete-text" style="margin:0 0 12px;line-height:1.6;font-weight:500;">确定要删除选中的链接吗？</p>
-      <p style="margin:0;line-height:1.6;color:#666;font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。</p>
-      <div id="batch-delete-list" style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:6px;max-height:120px;overflow-y:auto;font-size:.82rem;"></div>
+      <p style="margin:0;line-height:1.6;color:var(--c-text-soft);font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。</p>
+      <div id="batch-delete-list" style="margin-top:12px;padding:10px;background:var(--c-bg);border-radius:6px;max-height:120px;overflow-y:auto;font-size:.82rem;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-sm" onclick="closeBatchDeleteModal()">取消</button>

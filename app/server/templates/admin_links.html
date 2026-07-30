@@ -447,15 +447,20 @@ function getBaseUrl() {
 }
 
 function copyToClipboard(text) {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function() { showToast('已复制'); });
+  if (navigator.clipboard && document.hasFocus()) {
+    navigator.clipboard.writeText(text).then(function() { showToast('已复制'); }).catch(function() {
+      fallbackCopy(text);
+    });
   } else {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-    showToast('已复制');
+    fallbackCopy(text);
   }
+}
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); showToast('已复制'); } catch(e) { showToast('复制失败，请手动复制'); }
+  document.body.removeChild(ta);
 }
 
 function escapeHtml(str) {

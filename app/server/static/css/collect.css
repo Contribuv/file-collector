@@ -397,6 +397,14 @@ body {
   color: var(--text-primary);
 }
 .cp-passcode-row input::placeholder { color: var(--text-muted); }
+.cp-passcode-row input:-webkit-autofill,
+.cp-passcode-row input:-webkit-autofill:hover,
+.cp-passcode-row input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: var(--text-primary);
+}
 .cp-passcode-btn {
   flex-shrink: 0;
   padding: 6px 14px;

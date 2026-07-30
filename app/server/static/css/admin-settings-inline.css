@@ -191,7 +191,7 @@ html[data-theme="dark"] .settings-grid .form-select:focus {
 html[data-theme="dark"] .settings-grid .btn-primary {
   background: var(--c-primary);
   color: #fff;
-  box-shadow: 0 2px 6px rgba(94,161,255,.4);
+  box-shadow: none;
 }
 html[data-theme="dark"] .settings-grid .btn-primary:hover {
   background: var(--c-primary-hover);

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.32-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.35-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,16 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.35
+- 更新应用图标
+
+### v2.3.34
+- 修复主题无法跟随飞牛系统的问题：移除 `prefers-color-scheme` 与 `localStorage` 对主题的覆盖，让飞牛系统主题（SDK）无条件接管
+
+### v2.3.33
+- 修复统一网关页面主题自适应：改用飞牛官方 JS SDK（`getPlatformConfig` + `$on('os/theme')`）读取与监听系统主题，替换原有 `body[theme-mode]` 检测
+- 新增 `micro_app=true` 声明，并本地化 `@trimjs/web-app` SDK 以保证离线可用
 
 ### v2.3.32
 - **暗色主题全面重构**：统一 CSS 变量系统，所有页面使用同一套颜色令牌

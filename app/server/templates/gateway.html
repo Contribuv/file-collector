@@ -9,28 +9,12 @@
 </head>
 <body>
 <script>
-// 主题检测：放在 body 最前面，确保 document.body 可用
-// 飞牛官方机制：亮色=无theme-mode属性，暗色=body[theme-mode="dark"]
-// 检测顺序：URL ?theme= > localStorage > body[theme-mode] > 默认浅色
+// 首屏默认浅色，随后由飞牛 SDK(getPlatformConfig) 覆盖为系统真实主题。
+// 仅 URL ?theme= 显式指定时优先；不使用 prefers-color-scheme（飞牛 WebView 中该值与飞牛主题不同步）。
 (function() {
     try {
-        var searchParams = new URLSearchParams(window.location.search);
-        var urlTheme = (searchParams.get('theme') || '').trim().toLowerCase();
-        var saved = localStorage.getItem('gw-theme');
-        var bodyTheme = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
-
-        var theme;
-        if (urlTheme === 'dark' || urlTheme === 'light') {
-            theme = urlTheme;
-        } else if (saved === 'dark' || saved === 'light') {
-            theme = saved;
-        } else if (bodyTheme === 'dark') {
-            // 飞牛在暗色模式设置 body[theme-mode="dark"]
-            theme = 'dark';
-        } else {
-            // 无 theme-mode 属性 = 亮色模式
-            theme = 'light';
-        }
+        var urlTheme = new URLSearchParams(window.location.search).get('theme');
+        var theme = (urlTheme === 'dark' || urlTheme === 'light') ? urlTheme : 'light';
         document.documentElement.setAttribute('data-theme', theme);
     } catch (e) {
         document.documentElement.setAttribute('data-theme', 'light');
@@ -245,14 +229,18 @@ function switchSection(name) {
     if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 }
 
-// 主题切换
+// 应用主题：只设置 data-theme 与图标
+function applyTheme(theme) {
+    if (theme !== 'dark' && theme !== 'light') theme = 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon(theme);
+}
+
+// 手动主题切换（临时覆盖，刷新后由飞牛系统主题重新接管）
 function toggleTheme() {
-    var html = document.documentElement;
-    var current = html.getAttribute('data-theme') || 'light';
+    var current = document.documentElement.getAttribute('data-theme') || 'light';
     var next = current === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', next);
-    localStorage.setItem('gw-theme', next);
-    updateThemeIcon(next);
+    applyTheme(next);
 }
 
 function updateThemeIcon(theme) {
@@ -294,48 +282,45 @@ function apiPath(suffix) {
 // ============================================================
 // 初始化
 // ============================================================
+// 是否存在用户显式主题偏好（仅 URL ?theme=）
+function hasUserThemeOverride() {
+    var urlTheme = new URLSearchParams(window.location.search).get('theme');
+    return urlTheme === 'dark' || urlTheme === 'light';
+}
+
+// 飞牛官方主题自适应：getPlatformConfig 读取系统主题，$on('os/theme') 监听变化
+// 参考 https://developer.fnnas.com/api/page/ui/
+async function initFnOSTheme() {
+    try {
+        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js') }}");
+        const sdk = new TrimApp();
+
+        const config = await sdk.getPlatformConfig();
+        if (config && (config.theme === 'dark' || config.theme === 'light') && !hasUserThemeOverride()) {
+            applyTheme(config.theme);
+        }
+
+        // 仅 Web 宿主环境（非移动端内嵌、非独立浏览器）支持主题变化监听
+        if (sdk.isWeb === true && sdk.isStandaloneWeb === false) {
+            await sdk.$on('os/theme', function(theme) {
+                if ((theme === 'dark' || theme === 'light') && !hasUserThemeOverride()) {
+                    applyTheme(theme);
+                }
+            });
+        }
+    } catch (e) {
+        // SDK 不可用（独立浏览器/非微应用环境）时保持首屏回退主题
+        console.warn('[gateway] fnOS 主题初始化失败，使用回退主题', e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadCerts();
     poll();
     setInterval(poll, 3000);
     initPortCheck();
     updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
-
-    // 监听 body[theme-mode] 变化（飞牛桌面切换主题时触发）
-    // 飞牛机制：暗色=设 theme-mode="dark"，亮色=移除 theme-mode 属性
-    if (typeof MutationObserver !== 'undefined' && document.body) {
-        var observer = new MutationObserver(function() {
-            if (!localStorage.getItem('gw-theme')) {
-                var urlTheme = new URLSearchParams(window.location.search).get('theme');
-                if (urlTheme !== 'dark' && urlTheme !== 'light') {
-                    var t = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
-                    var newTheme = (t === 'dark') ? 'dark' : 'light';
-                    var current = document.documentElement.getAttribute('data-theme');
-                    if (newTheme !== current) {
-                        document.documentElement.setAttribute('data-theme', newTheme);
-                        updateThemeIcon(newTheme);
-                    }
-                }
-            }
-        });
-        observer.observe(document.body, { attributes: true, attributeFilter: ['theme-mode'] });
-    }
-
-    // 轮询备份：每 2 秒检查 body[theme-mode]
-    setInterval(function() {
-        if (!localStorage.getItem('gw-theme')) {
-            var urlTheme = new URLSearchParams(window.location.search).get('theme');
-            if (urlTheme !== 'dark' && urlTheme !== 'light') {
-                var t = (document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
-                var newTheme = (t === 'dark') ? 'dark' : 'light';
-                var current = document.documentElement.getAttribute('data-theme');
-                if (newTheme !== current) {
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    updateThemeIcon(newTheme);
-                }
-            }
-        }
-    }, 2000);
+    initFnOSTheme();
 
     const wechatEl = document.getElementById('wechatCopy');
     if (wechatEl) {

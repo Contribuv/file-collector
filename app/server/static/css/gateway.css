@@ -618,7 +618,6 @@ body {
     font-family: 'Consolas', 'Monaco', 'SF Mono', monospace;
     font-size: 11px;
     line-height: 1.5;
-    max-height: 280px;
     overflow-y: auto;
 }
 

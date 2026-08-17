@@ -327,6 +327,8 @@ a:active { opacity: .6; }
   color: var(--c-text); display: flex; align-items: center; gap: 8px;
   text-decoration: none; letter-spacing: -.3px;
 }
+.header-brand:hover { opacity: 1; }
+.header-brand:active { opacity: 1; }
 .header-brand img {
   width: 26px; height: 26px; border-radius: 0;
   flex-shrink: 0; object-fit: contain;

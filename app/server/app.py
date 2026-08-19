@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.35"
+VERSION = "2.3.37"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2392,6 +2392,7 @@ def inject_globals():
         'site_title': title,
         'config_title': title,
         'collect_footer_text': get_setting('collect_footer_text', ''),
+        'VERSION': VERSION,
     }
 
 @app.template_filter('parse_json')

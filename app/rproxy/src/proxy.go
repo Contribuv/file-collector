@@ -72,9 +72,12 @@ func (rp *ReverseProxy) Start() error {
 		if strings.Contains(errStr, "context canceled") ||
 			strings.Contains(errStr, "EOF") ||
 			strings.Contains(errStr, "connection reset") {
-			rp.logger.Add("DEBUG", fmt.Sprintf("客户端断开: %s %s", r.Method, r.URL.Path))
+			// 轮询接口（检查更新/日志）的客户端断开是正常行为，不记录，避免日志噪声
+			if r.URL.Path != "/api/check-update" && r.URL.Path != "/api/logs" {
+				rp.logger.Add("DEBUG", fmt.Sprintf("客户端断开: %s %s", r.Method, r.URL.Path))
+			}
 		} else {
-			rp.logger.Add("ERROR", fmt.Sprintf("后端请求失败: %s %s → %v", r.Method, r.URL.Path, err))
+			rp.logger.Add("ERROR", fmt.Sprintf("后端请求失败: %s %s -> %v", r.Method, r.URL.Path, err))
 		}
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 	}
@@ -208,15 +211,15 @@ func (rp *ReverseProxy) handleConn(conn net.Conn) {
 	if peek[0] == 0x16 {
 		tlsConn := tls.Server(&peekConn{Conn: conn, peek: peek}, rp.tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
-			// 降级日志：connection reset 通常是扫描器探测，静默忽略
+			// 扫描器/探测噪声（连接重置、EOF、不支持版本、意外消息）静默忽略，不记录日志
 			errStr := err.Error()
 			if strings.Contains(errStr, "connection reset") ||
 				strings.Contains(errStr, "EOF") ||
-				strings.Contains(errStr, "unsupported versions") {
-				rp.logger.Add("DEBUG", fmt.Sprintf("TLS handshake: %v", err))
-			} else {
-				rp.logger.Add("ERROR", fmt.Sprintf("TLS handshake failed: %v", err))
+				strings.Contains(errStr, "unsupported versions") ||
+				strings.Contains(errStr, "unexpected message") {
+				return
 			}
+			rp.logger.Add("ERROR", fmt.Sprintf("TLS handshake failed: %v", err))
 			return
 		}
 

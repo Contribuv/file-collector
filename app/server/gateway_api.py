@@ -119,10 +119,18 @@ def gateway_index():
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
 
     # 获取版本号（与 manifest 同步）
-    version = "2.3.35"
+    version = "2.3.37"
     try:
         from app import VERSION
         version = VERSION
+    except Exception:
+        pass
+
+    # 获取上传目录路径（与 /admin/settings 一致：自定义路径优先，否则默认）
+    upload_base = ''
+    try:
+        from app import get_upload_base
+        upload_base = get_upload_base() or ''
     except Exception:
         pass
 
@@ -134,6 +142,7 @@ def gateway_index():
         status=status,
         config=config,
         version=version,
+        upload_base=upload_base,
         all_certs_json=json.dumps(certs, ensure_ascii=False))
 
 

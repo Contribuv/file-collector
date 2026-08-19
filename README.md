@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.35-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.37-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,18 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.37
+- 优化安装包大小，删除 onlyoffice 不必要的字体文件
+- 统一网关页面（gateway.html）移动端深度适配
+- 侧边栏移动端改为 3 列网格平铺，全部 Tab 一屏可见，避免横向滑动导致选项不可见
+- 侧边栏项移动端居中显示，移除触摸高亮并新增按压反馈
+- 移动端隐藏侧边栏分隔线、版本号与反馈区，主内容区内边距优化
+- 状态行移动端改为上下堆叠（标签在上、值在下），端口输入行纵向排列、端口状态居中
+
+### v2.3.36
+- 网关页新增"查看文件"Tab：点击调用飞牛文件管理器打开上传目录（与 `/admin/settings` 同源）
+- 优化网关页主题跟随速度：轮询间隔由 5s 缩短为 1s，加节流防叠加请求
 
 ### v2.3.35
 - 更新应用图标

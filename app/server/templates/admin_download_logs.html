@@ -2,7 +2,7 @@
 {% block title %}下载日志 - {{ record['original_name'] }}{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-download-logs-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-download-logs-inline.css', v=VERSION) }}">
 {% endblock %}
 
 {% block content %}

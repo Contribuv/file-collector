@@ -679,17 +679,28 @@ body {
         flex-direction: column;
     }
 
+    /* 移动端：网格平铺全部 tab，避免横滑导致部分选项不可见（可发现性问题） */
     .mac-sidebar {
         width: 100%;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         border-right: none;
         border-bottom: 1px solid var(--gw-border-light);
         padding: 8px;
-        overflow-x: auto;
+        gap: 4px;
     }
 
     .mac-sidebar-item {
         flex-shrink: 0;
+        justify-content: center;
+        padding: 10px 6px;
+        text-align: center;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 触摸按压反馈（非激活项） */
+    .mac-sidebar-item:active {
+        background: var(--gw-accent-bg);
     }
 
     .mac-sidebar-divider,

@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.35
+version               = 2.3.37
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -17,4 +17,4 @@ maintainer            = 豪子
 maintainer_url        = https://www.infowe.site/projects
 distributor           = 豪子
 distributor_url       = https://www.infowe.site/projects
-changelog             = v2.3.35 - 更新应用图标<br>v2.3.34 - 修复主题跟随：移除不可靠的prefers-color-scheme与localStorage覆盖，飞牛系统主题无条件接管<br>v2.3.33 - 修复统一网关页面主题自适应：改用飞牛官方JS SDK读取与监听系统主题<br>v2.3.32 - 全面重构暗色主题：统一CSS变量系统、修复表单输入框/按钮/浮窗等组件暗色适配、优化移动端按钮对齐<br>v2.3.31 - 修复收集页单文件下载缺少expires参数导致无通行证时下载失败
+changelog             = v2.3.37 - 适配gateway.html统一网关页面移动端深度适配<br>v2.3.36 - 网关页新增"查看文件"Tab（调用飞牛文件管理器打开上传目录）、优化主题跟随轮询速度（5s→1s）、统一应用图标为512x512<br>v2.3.35 - 更新应用图标<br>v2.3.34 - 修复主题跟随：移除不可靠的prefers-color-scheme与localStorage覆盖，飞牛系统主题无条件接管<br>v2.3.33 - 修复统一网关页面主题自适应：改用飞牛官方JS SDK读取与监听系统主题<br>v2.3.32 - 全面重构暗色主题：统一CSS变量系统、修复表单输入框/按钮/浮窗等组件暗色适配、优化移动端按钮对齐<br>v2.3.31 - 修复收集页单文件下载缺少expires参数导致无通行证时下载失败

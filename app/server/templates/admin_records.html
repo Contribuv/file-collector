@@ -149,11 +149,11 @@
   </div>
 </div>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-records-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-records-inline.css', v=VERSION) }}">
 {% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox-admin.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox-admin.css', v=VERSION) }}">
 {% endblock %}
 {% block scripts %}
 <script>

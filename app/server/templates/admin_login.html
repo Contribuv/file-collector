@@ -19,7 +19,7 @@
     {% else %}
     <div class="auth-brand">
       <div class="auth-logo">
-        <img src="{{ url_for('static', filename='img/logo_192.png') }}" alt="">
+        <img src="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}" alt="">
       </div>
       <h1>{{ config_title|default('文件收集器') }}</h1>
       <p class="auth-subtitle">登录以继续使用</p>

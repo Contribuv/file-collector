@@ -230,7 +230,7 @@
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-links-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-links-inline.css', v=VERSION) }}">
 
 <div id="pv" style="display:none;"
      data-current-user-name="{{ session.get('nickname') or session.get('username', '用户') }}"

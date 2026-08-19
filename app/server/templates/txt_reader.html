@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>{{ filename }} - 阅读</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/txt_reader.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/txt_reader.css', v=VERSION) }}">
 </head>
 <body data-theme="light" data-mode="scroll">
 
@@ -89,7 +89,7 @@
   window.__FILE_URL__ = {{ file_url|tojson }};
   window.__FILENAME__ = {{ filename|tojson }};
 </script>
-<script defer src="{{ url_for('static', filename='js/txt_reader.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/txt_reader.js', v=VERSION) }}"></script>
 
 </body>
 </html>

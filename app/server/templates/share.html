@@ -6,13 +6,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{{ task_title|default('文件分享') }} - {{ share_page_title or site_title }}</title>
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/share.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/share-inline.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/_preview-error.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/share.css', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_batch.css', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_lightbox.css', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/share-inline.css', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/_preview-error.css', v=VERSION) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css', v=VERSION) }}">
   <script>
     (function(){
       try {
@@ -45,7 +45,7 @@
 
 <div class="cp-topbar">
   <div class="cp-topbar-inner">
-    <img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo_fs.png') }}" alt="文件收集器">
+    <img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo_fs.png', v=VERSION) }}" alt="文件收集器">
     <span>{{ share_page_title or site_title }}</span>
   </div>
 </div>
@@ -185,7 +185,7 @@
 } %}
 
 <script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
-<script src="{{ url_for('static', filename='js/lightbox-error.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lightbox-error.js', v=VERSION) }}"></script>
 <script>
 var _C = JSON.parse(document.getElementById('js-config').textContent);
 const linkId = _C.linkId;

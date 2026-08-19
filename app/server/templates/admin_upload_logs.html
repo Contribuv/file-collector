@@ -2,7 +2,7 @@
 {% block title %}上传日志 - {{ link_title|default(record['original_name']) }}{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-upload-logs-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-upload-logs-inline.css', v=VERSION) }}">
 {% endblock %}
 
 {% block content %}

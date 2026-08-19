@@ -435,7 +435,7 @@
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-link-form-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-link-form-inline.css', v=VERSION) }}">
 
 <script>
 // 单文件上限 MB/GB 切换
@@ -932,5 +932,5 @@ function showToast(msg) {
   setTimeout(function() { t.remove(); }, 2500);
 }
 </script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-link-form-inline.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-link-form-inline.css', v=VERSION) }}">
 {% endblock %}

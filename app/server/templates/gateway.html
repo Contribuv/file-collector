@@ -4,17 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>文件收集器 · 公网访问</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css') }}">
-<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css', v=VERSION) }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
 <body>
 <script>
-// 首屏默认浅色，随后由飞牛 SDK(getPlatformConfig) 覆盖为系统真实主题。
-// 仅 URL ?theme= 显式指定时优先；不使用 prefers-color-scheme（飞牛 WebView 中该值与飞牛主题不同步）。
+// 首屏防闪烁：优先 URL ?theme=，其次读取 sessionStorage 缓存的上次主题，默认浅色。
+// 不使用 prefers-color-scheme（飞牛 WebView 中该值与飞牛主题不同步）。
+// 随后由飞牛 SDK(getPlatformConfig) 覆盖为系统真实主题并刷新缓存。
 (function() {
     try {
         var urlTheme = new URLSearchParams(window.location.search).get('theme');
-        var theme = (urlTheme === 'dark' || urlTheme === 'light') ? urlTheme : 'light';
+        var theme;
+        if (urlTheme === 'dark' || urlTheme === 'light') {
+            theme = urlTheme;
+        } else {
+            var cached = sessionStorage.getItem('fnos-theme');
+            theme = (cached === 'dark' || cached === 'light') ? cached : 'light';
+        }
         document.documentElement.setAttribute('data-theme', theme);
     } catch (e) {
         document.documentElement.setAttribute('data-theme', 'light');
@@ -48,6 +55,12 @@
                     <line x1="16" y1="17" x2="8" y2="17"/>
                 </svg>
                 实时日志
+            </div>
+            <div class="mac-sidebar-item" onclick="switchSection('files')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                查看文件
             </div>
             <div class="mac-sidebar-item" onclick="switchSection('help')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -184,6 +197,31 @@
                 </div>
             </div>
 
+            <!-- 查看文件 -->
+            <div class="mac-section" id="section-files">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    查看文件
+                </h2>
+                <div class="status-row">
+                    <div class="status-label">上传目录</div>
+                    <div class="status-value">
+                        <code id="uploadBasePath" style="word-break:break-all;">{{ upload_base or '未配置' }}</code>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">操作</div>
+                    <div class="status-value">
+                        <button class="btn btn-primary btn-sm" id="openFmBtn" onclick="openUploadDir()">打开文件管理器</button>
+                    </div>
+                </div>
+                <p class="help-note" id="fmTip" style="display:none;">
+                    无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。
+                </p>
+            </div>
+
             <!-- 帮助说明 -->
             <div class="mac-section" id="section-help">
                 <h2>
@@ -217,14 +255,14 @@
 // ============================================================
 function switchSection(name) {
     document.querySelectorAll('.mac-section').forEach(s => s.classList.remove('active'));
-    // 只清除前 4 个侧边栏项的 active（主题按钮不参与）
+    // 清除前 5 个侧边栏项的 active（主题按钮不参与）
     const items = document.querySelectorAll('.mac-sidebar-item');
-    for (var i = 0; i < 4 && i < items.length; i++) {
+    for (var i = 0; i < 5 && i < items.length; i++) {
         items[i].classList.remove('active');
     }
     const section = document.getElementById('section-' + name);
     if (section) section.classList.add('active');
-    const map = ['status', 'config', 'logs', 'help'];
+    const map = ['status', 'config', 'logs', 'files', 'help'];
     const idx = map.indexOf(name);
     if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 }
@@ -240,6 +278,7 @@ function applyTheme(theme) {
 function toggleTheme() {
     var current = document.documentElement.getAttribute('data-theme') || 'light';
     var next = current === 'dark' ? 'light' : 'dark';
+    manualThemeActive = true; // 标记手动覆盖，暂停系统主题跟随（刷新后恢复）
     applyTheme(next);
 }
 
@@ -288,25 +327,64 @@ function hasUserThemeOverride() {
     return urlTheme === 'dark' || urlTheme === 'light';
 }
 
+// 手动切换后暂停系统主题跟随（刷新后重置为 false，由系统主题重新接管）
+let manualThemeActive = false;
+
+// 主题是否被锁定（URL 显式指定 或 手动切换），锁定时不接受系统主题覆盖
+function themeLocked() {
+    return hasUserThemeOverride() || manualThemeActive;
+}
+
 // 飞牛官方主题自适应：getPlatformConfig 读取系统主题，$on('os/theme') 监听变化
 // 参考 https://developer.fnnas.com/api/page/ui/
+// 增加轮询兜底：部分宿主不投递 os/theme 事件，定期 getPlatformConfig 保证近实时跟随
+let trimSdk = null;  // 全局共享 TrimApp 实例（供"查看文件"等复用）
 async function initFnOSTheme() {
     try {
-        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js') }}");
+        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
         const sdk = new TrimApp();
+        trimSdk = sdk;
 
+        // 读取并应用当前系统主题
         const config = await sdk.getPlatformConfig();
-        if (config && (config.theme === 'dark' || config.theme === 'light') && !hasUserThemeOverride()) {
+        if (config && (config.theme === 'dark' || config.theme === 'light') && !themeLocked()) {
             applyTheme(config.theme);
+            try { sessionStorage.setItem('fnos-theme', config.theme); } catch (e) {}
         }
 
-        // 仅 Web 宿主环境（非移动端内嵌、非独立浏览器）支持主题变化监听
+        // Web 宿主环境（非移动端内嵌、非独立浏览器）支持主题变化监听
         if (sdk.isWeb === true && sdk.isStandaloneWeb === false) {
-            await sdk.$on('os/theme', function(theme) {
-                if ((theme === 'dark' || theme === 'light') && !hasUserThemeOverride()) {
-                    applyTheme(theme);
+            // 主通道：监听主题变化事件（支持的宿主可即时响应）
+            try {
+                await sdk.$on('os/theme', function(theme) {
+                    if ((theme === 'dark' || theme === 'light') && !themeLocked()) {
+                        applyTheme(theme);
+                        try { sessionStorage.setItem('fnos-theme', theme); } catch (e) {}
+                    }
+                });
+            } catch (e) {
+                // $on 不可用时降级为轮询
+            }
+            // 兜底通道：高频轮询读取系统主题（1s 间隔，弥补不投递 os/theme 的宿主）
+            // getPlatformConfig 只是几次 postMessage 往返，1s 间隔无性能压力
+            let pollInFlight = false;
+            async function pollTheme() {
+                if (pollInFlight) return;
+                pollInFlight = true;
+                try {
+                    const c = await sdk.getPlatformConfig();
+                    if (c && (c.theme === 'dark' || c.theme === 'light') && !themeLocked()) {
+                        const cur = document.documentElement.getAttribute('data-theme');
+                        if (cur !== c.theme) {
+                            applyTheme(c.theme);
+                            try { sessionStorage.setItem('fnos-theme', c.theme); } catch (e) {}
+                        }
+                    }
+                } catch (e) { /* 静默失败 */ } finally {
+                    pollInFlight = false;
                 }
-            });
+            }
+            setInterval(pollTheme, 1000);
         }
     } catch (e) {
         // SDK 不可用（独立浏览器/非微应用环境）时保持首屏回退主题
@@ -695,6 +773,29 @@ function copyWechat() {
 function openAdmin() {
     const url = document.getElementById('proxyUrl').textContent;
     window.open(url + '/admin', '_blank');
+}
+
+// 打开飞牛文件管理器到上传目录
+// 文档：https://developer.fnnas.com/api/page/routing/#%E6%89%93%E5%BC%80%E6%96%87%E4%BB%B6%E7%AE%A1%E7%90%86%E5%99%A8
+async function openUploadDir() {
+    const tip = document.getElementById('fmTip');
+    const path = {{ upload_base|tojson }};
+    if (!path) {
+        if (tip) { tip.textContent = '上传目录未配置，请先在 管理后台 → 系统设置 中设置上传目录。'; tip.style.display = 'block'; }
+        return;
+    }
+    try {
+        if (!trimSdk) {
+            // 兜底：主题初始化失败时按需初始化
+            const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
+            trimSdk = new TrimApp();
+        }
+        await trimSdk.ready();
+        await trimSdk.openFileManager(path);
+    } catch (e) {
+        console.error('[gateway] openFileManager 失败', e);
+        if (tip) { tip.textContent = '无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。'; tip.style.display = 'block'; }
+    }
 }
 </script>
 </body>

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.37-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.38-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.38
+- 修复网关页（gateway.html）暗色主题首屏闪烁：飞牛系统主题获取由 `DOMContentLoaded` 提前到页面渲染前，SDK 初始化与内容加载并行，暗色主题下不再先白后黑
+- 主题跟随更实时：应用启动即读取系统主题并应用，原有 `$on('os/theme')` 事件监听与 1s 轮询兜底不变
 
 ### v2.3.37
 - 优化安装包大小，删除 onlyoffice 不必要的字体文件

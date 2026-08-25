@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>文件收集器 · 公网访问</title>
+<title>文件收集器</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css', v=VERSION) }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
@@ -27,6 +27,88 @@
         document.documentElement.setAttribute('data-theme', 'light');
     }
 })();
+</script>
+<script>
+// 主题初始化：尽早启动飞牛 SDK 获取系统主题，减少首屏闪烁
+// 函数定义在全局作用域，后续 toggleTheme 等依赖它们
+let trimSdk = null;
+let manualThemeActive = false;
+
+function applyTheme(theme) {
+    if (theme !== 'dark' && theme !== 'light') theme = 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon(theme);
+}
+
+function updateThemeIcon(theme) {
+    var icon = document.getElementById('themeIcon');
+    var label = document.getElementById('themeLabel');
+    if (!icon || !label) return;
+    if (theme === 'dark') {
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+        label.textContent = '亮色模式';
+    } else {
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+        label.textContent = '暗色模式';
+    }
+}
+
+function hasUserThemeOverride() {
+    var urlTheme = new URLSearchParams(window.location.search).get('theme');
+    return urlTheme === 'dark' || urlTheme === 'light';
+}
+
+function themeLocked() {
+    return hasUserThemeOverride() || manualThemeActive;
+}
+
+async function initFnOSTheme() {
+    try {
+        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
+        const sdk = new TrimApp();
+        trimSdk = sdk;
+
+        const config = await sdk.getPlatformConfig();
+        if (config && (config.theme === 'dark' || config.theme === 'light') && !themeLocked()) {
+            applyTheme(config.theme);
+            try { sessionStorage.setItem('fnos-theme', config.theme); } catch (e) {}
+        }
+
+        if (sdk.isWeb === true && sdk.isStandaloneWeb === false) {
+            try {
+                await sdk.$on('os/theme', function(theme) {
+                    if ((theme === 'dark' || theme === 'light') && !themeLocked()) {
+                        applyTheme(theme);
+                        try { sessionStorage.setItem('fnos-theme', theme); } catch (e) {}
+                    }
+                });
+            } catch (e) {}
+            let pollInFlight = false;
+            async function pollTheme() {
+                if (pollInFlight) return;
+                pollInFlight = true;
+                try {
+                    const c = await sdk.getPlatformConfig();
+                    if (c && (c.theme === 'dark' || c.theme === 'light') && !themeLocked()) {
+                        const cur = document.documentElement.getAttribute('data-theme');
+                        if (cur !== c.theme) {
+                            applyTheme(c.theme);
+                            try { sessionStorage.setItem('fnos-theme', c.theme); } catch (e) {}
+                        }
+                    }
+                } catch (e) {} finally {
+                    pollInFlight = false;
+                }
+            }
+            setInterval(pollTheme, 1000);
+        }
+    } catch (e) {
+        console.warn('[gateway] fnOS 主题初始化失败，使用回退主题', e);
+    }
+}
+
+// 立即启动飞牛主题获取，不等待 DOMContentLoaded
+initFnOSTheme();
 </script>
 <div class="gateway-page">
 
@@ -86,7 +168,7 @@
             </div>
             <div class="mac-sidebar-divider"></div>
             <div class="mac-sidebar-version">
-                <span class="version-tag">v{{ version }}</span>
+                <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }} ↗</a>
             </div>
         </div>
 
@@ -267,34 +349,12 @@ function switchSection(name) {
     if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 }
 
-// 应用主题：只设置 data-theme 与图标
-function applyTheme(theme) {
-    if (theme !== 'dark' && theme !== 'light') theme = 'light';
-    document.documentElement.setAttribute('data-theme', theme);
-    updateThemeIcon(theme);
-}
-
 // 手动主题切换（临时覆盖，刷新后由飞牛系统主题重新接管）
 function toggleTheme() {
     var current = document.documentElement.getAttribute('data-theme') || 'light';
     var next = current === 'dark' ? 'light' : 'dark';
     manualThemeActive = true; // 标记手动覆盖，暂停系统主题跟随（刷新后恢复）
     applyTheme(next);
-}
-
-function updateThemeIcon(theme) {
-    var icon = document.getElementById('themeIcon');
-    var label = document.getElementById('themeLabel');
-    if (!icon || !label) return;
-    if (theme === 'dark') {
-        // 月亮图标
-        icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-        label.textContent = '亮色模式';
-    } else {
-        // 太阳图标
-        icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-        label.textContent = '暗色模式';
-    }
 }
 
 // ============================================================
@@ -321,89 +381,20 @@ function apiPath(suffix) {
 // ============================================================
 // 初始化
 // ============================================================
-// 是否存在用户显式主题偏好（仅 URL ?theme=）
-function hasUserThemeOverride() {
-    var urlTheme = new URLSearchParams(window.location.search).get('theme');
-    return urlTheme === 'dark' || urlTheme === 'light';
-}
-
-// 手动切换后暂停系统主题跟随（刷新后重置为 false，由系统主题重新接管）
-let manualThemeActive = false;
-
-// 主题是否被锁定（URL 显式指定 或 手动切换），锁定时不接受系统主题覆盖
-function themeLocked() {
-    return hasUserThemeOverride() || manualThemeActive;
-}
-
-// 飞牛官方主题自适应：getPlatformConfig 读取系统主题，$on('os/theme') 监听变化
-// 参考 https://developer.fnnas.com/api/page/ui/
-// 增加轮询兜底：部分宿主不投递 os/theme 事件，定期 getPlatformConfig 保证近实时跟随
-let trimSdk = null;  // 全局共享 TrimApp 实例（供"查看文件"等复用）
-async function initFnOSTheme() {
-    try {
-        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
-        const sdk = new TrimApp();
-        trimSdk = sdk;
-
-        // 读取并应用当前系统主题
-        const config = await sdk.getPlatformConfig();
-        if (config && (config.theme === 'dark' || config.theme === 'light') && !themeLocked()) {
-            applyTheme(config.theme);
-            try { sessionStorage.setItem('fnos-theme', config.theme); } catch (e) {}
-        }
-
-        // Web 宿主环境（非移动端内嵌、非独立浏览器）支持主题变化监听
-        if (sdk.isWeb === true && sdk.isStandaloneWeb === false) {
-            // 主通道：监听主题变化事件（支持的宿主可即时响应）
-            try {
-                await sdk.$on('os/theme', function(theme) {
-                    if ((theme === 'dark' || theme === 'light') && !themeLocked()) {
-                        applyTheme(theme);
-                        try { sessionStorage.setItem('fnos-theme', theme); } catch (e) {}
-                    }
-                });
-            } catch (e) {
-                // $on 不可用时降级为轮询
-            }
-            // 兜底通道：高频轮询读取系统主题（1s 间隔，弥补不投递 os/theme 的宿主）
-            // getPlatformConfig 只是几次 postMessage 往返，1s 间隔无性能压力
-            let pollInFlight = false;
-            async function pollTheme() {
-                if (pollInFlight) return;
-                pollInFlight = true;
-                try {
-                    const c = await sdk.getPlatformConfig();
-                    if (c && (c.theme === 'dark' || c.theme === 'light') && !themeLocked()) {
-                        const cur = document.documentElement.getAttribute('data-theme');
-                        if (cur !== c.theme) {
-                            applyTheme(c.theme);
-                            try { sessionStorage.setItem('fnos-theme', c.theme); } catch (e) {}
-                        }
-                    }
-                } catch (e) { /* 静默失败 */ } finally {
-                    pollInFlight = false;
-                }
-            }
-            setInterval(pollTheme, 1000);
-        }
-    } catch (e) {
-        // SDK 不可用（独立浏览器/非微应用环境）时保持首屏回退主题
-        console.warn('[gateway] fnOS 主题初始化失败，使用回退主题', e);
-    }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     loadCerts();
     poll();
     setInterval(poll, 3000);
     initPortCheck();
     updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
-    initFnOSTheme();
 
     const wechatEl = document.getElementById('wechatCopy');
     if (wechatEl) {
         wechatEl.addEventListener('click', copyWechat);
     }
+
+    // 移动端顶部 tab 栏：可滑动且未到头时右边缘渐隐提示
+    initSidebarHint();
 });
 
 let polling = false;
@@ -755,6 +746,27 @@ function addLog(type, msg) {
 // ============================================================
 // 辅助函数
 // ============================================================
+function initSidebarHint() {
+    const sidebar = document.querySelector('.mac-sidebar');
+    if (!sidebar) return;
+
+    // 仅移动端有意义；桌面端 sidebar 纵向且不溢出，不影响
+    let lastState = null;
+
+    function update() {
+        const overflow = sidebar.scrollWidth > sidebar.clientWidth;
+        const atEnd = sidebar.scrollLeft + sidebar.clientWidth >= sidebar.scrollWidth - 1;
+        const showHint = overflow && !atEnd;
+        if (showHint === lastState) return;
+        lastState = showHint;
+        sidebar.classList.toggle('hint-right', showHint);
+    }
+
+    update();
+    sidebar.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+}
+
 function copyUrl() {
     const url = document.getElementById('proxyUrl').textContent;
     navigator.clipboard.writeText(url).then(() => {

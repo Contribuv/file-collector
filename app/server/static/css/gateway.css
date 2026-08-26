@@ -32,8 +32,13 @@
     --gw-input-disabled-bg: #f5f5f7;
     --gw-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 2px 8px rgba(0, 0, 0, .04);
     --gw-status-bar-bg: #ececef;
-    --gw-log-bg: #1e1e22;
-    --gw-log-text: #d4d4d4;
+    --gw-log-bg: var(--gw-accent-bg);        /* 亮色下复用 info-box 的浅蓝底 */
+    --gw-log-text: var(--gw-text-primary);
+    --gw-log-info: #0a6cff;                  /* 级别色：浅底用深色以保证可读 */
+    --gw-log-error: #d92e20;
+    --gw-log-success: #1a7f37;
+    --gw-log-warn: #b25e00;
+    --gw-log-debug: var(--gw-text-tertiary);
     --gw-scrollbar: rgba(0, 0, 0, .16);
 }
 
@@ -66,6 +71,11 @@
     --gw-status-bar-bg: #1e2126;
     --gw-log-bg: #121418;
     --gw-log-text: #d4d4d8;
+    --gw-log-info: #4fc1ff;
+    --gw-log-error: #f48771;
+    --gw-log-success: #89d185;
+    --gw-log-warn: #ffd700;
+    --gw-log-debug: #888;
     --gw-scrollbar: rgba(255, 255, 255, .16);
 }
 
@@ -377,8 +387,18 @@ body {
     padding: 10px 0;
 }
 
+/* 地址/操作下方的中性说明小字 */
+.url-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--gw-text-tertiary);
+    line-height: 1.5;
+}
+
 .status-label {
-    width: 72px;
+    width: 84px;
     color: var(--gw-text-secondary);
     font-size: 13px;
     flex-shrink: 0;
@@ -390,6 +410,22 @@ body {
     font-size: 13px;
     font-weight: 500;
     min-width: 0;
+}
+
+/* 「更多」tab 与抽屉：桌面端隐藏，仅移动端显示 */
+.more-tab,
+.more-sheet {
+    display: none;
+}
+
+/* 桌面端：状态行分隔线，信息分组更清晰 */
+@media (min-width: 641px) {
+    .status-row {
+        border-bottom: 1px solid var(--gw-border-light);
+    }
+    .status-row:last-child {
+        border-bottom: none;
+    }
 }
 
 /* ---- 版本 & 反馈 ---- */
@@ -680,6 +716,7 @@ body {
 .log-box {
     background: var(--gw-log-bg);
     color: var(--gw-log-text);
+    border: 1px solid var(--gw-border-light);
     padding: 12px 16px;
     border-radius: var(--gw-radius-md);
     font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
@@ -696,23 +733,23 @@ body {
 }
 
 .log-box .log-info {
-    color: #4fc1ff;
+    color: var(--gw-log-info);
 }
 
 .log-box .log-error {
-    color: #f48771;
+    color: var(--gw-log-error);
 }
 
 .log-box .log-success {
-    color: #89d185;
+    color: var(--gw-log-success);
 }
 
 .log-box .log-warn {
-    color: #ffd700;
+    color: var(--gw-log-warn);
 }
 
 .log-box .log-debug {
-    color: #888;
+    color: var(--gw-log-debug);
 }
 
 /* ---- 滚动条 ---- */
@@ -736,7 +773,7 @@ body {
 }
 
 /* ============================================================
-   响应式：移动端侧边栏改为顶部横向滚动 tabbar
+   响应式：移动端 APP 化 —— 底部 Tab 栏 + 「更多」抽屉
    ============================================================ */
 @media (max-width: 640px) {
     html, body {
@@ -753,74 +790,213 @@ body {
         height: 100%;
     }
 
-    /* 顶部横向滚动 tabbar：固定吸顶，滚动内容区时导航始终可见 */
+    /* ---- 底部固定 Tab 栏：贴近移动 APP 底部导航 ---- */
     .mac-sidebar {
         position: fixed;
-        top: 0;
+        top: auto;
+        bottom: 0;
         left: 0;
         right: 0;
         z-index: 20;
         width: 100%;
+        height: auto;
         flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-        border-bottom: 1px solid var(--gw-border-light);
-        padding: 8px 12px;
-        gap: 6px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-    }
-
-    .mac-sidebar::-webkit-scrollbar {
-        display: none;
-    }
-
-    /* 横向滚动提示：可滑动且未到头时，右边缘渐隐，暗示还有更多 tab */
-    .mac-sidebar.hint-right {
-        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-        mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-    }
-
-    .mac-sidebar-item {
-        flex: 0 0 auto;
-        height: 32px;
-        padding: 0 14px;
-        font-size: 13px;
+        align-items: stretch;
+        justify-content: space-around;
+        gap: 0;
+        overflow: hidden;
+        border-top: 1px solid var(--gw-border-light);
+        padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
         -webkit-tap-highlight-color: transparent;
     }
 
-    .mac-sidebar-item svg {
-        width: 14px;
-        height: 14px;
+    .mac-sidebar-item {
+        flex: 1;
+        height: auto;
+        min-height: 50px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+        padding: 0;
+        border-radius: 0;
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--gw-text-secondary);
     }
 
-    .mac-sidebar-divider,
-    .mac-sidebar-version,
+    .mac-sidebar-item svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .mac-sidebar-item.active {
+        background: transparent;
+        color: var(--gw-accent);
+    }
+
+    .mac-sidebar-item:active {
+        background: var(--gw-fill-0);
+    }
+
+    /* 移动端隐藏：日志/文件/帮助 tab、主题入口、分割线、版本 */
+    .mac-sidebar-item.mobile-hidden,
+    .mac-sidebar-divider.mobile-hidden,
+    .mac-sidebar-version.mobile-hidden,
     .mac-sidebar-feedback {
         display: none;
     }
 
+    /* 「更多」作为第 4 个主 Tab 显示 */
+    .more-tab {
+        display: flex;
+    }
+
+    /* ---- 「更多」底部抽屉 ---- */
+    .more-sheet {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        pointer-events: none;
+    }
+
+    .more-sheet-mask {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .45);
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+
+    .more-sheet-panel {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--gw-card-bg);
+        border-radius: 16px 16px 0 0;
+        padding: 6px 12px calc(10px + env(safe-area-inset-bottom));
+        transform: translateY(100%);
+        transition: transform .28s cubic-bezier(.32, .72, .34, 1);
+        box-shadow: 0 -8px 32px rgba(0, 0, 0, .12);
+    }
+
+    .more-sheet.open {
+        pointer-events: auto;
+    }
+
+    .more-sheet.open .more-sheet-mask {
+        opacity: 1;
+    }
+
+    .more-sheet.open .more-sheet-panel {
+        transform: translateY(0);
+    }
+
+    .more-sheet-handle {
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--gw-border);
+        margin: 6px auto 6px;
+    }
+
+    .more-sheet-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--gw-text-tertiary);
+        padding: 8px 12px 4px;
+    }
+
+    .more-sheet-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .more-sheet-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 84px;
+        padding: 0;
+        border-radius: var(--gw-radius-md);
+        background: var(--gw-fill-0);
+        font-size: 13px;
+        color: var(--gw-text-primary);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background .15s;
+    }
+
+    .more-sheet-item:active {
+        background: var(--gw-border);
+    }
+
+    .more-sheet-item svg {
+        width: 20px;
+        height: 20px;
+        color: var(--gw-accent);
+        flex-shrink: 0;
+    }
+
+    .more-sheet-version {
+        text-align: center;
+        padding: 12px 0 2px;
+    }
+
+    /* ---- 主内容区：透明铺满，内容按 section 卡片分组 ---- */
     .mac-main {
-        margin: 56px 12px 16px;
+        margin: 0;
+        padding: 12px 12px calc(88px + env(safe-area-inset-bottom));
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+    }
+
+    /* section 卡片化：白底圆角 + 内部分组列表 */
+    .mac-section {
+        background: var(--gw-card-bg);
+        border: 1px solid var(--gw-border-light);
+        border-radius: var(--gw-radius-md);
+        box-shadow: var(--gw-shadow);
         padding: 16px;
+        margin-bottom: 12px;
     }
 
     .mac-section h2 {
-        font-size: 16px;
+        font-size: 15px;
+        margin-bottom: 4px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--gw-border-light);
     }
 
-    .gateway-card {
-        padding: 14px 16px;
-    }
-
+    /* 状态行：横排（label 左 / value 右），行间分隔线，分组列表感 */
     .status-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
+        align-items: center;
+        padding: 12px 0;
+    }
+
+    .status-row + .status-row {
+        border-top: 1px solid var(--gw-border-light);
     }
 
     .status-label {
-        width: auto;
+        width: 84px;
+        font-size: 13px;
+    }
+
+    .status-value {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .status-value .url-hint {
+        margin-top: 0;
     }
 
     .port-input-row {
@@ -830,5 +1006,18 @@ body {
 
     .port-status {
         justify-content: center;
+    }
+
+    .action-row {
+        margin-top: 4px;
+    }
+
+    .action-row .btn {
+        flex: 1;
+    }
+
+    /* 移动端隐藏收集页过长的弹窗拦截提示，保持卡片简洁 */
+    #section-collector > .help-note {
+        display: none;
     }
 }

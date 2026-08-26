@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.38"
+VERSION = "2.3.40"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -212,6 +212,13 @@ def ensure_csrf_token():
     # cookie 降级为浏览器会话级而丢失（表现为"等一会儿又要登陆"）
     if session.get('user_id'):
         session.permanent = True
+    # 飞牛统一网关 SSO：网关已认证时自动建立应用登录态
+    # 仅当 session 未登录且请求携带 X-Trim-Userid 头才生效；直连端口 5557 无该头则跳过
+    if not session.get('user_id'):
+        try:
+            sso_login_from_gateway()
+        except Exception as e:
+            logger.error(f'网关 SSO 登录失败: {e}')
 
 # 上传通行证浏览器缓存有效期默认值（秒）
 DEFAULT_PASSCODE_TTL = 7200  # 2小时
@@ -373,6 +380,14 @@ def init_db():
             ''')
             conn.commit()
             logger.info("已创建 users 表")
+        
+        # 迁移：users 表增加 fn_uid 列（飞牛网关 SSO 用户映射）
+        user_cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if 'fn_uid' not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN fn_uid TEXT")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_fn_uid ON users(fn_uid) WHERE fn_uid IS NOT NULL")
+            conn.commit()
+            logger.info("已添加 users.fn_uid 字段及唯一索引")
     except Exception as e:
         logger.error(f"数据库迁移错误(users): {e}")
     
@@ -1603,6 +1618,91 @@ def validate_user_login(username, password):
     if user and check_password_hash(user['password_hash'], password):
         return dict(user)
     return None
+
+
+def _establish_session(user_row):
+    """根据用户行建立登录 session（应用层 + 飞牛 SSO 共用）"""
+    session.clear()
+    session['user_id'] = user_row['id']
+    session['username'] = user_row['username']
+    session['is_admin'] = user_row['is_admin'] == 1
+    session['nickname'] = (user_row['nickname'] or '').strip()
+    session.permanent = True
+    try:
+        conn = get_db()
+        conn.execute("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", (user_row['id'],))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def sso_login_from_gateway():
+    """
+    飞牛统一网关 SSO 自动登录。
+    仅当飞牛网关注入 X-Trim-Userid 头时生效（说明请求经网关转发）。
+    成功建立 session 返回 True；否则返回 False。
+    """
+    fn_uid = request.headers.get('X-Trim-Userid', '').strip()
+    if not fn_uid:
+        return False  # 非网关请求，跳过 SSO
+
+    fn_username = (request.headers.get('X-Trim-Username', '') or '').strip()
+    fn_is_admin = request.headers.get('X-Trim-Isadmin', 'false').lower() == 'true'
+
+    if not fn_username:
+        fn_username = f'fn_{fn_uid}'
+
+    conn = get_db()
+    try:
+        # 1) 先按 fn_uid 精确匹配（已绑定过）
+        user = conn.execute(
+            "SELECT * FROM users WHERE fn_uid = ? AND status = 'active'",
+            (fn_uid,)
+        ).fetchone()
+
+        if not user:
+            # 2) 未绑定：按 username 匹配并绑定 fn_uid（兼容已存在的同名账号）
+            user = conn.execute(
+                "SELECT * FROM users WHERE username = ? AND status = 'active'",
+                (fn_username,)
+            ).fetchone()
+            if user:
+                conn.execute("UPDATE users SET fn_uid = ? WHERE id = ?", (fn_uid, user['id']))
+                conn.commit()
+            else:
+                # 3) 都不存在：自动创建用户
+                # 用户名冲突则加后缀
+                final_username = fn_username
+                suffix = 1
+                while conn.execute("SELECT 1 FROM users WHERE username = ?", (final_username,)).fetchone():
+                    suffix += 1
+                    final_username = f'{fn_username}_{suffix}'
+                user_id = str(uuid.uuid4())
+                # SSO 用户无应用密码，留不可登录的占位 hash（generate_password_hash 格式）
+                pwd_hash = generate_password_hash(secrets.token_urlsafe(32))
+                conn.execute(
+                    "INSERT INTO users (id, username, password_hash, email, nickname, is_admin, status, fn_uid) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'active', ?)",
+                    (user_id, final_username, pwd_hash, '', final_username,
+                     1 if fn_is_admin else 0, fn_uid)
+                )
+                conn.commit()
+                user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+                logger.info(f'飞牛 SSO 自动创建用户: {final_username} (fn_uid={fn_uid}, is_admin={fn_is_admin})')
+    except Exception as e:
+        logger.error(f'飞牛 SSO 异常: {e}')
+        conn.close()
+        return False
+
+    if not user:
+        conn.close()
+        return False
+
+    _establish_session(user)
+    session['sso_login'] = True  # 标记：经飞牛网关 SSO 登录，前端隐藏退出按钮
+    conn.close()
+    return True
 
 def validate_invite_code(code):
     """验证邀请码是否有效"""
@@ -6622,6 +6722,7 @@ def admin_logout():
     return redirect(url_for('admin_login'))
 
 @app.route('/admin')
+@app.route('/admin/')  # 兼容尾斜杠访问（如用户手输 URL），避免严格斜杠规则 404
 @login_required
 def admin_dashboard():
     """管理后台首页"""

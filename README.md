@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.38-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.40-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,22 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.40
+- 网关页文本优化，消除"公网/本机"入口混淆：
+  - 侧边栏 Tab「公网访问」与页面标题统一（原标题「反代状态」更名「公网访问」）
+  - 「打开管理后台 ↗」按钮更名「打开公网后台 ↗」，下方注明"通过上方公网地址访问管理后台，外网可用"
+  - 内网地址注明"仅局域网（同一网络）内可用"，公网地址注明"可分享给外网用户，通过 HTTPS 加密访问"
+  - 「文件收集」Tab 按钮更名「打开后台（本机免密）」，与公网入口明显区分
+- SSO 统一网关登录后台时，顶部导航栏显示「飞牛NAS账号：用户名」，不再显示 `|` 分隔符与退出按钮
+- 修复网关页移动端状态行布局：地址链接、按钮与说明文字强制换行上下堆叠，间距统一由 `gap` 控制，不再挤在同一行
+
+### v2.3.39
+- 网关页新增「文件收集」Tab：点击在新窗口打开后台管理（`/admin`），通过飞牛统一网关 SSO 自动登录，无需输入账号密码
+- 飞牛统一网关 SSO 免密登录：网关认证后自动建立应用登录态；首次访问自动创建应用账号并绑定飞牛 UID；飞牛管理员自动映射为应用管理员；SSO 登录隐藏退出按钮（退出 = 退出飞牛系统）
+- 网关页 UI 优化：主内容区圆角、按钮尺寸统一、键盘焦点可见性、移动端侧边栏吸顶、区块切换过渡动画、状态行间距、移动端滚动优化、侧边栏溢出渐变提示
+- 版本号改为外链，新窗口打开 GitHub 仓库
+- 「运行状态」Tab 更名「公网访问」，对应页面标题更名「反代状态」
 
 ### v2.3.38
 - 修复网关页（gateway.html）暗色主题首屏闪烁：飞牛系统主题获取由 `DOMContentLoaded` 提前到页面渲染前，SDK 初始化与内容加载并行，暗色主题下不再先白后黑

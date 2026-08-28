@@ -181,13 +181,15 @@
     'dlToken': dl_token,
     'dlExpires': dl_token_expires,
     'verified': verified,
-    'publicUrl': public_url or ''
+    'publicUrl': public_url or '',
+    'fcBase': fc_base
 } %}
 
 <script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
 <script src="{{ url_for('static', filename='js/lightbox-error.js', v=VERSION) }}"></script>
 <script>
 var _C = JSON.parse(document.getElementById('js-config').textContent);
+window.FC_BASE = _C.fcBase || '';
 const linkId = _C.linkId;
 var requireUploader = _C.requireUploader;
 var allowPreviewDownload = _C.allowPreviewDownload;
@@ -200,7 +202,7 @@ function getTokenParam() {
 }
 
 function refreshToken() {
-  return fetch('/api/download-token/' + linkId)
+  return fetch(FC_BASE + '/api/download-token/' + linkId)
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.success) { _dlToken = d.token; _dlExpires = d.expires; }
@@ -244,7 +246,7 @@ async function verifyPasscode() {
   msg.textContent = '验证中...'; msg.className = 'cp-passcode-msg';
   btn.disabled = true;
   try {
-    var res = await fetch('/share/' + linkId + '/verify', {
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/verify', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
       body: 'passcode=' + encodeURIComponent(code)
     });
@@ -259,7 +261,7 @@ if (pi) pi.addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPa
 async function logoutPasscode() {
   if (!confirm('确定退出通行证？')) return;
   try {
-    var res = await fetch('/share/' + linkId + '/logout', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/logout', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
     var data = await res.json();
     if (data.success) { location.reload(); } else { showToast(data.message || '退出失败'); }
   } catch(e) { showToast('网络错误'); }
@@ -276,19 +278,19 @@ function getFileIcon(ext) {
   var txtExts = ['txt','log','md','rtf','readme','license'];
   var cfgExts = ['json','yaml','yml','toml','ini','cfg','conf','xml','env','properties','editorconfig','gitignore'];
 
-  if (ext === 'pdf') return {iconUrl: '/static/img/pdf.svg'};
-  if (ext === 'fpk') return {iconUrl: '/static/img/fpk.svg'};
-  if (imgExts.includes(ext)) return {iconUrl: '/static/img/image.svg'};
-  if (vidExts.includes(ext)) return {iconUrl: '/static/img/video.svg'};
-  if (audExts.includes(ext)) return {iconUrl: '/static/img/audio.svg'};
-  if (docExts.includes(ext)) return {iconUrl: '/static/img/word.svg'};
-  if (xlsExts.includes(ext)) return {iconUrl: '/static/img/excel.svg'};
-  if (pptExts.includes(ext)) return {iconUrl: '/static/img/ppt.svg'};
-  if (arcExts.includes(ext)) return {iconUrl: '/static/img/archive.svg'};
-  if (codeExts.includes(ext)) return {iconUrl: '/static/img/code.svg'};
-  if (txtExts.includes(ext)) return {iconUrl: '/static/img/txt.svg'};
-  if (cfgExts.includes(ext)) return {iconUrl: '/static/img/config.svg'};
-  return {iconUrl: '/static/img/file.svg'};
+  if (ext === 'pdf') return {iconUrl: FC_BASE + '/static/img/pdf.svg'};
+  if (ext === 'fpk') return {iconUrl: FC_BASE + '/static/img/fpk.svg'};
+  if (imgExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/image.svg'};
+  if (vidExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/video.svg'};
+  if (audExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/audio.svg'};
+  if (docExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/word.svg'};
+  if (xlsExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/excel.svg'};
+  if (pptExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/ppt.svg'};
+  if (arcExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/archive.svg'};
+  if (codeExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/code.svg'};
+  if (txtExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/txt.svg'};
+  if (cfgExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/config.svg'};
+  return {iconUrl: FC_BASE + '/static/img/file.svg'};
 }
 
 /* ========== History ========== */
@@ -414,7 +416,7 @@ function updatePageTitle(isUploaderMode) {
 async function loadUploaderRecords(uploaderName, page) {
   page = page || 1;
   try {
-    var res = await fetch('/share/' + linkId + '/records?uploader=' + encodeURIComponent(uploaderName) + '&page=' + page + '&per_page=' + _currentPerPage);
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/records?uploader=' + encodeURIComponent(uploaderName) + '&page=' + page + '&per_page=' + _currentPerPage);
     var data = await res.json();
     
     var wrap = document.getElementById('history-wrap');
@@ -798,7 +800,7 @@ function renderHistory() {
 async function loadHistory(page) {
   page = page || 1;
   try {
-    var res = await fetch('/share/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
     var data = await res.json();
     var wrap = document.getElementById('history-wrap');
     document.getElementById('file-total-count').textContent = '共 ' + (data.total_uploaded || 0) + ' 个文件';
@@ -1002,19 +1004,19 @@ function previewFile(recordId, fileName, fileSize) {
   if (jitExts.includes(ext)) {
     var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    var route = ext === 'txt' ? '/txt?' : '/office?';
+    var route = ext === 'txt' ? FC_BASE + '/txt?' : FC_BASE + '/office?';
     window.open(route + qs, '_blank');
     return;
   }
   if (officeExts.includes(ext)) {
     var qs = 'type=s&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/doc?' + qs, '_blank');
+    window.open(FC_BASE + '/doc?' + qs, '_blank');
     return;
   }
 
   var tp = getTokenParam();
-  var previewUrl = '/share/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
+  var previewUrl = FC_BASE + '/share/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
   var vidExtsP = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExtsP = ['mp3','wav','flac','aac','m4a'];
 
@@ -1023,7 +1025,7 @@ function previewFile(recordId, fileName, fileSize) {
   for (var i = 0; i < _previewableImages.length; i++) {
     var item = _previewableImages[i];
     var itemExt = item.name.split('.').pop().toLowerCase();
-    var itemUrl = '/share/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
+    var itemUrl = FC_BASE + '/share/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
     var el = { href: itemUrl, title: item.name, type: 'image' };
     if (vidExtsP.includes(itemExt)) { el.type = 'video'; }
     if (audExtsP.includes(itemExt)) { el.type = 'audio'; }
@@ -1049,7 +1051,7 @@ function previewFile(recordId, fileName, fileSize) {
 function downloadFile(recordId) {
   var tp = getTokenParam();
   var a = document.createElement('a');
-  a.href = '/share/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
+  a.href = FC_BASE + '/share/' + linkId + '/download/' + recordId + (tp ? '?' + tp : '');
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
@@ -1241,7 +1243,7 @@ async function downloadAll(evt) {
   var overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'flex';
   try {
-    var res = await fetch('/share/' + linkId + '/download_all', {
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/download_all', {
       method: 'POST',
       headers: { 'X-CSRFToken': '{{ csrf_token }}' }
     });
@@ -1302,7 +1304,7 @@ async function downloadGroup(evt, gi) {
   var overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'flex';
   try {
-    var res = await fetch('/share/' + linkId + '/download_group', {
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/download_group', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
       body: JSON.stringify({ uploader_name: uploaderName })
@@ -1357,7 +1359,7 @@ async function batchDownload() {
   var overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'flex';
   try {
-    var res = await fetch('/share/' + linkId + '/batch_download', {
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/batch_download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
       body: JSON.stringify({ record_ids: ids })

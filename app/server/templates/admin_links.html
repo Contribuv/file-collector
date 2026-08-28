@@ -404,7 +404,7 @@ function executeBatchDelete() {
     btn.textContent = '确认删除';
     return;
   }
-  fetch('/admin/links/batch_delete', {
+  fetch(FC_BASE + '/admin/links/batch_delete', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -654,7 +654,7 @@ function confirmDeleteLink() {
       fd.append('value', String(val));
       var csrf = document.querySelector('input[name="csrf_token"]');
       if (csrf) fd.append('csrf_token', csrf.value);
-      fetch('/admin/ajax/set-per-page', {
+      fetch(FC_BASE + '/admin/ajax/set-per-page', {
         method: 'POST', body: fd, credentials: 'same-origin'
       }).then(function(r) {
         if (!r.ok) { throw new Error('HTTP ' + r.status); }

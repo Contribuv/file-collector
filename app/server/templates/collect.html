@@ -380,13 +380,15 @@
     'tusEndpoint': url_for('tus_create', link_id=link_id),
     'attachName': attachment_name or '',
     'attachCanPreview': attachment_can_preview or false,
-    'attachPreviewType': attachment_preview_type or ''
+    'attachPreviewType': attachment_preview_type or '',
+    'fcBase': fc_base
 } %}
 
 <script type="application/json" id="js-config">{{ _js_cfg|tojson }}</script>
 <script src="{{ url_for('static', filename='js/lightbox-error.js', v=VERSION) }}"></script>
 <script>
 var _C = JSON.parse(document.getElementById('js-config').textContent);
+window.FC_BASE = _C.fcBase || '';
 const linkId = _C.linkId;
 var allowDelete = _C.allowDelete;
 var allowPreviewDownload = _C.allowPreviewDownload;
@@ -401,7 +403,7 @@ function getTokenParam() {
 }
 
 function refreshToken() {
-  return fetch('/api/download-token/' + linkId)
+  return fetch(FC_BASE + '/api/download-token/' + linkId)
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.success) { _dlToken = d.token; _dlExpires = d.expires; }
@@ -439,19 +441,19 @@ function getAttachIcon(ext) {
   var txtExts = ['txt','log','md','rtf','readme','license'];
   var cfgExts = ['json','yaml','yml','toml','ini','cfg','conf','xml','env'];
 
-  if (ext === 'pdf') return '/static/img/pdf.svg';
-  if (ext === 'fpk') return '/static/img/fpk.svg';
-  if (imgExts.includes(ext)) return '/static/img/image.svg';
-  if (vidExts.includes(ext)) return '/static/img/video.svg';
-  if (audExts.includes(ext)) return '/static/img/audio.svg';
-  if (docExts.includes(ext)) return '/static/img/word.svg';
-  if (xlsExts.includes(ext)) return '/static/img/excel.svg';
-  if (pptExts.includes(ext)) return '/static/img/ppt.svg';
-  if (arcExts.includes(ext)) return '/static/img/archive.svg';
-  if (codeExts.includes(ext)) return '/static/img/code.svg';
-  if (txtExts.includes(ext)) return '/static/img/txt.svg';
-  if (cfgExts.includes(ext)) return '/static/img/config.svg';
-  return '/static/img/file.svg';
+  if (ext === 'pdf') return FC_BASE + '/static/img/pdf.svg';
+  if (ext === 'fpk') return FC_BASE + '/static/img/fpk.svg';
+  if (imgExts.includes(ext)) return FC_BASE + '/static/img/image.svg';
+  if (vidExts.includes(ext)) return FC_BASE + '/static/img/video.svg';
+  if (audExts.includes(ext)) return FC_BASE + '/static/img/audio.svg';
+  if (docExts.includes(ext)) return FC_BASE + '/static/img/word.svg';
+  if (xlsExts.includes(ext)) return FC_BASE + '/static/img/excel.svg';
+  if (pptExts.includes(ext)) return FC_BASE + '/static/img/ppt.svg';
+  if (arcExts.includes(ext)) return FC_BASE + '/static/img/archive.svg';
+  if (codeExts.includes(ext)) return FC_BASE + '/static/img/code.svg';
+  if (txtExts.includes(ext)) return FC_BASE + '/static/img/txt.svg';
+  if (cfgExts.includes(ext)) return FC_BASE + '/static/img/config.svg';
+  return FC_BASE + '/static/img/file.svg';
 }
 
 /* ========== 附件点击处理 ========== */
@@ -461,7 +463,7 @@ var _attachPreviewType = _C.attachPreviewType || '';
 function handleAttachClick() {
   if (!_attachCanPreview) {
     // 直接下载（fetch 避免错误时浏览器弹"无法从网站提取文件"）
-    var dl = '/collect/' + linkId + '/attachment';
+    var dl = FC_BASE + '/collect/' + linkId + '/attachment';
     var tp = getTokenParam();
     if (tp) dl += '?' + tp;
     fetch(dl, { credentials: 'same-origin' })
@@ -494,23 +496,23 @@ function handleAttachClick() {
   if (ext === 'txt') {
     var qs = 'type=ca&lid=' + linkId + '&fn=' + encodeURIComponent(_C.attachName || '');
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/txt?' + qs, '_blank');
+    window.open(FC_BASE + '/txt?' + qs, '_blank');
     return;
   }
   if (ext === 'pdf') {
     var qsPdf = 'type=ca&lid=' + linkId + '&fn=' + encodeURIComponent(_C.attachName || '');
     if (_dlToken) qsPdf += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/office?' + qsPdf, '_blank');
+    window.open(FC_BASE + '/office?' + qsPdf, '_blank');
     return;
   }
   if (officeExts.includes(ext)) {
     var qs2 = 'type=ca&lid=' + linkId + '&fn=' + encodeURIComponent(_C.attachName || '');
     if (_dlToken) qs2 += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/doc?' + qs2, '_blank');
+    window.open(FC_BASE + '/doc?' + qs2, '_blank');
     return;
   }
   // 图片/视频/音频 → 浮窗预览（与预览按钮行为一致）
-  var previewUrl = '/collect/' + linkId + '/attachment/preview' + (tp ? '?' + tp : '');
+  var previewUrl = FC_BASE + '/collect/' + linkId + '/attachment/preview' + (tp ? '?' + tp : '');
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExts = ['mp3','wav','flac','aac','m4a'];
   var el = { href: previewUrl, title: _C.attachName || '附件', type: 'image' };
@@ -589,7 +591,7 @@ async function verifyPasscode() {
   msg.textContent = '验证中...'; msg.className = 'cp-passcode-msg';
   btn.disabled = true;
   try {
-    var res = await fetch('/collect/' + linkId + '/verify', {
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/verify', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
       body: 'passcode=' + encodeURIComponent(code)
     });
@@ -610,7 +612,7 @@ if (pi) pi.addEventListener('keydown', function(e){ if(e.key==='Enter') verifyPa
 async function logoutPasscode() {
   if (!confirm('确定退出通行证？')) return;
   try {
-    var res = await fetch('/collect/' + linkId + '/logout', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/logout', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
     var data = await res.json();
     if (data.success) { location.reload(); } else { showToast(data.message || '退出失败'); }
   } catch(e) { showToast('网络错误'); }
@@ -642,7 +644,7 @@ async function setUploader() {
   msg.textContent = '验证中...'; msg.className = 'cp-passcode-msg';
   btn.disabled = true;
   try {
-    var res = await fetch('/collect/' + linkId + '/set_uploader', {
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/set_uploader', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
       body: 'uploader_name=' + encodeURIComponent(name)
     });
@@ -671,7 +673,7 @@ if (ui) ui.addEventListener('keydown', function(e){ if(e.key==='Enter') setUploa
 async function logoutUploader() {
   if (!confirm('确定退出当前身份？退出后需重新填写。')) return;
   try {
-    var res = await fetch('/collect/' + linkId + '/logout_uploader', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/logout_uploader', { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
     var data = await res.json();
     if (data.success) {
       _C.uploaderName = '';  // 同步清除客户端状态
@@ -1320,7 +1322,7 @@ async function startUpload() {
   // 上传前配额预检：重新获取最新的已上传数量，在上传文件数据前就拦截超限
   if (MAX_FILES > 0) {
     try {
-      var preCheckRes = await fetch('/collect/' + linkId + '/records');
+      var preCheckRes = await fetch(FC_BASE + '/collect/' + linkId + '/records');
       var preCheckData = await preCheckRes.json();
       var freshTotal = preCheckData.total_uploaded || 0;
       if (freshTotal + selectedFiles.length > MAX_FILES) {
@@ -1409,7 +1411,7 @@ async function startUpload() {
       var _uploadOk = false;
       await new Promise(function(resolve){
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/collect/' + linkId + '/upload');
+        xhr.open('POST', FC_BASE + '/collect/' + linkId + '/upload');
         xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); xhr.timeout = 0;
         f._xhr = xhr;  // 将 xhr 对象关联到文件对象，便于后续取消
         xhr.upload.onprogress = function(e){
@@ -1545,19 +1547,19 @@ function getFileIcon(ext) {
   var txtExts = ['txt','log','md','rtf','readme','license'];
   var cfgExts = ['json','yaml','yml','toml','ini','cfg','conf','xml','env','properties','editorconfig','gitignore'];
 
-  if (ext === 'pdf') return {iconUrl: '/static/img/pdf.svg'};
-  if (ext === 'fpk') return {iconUrl: '/static/img/fpk.svg'};
-  if (imgExts.includes(ext)) return {iconUrl: '/static/img/image.svg'};
-  if (vidExts.includes(ext)) return {iconUrl: '/static/img/video.svg'};
-  if (audExts.includes(ext)) return {iconUrl: '/static/img/audio.svg'};
-  if (docExts.includes(ext)) return {iconUrl: '/static/img/word.svg'};
-  if (xlsExts.includes(ext)) return {iconUrl: '/static/img/excel.svg'};
-  if (pptExts.includes(ext)) return {iconUrl: '/static/img/ppt.svg'};
-  if (arcExts.includes(ext)) return {iconUrl: '/static/img/archive.svg'};
-  if (codeExts.includes(ext)) return {iconUrl: '/static/img/code.svg'};
-  if (txtExts.includes(ext)) return {iconUrl: '/static/img/txt.svg'};
-  if (cfgExts.includes(ext)) return {iconUrl: '/static/img/config.svg'};
-  return {iconUrl: '/static/img/file.svg'};
+  if (ext === 'pdf') return {iconUrl: FC_BASE + '/static/img/pdf.svg'};
+  if (ext === 'fpk') return {iconUrl: FC_BASE + '/static/img/fpk.svg'};
+  if (imgExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/image.svg'};
+  if (vidExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/video.svg'};
+  if (audExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/audio.svg'};
+  if (docExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/word.svg'};
+  if (xlsExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/excel.svg'};
+  if (pptExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/ppt.svg'};
+  if (arcExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/archive.svg'};
+  if (codeExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/code.svg'};
+  if (txtExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/txt.svg'};
+  if (cfgExts.includes(ext)) return {iconUrl: FC_BASE + '/static/img/config.svg'};
+  return {iconUrl: FC_BASE + '/static/img/file.svg'};
 }
 
 /* ========== Tab Switching ========== */
@@ -1805,7 +1807,7 @@ function renderHistoryFromData(data) {
 async function loadHistory(page) {
   page = page || 1;
   try {
-    var res = await fetch('/collect/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
     var data = await res.json();
     totalUploaded = data.total_uploaded || 0;
     _cacheData = data;
@@ -1833,7 +1835,7 @@ function onPerPageChange(input) {
 async function deleteRecord(recordId) {
   if (!confirm('确定删除该记录？')) return;
   try {
-    var res = await fetch('/collect/' + linkId + '/delete_record/' + recordId, { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/delete_record/' + recordId, { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'} });
     var data = await res.json();
     if (data.success) { showToast('已删除'); loadHistory(); }
     else { showToast(data.message || '删除失败'); }
@@ -1842,7 +1844,7 @@ async function deleteRecord(recordId) {
 
 async function downloadFile(recordId) {
   try {
-    var url = '/collect/' + linkId + '/download_record/' + recordId + '?token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
+    var url = FC_BASE + '/collect/' + linkId + '/download_record/' + recordId + '?token=' + encodeURIComponent(_dlToken) + '&expires=' + _dlExpires;
     var a = document.createElement('a');
     a.href = url;
     a.download = '';
@@ -1927,7 +1929,7 @@ async function batchDelete() {
   var btn = document.getElementById('batch-del-btn');
   if (btn) { btn.disabled = true; btn.textContent = '删除中...'; }
   try {
-    var res = await fetch('/collect/' + linkId + '/batch_delete', {
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/batch_delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
       body: JSON.stringify({ record_ids: ids })
@@ -1947,7 +1949,7 @@ async function batchDownload() {
   var overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'flex';
   try {
-    var res = await fetch('/collect/' + linkId + '/batch_download', {
+    var res = await fetch(FC_BASE + '/collect/' + linkId + '/batch_download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
       body: JSON.stringify({ record_ids: ids })
@@ -1988,7 +1990,7 @@ async function deleteAllRecords() {
     var origHtml = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '清空中...'; }
     try {
-      var res = await fetch('/collect/' + linkId + '/delete_all', {
+      var res = await fetch(FC_BASE + '/collect/' + linkId + '/delete_all', {
         method: 'POST',
         headers: { 'X-CSRFToken': '{{ csrf_token }}' }
       });
@@ -2122,19 +2124,19 @@ function previewFile(recordId, fileName) {
   if (jitExts.includes(ext)) {
     var qs = 'type=c&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    var route = ext === 'txt' ? '/txt?' : '/office?';
+    var route = ext === 'txt' ? FC_BASE + '/txt?' : FC_BASE + '/office?';
     window.open(route + qs, '_blank');
     return;
   }
   if (officeExts.includes(ext)) {
     var qs = 'type=c&lid=' + linkId + '&rid=' + recordId + '&fn=' + encodeURIComponent(fileName);
     if (_dlToken) qs += '&tk=' + encodeURIComponent(_dlToken) + '&ex=' + _dlExpires;
-    window.open('/doc?' + qs, '_blank');
+    window.open(FC_BASE + '/doc?' + qs, '_blank');
     return;
   }
 
   var tp = getTokenParam();
-  var previewUrl = '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
+  var previewUrl = FC_BASE + '/collect/' + linkId + '/preview/' + recordId + (tp ? '?' + tp : '');
   var vidExts = ['mp4','webm','ogg','mov','avi','mkv'];
   var audExts = ['mp3','wav','flac','aac','m4a'];
 
@@ -2144,7 +2146,7 @@ function previewFile(recordId, fileName) {
   for (var i = 0; i < _previewableImages.length; i++) {
     var item = _previewableImages[i];
     var itemExt = item.name.split('.').pop().toLowerCase();
-    var itemUrl = '/collect/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
+    var itemUrl = FC_BASE + '/collect/' + linkId + '/preview/' + item.id + (tp ? '?' + tp : '');
     var el = { href: itemUrl, title: item.name, type: 'image' };
     if (vidExts.includes(itemExt)) { el.type = 'video'; }
     if (audExts.includes(itemExt)) { el.type = 'audio'; }

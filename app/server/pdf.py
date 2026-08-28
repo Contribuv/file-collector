@@ -5,7 +5,7 @@ PDF 预览模块
 """
 import os
 from urllib.parse import quote
-from flask import Blueprint, request, abort, send_from_directory, session, redirect
+from flask import Blueprint, request, abort, send_from_directory, session, redirect, make_response
 
 pdf_bp = Blueprint('pdf_preview', __name__)
 
@@ -14,8 +14,25 @@ _PDFJS_WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stati
 
 @pdf_bp.route('/pdf')
 def pdf_preview():
-    """PDF 预览入口，返回 PDF.js viewer 页面"""
-    return send_from_directory(_PDFJS_WEB_DIR, 'viewer.html')
+    """PDF 预览入口，返回 PDF.js viewer 页面
+
+    viewer.html 内使用 <base href="/static/pdfjs/web/"> 等绝对路径加载资源，
+    统一网关（子路径前缀）下需注入路径前缀，否则资源 404。
+    """
+    viewer_path = os.path.join(_PDFJS_WEB_DIR, 'viewer.html')
+    try:
+        with open(viewer_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+    except OSError:
+        abort(404)
+    prefix = request.script_root  # 统一网关路径前缀（网关下=/app/file-collector，直连为空）
+    if prefix:
+        html = html.replace('href="/static/pdfjs/web/"', f'href="{prefix}/static/pdfjs/web/"')
+        html = html.replace('href="/static/css/_preview-error.css"', f'href="{prefix}/static/css/_preview-error.css"')
+        html = html.replace('src="/static/js/pdf-error.js"', f'src="{prefix}/static/js/pdf-error.js"')
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
 
 
 @pdf_bp.route('/office')
@@ -38,7 +55,7 @@ def office_preview():
         # 权限校验
         if type_param == 'a':
             if not session.get('user_id'):
-                return redirect('/admin/login')
+                return redirect(request.script_root + '/admin/login')
             try:
                 rid_int = int(rid) if rid else 0
             except (ValueError, TypeError):
@@ -49,15 +66,16 @@ def office_preview():
                     abort(403)
 
         token_qs = f'?token={token}&expires={expires}' if token else ''
+        _prefix = request.script_root  # 统一网关路径前缀（网关下=/app/file-collector，直连为空）
 
         if type_param == 'c' and lid and rid:
-            file_url = f'/collect/{lid}/preview_file/{rid}{token_qs}'
+            file_url = f'{_prefix}/collect/{lid}/preview_file/{rid}{token_qs}'
         elif type_param == 's' and lid and rid:
-            file_url = f'/share/{lid}/preview_file/{rid}{token_qs}'
+            file_url = f'{_prefix}/share/{lid}/preview_file/{rid}{token_qs}'
         elif type_param == 'a' and rid:
-            file_url = f'/admin/records/{rid}/preview_file'
+            file_url = f'{_prefix}/admin/records/{rid}/preview_file'
         elif type_param == 'ca' and lid:
-            file_url = f'/collect/{lid}/attachment/preview{token_qs}'
+            file_url = f'{_prefix}/collect/{lid}/attachment/preview{token_qs}'
         else:
             abort(400)
     else:
@@ -66,4 +84,4 @@ def office_preview():
             abort(400)
 
     encoded_file = quote(file_url, safe='')
-    return redirect(f'/pdf?file={encoded_file}#page=1')
+    return redirect(f'{request.script_root}/pdf?file={encoded_file}#page=1')

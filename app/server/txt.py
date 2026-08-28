@@ -30,7 +30,7 @@ def txt_preview():
     if type_param:
         if type_param == 'a':
             if not session.get('user_id'):
-                return redirect('/admin/login')
+                return redirect(request.script_root + '/admin/login')
             try:
                 rid_int = int(rid) if rid else 0
             except (ValueError, TypeError):
@@ -42,18 +42,19 @@ def txt_preview():
 
         token_qs = f'?token={token}&expires={expires}' if token else ''
         valid = False
+        _prefix = request.script_root  # 统一网关路径前缀（网关下=/app/file-collector，直连为空）
 
         if type_param == 'c' and lid and rid:
-            file_url = f'/collect/{lid}/preview_file/{rid}{token_qs}'
+            file_url = f'{_prefix}/collect/{lid}/preview_file/{rid}{token_qs}'
             valid = True
         elif type_param == 's' and lid and rid:
-            file_url = f'/share/{lid}/preview_file/{rid}{token_qs}'
+            file_url = f'{_prefix}/share/{lid}/preview_file/{rid}{token_qs}'
             valid = True
         elif type_param == 'a' and rid:
-            file_url = f'/admin/records/{rid}/preview_file'
+            file_url = f'{_prefix}/admin/records/{rid}/preview_file'
             valid = True
         elif type_param == 'ca' and lid:
-            file_url = f'/collect/{lid}/attachment/preview{token_qs}'
+            file_url = f'{_prefix}/collect/{lid}/attachment/preview{token_qs}'
             valid = True
 
         if not valid:

@@ -5,6 +5,11 @@
 <div class="admin-layout">
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
+    {% if session.get('sso_need_pwd') %}
+    <div style="background:#fff7e6;border:1px solid #ffd591;color:#ad6800;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.9rem;">
+      ⚠ 您当前为飞牛 NAS 网关账号，尚未设置应用登录密码。请在下方「账号设置」中填写<b>新密码</b>并保存，设置后可继续使用全部功能（飞牛网关免密登录不受影响）。
+    </div>
+    {% endif %}
     <div class="settings-grid">
       <!-- 账号设置 -->
       <div class="card card-compact">

@@ -119,7 +119,7 @@ def gateway_index():
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
 
     # 获取版本号（与 manifest 同步）
-    version = "2.3.40"
+    version = "2.3.41"
     try:
         from app import VERSION
         version = VERSION

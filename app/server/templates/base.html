@@ -10,6 +10,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css', v=VERSION) }}">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico', v=VERSION) }}">
   {% block styles %}{% endblock %}
+  <script type="application/json" id="fc-base-cfg">{{ fc_base|tojson }}</script>
+  <script>
+    window.FC_BASE = '';
+    try { window.FC_BASE = JSON.parse(document.getElementById('fc-base-cfg').textContent); } catch(e) {}
+  </script>
 </head>
 <body class="{% if session.is_admin %}is-admin{% endif %}{% block body_class %}{% endblock %}">
 

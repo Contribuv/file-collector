@@ -243,7 +243,7 @@ function showUserPopover(btn) {
     '</div>' +
     '<div class="user-popover-body">' +
       '<div class="user-popover-row">' +
-        '<form method="POST" action="/admin/users/' + userId + '/toggle" style="margin:0;" onsubmit="return confirm(\'确定' + toggleLabel + '用户\u300c' + escapeJs(username) + '\u300d？\');">' +
+        '<form method="POST" action="' + FC_BASE + '/admin/users/' + userId + '/toggle" style="margin:0;" onsubmit="return confirm(\'确定' + toggleLabel + '用户\u300c' + escapeJs(username) + '\u300d？\');">' +
           '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
           '<button type="submit" class="user-popover-item">' + svgToggleUser + toggleLabel + '用户</button>' +
         '</form>' +
@@ -251,7 +251,7 @@ function showUserPopover(btn) {
       '</div>' +
       '<div class="user-popover-row">' +
         '<button class="user-popover-item" onclick="closeUserPopover();showResetModal(\'' + userId + '\',\'' + escapeJs(username) + '\')">' + svgResetKey + '重置密码</button>' +
-        '<form method="POST" action="/admin/users/' + userId + '/delete" style="margin:0;" onsubmit="return confirm(\'确定删除用户\u300c' + escapeJs(username) + '\u300d？此操作不可恢复！\');">' +
+        '<form method="POST" action="' + FC_BASE + '/admin/users/' + userId + '/delete" style="margin:0;" onsubmit="return confirm(\'确定删除用户\u300c' + escapeJs(username) + '\u300d？此操作不可恢复！\');">' +
           '<input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '">' +
           '<button type="submit" class="user-popover-item danger">' + svgDeleteUser + '删除用户</button>' +
         '</form>' +
@@ -305,7 +305,7 @@ function showEditModal(userId, username, email) {
   document.getElementById('edit-email').value = email || '';
   document.getElementById('edit-password').value = '';
   document.getElementById('edit-confirm').value = '';
-  document.getElementById('edit-form').action = '/admin/users/' + userId + '/edit';
+  document.getElementById('edit-form').action = FC_BASE + '/admin/users/' + userId + '/edit';
   document.getElementById('edit-modal').style.display = 'flex';
 }
 function closeEditModal() {
@@ -336,7 +336,7 @@ async function confirmReset() {
   if (!resetUserId) return;
   var csrf = document.querySelector('input[name="csrf_token"]').value;
   try {
-    var resp = await fetch('/admin/users/' + resetUserId + '/reset-password', {
+    var resp = await fetch(FC_BASE + '/admin/users/' + resetUserId + '/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }
     });

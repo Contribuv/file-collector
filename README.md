@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.40-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.41-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,15 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.41
+- **统一网关（`/app/file-collector`）全面适配**：修复后台下载、文件预览（图片/视频/TXT/PDF/音频）、静态资源、后台操作等 URL 缺少前缀的问题
+- 修复统一网关下 POST 请求体丢失问题（socket 反代补齐 body 转发），登录/上传/删除/通行证验证等在网关下恢复正常
+- 修复统一网关下大文件上传卡死：socket 反代支持 `Expect: 100-continue`，附件上传、TUS 断点续传可用
+- 修复统一网关下 PDF 预览资源 404（PDF.js viewer 资源路径适配前缀）
+- Office 预览在统一网关下提示「请在飞牛文件官方应用中查看」，TCP 直连保持 OnlyOffice 在线预览
+- SSO 网关账号（含飞牛普通账号）首次进入后台强制设置登录密码，设置后可继续使用（飞牛网关免密登录保留）
+- 复制分享/收集链接逻辑保持不变（仅通过外网反代或 TCP 端口访问）
 
 ### v2.3.40
 - 网关页文本优化，消除"公网/本机"入口混淆：

@@ -40,7 +40,7 @@ def office_static(filename):
             abort(403)
         # 后台预览 URL 需要登录，未登录时跳转到后台登录页
         if src.startswith('/admin/records/') and not session.get('user_id'):
-            return redirect('/admin/login')
+            return redirect(request.script_root + '/admin/login')
     return send_from_directory(_OFFICE_DIR, filename)
 
 
@@ -90,6 +90,15 @@ def doc_preview():
     # 延迟导入，避免循环依赖
     from app import _render_error_html, _check_record_ownership
 
+    # 统一网关访问时 Office 预览不可用：OnlyOffice 前端大量根路径硬编码，
+    # 网关子路径下资源无法加载。提示用户前往飞牛文件官方应用查看。
+    if request.headers.get('X-Trim-Userid') or request.script_root:
+        return _render_error_html(
+            '请在飞牛文件官方应用中查看',
+            200,
+            '通过飞牛统一网关暂不支持 Office 文档在线预览，请前往飞牛文件官方应用中打开该文件。'
+        )
+
     type_param = request.args.get('type', '')
     lid = request.args.get('lid', '')
     rid = request.args.get('rid', '')
@@ -104,7 +113,7 @@ def doc_preview():
     # ===== 后台权限校验（第一层） =====
     if type_param == 'a':
         if not session.get('user_id'):
-            return redirect('/admin/login')
+            return redirect(request.script_root + '/admin/login')
         try:
             rid_int = int(rid) if rid else 0
         except (ValueError, TypeError):
@@ -115,19 +124,20 @@ def doc_preview():
 
     # ===== 构造文件内容 URL（复用 /office 路由逻辑） =====
     token_qs = f'?token={token}&expires={expires}' if token else ''
+    _prefix = request.script_root  # 统一网关路径前缀（网关下=/app/file-collector，直连为空）
 
     if type_param == 'c' and lid and rid:
-        file_url = f'/collect/{lid}/preview_file/{rid}{token_qs}'
+        file_url = f'{_prefix}/collect/{lid}/preview_file/{rid}{token_qs}'
     elif type_param == 's' and lid and rid:
-        file_url = f'/share/{lid}/preview_file/{rid}{token_qs}'
+        file_url = f'{_prefix}/share/{lid}/preview_file/{rid}{token_qs}'
     elif type_param == 'a' and rid:
-        file_url = f'/admin/records/{rid}/preview_file'
+        file_url = f'{_prefix}/admin/records/{rid}/preview_file'
     elif type_param == 'ca' and lid:
-        file_url = f'/collect/{lid}/attachment/preview{token_qs}'
+        file_url = f'{_prefix}/collect/{lid}/attachment/preview{token_qs}'
     else:
         return _render_error_html('请求参数无效', 400, '缺少必要的参数，请从预览按钮进入')
 
     # 重定向到 OnlyOffice viewer，只读模式 + 中文界面
     encoded_file = quote(file_url, safe='')
     encoded_fn = quote(filename, safe='')
-    return redirect(f'/office-v/index.html?src={encoded_file}&readonly=true&locale=zh&fn={encoded_fn}')
+    return redirect(f'{_prefix}/office-v/index.html?src={encoded_file}&readonly=true&locale=zh&fn={encoded_fn}')

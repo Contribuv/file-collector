@@ -174,8 +174,8 @@ function toggleDetailPopover(btn) {
   if (previewable) {
     footerHtml += '<button class="btn btn-sm btn-primary" onclick="previewFile(\'' + id + '\',\'' + escapeJs(filename) + '\',' + sizeBytes + ');closeAllPopovers();">预览</button>';
   }
-  footerHtml += '<a href="/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
-  footerHtml += '<form method="POST" action="/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
+  footerHtml += '<a href="' + FC_BASE + '/admin/records/' + id + '/download" class="btn btn-sm btn-outline" style="margin-left:6px;">下载</a>';
+  footerHtml += '<form method="POST" action="' + FC_BASE + '/admin/records/' + id + '/delete" style="display:inline;margin-left:6px;" onsubmit="return confirm(\'确定删除 \u300c' + escapeJs(filename) + '\u300d？\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(csrfToken) + '"><button type="submit" class="btn btn-sm btn-danger">删除</button></form>';
   
   // 构建信息行，上传者信息动态显示
   var infoRows = '';
@@ -185,7 +185,7 @@ function toggleDetailPopover(btn) {
   if (requireUploader && uploader) {
     infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">上传者</span><span class="detail-popover-value">' + escapeHtml(uploader) + '</span></div>';
   }
-  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
+  infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">下载记录</span><span class="detail-popover-value"><a href="' + FC_BASE + '/admin/records/' + id + '/download-logs" target="_blank" style="font-size:12px;color:#1890ff;text-decoration:none;">→ 查看</a></span></div>';
   infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">IP</span><span class="detail-popover-value">' + escapeHtml(ip) + '</span></div>';
   infoRows += '<div class="detail-popover-row"><span class="detail-popover-label">时间</span><span class="detail-popover-value">' + escapeHtml(fmtTime(time)) + '</span></div>';
   
@@ -343,12 +343,12 @@ function previewFile(recordId, fileName, fileSizeBytes) {
   var jitExts = ['pdf', 'txt'];
   var officeExts = ['doc','docx','xls','xlsx','ppt','pptx','csv'];
   if (jitExts.includes(ext)) {
-    var route = ext === 'txt' ? '/txt?' : '/office?';
+    var route = ext === 'txt' ? FC_BASE + '/txt?' : FC_BASE + '/office?';
     window.open(route + 'type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
     return;
   }
   if (officeExts.includes(ext)) {
-    window.open('/doc?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
+    window.open(FC_BASE + '/doc?type=a&rid=' + recordId + '&fn=' + encodeURIComponent(fileName), '_blank');
     return;
   }
 
@@ -360,17 +360,17 @@ function previewFile(recordId, fileName, fileSizeBytes) {
   for (var i = 0; i < _previewableAdminImages.length; i++) {
     var item = _previewableAdminImages[i];
     var itemExt = item.name.split('.').pop().toLowerCase();
-    var itemUrl = '/admin/records/' + item.id + '/preview-img';
+    var itemUrl = FC_BASE + '/admin/records/' + item.id + '/preview-img';
     var el = { href: itemUrl, title: item.name, type: 'image' };
-    if (vidExts.includes(itemExt)) { el.type = 'video'; el.href = '/admin/records/' + item.id + '/preview_file'; }
-    if (audExts.includes(itemExt)) { el.type = 'audio'; el.href = '/admin/records/' + item.id + '/preview_file'; }
+    if (vidExts.includes(itemExt)) { el.type = 'video'; el.href = FC_BASE + '/admin/records/' + item.id + '/preview_file'; }
+    if (audExts.includes(itemExt)) { el.type = 'audio'; el.href = FC_BASE + '/admin/records/' + item.id + '/preview_file'; }
     if (item.id == recordId) startIdx = i;
     elements.push(el);
   }
 
   if (elements.length === 0 || startIdx < 0) {
     var isImg = (['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif'].includes(ext));
-    var url = '/admin/records/' + recordId + (isImg ? '/preview-img' : '/preview_file');
+    var url = FC_BASE + '/admin/records/' + recordId + (isImg ? '/preview-img' : '/preview_file');
     var el = { href: url, title: fileName, type: 'image' };
     if (vidExts.includes(ext)) { el.type = 'video'; }
     if (audExts.includes(ext)) { el.type = 'audio'; }

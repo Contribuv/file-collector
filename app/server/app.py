@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.40"
+VERSION = "2.3.41"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -388,6 +388,11 @@ def init_db():
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_fn_uid ON users(fn_uid) WHERE fn_uid IS NOT NULL")
             conn.commit()
             logger.info("已添加 users.fn_uid 字段及唯一索引")
+        # 迁移：users 表增加 sso_need_pwd 列（SSO 网关自动创建账号标记，未设置密码前强制设置）
+        if 'sso_need_pwd' not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN sso_need_pwd INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已添加 users.sso_need_pwd 字段")
     except Exception as e:
         logger.error(f"数据库迁移错误(users): {e}")
     
@@ -1637,6 +1642,21 @@ def _establish_session(user_row):
         pass
 
 
+def _fix_latin1_mojibake(s):
+    """还原被 Latin-1 错误解码的 UTF-8 文本。
+
+    飞牛网关以 UTF-8 字节发送中文用户名请求头，而 WSGI/Werkzeug 按
+    Latin-1（ISO-8859-1）解码 HTTP 头，导致中文变成乱码（如"唐一科技"→"åæç§"）。
+    此函数把乱码字符串重新编码为原始字节再按 UTF-8 解码还原；无法还原时返回原值。
+    """
+    if not s:
+        return s
+    try:
+        return s.encode('latin-1').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
+
 def sso_login_from_gateway():
     """
     飞牛统一网关 SSO 自动登录。
@@ -1650,6 +1670,9 @@ def sso_login_from_gateway():
     fn_username = (request.headers.get('X-Trim-Username', '') or '').strip()
     fn_is_admin = request.headers.get('X-Trim-Isadmin', 'false').lower() == 'true'
 
+    # 还原中文用户名编码（网关以 UTF-8 发头，WSGI 按 Latin-1 解码产生乱码）
+    fn_username = _fix_latin1_mojibake(fn_username)
+
     if not fn_username:
         fn_username = f'fn_{fn_uid}'
 
@@ -1661,7 +1684,28 @@ def sso_login_from_gateway():
             (fn_uid,)
         ).fetchone()
 
-        if not user:
+        if user:
+            # 修正旧版本以乱码入库的中文用户名/昵称（此前 Latin-1 解码问题）
+            fixed_uname = _fix_latin1_mojibake(user['username'])
+            if fixed_uname != user['username'] and fixed_uname == fn_username:
+                conflict = conn.execute(
+                    "SELECT id FROM users WHERE username = ? AND id != ?", (fixed_uname, user['id'])
+                ).fetchone()
+                if not conflict:
+                    raw_nick = user.get('nickname') or ''
+                    fixed_nick = _fix_latin1_mojibake(raw_nick)
+                    if fixed_nick == raw_nick and raw_nick:
+                        new_nick = raw_nick  # 昵称非乱码（已自定义），保持
+                    else:
+                        new_nick = fixed_nick or fixed_uname
+                    conn.execute(
+                        "UPDATE users SET username = ?, nickname = ? WHERE id = ?",
+                        (fixed_uname, new_nick, user['id'])
+                    )
+                    conn.commit()
+                    user = conn.execute("SELECT * FROM users WHERE id = ?", (user['id'],)).fetchone()
+                    logger.info(f'飞牛 SSO 修正乱码用户名: {fixed_uname} (fn_uid={fn_uid})')
+        else:
             # 2) 未绑定：按 username 匹配并绑定 fn_uid（兼容已存在的同名账号）
             user = conn.execute(
                 "SELECT * FROM users WHERE username = ? AND status = 'active'",
@@ -1682,8 +1726,8 @@ def sso_login_from_gateway():
                 # SSO 用户无应用密码，留不可登录的占位 hash（generate_password_hash 格式）
                 pwd_hash = generate_password_hash(secrets.token_urlsafe(32))
                 conn.execute(
-                    "INSERT INTO users (id, username, password_hash, email, nickname, is_admin, status, fn_uid) "
-                    "VALUES (?, ?, ?, ?, ?, ?, 'active', ?)",
+                    "INSERT INTO users (id, username, password_hash, email, nickname, is_admin, status, fn_uid, sso_need_pwd) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 1)",
                     (user_id, final_username, pwd_hash, '', final_username,
                      1 if fn_is_admin else 0, fn_uid)
                 )
@@ -1701,6 +1745,7 @@ def sso_login_from_gateway():
 
     _establish_session(user)
     session['sso_login'] = True  # 标记：经飞牛网关 SSO 登录，前端隐藏退出按钮
+    session['sso_need_pwd'] = bool(user.get('sso_need_pwd'))  # 标记：SSO 账号未设置密码，需强制设置
     conn.close()
     return True
 
@@ -2261,6 +2306,25 @@ def get_user_files(user_id):
     conn.close()
     return records_list
 
+def _sso_force_password_check():
+    """SSO 网关自动创建账号强制设置密码。
+
+    未设置密码前，除设置页/登出外，强制跳转到对应设置页设置密码。
+    已处理（返回响应）则返回响应；无需处理返回 None。
+    """
+    if not session.get('sso_need_pwd'):
+        return None
+    # 豁免：设置页（改密入口）、登出页
+    if request.endpoint in ('admin_settings', 'user_settings', 'admin_logout'):
+        return None
+    if request.path.startswith('/api/'):
+        return jsonify({'error': '请先设置登录密码'}), 403
+    flash('安全提示：请先设置应用登录密码，设置后可继续使用', 'error')
+    if session.get('is_admin'):
+        return redirect(url_for('admin_settings'))
+    return redirect(url_for('user_settings'))
+
+
 def admin_required(f):
     """管理员认证装饰器"""
     @wraps(f)
@@ -2272,6 +2336,9 @@ def admin_required(f):
         if request.method == 'POST':
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
+        ret = _sso_force_password_check()
+        if ret is not None:
+            return ret
         admin_hash = get_setting('admin_password_hash', '')
         # 默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
@@ -2301,6 +2368,9 @@ def login_required(f):
         if request.method == 'POST':
             if not validate_csrf():
                 return redirect(request.referrer or url_for('admin_dashboard'))
+        ret = _sso_force_password_check()
+        if ret is not None:
+            return ret
         # 管理员默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if session.get('is_admin'):
             admin_hash = get_setting('admin_password_hash', '')
@@ -2493,6 +2563,8 @@ def inject_globals():
         'config_title': title,
         'collect_footer_text': get_setting('collect_footer_text', ''),
         'VERSION': VERSION,
+        # 统一网关路径前缀：网关下为 /app/file-collector，TCP 直连为空字符串
+        'fc_base': request.script_root,
     }
 
 @app.template_filter('parse_json')
@@ -6631,7 +6703,8 @@ def user_settings():
             new_pass = request.form.get('new_password', '')
             confirm_pass = request.form.get('confirm_password', '')
             user = get_user_by_id(user_id)
-            if not user or not check_password_hash(user['password_hash'], old_pass):
+            sso_need_set = bool(session.get('sso_need_pwd'))  # SSO 账号待设置密码状态
+            if not user or (not sso_need_set and not check_password_hash(user['password_hash'], old_pass)):
                 flash('原密码错误')
             elif not new_username:
                 flash('用户名不能为空')
@@ -6658,6 +6731,12 @@ def user_settings():
                         conn.close()
                         return redirect(url_for('user_settings'))
                 
+                # SSO 待设置密码：必须填写新密码
+                if sso_need_set and not new_pass:
+                    flash('请先设置登录密码')
+                    conn.close()
+                    return redirect(url_for('user_settings'))
+                
                 # 构建动态 UPDATE
                 updates_sql = "UPDATE users SET username = ?"
                 updates_params = [new_username]
@@ -6680,6 +6759,9 @@ def user_settings():
                         flash('两次密码不一致')
                         conn.close()
                         return redirect(url_for('user_settings'))
+                    if sso_need_set:
+                        # SSO 首次设置密码：清除待设置标记
+                        updates_sql += ", sso_need_pwd = 0"
                     updates_sql += ", password_hash = ?"
                     updates_params.append(generate_password_hash(new_pass))
                 
@@ -6693,6 +6775,11 @@ def user_settings():
                     session['nickname'] = new_nickname
                 
                 if new_pass:
+                    if sso_need_set:
+                        # SSO 首次设置密码：清除待设置标记，保留登录态继续使用
+                        session['sso_need_pwd'] = False
+                        flash('密码设置成功，可继续使用')
+                        return redirect(url_for('user_settings'))
                     flash('密码修改成功，请重新登录')
                     session.clear()
                     return redirect(url_for('admin_login'))
@@ -8454,10 +8541,10 @@ def admin_preview_record(record_id):
     
     if ext in image_extensions:
         # 图片预览
-        return f'<img src="/admin/records/{record_id}/download" alt="{safe_original_name}" style="max-width:100%;max-height:70vh;">'
+        return f'<img src="{request.script_root}/admin/records/{record_id}/download" alt="{safe_original_name}" style="max-width:100%;max-height:70vh;">'
     elif ext in video_extensions:
         # 视频预览
-        return f'<video controls style="max-width:100%;max-height:70vh;"><source src="/admin/records/{record_id}/download" type="video/mp4">您的浏览器不支持视频播放</video>'
+        return f'<video controls style="max-width:100%;max-height:70vh;"><source src="{request.script_root}/admin/records/{record_id}/download" type="video/mp4">您的浏览器不支持视频播放</video>'
     elif ext in text_extensions:
         # 文本文件预览（使用已校验的 real_path，避免 TOCTOU）
         try:
@@ -8687,7 +8774,8 @@ def admin_settings():
             confirm_pass = request.form.get('confirm_password', '')
 
             admin_hash = get_setting('admin_password_hash', '')
-            if not check_password_hash(admin_hash, old_pass):
+            sso_need_set = bool(session.get('sso_need_pwd'))  # SSO 账号待设置密码状态
+            if not sso_need_set and not check_password_hash(admin_hash, old_pass):
                 flash('原密码错误，无法修改账号信息')
             elif not new_username:
                 flash('管理员账号不能为空')
@@ -8721,7 +8809,9 @@ def admin_settings():
                 conn2.close()
                 if new_nickname and session.get('user_id'):
                     session['nickname'] = new_nickname
-                if new_pass:
+                if sso_need_set and not new_pass:
+                    flash('请先设置登录密码')
+                elif new_pass:
                     if len(new_pass) < 8:
                         flash('新密码至少8位，且需包含字母和数字')
                     elif not re.search(r'[a-zA-Z]', new_pass) or not re.search(r'[0-9]', new_pass):
@@ -8734,6 +8824,10 @@ def admin_settings():
                         conn3 = get_db()
                         conn3.execute("UPDATE users SET password_hash = ? WHERE username = ? AND is_admin = 1",
                                       (generate_password_hash(new_pass), new_username))
+                        # SSO 首次设置密码：清除待设置标记
+                        if sso_need_set and session.get('user_id'):
+                            conn3.execute("UPDATE users SET sso_need_pwd = 0 WHERE id = ?", (session['user_id'],))
+                            session['sso_need_pwd'] = False
                         conn3.commit()
                         conn3.close()
                         flash('账号信息修改成功')
@@ -9674,22 +9768,25 @@ if __name__ == '__main__':
             def _handle_conn(conn, prefix):
                 """处理单个 Unix Socket 连接，剥离前缀后转发到 Gunicorn HTTP"""
                 try:
+                    # 读取请求头（读满直到 \r\n\r\n）
                     data = b''
+                    header_end = -1
                     while True:
                         chunk = conn.recv(4096)
                         if not chunk:
                             break
                         data += chunk
-                        # 简单判断：读取到完整 HTTP 请求头后即转发
-                        if b'\r\n\r\n' in data:
+                        header_end = data.find(b'\r\n\r\n')
+                        if header_end != -1:
                             break
 
-                    if not data:
+                    if not data or header_end == -1:
                         conn.close()
                         return
 
                     # 解析请求行
-                    lines = data.split(b'\r\n')
+                    header_block = data[:header_end + 4]
+                    lines = header_block.split(b'\r\n')
                     request_line = lines[0].decode('utf-8', errors='replace')
                     parts = request_line.split(' ')
                     if len(parts) < 2:
@@ -9707,13 +9804,72 @@ if __name__ == '__main__':
                     else:
                         path = raw_path
 
-                    # 重建请求（替换路径 + 添加 X-Forwarded-Prefix 头让 ProxyFix 正确设置 SCRIPT_NAME）
+                    # 解析 Content-Length / Transfer-Encoding / Expect，确定请求体长度
+                    content_length = 0
+                    chunked = False
+                    expect_continue = False
+                    for line in lines[1:]:
+                        try:
+                            hline = line.decode('utf-8', errors='replace')
+                        except Exception:
+                            continue
+                        if ':' in hline:
+                            name, _, value = hline.partition(':')
+                            name = name.strip().lower()
+                            value = value.strip()
+                            if name == 'content-length':
+                                try:
+                                    content_length = int(value)
+                                except ValueError:
+                                    content_length = 0
+                            elif name == 'transfer-encoding':
+                                chunked = True
+                            elif name == 'expect' and value.lower() == '100-continue':
+                                expect_continue = True
+
+                    # 浏览器对大请求体（如附件上传）会发送 Expect: 100-continue，
+                    # 必须先回复 100 Continue，否则浏览器不会发送请求体导致死锁
+                    if expect_continue:
+                        try:
+                            conn.sendall(b'HTTP/1.1 100 Continue\r\n\r\n')
+                        except Exception:
+                            pass
+
+                    # 已随头部读到的请求体
+                    body = data[header_end + 4:]
+
+                    # 按 Content-Length 读满请求体（修复 POST body 丢失，网关下上传/登录/删除等才可用）
+                    if content_length > 0 and len(body) < content_length:
+                        while len(body) < content_length:
+                            try:
+                                chunk = conn.recv(min(65536, content_length - len(body)))
+                            except Exception:
+                                break
+                            if not chunk:
+                                break
+                            body += chunk
+
+                    # Transfer-Encoding: chunked：持续读取直到结束标志 0\r\n\r\n
+                    if chunked and not body.rstrip().endswith(b'0\r\n\r\n'):
+                        while True:
+                            try:
+                                chunk = conn.recv(65536)
+                            except Exception:
+                                break
+                            if not chunk:
+                                break
+                            body += chunk
+                            if body.rstrip().endswith(b'0\r\n\r\n'):
+                                break
+
+                    # 重建请求（替换请求行 + 插入 X-Forwarded-Prefix 头 + 保留完整请求体）
                     # 注意：不添加 X-Forwarded-Proto，避免与网关传入的该头冲突导致
                     # Werkzeug 抛出 "Contradictory scheme headers"
-                    new_request_line = f"{method} {path} HTTP/1.0\r\n"
+                    new_request_line = f"{method} {path} HTTP/1.0\r\n".encode('utf-8')
                     extra_headers = f"X-Forwarded-Prefix: {prefix}\r\n".encode('utf-8')
-                    rest = data.split(b'\r\n', 1)[1] if len(data.split(b'\r\n', 1)) > 1 else b''
-                    new_data = new_request_line.encode('utf-8') + extra_headers + rest
+                    first_crlf = header_block.find(b'\r\n')
+                    rest_headers = header_block[first_crlf + 2:]  # 原请求头（不含请求行）
+                    new_data = new_request_line + extra_headers + rest_headers + body
 
                     # 转发到 Gunicorn HTTP
                     try:

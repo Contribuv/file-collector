@@ -90,15 +90,6 @@ def doc_preview():
     # 延迟导入，避免循环依赖
     from app import _render_error_html, _check_record_ownership
 
-    # 统一网关访问时 Office 预览不可用：OnlyOffice 前端大量根路径硬编码，
-    # 网关子路径下资源无法加载。提示用户前往飞牛文件官方应用查看。
-    if request.headers.get('X-Trim-Userid') or request.script_root:
-        return _render_error_html(
-            '请在飞牛文件官方应用中查看',
-            200,
-            '通过飞牛统一网关暂不支持 Office 文档在线预览，请前往飞牛文件官方应用中打开该文件。'
-        )
-
     type_param = request.args.get('type', '')
     lid = request.args.get('lid', '')
     rid = request.args.get('rid', '')
@@ -121,6 +112,15 @@ def doc_preview():
         if rid_int:
             if not _check_record_ownership(rid_int):
                 return _render_error_html('无权访问此文件', 403, '您只能预览自己创建的收集链接中的文件')
+
+    # ===== 统一网关下重定向到飞牛 /docs/preview（NAS 原生 Office 预览） =====
+    # OnlyOffice WASM 前端大量根路径硬编码，网关子路径下无法加载；
+    # 改用飞牛 NAS 自带预览，从数据库取文件绝对路径跳转。
+    if request.headers.get('X-Trim-Userid') or request.script_root:
+        from app import _fn_docs_preview_redirect
+        resp = _fn_docs_preview_redirect(type_param, lid, rid)
+        if resp is not None:
+            return resp
 
     # ===== 构造文件内容 URL（复用 /office 路由逻辑） =====
     token_qs = f'?token={token}&expires={expires}' if token else ''

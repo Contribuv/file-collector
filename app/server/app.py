@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.41"
+VERSION = "2.3.42"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2403,6 +2403,51 @@ def _check_record_ownership(record_id):
     ).fetchone()
     conn.close()
     return row is not None
+
+
+def _fn_docs_preview_redirect(type_param, lid, rid):
+    """统一网关下 Office/PDF 预览重定向到飞牛 /docs/preview。
+
+    从 upload_records.stored_path / links.attachment_path 取文件绝对路径，
+    NAS 访问地址取当前网关请求的 scheme://host（ProxyFix 已从转发头恢复，
+    即浏览器地址栏的 https://nas.infowe.site:5001）。查不到文件时返回 None。
+    """
+    from urllib.parse import quote
+
+    conn = get_db()
+    try:
+        stored_path = None
+        if type_param == 'a' and rid:
+            row = conn.execute('SELECT stored_path FROM upload_records WHERE id = ?', (rid,)).fetchone()
+            stored_path = row['stored_path'] if row else None
+        elif type_param in ('c', 's') and lid and rid:
+            # 按收集/分享 slug 或 ID 定位链接（slug_col 为内部常量，无注入风险）
+            slug_col = 'collect_slug' if type_param == 'c' else 'share_slug'
+            link = conn.execute(
+                f"SELECT id FROM links WHERE ({slug_col} = ? OR id = ?) AND status = 'active'",
+                (lid, lid)
+            ).fetchone()
+            if link:
+                row = conn.execute(
+                    'SELECT stored_path FROM upload_records WHERE id = ? AND link_id = ?',
+                    (rid, link['id'])
+                ).fetchone()
+                stored_path = row['stored_path'] if row else None
+        elif type_param == 'ca' and lid:
+            link = conn.execute(
+                "SELECT attachment_path FROM links WHERE (collect_slug = ? OR id = ?) AND status = 'active'",
+                (lid, lid)
+            ).fetchone()
+            stored_path = link['attachment_path'] if link else None
+        else:
+            return None
+    finally:
+        conn.close()
+
+    if not stored_path:
+        return None
+    nas_base = f'{request.scheme}://{request.host}'
+    return redirect(f'{nas_base}/docs/preview?path={quote(stored_path, safe="/")}')
 
 def _can_preview_attachment_ext(filename):
     """判断附件是否支持预览"""

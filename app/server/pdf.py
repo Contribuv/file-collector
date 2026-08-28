@@ -65,6 +65,13 @@ def office_preview():
                 if not _check_record_ownership(rid_int):
                     abort(403)
 
+        # 统一网关下重定向到飞牛 /docs/preview（NAS 原生 PDF 预览）
+        if request.headers.get('X-Trim-Userid') or request.script_root:
+            from app import _fn_docs_preview_redirect
+            resp = _fn_docs_preview_redirect(type_param, lid, rid)
+            if resp is not None:
+                return resp
+
         token_qs = f'?token={token}&expires={expires}' if token else ''
         _prefix = request.script_root  # 统一网关路径前缀（网关下=/app/file-collector，直连为空）
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.41-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.42-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,12 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.42
+- **统一网关（`/app/file-collector`）下 Office / PDF 预览支持**：改走飞牛 NAS 自带预览（`/docs/preview?path=<文件绝对路径>`）
+- 网关下 Office 预览不再提示「请前往飞牛文件官方应用」，直接跳转飞牛原生预览；`type` 参数覆盖收集页记录（`c`）、分享页记录（`s`）、后台记录（`a`）、收集页附件（`ca`）
+- 网关下 PDF 预览同样统一走飞牛 `/docs/preview`，TCP 直连场景保持 OnlyOffice / PDF.js 在线预览不变
+- 文件绝对路径从数据库 `upload_records.stored_path` / `links.attachment_path` 取，NAS 访问地址取自网关请求的 `scheme://host` 拼接
 
 ### v2.3.41
 - **统一网关（`/app/file-collector`）全面适配**：修复后台下载、文件预览（图片/视频/TXT/PDF/音频）、静态资源、后台操作等 URL 缺少前缀的问题

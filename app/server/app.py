@@ -2410,7 +2410,8 @@ def _fn_docs_preview_redirect(type_param, lid, rid):
 
     从 upload_records.stored_path / links.attachment_path 取文件绝对路径，
     NAS 访问地址取当前网关请求的 scheme://host（ProxyFix 已从转发头恢复，
-    即浏览器地址栏的 https://nas.infowe.site:5001）。查不到文件时返回 None。
+    即浏览器地址栏的 https://nas.infowe.site:5001）。若 X-Forwarded-Host
+    丢失端口（域名访问常见），从原始 Host 头补全。查不到文件时返回 None。
     """
     from urllib.parse import quote
 
@@ -2446,7 +2447,19 @@ def _fn_docs_preview_redirect(type_param, lid, rid):
 
     if not stored_path:
         return None
-    nas_base = f'{request.scheme}://{request.host}'
+    # 构造 NAS 基址：ProxyFix 从 X-Forwarded-Host 恢复 host 时可能丢失端口
+    # （飞牛网关域名访问时 X-Forwarded-Host 不带端口，如 nas.infowe.site 而非 :5001）
+    scheme = request.scheme
+    host = request.host
+    if ':' not in host and not host.endswith(']'):
+        # 从 ProxyFix 保存的原始 HTTP_HOST（网关转发前的 Host 头）补全端口
+        orig = request.environ.get('werkzeug.proxy_fix.orig') or {}
+        orig_host = orig.get('HTTP_HOST', '')
+        if orig_host and ':' in orig_host and not orig_host.endswith(']'):
+            _, _, port = orig_host.rpartition(':')
+            if port and port not in ('80', '443'):
+                host = f'{host}:{port}'
+    nas_base = f'{scheme}://{host}'
     return redirect(f'{nas_base}/docs/preview?path={quote(stored_path, safe="/")}')
 
 def _can_preview_attachment_ext(filename):

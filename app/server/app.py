@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.42"
+VERSION = "2.3.44"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2408,10 +2408,12 @@ def _check_record_ownership(record_id):
 def _fn_docs_preview_redirect(type_param, lid, rid):
     """统一网关下 Office/PDF 预览重定向到飞牛 /docs/preview。
 
-    从 upload_records.stored_path / links.attachment_path 取文件绝对路径，
-    NAS 访问地址取当前网关请求的 scheme://host（ProxyFix 已从转发头恢复，
-    即浏览器地址栏的 https://nas.infowe.site:5001）。若 X-Forwarded-Host
-    丢失端口（域名访问常见），从原始 Host 头补全。查不到文件时返回 None。
+    从 upload_records.stored_path / links.attachment_path 取文件绝对路径。
+    NAS 访问地址不由后端拼接：飞牛统一网关走 Unix Socket，官方不保证注入
+    X-Forwarded-Host / X-Forwarded-Port 等头，后端无法可靠还原客户端
+    host:port（如 nas.infowe.site:5001）。故改用根相对路径 /docs/preview，
+    由浏览器基于当前页面 origin（用户能打开本页，地址已含正确端口）解析，
+    域名+端口必然正确。查不到文件返回 None。
     """
     from urllib.parse import quote
 
@@ -2447,20 +2449,11 @@ def _fn_docs_preview_redirect(type_param, lid, rid):
 
     if not stored_path:
         return None
-    # 构造 NAS 基址：ProxyFix 从 X-Forwarded-Host 恢复 host 时可能丢失端口
-    # （飞牛网关域名访问时 X-Forwarded-Host 不带端口，如 nas.infowe.site 而非 :5001）
-    scheme = request.scheme
-    host = request.host
-    if ':' not in host and not host.endswith(']'):
-        # 从 ProxyFix 保存的原始 HTTP_HOST（网关转发前的 Host 头）补全端口
-        orig = request.environ.get('werkzeug.proxy_fix.orig') or {}
-        orig_host = orig.get('HTTP_HOST', '')
-        if orig_host and ':' in orig_host and not orig_host.endswith(']'):
-            _, _, port = orig_host.rpartition(':')
-            if port and port not in ('80', '443'):
-                host = f'{host}:{port}'
-    nas_base = f'{scheme}://{host}'
-    return redirect(f'{nas_base}/docs/preview?path={quote(stored_path, safe="/")}')
+    # 关键修复：不拼绝对 URL（走 Unix Socket 时后端拿不到客户端端口，必丢 :5001）。
+    # 改用根相对路径 /docs/preview，浏览器会基于当前页面的 origin
+    # （用户能打开本页，说明其地址已含正确端口，如 https://nas.infowe.site:5001）
+    # 解析该相对地址，端口自动保留，无需后端还原任何转发头。
+    return redirect(f'/docs/preview?path={quote(stored_path, safe="/")}')
 
 def _can_preview_attachment_ext(filename):
     """判断附件是否支持预览"""

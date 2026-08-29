@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.42-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.44-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -314,6 +314,12 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.44
+- 修复统一网关域名+端口访问时飞牛文档预览（Office/PDF）端口丢失问题：`/docs/preview` 改用根相对路径，由浏览器基于当前页面 origin 解析，端口不再丢失（不再依赖后端从 `X-Forwarded-*` 头还原端口）
+
+### v2.3.43
+- 修复统一网关域名访问时飞牛文档预览（Office/PDF）端口丢失问题
 
 ### v2.3.42
 - **统一网关（`/app/file-collector`）下 Office / PDF 预览支持**：改走飞牛 NAS 自带预览（`/docs/preview?path=<文件绝对路径>`）

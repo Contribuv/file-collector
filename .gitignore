@@ -1,0 +1,11 @@
+# 打包产物（不推送）
+package/
+*.fpk
+fnpack.exe
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本地验证脚本
+verify_*.py

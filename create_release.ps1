@@ -1,4 +1,4 @@
-# 创建 GitHub Release v2.3.44 并上传 fpk
+# 创建 GitHub Release v2.3.45 并上传 fpk
 $ErrorActionPreference = 'Stop'
 
 # 1. 从 Git Credential Manager 提取 GitHub 凭据
@@ -33,17 +33,18 @@ Write-Output "认证用户: $($me.login)"
 # 3. 创建 Release
 $repo = 'Contribuv/file-collector'
 $notes = @'
-## v2.3.44
+## v2.3.45
 
-修复统一网关域名+端口访问时飞牛文档预览端口丢失问题：
+界面显示优化：
 
-- `/docs/preview` 改用根相对路径，由浏览器基于当前页面 origin 解析
-- 不再依赖后端从 `X-Forwarded-*` 头还原端口，域名+端口访问恢复正常
+- 首页顶栏昵称优先显示：设置昵称后不再显示管理员用户名（`nickname` 为空时回退账号；SSO 登录仍显示飞牛 NAS 账号名）
+- 收集页/分享页标题文案优化：去掉用户名后的逗号，改为「{昵称}邀请您上传文件！」「{昵称}分享了文件给您！」
+- 后台链接列表「复制链接」文案同步去掉逗号，与页面展示保持一致
 '@
 $body = @{
-    tag_name         = 'v2.3.44'
+    tag_name         = 'v2.3.45'
     target_commitish = 'main'
-    name             = 'v2.3.44'
+    name             = 'v2.3.45'
     body             = $notes
     draft            = $false
     prerelease       = $false
@@ -53,8 +54,8 @@ $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$re
 Write-Output "Release 已创建: $($release.html_url) (id=$($release.id))"
 
 # 4. 上传 fpk 资产
-$fpk = 'D:\CodeBuddy\文件收集器\package\file-collector-2.3.44.fpk'
+$fpk = 'D:\fnosApp\wjsjq\file-collector\file-collector-2.3.45.fpk'
 if (-not (Test-Path $fpk)) { Write-Error "找不到 fpk: $fpk" }
-$uploadUri = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=file-collector-2.3.44.fpk"
+$uploadUri = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=file-collector-2.3.45.fpk"
 $asset = Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -Form @{ file = Get-Item $fpk }
 Write-Output "资产已上传: $($asset.name) ($($asset.size) bytes) url=$($asset.browser_download_url)"

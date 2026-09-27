@@ -191,7 +191,7 @@
         <div class="cp-drop-hints" id="drop-hints">
           <div class="cp-drop-tags">
             <span class="cp-drop-tag">支持断点续传</span>
-            <span class="cp-drop-tag">单次上限 {{ upload_batch_limit }} 个</span>
+            <span class="cp-drop-tag">{% if upload_batch_limit %}单次上限 {{ upload_batch_limit }} 个{% else %}单次个数不限{% endif %}</span>
           </div>
           <p class="cp-hint-resume">上传失败或中断？重新选择同一文件将自动断点续传</p>
         </div>
@@ -773,10 +773,10 @@ function handleFiles(files) {
   var totalUsed = totalUploaded + selectedFiles.length;
   // 已达总数上限
   if (MAX_FILES > 0 && totalUsed >= MAX_FILES) { showToast('已上传满 ' + MAX_FILES + ' 个文件'); document.getElementById('file-input').value = ''; return; }
-  // 已达单次批量上限
-  if (selectedFiles.length >= BATCH_LIMIT) { showToast('单次最多选择 ' + BATCH_LIMIT + ' 个文件'); document.getElementById('file-input').value = ''; return; }
+  // 已达单次批量上限（BATCH_LIMIT 为 0 表示不限制）
+  if (BATCH_LIMIT > 0 && selectedFiles.length >= BATCH_LIMIT) { showToast('单次最多选择 ' + BATCH_LIMIT + ' 个文件'); document.getElementById('file-input').value = ''; return; }
   // 计算实际可添加数量
-  var batchRemaining = BATCH_LIMIT - selectedFiles.length;
+  var batchRemaining = BATCH_LIMIT > 0 ? BATCH_LIMIT - selectedFiles.length : Infinity;
   var totalRemaining = MAX_FILES > 0 ? MAX_FILES - totalUsed : batchRemaining;
   var effLimit = Math.min(totalRemaining, batchRemaining);
   // 预检提示：持久显示在上传框内，直到点击开始上传

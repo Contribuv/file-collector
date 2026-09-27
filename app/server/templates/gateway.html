@@ -163,13 +163,12 @@ initFnOSTheme();
                 </svg>
                 查看文件
             </div>
-            <div class="mac-sidebar-item mobile-hidden" data-section="help" onclick="switchSection('help')">
+            <div class="mac-sidebar-item mobile-hidden" data-section="manual" onclick="switchSection('manual')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="16" x2="12" y2="12"/>
-                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 </svg>
-                帮助说明
+                使用说明
             </div>
             <div class="mac-sidebar-item more-tab" data-more onclick="toggleMoreSheet()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -219,13 +218,12 @@ initFnOSTheme();
                         </svg>
                         <span>查看文件</span>
                     </div>
-                    <div class="more-sheet-item" onclick="switchSection('help'); closeMoreSheet()">
+                    <div class="more-sheet-item" onclick="switchSection('manual'); closeMoreSheet()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="16" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                         </svg>
-                        <span>帮助说明</span>
+                        <span>使用说明</span>
                     </div>
                     <div class="more-sheet-item" onclick="toggleTheme()">
                         <svg class="sheet-theme-icon" id="sheetThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -318,7 +316,7 @@ initFnOSTheme();
                     <select class="form-select" id="domainSelect">
                         <option value="">加载中...</option>
                     </select>
-                    <div class="form-hint-warning" style="margin-top:6px;font-size:11px;">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
+                    <div class="form-hint-warning">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
                 </div>
                 <div class="form-item">
                     <label class="form-label">HTTPS 端口</label>
@@ -407,31 +405,320 @@ initFnOSTheme();
                 </p>
             </div>
 
-            <!-- 帮助说明 -->
-            <div class="mac-section" id="section-help">
+            <!-- 使用说明（内置新手教程） -->
+            <div class="mac-section" id="section-manual">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="16" x2="12" y2="12"/>
-                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                     </svg>
-                    为什么需要配置反向代理？
+                    使用说明
                 </h2>
-                <div class="info-box">
-                    <ul>
-                        <li>文件收集器默认监听内网端口，仅局域网可访问</li>
-                        <li>通过反向代理，可将服务暴露到公网，支持 HTTPS 加密</li>
-                        <li>证书自动从飞牛系统获取，无需手动申请</li>
-                        <li>支持多终端同时在线协作</li>
-                    </ul>
+                <style>
+                    .doc-toc { border:1px solid var(--gw-border); border-left:4px solid var(--gw-text-primary); padding:12px 16px; margin:0 0 24px; }
+                    .doc-toc p { color:var(--gw-text-tertiary); font-size:13px; margin:0 0 6px; }
+                    .doc-toc ol { padding-left:22px; margin:0; }
+                    .doc-toc li { margin:4px 0; }
+                    .doc-toc a { color:var(--gw-accent); text-decoration:none; }
+                    .doc-toc a:hover { text-decoration:underline; }
+                    .doc h2 { font-size:18px; padding-bottom:8px; margin:32px 0 12px; border-bottom:1px solid var(--gw-border); }
+                    .doc h3 { font-size:15px; margin:20px 0 6px; color:var(--gw-text-primary); }
+                    .doc p { margin:10px 0; color:var(--gw-text-secondary); line-height:1.85; }
+                    .doc ul, .doc ol { padding-left:24px; margin:10px 0; }
+                    .doc li { margin:6px 0; color:var(--gw-text-secondary); }
+                    .doc code { background:var(--gw-fill-0); border:1px solid var(--gw-border); border-radius:4px; padding:0 5px; font-size:13px; color:var(--gw-accent); word-break:break-all; }
+                    .doc table { border-collapse:collapse; margin:12px 0; }
+                    .doc table td { border:1px solid var(--gw-border); padding:8px 16px; color:var(--gw-text-secondary); }
+                    .doc table td:first-child { background:var(--gw-fill-0); }
+                    .doc-figure { margin:18px 0; text-align:center; }
+                    .doc-figure img { max-width:100%; height:auto; border:1px solid var(--gw-border); border-radius:8px; cursor:zoom-in; transition:opacity .15s; }
+                    .doc-figure img:hover { opacity:.9; }
+                    .doc-figure figcaption { color:var(--gw-text-tertiary); font-size:12px; margin-top:6px; }
+                    .doc-lightbox { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.78); align-items:center; justify-content:center; padding:24px; cursor:zoom-out; }
+                    .doc-lightbox.open { display:flex; }
+                    .doc-lightbox img { max-width:100%; max-height:100%; border-radius:6px; box-shadow:0 4px 32px rgba(0,0,0,.5); transition:transform .15s ease; transform-origin:center center; }
+                    .doc-lightbox-close { position:fixed; top:16px; right:16px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:rgba(255,255,255,.15); color:#fff; font-size:20px; line-height:1; cursor:pointer; z-index:10000; }
+                    .doc-lightbox-close:hover { background:rgba(255,255,255,.3); }
+                    .doc-lightbox-zoom { position:fixed; top:16px; right:62px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:none; border-radius:50%; background:rgba(255,255,255,.15); color:#fff; font-size:18px; line-height:1; cursor:pointer; z-index:10000; }
+                    .doc-lightbox-zoom:hover { background:rgba(255,255,255,.3); }
+                    .doc-lightbox-zoom-out { right:106px; }
+                    .doc-lightbox-reset { right:150px; font-size:15px; }
+                    .doc-note { border:1px solid; padding:10px 14px; margin:14px 0; font-size:14px; border-radius:8px; color:var(--gw-text-secondary); }
+                    .doc-note.doc-warn { background:var(--gw-warning-bg); border-color:var(--gw-warning); }
+                    .doc-note.doc-ok { background:var(--gw-success-bg); border-color:var(--gw-success); }
+                    .doc a { color:var(--gw-accent); text-decoration:none; }
+                    .doc a:hover { text-decoration:underline; }
+                </style>
+                <div class="doc">
+                    <div class="doc-toc">
+                        <p>这一页都有啥，点一下直接跳：</p>
+                        <ol>
+                            <li><a href="#doc-intro">先说清楚这是个啥</a></li>
+                            <li><a href="#doc-install">一、先把应用装上</a></li>
+                            <li><a href="#doc-login">二、第一次登录，记得把密码改了</a></li>
+                            <li><a href="#doc-create">三、建一个收集链接</a></li>
+                            <li><a href="#doc-links">四、链接建好了，怎么发给别人</a></li>
+                            <li><a href="#doc-uploader">五、对方怎么传文件给你</a></li>
+                            <li><a href="#doc-share">六、收来的文件，大家怎么查看和下载</a></li>
+                            <li><a href="#doc-admin">七、后台还能干点什么</a></li>
+                            <li><a href="#doc-settings">八、后台「设置」页，逐项说清楚</a></li>
+                            <li><a href="#doc-batch">九、批量功能：一次建一堆链接</a></li>
+                            <li><a href="#doc-reverse">十、补充：想让外面的人也能访问</a></li>
+                        </ol>
+                    </div>
+
+                    <div id="doc-intro">
+                        <h2>先说清楚这是个啥</h2>
+                        <p>说白了，它就是一个帮你“收文件”的小工具。你建一个链接，把链接发到微信群里，大家点开链接就能把文件传给你。收上来的文件，你还能自动按“谁传的”分好类，再开一个分享页让大家一起看、一起下载。</p>
+                        <p>常见用法比如：老师收学生作业、部门收大家的工作资料、组织活动收集照片视频。你不用建一堆微信群，也不用一个个催人家私聊发你。</p>
+                    </div>
+
+                    <div id="doc-install">
+                        <h2>一、先把应用装上</h2>
+                        <p>这是飞牛 fnOS 的专属应用，装起来和装别的应用差不多。</p>
+                        <ol>
+                            <li>先把安装包（<code>.fpk</code> 结尾的文件）下载到电脑或 NAS 上。</li>
+                            <li>打开飞牛的桌面，进到应用管理里，找“手动安装”，选这个文件。</li>
+                            <li>安装过程中会让你设置两样东西：管理员账号密码、监听端口。端口默认 <code>5557</code>，没有特殊需要就别动它。</li>
+                            <li>等几秒钟，装完。桌面上会出现它的图标。</li>
+                        </ol>
+                        <p>装完之后，在浏览器地址栏输入下面的地址就能打开：</p>
+                        <p><code>http://你NAS的IP:5557/admin</code></p>
+                        <div class="doc-note doc-ok">以后要升级，直接在应用商店点升级就行，数据都会保留，不会丢。</div>
+                    </div>
+
+                    <div id="doc-login">
+                        <h2>二、第一次登录，记得把密码改了</h2>
+                        <p>刚装好的应用有一个默认账号，登录的时候直接填这个：</p>
+                        <table>
+                            <tr><td>用户名</td><td><code>admin</code></td></tr>
+                            <tr><td>密码</td><td><code>admin123</code></td></tr>
+                        </table>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/09-login.png') }}" alt="登录页面">
+                            <figcaption>登录页长这样，用户名密码填上面那俩，点登录</figcaption>
+                        </figure>
+                        <div class="doc-note doc-warn">第一次登录后，它会强制让你改一个新密码。这个新密码要记好，别再留着默认的 admin123，不然别人随便就登进来了。</div>
+                    </div>
+
+                    <div id="doc-create">
+                        <h2>三、建一个收集链接</h2>
+                        <p>想开始收东西，就建一个收集链接。登录后台，点左边菜单的「收集链接」，再点「创建收集链接」。</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/01-create-link.png') }}" alt="创建收集链接表单">
+                            <figcaption>创建页面，往下看每个框是干嘛的</figcaption>
+                        </figure>
+                        <p>表单里几个关键的地方说一下：</p>
+                        <ul>
+                            <li><b>收集名称</b>：给这次收集起个名，比如“语文作业收集”。</li>
+                            <li><b>收集描述</b>：告诉别人要传些什么，比如“请上传本周语文作业的照片，周末前交”。</li>
+                            <li><b>空通行证</b>：勾上了，链接就完全公开，别人点开不用输密码；不勾，就得设一个密码，把密码一起发给对方。</li>
+                            <li><b>开启分享页</b>：勾上，除了收文件还会多生成一个“分享页”，别人能在上面看和下载已经收上来的文件。一般建议勾上。</li>
+                            <li><b>上传者登记</b>：勾上，对方传之前得先填自己的名字，文件会按名字自动分文件夹存，谁传的一目了然。收作业这种场景强烈建议勾。</li>
+                            <li><b>单文件上限 / 上传数量上限</b>：限制单个文件多大、每人最多传几个。默认值一般够用。</li>
+                        </ul>
+                        <p>填完点保存，这个链接就算建好了。</p>
+                    </div>
+
+                    <div id="doc-links">
+                        <h2>四、链接建好了，怎么发给别人</h2>
+                        <p>回到「收集链接」列表，能看到所有建好的链接。每个链接下面都有“复制”按钮，会复制两个地址，分别对应两种页面：</p>
+                        <ul>
+                            <li><b>收集页链接</b>：给别人传文件用的，发群里。</li>
+                            <li><b>分享页链接</b>：给别人看/下载文件用的，需要的时候发。</li>
+                        </ul>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/02-links-list.png') }}" alt="链接列表">
+                            <figcaption>列表这里能复制链接，也能编辑、禁用、删除链接</figcaption>
+                        </figure>
+                        <p>列表里每个链接都能单独编辑（改密码、改限额）、禁用（禁了链接就失效，别人打不开）、删除。放心删，已经上传的文件还留在硬盘上，不会没。</p>
+                    </div>
+
+                    <div id="doc-uploader">
+                        <h2>五、对方怎么传文件给你</h2>
+                        <p>下面站在“上传的人”的角度看一遍，老师你直接把这部分截图发群里都行，省得解释。</p>
+                        <h3>第 1 步：打开链接，先填自己的名字</h3>
+                        <p>开了“上传者登记”的话，打开页面会先弹个小窗让你填昵称，填完点确认。</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/03-collect-uploader.png') }}" alt="填名字弹窗">
+                            <figcaption>填完名字再继续，这样老师知道哪个文件是谁传的</figcaption>
+                        </figure>
+                        <h3>第 2 步：把文件拖进来，或者点选</h3>
+                        <p>有两种方式：直接把文件拖到中间那块上传区；或者点上传区的按钮自己选文件，一次能选多个。选完点“开始上传”，盯着进度条就行。</p>
+                        <p>文件比较大也无所谓，它支持断点续传，传一半断网了，重新连上会自动接着传，不用从头再来。</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/04-collect-upload.png') }}" alt="上传区">
+                            <figcaption>就拖到这块区域里，或者按钮选文件</figcaption>
+                        </figure>
+                        <h3>第 3 步：看到文件出现在“已上传”里，就成了</h3>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/05-collect-records.png') }}" alt="已上传列表">
+                            <figcaption>下面列表里能看到自己传的文件，传错了还能删</figcaption>
+                        </figure>
+                        <div class="doc-note doc-ok">手机也能传。用手机浏览器打开链接，操作和电脑上一样。</div>
+                    </div>
+
+                    <div id="doc-share">
+                        <h2>六、收来的文件，大家怎么查看和下载</h2>
+                        <p>因为建链接的时候勾了“开启分享页”，所以你在「收集链接」列表里还能复制到一个分享页链接。把它发给想看文件的人，对方打开就是这个样子：</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/06-share-page.png') }}" alt="分享页">
+                            <figcaption>分享页：按“谁传的”分组，点开名字就能看到文件</figcaption>
+                        </figure>
+                        <p>分享页上每个文件后面有两个按钮：</p>
+                        <ul>
+                            <li><b>预览</b>：不用下载，直接在网页里看。图片、PDF、Word/Excel、视频、声音、TXT 文本都支持。</li>
+                            <li><b>下载</b>：存到自己设备上。</li>
+                        </ul>
+                        <p>文件多的话，可以勾选好几个一起打包下载（一个 ZIP），或者直接点“下载全部”一把梭。</p>
+                    </div>
+
+                    <div id="doc-admin">
+                        <h2>七、后台还能干点什么</h2>
+                        <p>后台就是 <code>/admin</code> 那个地址，左侧一排菜单，常用的就三个：</p>
+                        <h3>信息面板</h3>
+                        <p>一登录先看到的就是它。上面是几个数：建了多少链接、有几个是活跃的、一共收了多少文件、今天收了多少。下面“最近上传”列的是最新传上来的文件。</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/07-admin-dashboard.png') }}" alt="信息面板">
+                            <figcaption>一进来看到的总览，心里先有个数</figcaption>
+                        </figure>
+                        <h3>文件记录</h3>
+                        <p>所有收上来的文件都在这里，像一个总仓库。可以按链接筛选，也能分页翻。每个文件都能预览、下载、删除，勾选好几个还能批量下载、批量删。</p>
+                        <figure class="doc-figure">
+                            <img src="{{ url_for('static', filename='img/docs/08-admin-records.png') }}" alt="文件记录">
+                            <figcaption>所有文件的大汇总，想找哪个文件来这翻</figcaption>
+                        </figure>
+                        <h3>其他两个</h3>
+                        <ul>
+                            <li><b>用户管理</b>：管理能登录后台的账号，加人、停用、重置密码都在这里。</li>
+                            <li><b>设置</b>：所有系统配置都在这，下一节逐项讲。</li>
+                        </ul>
+                        <div class="doc-note doc-warn">记住：<code>/admin</code> 这个后台地址和密码，自己留着就行，别发给别人。发出去的应该是收集页和分享页的链接。</div>
+
+                        <div id="doc-settings">
+                            <h2>八、后台「设置」页，逐项说清楚</h2>
+                            <p>后台左侧点「设置」进来，所有的系统配置都在这张页面上，一屏装不下。下面按从上到下的顺序，把每一块讲明白。</p>
+                            <h3>1. 账号设置</h3>
+                            <p>改你自己的后台账号信息：</p>
+                            <ul>
+                                <li><b>管理员用户名</b>：登录后台用的账号名。</li>
+                                <li><b>昵称</b>：批注为必填。这个昵称会显示在收集页和分享页上，别人看到的"xx邀请您上传文件"用的就是它。不填的话，页面会显示用户名。</li>
+                                <li><b>邮箱</b>：填了才能用登录页的"忘记密码"功能找回密码；配好 SMTP 后，会直接发验证码到这个邮箱。</li>
+                                <li><b>当前密码 / 新密码 / 确认新密码</b>：改任何信息都要验一次当前密码；想换密码就填后面两个，不换留空。</li>
+                            </ul>
+                            <h3>2. 邮箱设置 (SMTP)</h3>
+                            <p>这一块是给"忘记密码"用的。想要系统能从你的邮箱发验证码，就得配这里：</p>
+                            <ul>
+                                <li><b>SMTP 服务器地址</b>：邮箱服务商给的，QQ 邮箱填 <code>smtp.qq.com</code>。</li>
+                                <li><b>加密方式</b>：STARTTLS（端口 587）或 SSL（端口 465），跟着邮箱服务商的要求选。</li>
+                                <li><b>邮箱账号、密码/授权码</b>：QQ 邮箱这类一般要用"授权码"，不是登录密码。</li>
+                                <li><b>发件人名称、发件人邮箱</b>：别人收到邮件时看到的名字和地址。</li>
+                                <li>配完可以点<b>「发送测试邮件」</b>，系统会往发件人邮箱发一封，收到就说明配通了。</li>
+                            </ul>
+                            <h3>3. 页面与品牌</h3>
+                            <p>各个页面上显示的字，都在这改。不想折腾可以全不填：</p>
+                            <ul>
+                                <li><b>站点标题</b>：显示在浏览器标签和页面顶部。</li>
+                                <li><b>分享页标题</b>：不填就沿用站点标题。</li>
+                                <li><b>公网网址</b>：在统一网关配好反向代理后这里自动带上公网地址；也可手动填第三方反代域名。</li>
+                                <li><b>收集页页尾、分享页页尾</b>：页面底部的说明文字，比如"有问题请联系李老师"。</li>
+                                <li><b>登录页提示</b>：后台登录页底部的提示信息。</li>
+                            </ul>
+                            <h3>4. 默认设置</h3>
+                            <p>新建收集链接时的默认值。创建链接时不单独设，就用这里的默认：</p>
+                            <ul>
+                                <li><b>默认最大文件数 / 单文件上限</b>：每个链接默认能收几个文件、单个文件多大。</li>
+                                <li><b>单次最多上传个数</b>：上传的人一次最多选几个文件，默认 30。<strong>填 0 表示不限制</strong>，想传多少传多少；最大 500。</li>
+                                <li><b>通行证缓存有效期</b>：输一次密码（通行证）管多久，默认 120 分钟，到期重新输。</li>
+                                <li><b>链接最大有效期</b>：新建链接能设的最长有效期（天）。</li>
+                                <li><b>禁止上传文件类型</b>：黑名单，默认禁 <code>.exe .php .sh .bat</code> 这类危险文件。想再加就空格分隔写上，如 <code>.exe .php .sh .bat .html</code>。</li>
+                                <li><b>收集附件上限</b>：创建链接时上传附件图的最大限制，默认 1000 MB。</li>
+                                <li><b>每页数量</b>：链接列表、文件记录列表每页显示几条。</li>
+                            </ul>
+                            <h3>5. 上传路径</h3>
+                            <p>文件默认存在系统盘，想存到别的硬盘就填自定义目录（如 <code>/vol2/1000/文件收集</code>）。改完需要在飞牛应用中心给这个目录加权限，再重启应用才会生效。</p>
+                            <h3>6. 功能开关</h3>
+                            <ul>
+                                <li><b>开放用户注册</b>：开启后别人能用邀请码注册你的后台账号。</li>
+                                <li><b>启用首页介绍页</b>：开启后访问首页看到的是介绍页。</li>
+                                <li><b>根目录创建文件夹</b>：开启后，收上来的文件直接按"收集名称"建文件夹放在上传根目录，不再按用户名分层；即使开了上传者登记，也不建上传者子文件夹。</li>
+                            </ul>
+                            <h3>7. 数据库管理</h3>
+                            <ul>
+                                <li><b>路径自动同步</b>：改了上传路径，系统会自动同步数据库里的记录，不用手动处理。</li>
+                                <li><b>备份数据库</b>：把整个数据库下载成 <code>.db</code> 文件存本地，搬家或存档用。</li>
+                                <li><b>恢复数据库</b>：上传 <code>.db</code> 备份恢复；恢复前系统会自动再备份一份当前的，不怕误操作。</li>
+                            </ul>
+                            <h3>8. 系统信息</h3>
+                            <p>只读区域：开发者、数据库类型、版本号、监听端口、数据目录和上传目录的位置，出问题报错时把这里告诉开发者。</p>
+                        </div>
+
+                        <div id="doc-batch">
+                            <h2>九、批量功能：一次建一堆链接</h2>
+                            <p>如果你要同时建很多个收集链接（比如给 30 个班每个班建一个作业收集），一个个点太累，用批量创建。后台「收集链接」列表右上角有<b>「＋ 批量创建」</b>按钮：</p>
+                            <h3>操作步骤</h3>
+                            <ol>
+                                <li>点「下载模板文件」，拿到一个 Excel 表格（表里前两行是演示数据，不会真的建出来，放心）。</li>
+                                <li>按列填：<b>收集名称</b>是必填的；其他列（描述、通行证、最大文件数量、单文件上限、有效期、是否允许删除、显示预览按钮、上传者登记、自定义链接、分享页开关等）空着就用系统默认值。通行证列空着 = 这个链接不需要密码。</li>
+                                <li>保存成 CSV（Excel 里"另存为 CSV"，建议 UTF-8 编码），拖到上传区或点选文件。</li>
+                                <li>等几秒出结果：成功建了哪几个、哪几行哪列填错，会一条条列出来。</li>
+                            </ol>
+                            <h3>列表里的批量操作</h3>
+                            <p>除了批量创建，链接列表和文件记录列表都有<b>「批量操作」</b>按钮，点开变成勾选模式：</p>
+                            <ul>
+                                <li><b>收集链接列表</b>：勾选多个链接，可以一次批量删除。</li>
+                                <li><b>文件记录列表</b>：勾选多个文件，能<b>批量打包下载</b>（合成一个 ZIP）或<b>批量删除</b>。收上来几百个文件想一起拷走，用这个最省事。</li>
+                            </ul>
+                        </div>
+
+                        <div id="doc-reverse">
+                            <h2>十、补充：想让外面的人也能访问</h2>
+                            <p>文件收集器默认只监听内网端口，家里/公司的局域网能访问，外面网络访问不了。想让外面的朋友也能用，需要配反向代理，把端口暴露到公网。飞牛自带的统一网关就是干这个的。</p>
+                            <div class="doc-note">
+                                <ul>
+                                    <li>通过反向代理，把服务暴露到公网，走 HTTPS 加密</li>
+                                    <li>证书自动从飞牛系统读取，不用自己申请</li>
+                                    <li>支持多台设备同时在线</li>
+                                </ul>
+                            </div>
+                            <h3>先做两件准备工作</h3>
+                            <ol>
+                                <li><b>开 DDNS，拿到域名</b>：在飞牛系统里打开「DDNS」，添加一条解析，绑上你家宽带的动态公网 IP。成功后你会得到一个域名，比如 <code>xxx.fnos.net</code>。这一步的作用，是把外面访问的网址和你家公网 IP 绑定起来。</li>
+                                <li><b>确认域名有证书</b>：飞牛系统会自动给 DDNS 域名申请证书。证书是 HTTPS 加密用的，没有它，HTTPS 访问会报"不安全"。证书的事一般在飞牛系统里勾选"自动申请"就行，不用手动操作。</li>
+                            </ol>
+                            <h3>操作步骤（都在「反向代理」这个 tab 里完成）</h3>
+                            <p>进入应用后，点左侧栏的「反向代理」，页面长这样：</p>
+                            <figure class="doc-figure">
+                                <img src="{{ url_for('static', filename='img/docs/10-reverse-proxy-config.png') }}" alt="反向代理配置页面">
+                                <figcaption>反向代理配置：左边选域名，中间填端口，右上角点启动</figcaption>
+                            </figure>
+                            <h4>第 1 步：选域名</h4>
+                            <p>「域名」下拉框里，会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个域名。列表是空的？点旁边的「刷新证书」按钮再试试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到前面准备工作检查。</p>
+                            <h4>第 2 步：填 HTTPS 端口</h4>
+                            <p>默认填好 <code>7786</code>。一般不用改。如果提示"端口被占用"，页面会给出备用端口建议（7787、7788），点一下换掉就行。记下这个端口号，后面路由器要用。</p>
+                            <h4>第 3 步：点「启动」</h4>
+                            <p>点蓝色「启动」按钮，状态变成运行中，反代就起来了。以后想关掉就点它旁边的「停止」。</p>
+                            <div class="doc-note doc-warn">别忘了路由器：请在路由器管理页做「端口转发」（有的路由器叫"端口映射/虚拟服务器"），把第 2 步那个 HTTPS 端口转发到 NAS 的内网 IP。不做这一步，外面还是连不进来。</div>
+                            <h4>第 4 步：浏览器验证</h4>
+                            <p>在外面（手机流量、公司网络）打开 <code>https://你的域名:端口号</code>，能打开就成功了。比如域名是 <code>xxx.fnos.net</code>、端口 <code>7786</code>，地址就是 <code>https://xxx.fnos.net:7786</code>。注意前面带 <code>https://</code>，别漏了。</p>
+                            <div class="doc-note doc-ok">家里宽带如果没有公网 IP（运营商不给你，或你在路由器的"大内网"里），DDNS 拿到域名也连不进来。这种情况可以在路由器上开 UPnP、去运营商要公网 IP，或者用别的穿透方案，那是另一套玩法了。</div>
+                        </div>
+                        <p>还有不懂的，去官网项目页 <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">https://www.infowe.site/projects/1</a>，拉到页面底部留个评论。</p>
+                    </div>
                 </div>
-                <p class="help-note">
-                    请确保路由器已配置端口转发，将 HTTPS 端口映射到此飞牛NAS。
-                </p>
             </div>
 
         </div>
     </div>
+</div>
+
+<!-- 使用说明图片放大浮窗 -->
+<div class="doc-lightbox" id="docLightbox" onclick="closeLightbox()">
+    <button class="doc-lightbox-close" onclick="event.stopPropagation(); closeLightbox();" title="关闭 (Esc)">×</button>
+    <button class="doc-lightbox-zoom" id="zoomInBtn" onclick="event.stopPropagation(); zoomLightbox(1.25);" title="放大">+</button>
+    <button class="doc-lightbox-zoom doc-lightbox-zoom-out" id="zoomOutBtn" onclick="event.stopPropagation(); zoomLightbox(0.8);" title="缩小">−</button>
+    <button class="doc-lightbox-zoom doc-lightbox-reset" id="zoomResetBtn" onclick="event.stopPropagation(); resetLightbox();" title="恢复原始大小">⟲</button>
+    <img id="docLightboxImg" src="" alt="预览大图">
 </div>
 
 <script>
@@ -447,7 +734,7 @@ function switchSection(name) {
     document.querySelectorAll('.mac-sidebar-item[data-section]').forEach(el => {
         el.classList.toggle('active', el.getAttribute('data-section') === name);
     });
-    const moreGroup = ['logs', 'files', 'help'];
+    const moreGroup = ['logs', 'files', 'manual'];
     const moreTab = document.querySelector('.mac-sidebar-item[data-more]');
     if (moreTab) moreTab.classList.toggle('active', moreGroup.indexOf(name) >= 0);
 }
@@ -930,6 +1217,51 @@ async function openUploadDir() {
         if (tip) { tip.textContent = '无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。'; tip.style.display = 'block'; }
     }
 }
+
+// ============================================================
+// 使用说明图片点击放大浮窗
+// ============================================================
+let lightboxScale = 1;
+
+function openLightbox(img) {
+    const box = document.getElementById('docLightbox');
+    document.getElementById('docLightboxImg').src = img.currentSrc || img.src;
+    resetLightboxScale();
+    box.classList.add('open');
+}
+
+function closeLightbox() {
+    document.getElementById('docLightbox').classList.remove('open');
+}
+
+function resetLightboxScale() {
+    lightboxScale = 1;
+    document.getElementById('docLightboxImg').style.transform = '';
+}
+
+function zoomLightbox(factor) {
+    lightboxScale = Math.min(6, Math.max(1, lightboxScale * factor));
+    document.getElementById('docLightboxImg').style.transform = 'scale(' + lightboxScale + ')';
+}
+
+function resetLightbox() {
+    resetLightboxScale();
+}
+
+document.querySelectorAll('.doc-figure img').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img));
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLightbox();
+});
+
+// 浮窗内滚轮缩放（只放大图片，不滚页面）
+document.getElementById('docLightbox').addEventListener('wheel', e => {
+    if (!document.getElementById('docLightbox').classList.contains('open')) return;
+    e.preventDefault();
+    zoomLightbox(e.deltaY < 0 ? 1.15 : 0.85);
+}, { passive: false });
 </script>
 </body>
 </html>

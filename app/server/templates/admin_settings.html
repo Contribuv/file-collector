@@ -192,8 +192,8 @@
             <div class="form-group">
               <label class="form-label" for="upload_batch_limit">单次最多上传个数</label>
               <input type="number" id="upload_batch_limit" name="upload_batch_limit" class="form-input form-input-sm"
-                     value="{{ defaults.upload_batch_limit or '30' }}" min="5" max="100" step="1">
-              <div class="form-hint">用户每次批量上传的文件数上限，默认 30 个，范围 5-100</div>
+                     value="{{ defaults.upload_batch_limit or '30' }}" min="0" max="500" step="1">
+              <div class="form-hint">用户每次批量上传的文件数上限，默认 30 个。<strong>填 0 表示不限制</strong>（想传多少传多少），最大 500</div>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -448,9 +448,9 @@ function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
       }
       if (bl && bl.value !== '') {
         var v3 = parseInt(bl.value, 10);
-        if (isNaN(v3) || String(v3) !== bl.value.trim() || v3 < 5 || v3 > 100) {
+        if (isNaN(v3) || String(v3) !== bl.value.trim() || v3 < 0 || v3 > 500) {
           e.preventDefault();
-          alert('单次上传个数必须是 5-100 的整数');
+          alert('单次上传个数填 0-500 的整数（0 表示不限制）');
           return false;
         }
       }

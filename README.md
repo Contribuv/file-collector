@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.45-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.47-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -153,6 +153,7 @@ file-collector/
 │   │   ├── templates/           # Jinja2 模板（含 gateway.html）
 │   │   ├── static/              # CSS、图片、图标
 │   │   └── office/              # OnlyOffice WASM 静态资源（离线预览）
+│   ├── rproxy/                  # Go 反向代理（编译产物 fc-rproxy-amd64/arm64，源码见 src/ 与 .github/workflows）
 │   └── ui/                      # 桌面图标资源
 ├── cmd/
 │   ├── main                     # 生命周期管理（start/stop/status/uninstall）
@@ -314,6 +315,23 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.47
+- **设置页新增「单次最多上传个数」**：可单独限制每个收集链接一次最多上传的文件数量，填 `0` 表示不限制，上限 500 个（`BATCH_LIMIT`，收集页文案与限制逻辑同步生效）
+- **使用说明图片浮窗**：内置「使用说明」教程中的截图支持点击放大查看——
+  - 点击图片以浮窗全屏显示原图，不再只看到缩略图
+  - 浮窗提供**关闭按钮**（×）与 `Esc` 快捷键，点击遮罩也可关闭
+  - 支持**滚轮缩放**及「放大/缩小/恢复原始大小」按钮，最大 6 倍
+- **反向代理提示文案样式优化**：「公网访问」Tab 表单下方的提示文案去除背景与边框，颜色自适应系统明暗主题，行高间距优化
+- **rproxy 日志噪音过滤**：减少无意义日志刷屏——
+  - 扫描器/老设备 TLS 握手失败（`no cipher suite`、`unsupported versions` 等）静默记录，不再刷 ERROR
+  - 反代启动早期后端未就绪（`connection refused`）降级为 DEBUG，仅 `/api/check-update`、`/api/logs` 等高频接口静默，其余降级 DEBUG 记录
+- **移除独立使用说明教程**：删除仓库 `doc/` 目录（独立 HTML 教程 + 图片），使用说明已完整内置到统一网关管理页「使用说明」Tab，避免内容重复维护
+- **修复**：后台「设置」页「收集附件上限（MB）」输入整数（如 200）保存后误显示为 200.0——整数保持整数、小数保留一位，已存的旧值也会规整显示
+
+### v2.3.46
+- **统一网关管理页内置「使用说明」**：桌面侧边栏新增「使用说明」Tab（移动端收纳进「更多」抽屉），内置新手图文教程——安装、首次登录改密码、创建收集链接、上传流程、分享页查看下载、后台管理，全部配有实际操作截图，并跟随系统明暗主题
+- 使用说明中的截图资源内置到应用内（`static/img/docs/`），不依赖外网
 
 ### v2.3.45
 - 首页顶栏昵称优先显示：设置昵称后不再显示管理员用户名（`nickname` 为空时回退账号；SSO 登录仍显示飞牛 NAS 账号名）

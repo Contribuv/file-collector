@@ -128,7 +128,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.45"
+VERSION = "2.3.47"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -1165,13 +1165,13 @@ def set_user_setting(user_id, key, value):
     _user_setting_cache.pop((str(user_id), key), None)
 
 def get_upload_batch_limit(user_id=None):
-    """获取单次上传个数限制，优先用户级设置，回退全局设置，默认 30"""
+    """获取单次上传个数限制，优先用户级设置，回退全局设置，默认 30；0 表示不限制"""
     batch = get_user_setting(user_id, 'upload_batch_limit', '30') if user_id else get_setting('upload_batch_limit', '30')
     try:
         batch = int(batch)
     except (ValueError, TypeError):
         batch = 30
-    return max(1, min(batch, 100))
+    return 0 if batch == 0 else max(1, min(batch, 500))
 
 # 初始化
 init_db()
@@ -3022,6 +3022,14 @@ def create_upload_dir(link_id, uploader_name=''):
     return real_dir
 
 DEFAULT_ATTACHMENT_MAX_MB = 1000  # 默认附件上限 1000 MB (≈1GB)
+
+def fmt_mb(s):
+    """把附件上限字符串归一化显示：200.0 显示为 200，若带小数则保留一位"""
+    try:
+        f = float(s)
+        return str(int(f)) if f == int(f) else str(round(f, 1))
+    except (ValueError, TypeError):
+        return s
 
 def get_attachment_max_size(user_id=None):
     """获取附件大小上限（字节），优先用户设置，回退默认值"""
@@ -6683,7 +6691,7 @@ def user_settings():
             except ValueError as e:
                 flash(str(e) if '最小' in str(e) else '附件上限格式错误')
                 return redirect(url_for('user_settings'))
-            set_user_setting(user_id, 'attachment_max_mb', str(mb))
+            set_user_setting(user_id, 'attachment_max_mb', fmt_mb(str(mb)))
             flash('附件大小上限已保存')
         
         elif action == 'passcode_ttl':
@@ -6842,7 +6850,7 @@ def user_settings():
     defaults = {
         'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
-        'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
+        'attachment_max_mb': fmt_mb(get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))),
         'passcode_ttl_minutes': get_user_setting(user_id, 'passcode_ttl_minutes', '120'),
         'default_link_expire_days': get_user_setting(user_id, 'default_link_expire_days', '30'),
         'links_per_page': get_user_setting(user_id, 'links_per_page', '50'),
@@ -7326,7 +7334,7 @@ def admin_link_new():
                            edit_link=None,
                            defaults={'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
-                                     'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
+                                     'attachment_max_mb': fmt_mb(get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))),
                                      'expire_days': get_user_setting(user_id, 'default_link_expire_days', '30')})
 
 @app.route('/admin/links/<link_id>/form')
@@ -7372,7 +7380,7 @@ def admin_link_form(link_id):
                            edit_link=link_dict,
                            defaults={'max_files': get_user_setting(user_id, 'max_files', str(DEFAULT_MAX_FILES)),
                                      'max_file_size_gb': get_user_setting(user_id, 'max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
-                                     'attachment_max_mb': get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
+                                     'attachment_max_mb': fmt_mb(get_user_setting(user_id, 'attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))),
                                      'expire_days': get_user_setting(user_id, 'default_link_expire_days', '30')})
 
 @app.route('/admin/links/create', methods=['POST'])
@@ -8902,8 +8910,8 @@ def admin_settings():
                 max_files = int(_mf)
                 max_size = round(float(max_size), 6)
                 upload_batch = int(upload_batch)
-                if upload_batch < 5 or upload_batch > 100:
-                    raise ValueError('单次上传个数必须在 5-100 之间')
+                if upload_batch < 0 or upload_batch > 500:
+                    raise ValueError('单次上传个数填 0-500，0 表示不限制')
                 if max_files < 0:
                     raise ValueError('默认最大文件数不能为负数')
                 if max_size < 0.01 or max_size > 64:
@@ -8959,7 +8967,7 @@ def admin_settings():
                 _am = float(att_max)
                 if _am < 0.1:
                     raise ValueError('收集附件上限最小为 0.1 MB')
-                set_setting('attachment_max_mb', str(round(_am, 1)))
+                set_setting('attachment_max_mb', fmt_mb(str(round(_am, 1))))
             except ValueError as e:
                 flash(str(e) if '最小' in str(e) else '附件上限格式错误')
                 return redirect(url_for('admin_settings'))
@@ -9224,7 +9232,7 @@ def admin_settings():
             except ValueError as e:
                 flash(str(e) if '最小' in str(e) else '附件上限格式错误')
                 return redirect(url_for('admin_settings'))
-            set_setting('attachment_max_mb', str(mb))
+            set_setting('attachment_max_mb', fmt_mb(str(mb)))
             flash('附件大小上限已保存')
 
         elif action == 'blocked_extensions':
@@ -9254,7 +9262,7 @@ def admin_settings():
         'max_files': get_setting('max_files', str(DEFAULT_MAX_FILES)),
         'max_file_size_gb': get_setting('max_file_size_gb', str(DEFAULT_MAX_FILE_SIZE_GB)),
         'upload_batch_limit': get_setting('upload_batch_limit', '30'),
-        'attachment_max_mb': get_setting('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB)),
+        'attachment_max_mb': fmt_mb(get_setting('attachment_max_mb', str(DEFAULT_ATTACHMENT_MAX_MB))),
         'site_title': get_setting('site_title', '文件收集器'),
         'login_tip': get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
         'collect_footer_text': get_setting('collect_footer_text', ''),

@@ -200,7 +200,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_
 # 反向代理场景：ProxyFix 修正 request.scheme 后，Flask 内部会正确处理
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'  # HTTPS 部署时设为 1
+# 默认启用 Secure（仅 HTTPS 发送 Cookie）；仅在明确的纯 HTTP 部署场景下才需设为 0
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 @app.before_request

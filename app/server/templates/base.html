@@ -34,7 +34,7 @@
         {% if session.get('sso_login') %}
         <span class="header-user">飞牛NAS账号：{{ session.username }}</span>
         {% else %}
-        <span class="header-user">{{ session.username }}</span>
+        <span class="header-user">{{ session.nickname or session.username }}</span>
         <span class="header-nav-sep">|</span>
         {% endif %}
         {% if not session.get('sso_login') %}<a href="{{ url_for('logout') }}" class="header-nav-link header-nav-logout">退出</a>{% endif %}

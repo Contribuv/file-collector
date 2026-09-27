@@ -599,7 +599,7 @@ function popoverCopyLink(type, linkId, passcode, isLegacy) {
     alert('该链接的通行证为旧版加密存储，无法显示明文。\n请编辑此链接并重新设置通行证后再复制。');
     return;
   }
-  var actionHint = type === 'collect' ? (_currentUserName + '，邀请您通过此链接上传文件') : (_currentUserName + '，通过此链接给您分享了文件');
+  var actionHint = type === 'collect' ? (_currentUserName + '邀请您通过此链接上传文件') : (_currentUserName + '通过此链接给您分享了文件');
   var text;
   if (passcode) {
     var passLabel = type === 'collect' ? '上传通行证' : '分享通行证';

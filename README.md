@@ -16,6 +16,10 @@
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="license">
 </p>
 
+<p align="center">
+  <img src="dashboard.png" alt="文件收集器控制台" width="960">
+</p>
+
 ---
 
 ## 📖 简介

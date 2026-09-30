@@ -405,7 +405,7 @@ a:active { opacity: .6; }
 /* ============================================================
    Stats Grid
    ============================================================ */
-.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
 .stat-card {
   background: var(--c-white); border-radius: var(--br-md);
   padding: 16px 14px; text-align: center;
@@ -522,7 +522,7 @@ a:active { opacity: .6; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 
 /* Compact Card */
-.card-compact { margin-bottom: 10px; }
+.card-compact { margin-bottom: 12px; }
 .card-compact .card-header { padding: 10px 14px; }
 .card-compact .card-header h3 { font-size: var(--fs-base); }
 .card-compact .card-body { padding: 12px 14px; }
@@ -889,7 +889,9 @@ tbody tr:active { background: var(--c-bg-hover); }
 /* ============================================================
    Settings Grid
    ============================================================ */
+/* 单栏堆叠：卡片间距统一由容器 gap 控制，卡片自身不再叠加 margin-bottom */
 .settings-grid { display: flex; flex-direction: column; gap: 12px; }
+.settings-grid > .card { margin-bottom: 0; }
 
 /* ============================================================
    Info Row
@@ -1212,7 +1214,6 @@ tbody tr:active { background: var(--c-bg-hover); }
   .auth-layout .main { padding: 0; }
   .card-header { padding: 12px 14px; }
   .card-body { padding: 12px; }
-  .stats-grid { gap: 8px; }
   .stat-card { padding: 14px 10px; }
   .stat-value { font-size: 1.4rem; }
   .stat-label { font-size: var(--fs-xs); }

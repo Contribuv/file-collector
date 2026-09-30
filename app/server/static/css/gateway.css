@@ -248,6 +248,16 @@ body {
     color: var(--gw-accent);
 }
 
+/* 「公网访问」Tab 内分段小标题：分隔「反向代理配置」与「运行状态」 */
+.section-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gw-text-secondary);
+    margin: 6px 0 2px;
+    padding-top: 14px;
+    border-top: 1px solid var(--gw-border-light);
+}
+
 /* ---- 卡片 ---- */
 .gateway-card {
     background: var(--gw-card-bg);
@@ -409,6 +419,16 @@ body {
     font-size: 13px;
     font-weight: 500;
     min-width: 0;
+}
+
+/* 「应用信息」等状态行内的链接：跟随主色，避免浏览器默认蓝在深色模式下突兀 */
+.status-value a {
+    color: var(--gw-accent);
+    text-decoration: none;
+}
+
+.status-value a:hover {
+    text-decoration: underline;
 }
 
 /* 「更多」tab 与抽屉：桌面端隐藏，仅移动端显示 */
@@ -1015,8 +1035,4 @@ body {
         flex: 1;
     }
 
-    /* 移动端隐藏收集页过长的弹窗拦截提示，保持卡片简洁 */
-    #section-collector > .help-note {
-        display: none;
     }
-}

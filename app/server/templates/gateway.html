@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css', v=VERSION) }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
-<body>
+<body data-gateway-prefix="{{ gateway_prefix }}" data-default-port="{{ config.port or 7786 }}" data-upload-base="{{ upload_base }}" data-is-fn-admin="{{ '1' if is_fn_admin else '0' }}" data-csrf-token="{{ csrf_token }}">
 <script>
 // 首屏防闪烁：优先 URL ?theme=，其次读取 sessionStorage 缓存的上次主题，默认浅色。
 // 不使用 prefers-color-scheme（飞牛 WebView 中该值与飞牛主题不同步）。
@@ -135,18 +135,13 @@ initFnOSTheme();
                 </svg>
                 文件收集
             </div>
-            <div class="mac-sidebar-item" data-section="status" onclick="switchSection('status')">
+            {% if is_fn_admin %}
+            <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见 -->
+            <div class="mac-sidebar-item" data-section="access" onclick="switchSection('access')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                 </svg>
                 公网访问
-            </div>
-            <div class="mac-sidebar-item" data-section="config" onclick="switchSection('config')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                </svg>
-                反向代理
             </div>
             <div class="mac-sidebar-item mobile-hidden" data-section="logs" onclick="switchSection('logs')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -157,12 +152,23 @@ initFnOSTheme();
                 </svg>
                 实时日志
             </div>
+            {% endif %}
+            {% if is_fn_admin %}
             <div class="mac-sidebar-item mobile-hidden" data-section="files" onclick="switchSection('files')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
                 查看文件
             </div>
+            <div class="mac-sidebar-item mobile-hidden" data-section="appinfo" onclick="switchSection('appinfo')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                应用信息
+            </div>
+            {% endif %}
             <div class="mac-sidebar-item mobile-hidden" data-section="manual" onclick="switchSection('manual')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -194,7 +200,7 @@ initFnOSTheme();
             </div>
             <div class="mac-sidebar-divider mobile-hidden"></div>
             <div class="mac-sidebar-version mobile-hidden">
-                <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }} ↗</a>
+                <a class="version-tag" href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer" title="在 作者博客 上查看项目">v{{ version }} ↗</a>
             </div>
             <!-- 移动端「更多」抽屉：收纳日志/文件/帮助/主题 -->
             <div class="more-sheet" id="moreSheet">
@@ -203,6 +209,7 @@ initFnOSTheme();
                     <div class="more-sheet-handle"></div>
                     <div class="more-sheet-title">更多</div>
                     <div class="more-sheet-grid">
+                    {% if is_fn_admin %}
                     <div class="more-sheet-item" onclick="switchSection('logs'); closeMoreSheet()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -212,12 +219,23 @@ initFnOSTheme();
                         </svg>
                         <span>实时日志</span>
                     </div>
+                    {% endif %}
+                    {% if is_fn_admin %}
                     <div class="more-sheet-item" onclick="switchSection('files'); closeMoreSheet()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                         </svg>
                         <span>查看文件</span>
                     </div>
+                    <div class="more-sheet-item" onclick="switchSection('appinfo'); closeMoreSheet()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        <span>应用信息</span>
+                    </div>
+                    {% endif %}
                     <div class="more-sheet-item" onclick="switchSection('manual'); closeMoreSheet()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -250,14 +268,45 @@ initFnOSTheme();
         <!-- 主内容区 -->
         <div class="mac-main">
 
-            <!-- 运行状态 -->
-            <div class="mac-section" id="section-status">
+            {% if is_fn_admin %}
+            <!-- 公网访问：反向代理配置 + 运行状态，仅飞牛管理员可见 -->
+            <div class="mac-section" id="section-access">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
                     公网访问
                 </h2>
+                <div class="form-item">
+                    <label class="form-label">域名</label>
+                    <select class="form-select" id="domainSelect">
+                        <option value="">加载中...</option>
+                    </select>
+                    <div class="form-hint-warning">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
+                </div>
+                <div class="form-item">
+                    <label class="form-label">HTTPS 端口</label>
+                    <div class="port-input-row">
+                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
+                        <span class="port-status port-status-checking" id="portStatus">
+                            <span class="port-status-dot"></span>
+                            <span class="port-status-text" id="portStatusText">检测中...</span>
+                        </span>
+                    </div>
+                    <div class="port-suggest" id="portSuggest" style="display:none;">
+                        <span class="port-suggest-text">端口被占用，试试：</span>
+                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
+                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
+                    </div>
+                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
+                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
+                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
+                </div>
+
+                <h3 class="section-subtitle">运行状态</h3>
                 <div class="status-row">
                     <div class="status-label">反代状态</div>
                     <div class="status-value">
@@ -302,44 +351,7 @@ initFnOSTheme();
                 </div>
             </div>
 
-            <!-- 反向代理配置 -->
-            <div class="mac-section" id="section-config">
-                <h2>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                    </svg>
-                    反向代理配置
-                </h2>
-                <div class="form-item">
-                    <label class="form-label">域名</label>
-                    <select class="form-select" id="domainSelect">
-                        <option value="">加载中...</option>
-                    </select>
-                    <div class="form-hint-warning">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
-                </div>
-                <div class="form-item">
-                    <label class="form-label">HTTPS 端口</label>
-                    <div class="port-input-row">
-                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
-                        <span class="port-status port-status-checking" id="portStatus">
-                            <span class="port-status-dot"></span>
-                            <span class="port-status-text" id="portStatusText">检测中...</span>
-                        </span>
-                    </div>
-                    <div class="port-suggest" id="portSuggest" style="display:none;">
-                        <span class="port-suggest-text">端口被占用，试试：</span>
-                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
-                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
-                    </div>
-                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
-                </div>
-                <div class="action-row">
-                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
-                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
-                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
-                </div>
-            </div>
+            {% endif %}
 
             <!-- 文件收集（点击 Tab 新窗口打开 /admin 后台，SSO 自动登录） -->
             <div class="mac-section active" id="section-collector">
@@ -361,10 +373,10 @@ initFnOSTheme();
                         <button type="button" class="btn btn-primary btn-sm" onclick="openCollector()">打开后台（本机免密）</button>
                     </div>
                 </div>
-                <p class="help-note">如浏览器拦截了新窗口，请点击上方「打开后台」按钮手动打开。</p>
             </div>
 
-            <!-- 实时日志 -->
+            {% if is_fn_admin %}
+            <!-- 实时日志：反向代理运行日志，仅飞牛管理员可见 -->
             <div class="mac-section" id="section-logs">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -379,8 +391,10 @@ initFnOSTheme();
                     <div class="log-line log-info">[系统] 等待反向代理启动...</div>
                 </div>
             </div>
+            {% endif %}
 
-            <!-- 查看文件 -->
+            {% if is_fn_admin %}
+            <!-- 查看文件（仅飞牛管理员可见：上传目录属于应用数据目录，普通用户无权限浏览） -->
             <div class="mac-section" id="section-files">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -405,6 +419,48 @@ initFnOSTheme();
                 </p>
             </div>
 
+            <!-- 应用信息（原 /settings 系统信息卡片，仅飞牛管理员可见：含服务端路径等敏感信息） -->
+            <div class="mac-section" id="section-appinfo">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    应用信息
+                </h2>
+                <div class="status-row">
+                    <div class="status-label">开发者</div>
+                    <div class="status-value">
+                        <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">豪子</a>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">数据库</div>
+                    <div class="status-value">SQLite</div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">版本号</div>
+                    <div class="status-value">
+                        v{{ version }}
+                        <a id="gwUpdateLink" href="https://github.com/Contribuv/file-collector/releases" target="_blank" rel="noopener noreferrer" style="display:none;margin-left:6px;font-size:12px;">发现新版本</a>
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">监听端口</div>
+                    <div class="status-value">{{ local_port }}</div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">数据目录</div>
+                    <div class="status-value"><code style="word-break:break-all;">{{ data_dir or '未获取' }}</code></div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">上传目录</div>
+                    <div class="status-value"><code style="word-break:break-all;">{{ upload_base or '未配置' }}</code></div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- 使用说明（内置新手教程） -->
             <div class="mac-section" id="section-manual">
                 <h2>
@@ -421,9 +477,14 @@ initFnOSTheme();
                     .doc-toc li { margin:4px 0; }
                     .doc-toc a { color:var(--gw-accent); text-decoration:none; }
                     .doc-toc a:hover { text-decoration:underline; }
-                    .doc h2 { font-size:18px; padding-bottom:8px; margin:32px 0 12px; border-bottom:1px solid var(--gw-border); }
+                    /* 正文基准 14px，与侧边栏 Tab 文字（14px）保持一致，不再偏大 */
+                    .doc { font-size:14px; }
+                    .doc h2 { font-size:16px; padding-bottom:8px; margin:32px 0 12px; border-bottom:1px solid var(--gw-border); }
                     .doc h3 { font-size:15px; margin:20px 0 6px; color:var(--gw-text-primary); }
+                    .doc h4 { font-size:14px; margin:16px 0 4px; color:var(--gw-text-primary); }
                     .doc p { margin:10px 0; color:var(--gw-text-secondary); line-height:1.85; }
+                    /* 顶部目录锚点定位：跳转后给目标留出 16px 顶部留白，避免标题紧贴容器边缘 */
+                    .doc [id^="doc-"] { scroll-margin-top:16px; }
                     .doc ul, .doc ol { padding-left:24px; margin:10px 0; }
                     .doc li { margin:6px 0; color:var(--gw-text-secondary); }
                     .doc code { background:var(--gw-fill-0); border:1px solid var(--gw-border); border-radius:4px; padding:0 5px; font-size:13px; color:var(--gw-accent); word-break:break-all; }
@@ -443,7 +504,7 @@ initFnOSTheme();
                     .doc-lightbox-zoom:hover { background:rgba(255,255,255,.3); }
                     .doc-lightbox-zoom-out { right:106px; }
                     .doc-lightbox-reset { right:150px; font-size:15px; }
-                    .doc-note { border:1px solid; padding:10px 14px; margin:14px 0; font-size:14px; border-radius:8px; color:var(--gw-text-secondary); }
+                    .doc-note { border:1px solid; padding:10px 14px; margin:14px 0; font-size:13px; border-radius:8px; color:var(--gw-text-secondary); }
                     .doc-note.doc-warn { background:var(--gw-warning-bg); border-color:var(--gw-warning); }
                     .doc-note.doc-ok { background:var(--gw-success-bg); border-color:var(--gw-success); }
                     .doc a { color:var(--gw-accent); text-decoration:none; }
@@ -686,14 +747,14 @@ initFnOSTheme();
                                 <li><b>开 DDNS，拿到域名</b>：在飞牛系统里打开「DDNS」，添加一条解析，绑上你家宽带的动态公网 IP。成功后你会得到一个域名，比如 <code>xxx.fnos.net</code>。这一步的作用，是把外面访问的网址和你家公网 IP 绑定起来。</li>
                                 <li><b>确认域名有证书</b>：飞牛系统会自动给 DDNS 域名申请证书。证书是 HTTPS 加密用的，没有它，HTTPS 访问会报"不安全"。证书的事一般在飞牛系统里勾选"自动申请"就行，不用手动操作。</li>
                             </ol>
-                            <h3>操作步骤（都在「反向代理」这个 tab 里完成）</h3>
-                            <p>进入应用后，点左侧栏的「反向代理」，页面长这样：</p>
+                            <h3>操作步骤（都在「公网访问」这个 tab 里完成）</h3>
+                            <p>进入应用后，点左侧栏的「公网访问」，页面长这样：</p>
                             <figure class="doc-figure">
-                                <img src="{{ url_for('static', filename='img/docs/10-reverse-proxy-config.png') }}" alt="反向代理配置页面">
-                                <figcaption>反向代理配置：左边选域名，中间填端口，右上角点启动</figcaption>
+                                <img src="{{ url_for('static', filename='img/docs/10-reverse-proxy-config.png') }}" alt="公网访问页面">
+                                <figcaption>公网访问：上方选域名、填端口并点启动，下方显示运行状态与访问地址</figcaption>
                             </figure>
                             <h4>第 1 步：选域名</h4>
-                            <p>「域名」下拉框里，会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个域名。列表是空的？点旁边的「刷新证书」按钮再试试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到前面准备工作检查。</p>
+                            <p>「域名」下拉框里，会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个域名。列表是空的？点下方「刷新证书」按钮再试试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到前面准备工作检查。</p>
                             <h4>第 2 步：填 HTTPS 端口</h4>
                             <p>默认填好 <code>7786</code>。一般不用改。如果提示"端口被占用"，页面会给出备用端口建议（7787、7788），点一下换掉就行。记下这个端口号，后面路由器要用。</p>
                             <h4>第 3 步：点「启动」</h4>
@@ -734,7 +795,7 @@ function switchSection(name) {
     document.querySelectorAll('.mac-sidebar-item[data-section]').forEach(el => {
         el.classList.toggle('active', el.getAttribute('data-section') === name);
     });
-    const moreGroup = ['logs', 'files', 'manual'];
+    const moreGroup = ['logs', 'files', 'appinfo', 'manual'];
     const moreTab = document.querySelector('.mac-sidebar-item[data-more]');
     if (moreTab) moreTab.classList.toggle('active', moreGroup.indexOf(name) >= 0);
 }
@@ -773,6 +834,24 @@ async function initVersionLink() {
     }
 }
 
+// 「应用信息」Tab：检测 GitHub Releases 是否有新版本（复用应用后台的检查接口）
+async function initUpdateCheck() {
+    const link = document.getElementById('gwUpdateLink');
+    if (!link) return;
+    try {
+        const resp = await fetch(gatewayPrefix + '/api/check-update', { cache: 'no-store' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.has_update) {
+            if (data.url) link.href = data.url;
+            if (data.latest_version) link.textContent = '发现新版本 v' + data.latest_version;
+            link.style.display = '';
+        }
+    } catch (e) {
+        // 网络不可达时静默忽略，不打扰用户
+    }
+}
+
 // 新窗口打开「文件收集」后台（/admin，SSO 自动登录）
 function openCollector() {
     window.open(gatewayPrefix + '/admin', '_blank', 'noopener');
@@ -789,10 +868,13 @@ function toggleTheme() {
 // ============================================================
 // 全局变量
 // ============================================================
-const gatewayPrefix = '{{ gateway_prefix }}';
+const gatewayPrefix = document.body.dataset.gatewayPrefix || '';
+// 是否飞牛管理员：非管理员不渲染公网访问/日志 Tab，也不发起相关接口请求
+const IS_FN_ADMIN = document.body.dataset.isFnAdmin === '1';
 let isRunning = false;
 let currentDomain = '';
-let currentPort = {{ config.port or 7786 }};
+const CSRF_TOKEN = document.body.dataset.csrfToken || '';
+let currentPort = Number(document.body.dataset.defaultPort) || 7786;
 let portCheckTimer = null;
 let uiLocked = false;
 let uiLockTimer = null;
@@ -811,10 +893,14 @@ function apiPath(suffix) {
 // 初始化
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-    loadCerts();
-    poll();
-    setInterval(poll, 3000);
-    initPortCheck();
+    // 证书、反代状态、端口检测均属管理功能，仅飞牛管理员才加载与轮询
+    if (IS_FN_ADMIN) {
+        loadCerts();
+        poll();
+        setInterval(poll, 3000);
+        initPortCheck();
+        initUpdateCheck();
+    }
     updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
 
     const wechatEl = document.getElementById('wechatCopy');
@@ -828,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let polling = false;
 async function poll() {
+    if (!IS_FN_ADMIN) return;
     if (polling) return;
     polling = true;
     try {
@@ -1058,7 +1145,7 @@ async function startProxy() {
     try {
         const res = await fetch(apiPath('/api/start'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
             body: JSON.stringify({ domain, port })
         }).then(r => r.json());
 
@@ -1090,7 +1177,7 @@ async function stopProxy() {
     if (!confirm('确定停止反向代理？')) return;
 
     try {
-        const res = await fetch(apiPath('/api/stop'), { method: 'POST' }).then(r => r.json());
+        const res = await fetch(apiPath('/api/stop'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN } }).then(r => r.json());
         if (res.success) {
             isRunning = false;
             updateUI();
@@ -1199,7 +1286,7 @@ function openAdmin() {
 // 文档：https://developer.fnnas.com/api/page/routing/#%E6%89%93%E5%BC%80%E6%96%87%E4%BB%B6%E7%AE%A1%E7%90%86%E5%99%A8
 async function openUploadDir() {
     const tip = document.getElementById('fmTip');
-    const path = {{ upload_base|tojson }};
+    const path = document.body.dataset.uploadBase || '';
     if (!path) {
         if (tip) { tip.textContent = '上传目录未配置，请先在 管理后台 → 系统设置 中设置上传目录。'; tip.style.display = 'block'; }
         return;

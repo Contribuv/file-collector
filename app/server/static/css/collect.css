@@ -75,7 +75,7 @@ body {
 
 /* ---------- Page Header ---------- */
 .cp-header {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding-top: 4px;
 }
 .cp-header h1 {
@@ -107,10 +107,10 @@ body {
 
 /* Meta grid — 信息卡片双列布局 */
 .cp-meta-grid {
-  margin-top: 10px;
+  margin-top: 12px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 12px;
 }
 
 .cp-meta-tile {
@@ -263,7 +263,7 @@ body {
 .cp-card {
   background: var(--bg-card);
   border-radius: 5px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
 }
@@ -1293,10 +1293,10 @@ body {
   :root { --cp-pad: 12px; }
   .cp-wrap { padding: 12px var(--cp-pad) 65px; }
   .cp-card-body { padding: 15px 12px; }
-  .cp-header { margin-bottom: 14px; }
+  .cp-header { margin-bottom: 12px; }
   .cp-header h1 { font-size: 1rem; }
   .cp-header .cp-desc { font-size: .8rem; }
-  .cp-meta-grid { grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .cp-meta-grid { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
   .cp-meta-tile { padding: 7px 9px; gap: 7px; }
   .cp-meta-tile-icon { width: 26px; height: 26px; border-radius: 6px; }
   .cp-meta-tile-label { font-size: .58rem; }

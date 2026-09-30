@@ -6,7 +6,7 @@
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
     {% if session.get('sso_need_pwd') %}
-    <div style="background:#fff7e6;border:1px solid #ffd591;color:#ad6800;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.9rem;">
+    <div style="background:#fff7e6;border:1px solid #ffd591;color:#ad6800;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:.9rem;">
       ⚠ 您当前为飞牛 NAS 网关账号，尚未设置应用登录密码。请在下方「账号设置」中填写<b>新密码</b>并保存，设置后可继续使用全部功能（飞牛网关免密登录不受影响）。
     </div>
     {% endif %}
@@ -184,8 +184,12 @@
 .settings-grid-sub {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
+  gap: 12px;
   align-items: start;
+}
+/* 子卡片间距统一由 grid gap 控制（12px），避免与卡片自身 margin-bottom 叠加 */
+.settings-grid-sub > .card {
+  margin-bottom: 0;
 }
 
 @media (max-width: 768px) {

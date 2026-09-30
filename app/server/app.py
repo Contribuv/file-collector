@@ -24,6 +24,7 @@ import unicodedata
 import traceback
 import tempfile
 import threading
+import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta, timezone
@@ -128,7 +129,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.47"
+VERSION = "2.3.49"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -153,6 +154,13 @@ app.register_blueprint(txt_bp)
 # Office 文档预览模块（DOCX/XLSX/PPTX/CSV，基于 OnlyOffice WASM）
 from office import office_bp
 app.register_blueprint(office_bp)
+
+# 统一网关内部令牌：仅本进程的 Unix Socket 代理会注入该请求头
+# 用于区分「经飞牛网关访问」与「应用端口直连」，端口直连 /gateway 一律 404
+# 通过环境变量在进程族内复用，保证 Gunicorn master / worker 取值一致
+_GATEWAY_INTERNAL_TOKEN = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN') or secrets.token_hex(16)
+os.environ['FC_GATEWAY_INTERNAL_TOKEN'] = _GATEWAY_INTERNAL_TOKEN
+_GATEWAY_INTERNAL_HEADER = 'X-FC-Gateway-Proxy'
 
 # Gateway 反代管理模块（无需登录，飞牛统一网关已做认证）
 # 注意：gateway_api 依赖 rproxy_manager 和 cert_manager，
@@ -205,7 +213,13 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 @app.before_request
 def ensure_csrf_token():
-    """确保 CSRF token 在 session 中初始化，并保持已登录 session 永久有效"""
+    """确保 CSRF token 初始化、维持 session 有效期，并同步飞牛 SSO 的登出状态"""
+    # 经飞牛网关访问时，先校验 SSO 身份一致性：飞牛已退出/切换账号则失效应用登录态
+    # 必须放在 CSRF 初始化之前，session 被清除后可重新生成 token
+    try:
+        _enforce_gateway_sso_consistency()
+    except Exception as e:
+        logger.error(f'飞牛 SSO 会话一致性校验失败: {e}')
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
     # 已登录用户每请求标记 permanent=True，防止后续 session 修改（如 flash）导致
@@ -213,7 +227,8 @@ def ensure_csrf_token():
     if session.get('user_id'):
         session.permanent = True
     # 飞牛统一网关 SSO：网关已认证时自动建立应用登录态
-    # 仅当 session 未登录且请求携带 X-Trim-Userid 头才生效；直连端口 5557 无该头则跳过
+    # 仅当 session 未登录时尝试；sso_login_from_gateway() 内部校验请求来源（内部令牌），
+    # 端口直连与公网反代因缺少令牌而跳过，避免伪造 SSO 头提权
     if not session.get('user_id'):
         try:
             sso_login_from_gateway()
@@ -1062,16 +1077,19 @@ def init_db():
         # 首次安装：使用 wizard 环境变量或默认值初始化
         wizard_admin_user = os.environ.get('wizard_admin_user', '').strip()
         wizard_admin_pass = os.environ.get('wizard_admin_pass', '').strip()
+        wizard_admin_nickname = os.environ.get('wizard_admin_nickname', '').strip()
+        wizard_admin_email = os.environ.get('wizard_admin_email', '').strip().lower()
         init_admin_user = wizard_admin_user if wizard_admin_user else DEFAULT_ADMIN_USER
         init_admin_pass = wizard_admin_pass if wizard_admin_pass else DEFAULT_ADMIN_PASS
         init_login_tip = '默认账户 admin / admin123，请及时修改' if not wizard_admin_pass else '账户已由安装向导设置'
 
-        # 创建管理员用户
+        # 创建管理员用户（昵称/邮箱由安装向导收集；旧版向导或升级安装为空，展示层会自动回退到用户名）
         admin_id = str(uuid.uuid4())
         conn.execute('''
-            INSERT INTO users (id, username, password_hash, is_admin, status)
-            VALUES (?, ?, ?, 1, 'active')
-        ''', (admin_id, init_admin_user, generate_password_hash(init_admin_pass)))
+            INSERT INTO users (id, username, password_hash, email, nickname, is_admin, status)
+            VALUES (?, ?, ?, ?, ?, 1, 'active')
+        ''', (admin_id, init_admin_user, generate_password_hash(init_admin_pass),
+              wizard_admin_email, wizard_admin_nickname))
 
         defaults = {
             'admin_username': init_admin_user,
@@ -1615,12 +1633,22 @@ def get_current_user():
     conn.close()
     return dict(user) if user else None
 
+def verify_password(pwhash, password):
+    """校验密码哈希，格式不合法（如旧库遗留 bcrypt 哈希）时返回 False 而非抛异常"""
+    if not pwhash or not password:
+        return False
+    try:
+        return check_password_hash(pwhash, password)
+    except (ValueError, TypeError):
+        logger.warning("密码哈希格式无法识别（疑似旧版本数据），按校验失败处理")
+        return False
+
 def validate_user_login(username, password):
     """验证用户登录"""
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE username = ? AND status = 'active'", (username,)).fetchone()
     conn.close()
-    if user and check_password_hash(user['password_hash'], password):
+    if user and verify_password(user['password_hash'], password):
         return dict(user)
     return None
 
@@ -1632,6 +1660,12 @@ def _establish_session(user_row):
     session['username'] = user_row['username']
     session['is_admin'] = user_row['is_admin'] == 1
     session['nickname'] = (user_row['nickname'] or '').strip()
+    # 缓存飞牛 SSO 绑定标识：空串表示本地账号（应用密码登录），
+    # 非空表示该账号与飞牛账号绑定，退出飞牛后应用登录态需同步失效
+    try:
+        session['fn_uid'] = (user_row['fn_uid'] or '').strip()
+    except (KeyError, IndexError, TypeError):
+        session['fn_uid'] = ''
     session.permanent = True
     try:
         conn = get_db()
@@ -1657,12 +1691,74 @@ def _fix_latin1_mojibake(s):
         return s
 
 
+def _via_fn_gateway():
+    """当前请求是否经飞牛统一网关转发。
+
+    只有本进程的 Unix Socket 代理才会注入内部令牌头（且它会剥离客户端伪造的同名头），
+    因此令牌匹配即可确认「经网关」，用于与端口直连做隔离。
+    本地开发（Windows）或显式关闭守卫时一律视为直连。
+    """
+    if os.name == 'nt' or os.environ.get('FC_GATEWAY_GUARD', '1') == '0':
+        return False
+    token = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN', '')
+    return bool(token) and request.headers.get('X-FC-Gateway-Proxy') == token
+
+
+def _enforce_gateway_sso_consistency():
+    """同步飞牛 NAS 的登出/切换账号，失效应用自身的登录态。
+
+    问题背景：应用 session 与飞牛网关 SSO 相互独立，session 一旦建立便不再校验网关头，
+    导致用户退出飞牛后仍能以旧 session 访问 /admin 等受保护页面。
+
+    处理方式：仅对「经飞牛网关」的请求校验身份一致性——
+      - 会话属于 SSO 账号（users.fn_uid 非空）时，要求网关注入的 X-Trim-Userid 与该绑定匹配；
+      - 网关头缺失（飞牛已退出）或不匹配（切换了飞牛账号）时，立即清除应用 session，
+        随后由 sso_login_from_gateway() 按新身份重建或要求重新登录。
+    本地账号（无 fn_uid）用应用密码建立的会话不参与该校验，避免误登出。
+    """
+    if not _via_fn_gateway():
+        return
+    # 静态资源不参与校验：网关转发静态请求时未必注入 SSO 头，校验会误登出
+    path = request.path or ''
+    if path.startswith('/static/') or path == '/favicon.ico':
+        return
+    if not session.get('user_id'):
+        return
+
+    session_fn_uid = (session.get('fn_uid') or '').strip()
+    if 'fn_uid' not in session:
+        # 兼容旧会话（建立时未缓存 fn_uid）：从数据库补查一次并写入 session
+        try:
+            conn = get_db()
+            row = conn.execute('SELECT fn_uid FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            conn.close()
+            session_fn_uid = ((row['fn_uid'] or '') if row else '').strip()
+            session['fn_uid'] = session_fn_uid
+        except Exception as e:
+            # 查询异常时保守处理：不清登录态，避免误登出
+            logger.error(f'飞牛 SSO 会话校验查询失败: {e}')
+            return
+
+    if not session_fn_uid:
+        return  # 本地账号登录，飞牛登出不影响
+
+    header_uid = (request.headers.get('X-Trim-Userid', '') or '').strip()
+    if header_uid != session_fn_uid:
+        session.clear()
+        logger.info(f'飞牛 SSO 已失效，清除应用登录态（会话绑定 {session_fn_uid}，当前请求 {header_uid or "无"}）')
+
+
 def sso_login_from_gateway():
     """
     飞牛统一网关 SSO 自动登录。
     仅当飞牛网关注入 X-Trim-Userid 头时生效（说明请求经网关转发）。
     成功建立 session 返回 True；否则返回 False。
     """
+    # 来源守卫（必须最先判断）：只有经本进程 Unix Socket 代理注入内部令牌的请求才可信。
+    # 否则端口直连（0.0.0.0:PORT）或公网反代可自带 X-Trim-Userid / X-Trim-Isadmin 头，
+    # 触发下方「自动创建用户」分支，实现未认证提权。
+    if not _via_fn_gateway():
+        return False
     fn_uid = request.headers.get('X-Trim-Userid', '').strip()
     if not fn_uid:
         return False  # 非网关请求，跳过 SSO
@@ -1714,6 +1810,9 @@ def sso_login_from_gateway():
             if user:
                 conn.execute("UPDATE users SET fn_uid = ? WHERE id = ?", (fn_uid, user['id']))
                 conn.commit()
+                # 重新读取：确保 user 行携带刚绑定的 fn_uid，
+                # 否则会话缓存的 fn_uid 为空，退出飞牛后无法同步失效登录态
+                user = conn.execute("SELECT * FROM users WHERE id = ?", (user['id'],)).fetchone()
             else:
                 # 3) 都不存在：自动创建用户
                 # 用户名冲突则加后缀
@@ -2341,19 +2440,12 @@ def admin_required(f):
             return ret
         admin_hash = get_setting('admin_password_hash', '')
         # 默认密码强制改密（除设置页和登出外，强制跳转到设置页）
-        if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
+        if verify_password(admin_hash, DEFAULT_ADMIN_PASS):
             if request.endpoint not in ('admin_settings', 'admin_logout'):
                 if request.path.startswith('/api/'):
                     return jsonify({'error': '请先修改默认密码'}), 403
                 flash('安全警告：您仍在使用默认密码，请立即修改！', 'error')
                 return redirect(url_for('admin_settings'))
-        # 昵称未设置提醒
-        if session.get('is_admin'):
-            conn = get_db()
-            user = conn.execute("SELECT nickname FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-            conn.close()
-            if user and not user['nickname'] and request.endpoint not in ('admin_settings', 'admin_logout'):
-                flash('请设置您的昵称，将显示在收集页和分享页中')
         return f(*args, **kwargs)
     return decorated
 
@@ -2374,18 +2466,12 @@ def login_required(f):
         # 管理员默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if session.get('is_admin'):
             admin_hash = get_setting('admin_password_hash', '')
-            if check_password_hash(admin_hash, DEFAULT_ADMIN_PASS):
+            if verify_password(admin_hash, DEFAULT_ADMIN_PASS):
                 if request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
                     if request.path.startswith('/api/'):
                         return jsonify({'error': '请先修改默认密码'}), 403
                     flash('安全警告：您仍在使用默认密码，请立即修改！', 'error')
                     return redirect(url_for('admin_settings'))
-            # 昵称未设置提醒
-            conn = get_db()
-            user = conn.execute("SELECT nickname FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-            conn.close()
-            if user and not user['nickname'] and request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
-                flash('请设置您的昵称，将显示在收集页和分享页中')
         return f(*args, **kwargs)
     return decorated
 
@@ -3292,7 +3378,7 @@ def verify_passcode(link_id):
         return jsonify({'success': True})
 
     passcode = request.form.get('passcode', '').strip()
-    if passcode and check_password_hash(link['passcode'], passcode):
+    if passcode and verify_password(link['passcode'], passcode):
         session[f'verified_{link_id}'] = time.time()
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': '通行证错误'}), 403
@@ -3605,7 +3691,7 @@ def share_verify_passcode(link_id):
     elif _sp and _sp.strip():
         # 分享页独立通行证
         passcode = request.form.get('passcode', '').strip()
-        if passcode and check_password_hash(_sp, passcode):
+        if passcode and verify_password(_sp, passcode):
             session[share_session_key] = time.time()
             return jsonify({'success': True})
         return jsonify({'success': False, 'message': '通行证错误'}), 403
@@ -3616,7 +3702,7 @@ def share_verify_passcode(link_id):
             session[share_session_key] = time.time()
             return jsonify({'success': True})
         passcode = request.form.get('passcode', '').strip()
-        if passcode and check_password_hash(link.get('passcode', ''), passcode):
+        if passcode and verify_password(link.get('passcode', ''), passcode):
             session[share_session_key] = time.time()
             return jsonify({'success': True})
         return jsonify({'success': False, 'message': '通行证错误'}), 403
@@ -6763,7 +6849,7 @@ def user_settings():
             confirm_pass = request.form.get('confirm_password', '')
             user = get_user_by_id(user_id)
             sso_need_set = bool(session.get('sso_need_pwd'))  # SSO 账号待设置密码状态
-            if not user or (not sso_need_set and not check_password_hash(user['password_hash'], old_pass)):
+            if not user or (not sso_need_set and not verify_password(user['password_hash'], old_pass)):
                 flash('原密码错误')
             elif not new_username:
                 flash('用户名不能为空')
@@ -6818,11 +6904,16 @@ def user_settings():
                         flash('两次密码不一致')
                         conn.close()
                         return redirect(url_for('user_settings'))
+                    new_pass_hash = generate_password_hash(new_pass)
                     if sso_need_set:
                         # SSO 首次设置密码：清除待设置标记
                         updates_sql += ", sso_need_pwd = 0"
                     updates_sql += ", password_hash = ?"
-                    updates_params.append(generate_password_hash(new_pass))
+                    updates_params.append(new_pass_hash)
+                    # 管理员在此改密后同步全局 admin_password_hash，
+                    # 否则 /admin/settings 校验「当前密码」时会因旧 hash 而误报"原密码错误"
+                    if user['is_admin']:
+                        set_setting('admin_password_hash', new_pass_hash)
                 
                 updates_sql += " WHERE id = ?"
                 updates_params.append(user_id)
@@ -8834,7 +8925,7 @@ def admin_settings():
 
             admin_hash = get_setting('admin_password_hash', '')
             sso_need_set = bool(session.get('sso_need_pwd'))  # SSO 账号待设置密码状态
-            if not sso_need_set and not check_password_hash(admin_hash, old_pass):
+            if not sso_need_set and not verify_password(admin_hash, old_pass):
                 flash('原密码错误，无法修改账号信息')
             elif not new_username:
                 flash('管理员账号不能为空')
@@ -9293,8 +9384,11 @@ def admin_settings():
         'port': str(PORT),
     }
     # 安全判断 gateway 模块是否可用（避免模板里 url_for 抛 BuildError 导致 500）
+    # 仅当请求经飞牛网关转发时才提供入口：端口直连时 /gateway 一律 404，避免渲染出死链
+    _gw_token = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN', '')
+    _via_gateway = bool(_gw_token) and request.headers.get('X-FC-Gateway-Proxy') == _gw_token
     try:
-        gateway_url = url_for('gateway.gateway_index') if gateway_bp else None
+        gateway_url = url_for('gateway.gateway_index') if (gateway_bp and _via_gateway) else None
     except Exception:
         gateway_url = None
 
@@ -9709,6 +9803,17 @@ def page_gone(e):
 # app 对象已在文件顶部创建，Gunicorn 通过 `app:app` 加载
 
 if __name__ == '__main__':
+    # Windows 本地开发：gunicorn 依赖 fcntl（仅 Unix 可用），直接用 Flask 开发服务器
+    if os.name == 'nt':
+        _migrate_stored_paths(get_upload_base(), get_upload_base())
+        start_bg_scanner(interval=30)
+        logger.info(f"文件收集器 v{VERSION} 启动中 (Flask 开发服务器)...")
+        logger.info(f"数据目录: {DATA_DIR}")
+        logger.info(f"上传目录: {UPLOAD_BASE}")
+        logger.info(f"监听端口: {PORT}")
+        app.run(host='127.0.0.1', port=PORT, debug=False, use_reloader=False)
+        sys.exit(0)
+
     import multiprocessing
     import gunicorn.app.base
 
@@ -9818,7 +9923,9 @@ if __name__ == '__main__':
             try:
                 server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 server.bind(sock_path)
-                os.chmod(sock_path, 0o666)
+                # 0600 之外的写位不开放给其他用户：仅属主与应用属组可连接，
+                # 避免非应用用户直连 socket 获取完整前端
+                os.chmod(sock_path, 0o660)
                 server.listen(128)
             except Exception as e:
                 logger.warning(f"[UnixSocket] 绑定失败: {sock_path} -> {e}")
@@ -9925,9 +10032,18 @@ if __name__ == '__main__':
                     # 注意：不添加 X-Forwarded-Proto，避免与网关传入的该头冲突导致
                     # Werkzeug 抛出 "Contradictory scheme headers"
                     new_request_line = f"{method} {path} HTTP/1.0\r\n".encode('utf-8')
-                    extra_headers = f"X-Forwarded-Prefix: {prefix}\r\n".encode('utf-8')
                     first_crlf = header_block.find(b'\r\n')
-                    rest_headers = header_block[first_crlf + 2:]  # 原请求头（不含请求行）
+                    # 剥离客户端自带的内部标记头，防止直连 socket 时伪造「经网关」身份
+                    raw_rest = header_block[first_crlf + 2:]  # 原请求头（不含请求行）
+                    kept_lines = [
+                        ln for ln in raw_rest.split(b'\r\n')
+                        if not ln.lower().startswith(b'x-fc-gateway-proxy:')
+                    ]
+                    rest_headers = b'\r\n'.join(kept_lines)
+                    extra_headers = (
+                        f"X-Forwarded-Prefix: {prefix}\r\n"
+                        f"{_GATEWAY_INTERNAL_HEADER}: {_GATEWAY_INTERNAL_TOKEN}\r\n"
+                    ).encode('utf-8')
                     new_data = new_request_line + extra_headers + rest_headers + body
 
                     # 转发到 Gunicorn HTTP

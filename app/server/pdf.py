@@ -66,7 +66,10 @@ def office_preview():
                     abort(403)
 
         # 统一网关下重定向到飞牛 /docs/preview（NAS 原生 PDF 预览）
-        if request.headers.get('X-Trim-Userid') or request.script_root:
+        # 判定「是否经网关」必须用内部令牌（_via_fn_gateway），不能只看 X-Trim-Userid 头：
+        # 该头可被端口直连请求伪造，会被误判为网关请求而跳过后续处理。
+        from app import _via_fn_gateway
+        if _via_fn_gateway() or request.script_root:
             from app import _fn_docs_preview_redirect
             resp = _fn_docs_preview_redirect(type_param, lid, rid)
             if resp is not None:

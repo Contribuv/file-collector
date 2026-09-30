@@ -5,13 +5,72 @@ Gateway 反代管理 API（独立 Blueprint）
 import os
 import json
 import socket
+import secrets
 import logging
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, abort, session
 
 logger = logging.getLogger('gateway_api')
 
 # Blueprint 必须最早定义，确保 import 本模块时 gateway_bp 始终存在
 gateway_bp = Blueprint('gateway', __name__, template_folder='templates')
+
+
+@gateway_bp.before_request
+def _guard_gateway_access():
+    """网关页面与接口只能经飞牛统一网关访问。
+
+    飞牛网关经 Unix Socket 转发时会由应用自身的 socket 代理注入内部令牌头；
+    而通过应用端口（如 http://127.0.0.1:5557/gateway）直连的请求不带该头，
+    一律返回 404，实现网关访问与端口访问的隔离。
+    """
+    # 本地开发（Windows）或显式关闭守卫时豁免，便于调试前端
+    if os.name == 'nt' or os.environ.get('FC_GATEWAY_GUARD', '1') == '0':
+        return None
+    token = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN', '')
+    if not token or request.headers.get('X-FC-Gateway-Proxy') != token:
+        abort(404)
+    return None
+
+
+# 仅飞牛管理员可调用的管理类接口（证书、反代启停、日志、端口检测）
+_ADMIN_ONLY_ENDPOINTS = {
+    'gateway.api_gateway_status',
+    'gateway.api_gateway_certs',
+    'gateway.api_gateway_start',
+    'gateway.api_gateway_stop',
+    'gateway.api_gateway_logs',
+    'gateway.api_gateway_clear_logs',
+    'gateway.api_gateway_check_port',
+}
+
+
+@gateway_bp.before_request
+def _guard_gateway_admin_only():
+    """管理类接口仅飞牛管理员可调用。
+
+    页面上已对普通飞牛账号隐藏「公网访问 / 反向代理 / 实时日志」Tab，
+    此处再对接口做一次拦截，避免绕过前端隐藏直接请求。
+    权限以应用会话 session['is_admin'] 为准：该会话仅在请求经飞牛网关转发时
+    由 SSO 建立，不直接信任客户端可伪造的 X-Trim-Isadmin 头。
+    """
+    # 与访问来源守卫保持一致：本地开发或显式关闭守卫时豁免
+    if os.name == 'nt' or os.environ.get('FC_GATEWAY_GUARD', '1') == '0':
+        return None
+    if request.endpoint in _ADMIN_ONLY_ENDPOINTS:
+        if not session.get('is_admin'):
+            abort(403)
+    return None
+
+def _validate_csrf():
+    """校验 CSRF：从表单或 X-CSRFToken 头取令牌，与应用 session 中的比对。
+
+    POST 类管理接口（启动/停止反代、清空日志）必须校验，防止管理员
+    在已登录状态下被第三方页面诱导发起跨站请求。
+    """
+    token = request.form.get('csrf_token', '') or request.headers.get('X-CSRFToken', '')
+    expected = session.get('csrf_token', '')
+    return bool(token) and bool(expected) and secrets.compare_digest(token, expected)
+
 
 # 延迟导入：避免模块加载时因依赖问题导致 Blueprint 注册失败
 RPROXY_PM = None
@@ -119,7 +178,7 @@ def gateway_index():
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
 
     # 获取版本号（与 manifest 同步）
-    version = "2.3.47"
+    version = "2.3.49"
     try:
         from app import VERSION
         version = VERSION
@@ -134,6 +193,18 @@ def gateway_index():
     except Exception:
         pass
 
+    # 数据目录（与 /admin/settings「系统信息」一致：仅显示目录，不暴露完整文件名）
+    data_dir = ''
+    try:
+        from app import DB_PATH
+        data_dir = os.path.dirname(DB_PATH)
+    except Exception:
+        pass
+
+    # 当前访客是否为飞牛管理员：以应用会话为准（由网关 SSO 建立），
+    # 不直接读取 X-Trim-Isadmin 头（该头可被客户端伪造）
+    is_fn_admin = bool(session.get('is_admin'))
+
     return render_template('gateway.html',
         local_ip=local_ip,
         local_port=local_port,
@@ -143,6 +214,9 @@ def gateway_index():
         config=config,
         version=version,
         upload_base=upload_base,
+        data_dir=data_dir,
+        is_fn_admin=is_fn_admin,
+        csrf_token=session.get('csrf_token', ''),
         all_certs_json=json.dumps(certs, ensure_ascii=False))
 
 
@@ -177,6 +251,8 @@ def api_gateway_certs():
 @gateway_bp.route('/api/start', methods=['POST'])
 def api_gateway_start():
     """启动反向代理"""
+    if not _validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
     try:
         data = request.get_json(force=True)
     except Exception:
@@ -231,6 +307,8 @@ def api_gateway_start():
 @gateway_bp.route('/api/stop', methods=['POST'])
 def api_gateway_stop():
     """停止反向代理"""
+    if not _validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
     err = _check_rp()
     if err: return err
     success, msg = RPROXY_PM.stop()
@@ -253,6 +331,8 @@ def api_gateway_logs():
 @gateway_bp.route('/api/logs/clear', methods=['POST'])
 def api_gateway_clear_logs():
     """清除反代日志"""
+    if not _validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
     err = _check_rp()
     if err: return err
     RPROXY_PM.clear_logs()

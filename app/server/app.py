@@ -200,8 +200,10 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_
 # 反向代理场景：ProxyFix 修正 request.scheme 后，Flask 内部会正确处理
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-# 默认启用 Secure（仅 HTTPS 发送 Cookie）；仅在明确的纯 HTTP 部署场景下才需设为 0
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '1') == '1'
+# 默认关闭 Secure，以兼容纯 HTTP 部署（如局域网 NAS 直接访问 http://NAS-IP:PORT/admin）。
+# 通过 HTTPS 或反向代理终止 TLS 访问本应用时，请设置环境变量 SESSION_COOKIE_SECURE=1，
+# 使会话 Cookie 仅通过加密连接发送。
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 @app.before_request
@@ -9973,5 +9975,12 @@ if __name__ == '__main__':
     logger.info(f"监听端口: {PORT}")
     logger.info(f"Worker 进程: {workers}")
     logger.info(f"管理后台: http://localhost:{PORT}/admin")
+
+    if not app.config['SESSION_COOKIE_SECURE']:
+        logger.warning(
+            "SESSION_COOKIE_SECURE 未启用，会话 Cookie 可能通过未加密的 HTTP 传输。"
+            "若通过 HTTPS 或反向代理（已终止 TLS）访问本应用，建议设置环境变量 "
+            "SESSION_COOKIE_SECURE=1 以启用安全 Cookie；纯局域网 HTTP 部署可忽略此提示。"
+        )
 
     GunicornApp(app, options).run()

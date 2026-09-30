@@ -249,7 +249,10 @@ file-collector/
 | `UPLOAD_BASE` | 上传文件存储根目录 | `$TRIM_DATA_SHARE_PATHS/uploads` |
 | `PORT` | 监听端口 | `5557` |
 | `FLASK_DEBUG` | 调试模式 | `0` |
+| `SESSION_COOKIE_SECURE` | 会话 Cookie 仅通过 HTTPS 发送 | `0` |
 
+> **会话 Cookie 安全：** 默认关闭 `SESSION_COOKIE_SECURE` 以兼容纯 HTTP 部署（如局域网直接访问 `http://NAS-IP:PORT/admin`）。若通过 HTTPS 或已终止 TLS 的反向代理访问本应用，请设置 `SESSION_COOKIE_SECURE=1`；任何暴露到受信任局域网之外的部署都建议启用 HTTPS/反向代理并开启此选项。未启用时，启动日志会打印提醒。
+>
 > **数据库持久化：** 使用 `TRIM_DATA_SHARE_PATHS`（飞牛官方应用文件目录），安装时自动分配，更新/重装不会丢失数据。
 
 ---

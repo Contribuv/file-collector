@@ -7,6 +7,21 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#ffffff">
 <title>文件收集器</title>
+<script>
+// 飞牛桌面以 iframe 嵌入本页：URL 带 hash（如 gateway#doc-xxx）时，WebView 的原生
+// 「滚动到锚点」会把 iframe 文档整体顶出几像素（页面缩放下 document 存在多余可滚量），
+// 导致主卡片底部贴边。此处赶在元素解析前把 hash 摘下暂存并清除（replaceState 不触发
+// 滚动），页面加载完成后再由脚本手动滚动 .mac-main 内部定位，document 全程不被滚动。
+(function() {
+    try {
+        var h = location.hash;
+        if (h && h.length > 1) {
+            sessionStorage.setItem('fcPendingHash', h);
+            history.replaceState(null, '', location.pathname + location.search);
+        }
+    } catch (e) {}
+})();
+</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css', v=VERSION) }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
@@ -1334,6 +1349,57 @@ function zoomLightbox(factor) {
 function resetLightbox() {
     resetLightboxScale();
 }
+
+// ===== 文章目录锚点：全部走手动滚动，杜绝原生锚点导航滚动 document =====
+// 原生锚点导航（点击目录、带 hash 打开、前进后退）会滚动目标的所有可滚动祖先；
+// 飞牛 WebView 以 iframe 嵌入本页且存在页面缩放，document 的少量多余可滚量会被
+// 顶出，导致整页上移、主卡片底部贴边。这里统一改为只滚 .mac-main 内部。
+(function() {
+    var main = document.querySelector('.mac-main');
+    if (!main) return;
+    // 滚动 .mac-main 使目标标题到达容器顶部（留 16px，与 scroll-margin-top 一致）
+    function jumpTo(hash, smooth) {
+        if (!hash) return false;
+        var target = document.getElementById(hash);
+        if (!target) return false;
+        var delta = target.getBoundingClientRect().top - main.getBoundingClientRect().top - 16;
+        var top = main.scrollTop + delta;
+        try {
+            main.scrollTo({ top: top, behavior: smooth ? 'smooth' : 'auto' });
+        } catch (e) {
+            main.scrollTop = top; // 旧内核不支持 options 时直接赋值
+        }
+        return true;
+    }
+    // 拦截目录点击：阻止原生锚点导航，只滚 .mac-main，并用 pushState 更新地址栏
+    document.querySelectorAll('.doc-toc a[href^="#"]').forEach(function(a) {
+        a.addEventListener('click', function(e) {
+            var hash = (a.getAttribute('href') || '').slice(1);
+            if (!jumpTo(hash, true)) return; // 无对应目标时退回原生行为
+            e.preventDefault();
+            try { history.pushState(null, '', '#' + hash); } catch (err) {}
+        });
+    });
+    // 前进/后退回到锚点时同样手动定位（popstate 不触发原生滚动，无需阻止）
+    window.addEventListener('popstate', function() {
+        jumpTo(location.hash.slice(1), true);
+    });
+    // 带 hash 打开/刷新：head 脚本已把 hash 摘下，此处恢复地址栏并手动定位；
+    // 图片加载完成后文档高度会变化，load 时再校准一次防止锚点漂移
+    var pendingHash = null;
+    try {
+        var pending = sessionStorage.getItem('fcPendingHash');
+        if (pending) {
+            sessionStorage.removeItem('fcPendingHash');
+            try { history.replaceState(null, '', pending); } catch (err) {}
+            pendingHash = pending.slice(1);
+            jumpTo(pendingHash, false);
+        }
+    } catch (e) {}
+    window.addEventListener('load', function() {
+        if (pendingHash) jumpTo(pendingHash, false);
+    });
+})();
 
 document.querySelectorAll('.doc-figure img').forEach(img => {
     img.addEventListener('click', () => openLightbox(img));

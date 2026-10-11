@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.50-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.51-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -287,11 +287,14 @@ GET /api/status
 
 ## 📋 更新日志
 
-### v2.3.50
-- **修复统一网关「使用说明」页点击目录锚点后窗口底部露出浅色条带**：桌面端 html/body 此前未锁定 document 滚动（移动端已锁定），飞牛 WebView 在页面缩放下存在少量多余可滚量，点击文章顶部目录锚点时被浏览器一并滚出，页面整体上移露出 WebView 默认浅色背景。现补齐 `overflow: hidden` 并为 html 增加主题背景兜底，与移动端行为对齐
+### v2.3.51
+- **修复统一网关「使用说明」页在飞牛桌面下锚点跳转导致整页上移、主卡片底部贴边**：飞牛桌面以 iframe 嵌入应用页面且存在页面缩放，WebView 执行原生「滚动到锚点」（点击文章目录、带 hash 链接打开/刷新、前进后退）时会滚动 iframe 文档本身，其少量多余可滚量被顶出，整页上移使内容卡片贴住窗口底边。现改由脚本接管全部锚点定位：URL hash 在页面解析前摘除（阻止原生定位），点击目录/带 hash 打开/前进后退均改为仅滚动内容区内部并手动更新地址栏，iframe 文档全程不被滚动
 
 <details>
 <summary><b>📜 查看历史版本</b>（点击展开）</summary>
+
+### v2.3.50
+- **修复统一网关「使用说明」页点击目录锚点后窗口底部露出浅色条带**：桌面端 html/body 此前未锁定 document 滚动（移动端已锁定），飞牛 WebView 在页面缩放下存在少量多余可滚量，点击文章顶部目录锚点时被浏览器一并滚出，页面整体上移露出 WebView 默认浅色背景。现补齐 `overflow: hidden` 并为 html 增加主题背景兜底，与移动端行为对齐
 
 ### v2.3.49
 - **修复高危提权漏洞：伪造网关头即可冒充管理员**——应用 SSO 自动登录原先只判断 `X-Trim-Userid` 头是否存在、不校验请求来源，配合应用监听 `0.0.0.0`，任何能访问应用端口的请求只要自行带上该头（外加 `X-Trim-Isadmin: true`）就会被当作飞牛账号**自动建号并授予管理员**。现在 SSO 登录前强制校验应用内部令牌，**仅经本应用 Unix Socket 代理注入令牌的请求才可信**，端口直连与公网反代一律跳过 SSO，漏洞关闭

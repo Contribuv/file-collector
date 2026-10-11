@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.49
+version               = 2.3.50
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -17,4 +17,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://www.infowe.site/projects/1
-changelog             = v2.3.49 - 安全加固：修复伪造网关头提权（端口直连与公网反代无法再冒充飞牛账号）、网关管理接口补 CSRF 校验、Office/PDF 预览来源判定改用内部令牌；延续端口直连 /gateway 一律 404、Unix socket 权限收紧至 0660、退出飞牛 NAS 后应用登录态同步失效
+changelog             = v2.3.50 - 修复统一网关「使用说明」页点击目录锚点后窗口底部露出浅色条带的问题（桌面端锁定 document 滚动并补主题背景兜底）

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.49-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.50-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -287,15 +287,18 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.3.50
+- **修复统一网关「使用说明」页点击目录锚点后窗口底部露出浅色条带**：桌面端 html/body 此前未锁定 document 滚动（移动端已锁定），飞牛 WebView 在页面缩放下存在少量多余可滚量，点击文章顶部目录锚点时被浏览器一并滚出，页面整体上移露出 WebView 默认浅色背景。现补齐 `overflow: hidden` 并为 html 增加主题背景兜底，与移动端行为对齐
+
+<details>
+<summary><b>📜 查看历史版本</b>（点击展开）</summary>
+
 ### v2.3.49
 - **修复高危提权漏洞：伪造网关头即可冒充管理员**——应用 SSO 自动登录原先只判断 `X-Trim-Userid` 头是否存在、不校验请求来源，配合应用监听 `0.0.0.0`，任何能访问应用端口的请求只要自行带上该头（外加 `X-Trim-Isadmin: true`）就会被当作飞牛账号**自动建号并授予管理员**。现在 SSO 登录前强制校验应用内部令牌，**仅经本应用 Unix Socket 代理注入令牌的请求才可信**，端口直连与公网反代一律跳过 SSO，漏洞关闭
 - **网关管理接口补 CSRF 校验**：统一网关页的**反向代理启动/停止、日志清空**三个 POST 接口原先无任何令牌校验，管理员登录态下可被第三方页面诱导发起操作；现改为校验 `csrf_token`（表单或 `X-CSRFToken` 头），校验失败返回 403，前端同步携带令牌
 - **Office / PDF 预览来源判定改用内部令牌**：原先用 `X-Trim-Userid` 头判断「是否经网关」，该头可被端口直连伪造导致误判；现统一改用内部令牌，与网关隔离逻辑保持一致
 - **网关权限判断去头化**：统一网关页与后端管理接口原先读取可被伪造的 `X-Trim-Isadmin` 头，现改为以应用会话 `session['is_admin']` 为准
 - 📌 本版延续 v2.3.48 的网关安全加固：端口直连 `/gateway` 一律 404、Unix socket 权限由 `0666` 收紧至 `0660`、退出飞牛 NAS 后应用登录态同步失效
-
-<details>
-<summary><b>📜 查看历史版本</b>（点击展开）</summary>
 
 ### v2.3.48
 - **安全加固：统一网关管理页与端口访问隔离**——新增应用内进程级内部令牌，仅本应用的 Unix Socket 代理在转发时注入该请求头（并剥离客户端伪造的同名头），统一网关页面与接口据此判定来源，通过应用端口直连 `http://<NAS>:5557/gateway` 现在一律返回 **404**，不再暴露网关管理面板

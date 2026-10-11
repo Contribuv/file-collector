@@ -88,6 +88,11 @@
 
 html, body {
     height: 100%;
+    /* 锁定 document 滚动：点击文章目录锚点时浏览器会滚动目标的所有可滚动祖先，
+       飞牛 WebView 在页面缩放下 document 存在少量多余可滚量，会被一并滚出，
+       导致页面底部露出 WebView 默认浅色背景。与移动端断点内的处理保持一致。 */
+    overflow: hidden;
+    background: var(--gw-bg);
 }
 
 body {

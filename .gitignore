@@ -12,3 +12,6 @@ verify_*.py
 
 # IDE
 .trae/
+
+# 推广页（仅本地，不推送）
+docs/promo.html

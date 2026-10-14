@@ -1,0 +1,1360 @@
+/* ============================================================
+   Gateway 集成管理面板（信息面板 / 收集链接 / 文件记录 / 用户管理 / 收集设置）
+   设计基调：完全对齐 gateway.css 的 --gw-* 令牌与 Semi Design 观感。
+   本文件只补充 gateway.css 未覆盖的组件，尽量复用 .btn / .form-* / .status-row。
+   ============================================================ */
+
+/* ---- 工具条 ---- */
+.gwa-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.gwa-toolbar .gwa-spacer {
+    flex: 1;
+}
+
+.gwa-toolbar .btn {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+/* ---- 统计卡网格 ---- */
+.gwa-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.gwa-stat {
+    background: var(--gw-input-disabled-bg);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-md);
+    padding: 14px 16px;
+}
+
+.gwa-stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--gw-text-primary);
+    line-height: 1.2;
+}
+
+.gwa-stat-value.gwa-accent {
+    color: var(--gw-accent);
+}
+
+.gwa-stat-label {
+    font-size: 12px;
+    color: var(--gw-text-tertiary);
+    margin-top: 4px;
+}
+
+/* ---- 卡片 ---- */
+.gwa-card {
+    background: var(--gw-card-bg);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.gwa-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--gw-text-primary);
+}
+
+.gwa-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gw-text-secondary);
+    margin: 18px 0 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--gw-border-light);
+}
+
+/* ---- 表格 ---- */
+.gwa-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-md);
+}
+
+table.gwa-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.gwa-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--gw-text-tertiary);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gw-border-light);
+    white-space: nowrap;
+    background: var(--gw-fill-0);
+}
+
+.gwa-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gw-border-light);
+    color: var(--gw-text-primary);
+    vertical-align: middle;
+}
+
+.gwa-table tr:last-child td {
+    border-bottom: none;
+}
+
+.gwa-table tbody tr:hover {
+    background: var(--gw-fill-0);
+}
+
+.gwa-table .gwa-col-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.gwa-table .gwa-col-check {
+    width: 36px;
+    text-align: center;
+}
+
+.gwa-mono {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+}
+
+.gwa-muted {
+    color: var(--gw-text-tertiary);
+}
+
+.gwa-nowrap {
+    white-space: nowrap;
+}
+
+.gwa-ellipsis {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- 徽章 ---- */
+.gwa-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--gw-fill-0);
+    color: var(--gw-text-secondary);
+    white-space: nowrap;
+}
+
+.gwa-badge-ok {
+    background: var(--gw-success-bg);
+    color: var(--gw-success);
+}
+
+.gwa-badge-warn {
+    background: var(--gw-warning-bg);
+    color: var(--gw-warning);
+}
+
+.gwa-badge-danger {
+    background: var(--gw-danger-bg);
+    color: var(--gw-danger);
+}
+
+.gwa-badge-accent {
+    background: var(--gw-accent-bg);
+    color: var(--gw-accent);
+}
+
+/* ---- 分页 ---- */
+.gwa-pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--gw-text-secondary);
+}
+
+.gwa-pager .btn {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 13px;
+}
+
+.gwa-pager .gwa-pager-info {
+    color: var(--gw-text-tertiary);
+}
+
+/* ---- 空态 / 加载 ---- */
+.gwa-empty {
+    padding: 36px 16px;
+    text-align: center;
+    color: var(--gw-text-tertiary);
+    font-size: 13px;
+}
+
+.gwa-loading {
+    padding: 36px 16px;
+    text-align: center;
+    color: var(--gw-text-tertiary);
+    font-size: 13px;
+}
+
+.gwa-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--gw-border);
+    border-top-color: var(--gw-accent);
+    border-radius: 50%;
+    display: inline-block;
+    animation: gwa-spin .7s linear infinite;
+    vertical-align: -3px;
+    margin-right: 8px;
+}
+
+@keyframes gwa-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- 表单栅格 ---- */
+.gwa-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 4px 16px;
+}
+
+.gwa-field {
+    margin-bottom: 12px;
+}
+
+.gwa-field .form-label {
+    margin-bottom: 6px;
+}
+
+.gwa-hint {
+    font-size: 12px;
+    color: var(--gw-text-tertiary);
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
+textarea.form-input {
+    height: auto;
+    min-height: 76px;
+    padding: 10px 12px;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.gwa-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gwa-inline .form-input,
+.gwa-inline .form-select {
+    flex: 1;
+}
+
+.gwa-inline .form-select.gwa-unit {
+    flex: 0 0 76px;
+}
+
+.gwa-prefix {
+    color: var(--gw-text-tertiary);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* ---- 开关 ---- */
+.gwa-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--gw-text-primary);
+    user-select: none;
+}
+
+.gwa-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.gwa-switch-track {
+    width: 38px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--gw-input-border);
+    position: relative;
+    transition: background .15s;
+    flex-shrink: 0;
+}
+
+.gwa-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform .15s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+}
+
+.gwa-switch input:checked + .gwa-switch-track {
+    background: var(--gw-accent);
+}
+
+.gwa-switch input:checked + .gwa-switch-track .gwa-switch-thumb {
+    transform: translateX(16px);
+}
+
+.gwa-switch-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.gwa-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--gw-text-primary);
+}
+
+/* ---- 行布局 ---- */
+.gwa-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gwa-row-between {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+/* ---- 模态 / 浮窗 ---- */
+.gwa-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.gwa-modal {
+    background: var(--gw-card-bg);
+    border-radius: var(--gw-radius-md);
+    box-shadow: var(--gw-shadow);
+    width: 100%;
+    max-width: 520px;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--gw-border-light);
+}
+
+.gwa-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--gw-border-light);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.gwa-modal-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+}
+
+.gwa-modal-foot {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 12px 18px;
+    border-top: 1px solid var(--gw-border-light);
+}
+
+.gwa-modal-close {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--gw-text-tertiary);
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.gwa-modal-close:hover {
+    color: var(--gw-text-primary);
+}
+
+.gwa-popover {
+    position: fixed;
+    z-index: 60;
+    background: var(--gw-card-bg);
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius-md);
+    box-shadow: var(--gw-shadow);
+    padding: 14px 16px;
+    min-width: 240px;
+    max-width: min(92vw, 360px);
+    font-size: 13px;
+}
+
+.gwa-popover-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--gw-text-tertiary);
+    font-size: 16px;
+}
+
+/* ---- 浮窗 / 面板滚动条：与 gateway.css 的 6px 细滚动条统一，跟随明暗主题 ---- */
+/* Firefox：细滚动条 + 跟随明暗主题。
+   注意：Chromium 一旦读到 scrollbar-width/scrollbar-color 就会忽略 ::-webkit-scrollbar，
+   会从 6px 变粗到 ~10px，故用 @supports 限定仅 Firefox 生效，Chromium 走下方 6px 细滚动条。 */
+@supports (-moz-appearance: none) {
+    .gwa-modal-body,
+    .gwa-popover,
+    .gwa-table-wrap {
+        scrollbar-width: thin;
+        scrollbar-color: var(--gw-scrollbar) transparent;
+    }
+}
+
+.gwa-modal-body::-webkit-scrollbar,
+.gwa-popover::-webkit-scrollbar,
+.gwa-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.gwa-modal-body::-webkit-scrollbar-track,
+.gwa-popover::-webkit-scrollbar-track,
+.gwa-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gwa-modal-body::-webkit-scrollbar-thumb,
+.gwa-popover::-webkit-scrollbar-thumb,
+.gwa-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--gw-scrollbar);
+    border-radius: 3px;
+}
+
+.gwa-modal-body::-webkit-scrollbar-thumb:hover,
+.gwa-popover::-webkit-scrollbar-thumb:hover,
+.gwa-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: var(--gw-text-tertiary);
+}
+
+/* ---- toast ---- */
+.gwa-toast-wrap {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.gwa-toast {
+    background: var(--gw-text-primary);
+    color: var(--gw-window-bg);
+    padding: 8px 16px;
+    border-radius: var(--gw-radius-sm);
+    font-size: 13px;
+    box-shadow: var(--gw-shadow);
+    animation: gwa-toast-in .18s ease;
+    max-width: 80vw;
+}
+
+.gwa-toast.gwa-toast-error {
+    background: var(--gw-danger);
+    color: #fff;
+}
+
+.gwa-toast.gwa-toast-success {
+    background: var(--gw-success);
+    color: #fff;
+}
+
+@keyframes gwa-toast-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---- 详情键值行 ---- */
+.gwa-kv {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+}
+
+.gwa-kv .k {
+    width: 78px;
+    flex-shrink: 0;
+    color: var(--gw-text-tertiary);
+}
+
+.gwa-kv .v {
+    flex: 1;
+    color: var(--gw-text-primary);
+    word-break: break-all;
+}
+
+/* ---- 抽屉 ---- */
+.gwa-drawer-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, .4);
+}
+
+.gwa-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 51;
+    width: min(92vw, 460px);
+    background: var(--gw-card-bg);
+    box-shadow: var(--gw-shadow);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- 灯箱 ---- */
+.gwa-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(0, 0, 0, .85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gwa-lightbox img {
+    max-width: 92vw;
+    max-height: 88vh;
+    object-fit: contain;
+}
+
+.gwa-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* ---- 移动端：表格转卡片 ---- */
+@media (max-width: 640px) {
+    .gwa-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .gwa-stat-value {
+        font-size: 20px;
+    }
+
+    .gwa-card {
+        padding: 12px;
+    }
+
+    .gwa-table-wrap {
+        border: none;
+    }
+
+    .gwa-table thead {
+        display: none;
+    }
+
+    .gwa-table,
+    .gwa-table tbody,
+    .gwa-table tr,
+    .gwa-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .gwa-table tr {
+        border: 1px solid var(--gw-border-light);
+        border-radius: var(--gw-radius-md);
+        margin-bottom: 10px;
+        padding: 4px 2px;
+    }
+
+    .gwa-table tr:hover {
+        background: transparent;
+    }
+
+    .gwa-table td {
+        border: none;
+        display: flex;
+        gap: 10px;
+        padding: 6px 12px;
+    }
+
+    .gwa-table td::before {
+        content: attr(data-label);
+        flex: 0 0 84px;
+        color: var(--gw-text-tertiary);
+        font-size: 12px;
+    }
+
+    .gwa-table td.gwa-col-actions {
+        text-align: right;
+        justify-content: flex-end;
+        padding-top: 8px;
+    }
+
+    .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    .gwa-table td.gwa-col-check {
+        width: auto;
+        justify-content: flex-start;
+    }
+}
+
+/* 中等及以下宽度：表格转卡片，避免横向滚动（与移动端一致） */
+@media (max-width: 900px) {
+    .gwa-table-wrap {
+        border: none;
+    }
+
+    .gwa-table thead {
+        display: none;
+    }
+
+    .gwa-table,
+    .gwa-table tbody,
+    .gwa-table tr,
+    .gwa-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .gwa-table tr {
+        border: 1px solid var(--gw-border-light);
+        border-radius: var(--gw-radius-md);
+        margin-bottom: 10px;
+        padding: 4px 2px;
+    }
+
+    .gwa-table tr:hover {
+        background: transparent;
+    }
+
+    .gwa-table td {
+        border: none;
+        display: flex;
+        gap: 10px;
+        padding: 6px 12px;
+    }
+
+    .gwa-table td::before {
+        content: attr(data-label);
+        flex: 0 0 84px;
+        color: var(--gw-text-tertiary);
+        font-size: 12px;
+    }
+
+    .gwa-table td.gwa-col-actions {
+        text-align: right;
+        justify-content: flex-end;
+        padding-top: 8px;
+    }
+
+    .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    .gwa-table td.gwa-col-check,
+    .gwa-table td.gwa-col-sel {
+        display: none;
+    }
+}
+
+/* ============================================================
+   收集链接 · 表单与列表补充组件
+   ============================================================ */
+.gwa-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gwa-toolbar-right {
+    margin-left: auto;
+    font-size: 13px;
+}
+
+.gwa-filter {
+    width: auto;
+    min-width: 130px;
+    height: 32px;
+    font-size: 13px;
+}
+
+.gwa-expire {
+    color: var(--gw-warning);
+    font-size: 12px;
+    margin-left: 2px;
+}
+
+/* 表单 */
+.gwa-form {
+    font-size: 13px;
+}
+
+.gwa-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gw-text-secondary);
+    margin-bottom: 6px;
+}
+
+.gwa-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+}
+
+@media (max-width: 560px) {
+    .gwa-form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.gwa-unit {
+    flex: 0 0 72px !important;
+    width: 72px;
+}
+
+.gwa-switches {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.gwa-hr {
+    border: none;
+    border-top: 1px solid var(--gw-border-light);
+    margin: 16px 0 12px;
+}
+
+.gwa-subtitle {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+}
+
+.gwa-note {
+    padding: 10px 12px;
+    background: var(--gw-success-bg);
+    color: var(--gw-success);
+    border-radius: var(--gw-radius-sm);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.gwa-tag-locked {
+    display: inline-block;
+    padding: 1px 7px;
+    background: var(--gw-danger);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+/* 单选组 */
+.gwa-radio-group {
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-sm);
+    padding: 8px 14px;
+}
+
+.gwa-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    cursor: pointer;
+}
+
+.gwa-radio input {
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.gwa-radio-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.gwa-radio-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gw-text-primary);
+}
+
+.gwa-radio-desc {
+    font-size: 12px;
+    color: var(--gw-text-tertiary);
+}
+
+.gwa-pass-wrap {
+    margin: 0 0 8px 24px;
+}
+
+/* ---- 文件选择器（美化原生 input[type=file]）---- */
+/* 用法：<label class="gwa-file-picker">
+           <input type="file" ...>
+           <span class="gwa-file-btn">选择文件</span>
+           <span class="gwa-file-name">未选择文件</span>
+         </label> */
+.gwa-file-picker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    min-height: 32px;
+    padding-right: 12px;
+    border: 1px solid var(--gw-input-border);
+    border-radius: var(--gw-radius-sm);
+    background: var(--gw-input-bg);
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.gwa-file-picker:hover {
+    border-color: var(--gw-accent);
+}
+
+.gwa-file-picker:focus-within {
+    border-color: var(--gw-accent);
+    box-shadow: 0 0 0 3px var(--gw-accent-bg);
+}
+
+/* 原生控件视觉隐藏，但保留键盘可聚焦与表单语义 */
+.gwa-file-picker input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.gwa-file-btn {
+    flex-shrink: 0;
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gw-text-secondary);
+    background: var(--gw-fill-0);
+    border-right: 1px solid var(--gw-border-light);
+    border-radius: calc(var(--gw-radius-sm) - 1px) 0 0 calc(var(--gw-radius-sm) - 1px);
+}
+
+.gwa-file-picker:hover .gwa-file-btn {
+    color: var(--gw-accent);
+}
+
+.gwa-file-name {
+    font-size: 13px;
+    color: var(--gw-text-tertiary);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gwa-file-name.gwa-has-file {
+    color: var(--gw-text-primary);
+}
+
+.gwa-attach-cur {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: var(--gw-fill-0);
+    border-radius: var(--gw-radius-sm);
+}
+
+/* 列表底部 */
+.gwa-list-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.gwa-perpage {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.gwa-perpage-input {
+    width: 62px;
+    height: 30px;
+    text-align: center;
+    padding: 0 6px;
+}
+
+/* 浮窗内容 */
+.gwa-pop-info {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--gw-border-light);
+}
+
+.gwa-pop-row {
+    display: flex;
+    gap: 10px;
+    padding: 3px 0;
+    font-size: 13px;
+}
+
+.gwa-pop-row .k {
+    width: 72px;
+    flex-shrink: 0;
+    color: var(--gw-text-tertiary);
+}
+
+.gwa-pop-row .v {
+    flex: 1;
+    color: var(--gw-text-primary);
+    word-break: break-all;
+}
+
+.gwa-pop-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.gwa-pop-actions .btn {
+    flex: 1;
+    min-width: 90px;
+}
+
+/* 操作浮窗内的禁用原因提示（如「最后一个管理员不可删除」） */
+.gwa-pop-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--gw-text-tertiary);
+}
+
+/* 勾选列 */
+.gwa-table .gwa-col-sel {
+    width: 36px;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .gwa-table td.gwa-col-sel {
+        display: none;
+    }
+
+    .gwa-form {
+        font-size: 13px;
+    }
+}
+
+/* ============================================================
+   文件记录 · 列表与媒体查看器
+   ============================================================ */
+.gwa-rec-thumb {
+    width: 34px;
+    height: 34px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--gw-border-light);
+    vertical-align: middle;
+    margin-right: 8px;
+    background: var(--gw-fill-0);
+}
+
+.gwa-rec-icon {
+    display: inline-block;
+    width: 34px;
+    text-align: center;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.gwa-rec-icon svg {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    color: var(--gw-text-tertiary);
+}
+
+.gwa-rec-name {
+    display: inline-block;
+    max-width: 320px;
+    vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+    .gwa-rec-name {
+        max-width: none;
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+/* 媒体查看器（图片 / 视频 / 音频，全屏） */
+.gwa-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(0, 0, 0, .88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gwa-viewer-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px;
+    background: linear-gradient(rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
+    color: #fff;
+}
+
+.gwa-viewer-title {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gwa-viewer-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.gwa-viewer-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.gwa-viewer-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 72px 56px;
+}
+
+.gwa-viewer-stage img,
+.gwa-viewer-stage video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.gwa-viewer-stage audio {
+    width: min(80vw, 560px);
+}
+
+.gwa-viewer-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 48px;
+    height: 64px;
+    border: none;
+    background: rgba(0, 0, 0, .35);
+    color: #fff;
+    font-size: 34px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.gwa-viewer-nav:hover {
+    background: rgba(0, 0, 0, .6);
+}
+
+.gwa-viewer-prev { left: 12px; }
+.gwa-viewer-next { right: 12px; }
+
+.gwa-viewer-count {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, .85);
+    font-size: 13px;
+}
+
+/* ============================================================
+   分段切换（Tabs）· 操作日志筛选
+   ============================================================ */
+.gwa-tabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 3px;
+    background: var(--gw-fill-0);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-sm);
+    margin-bottom: 14px;
+}
+
+.gwa-tab {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--gw-text-secondary);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 5px 14px;
+    border-radius: calc(var(--gw-radius-sm) - 2px);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+
+.gwa-tab:hover {
+    color: var(--gw-text-primary);
+}
+
+.gwa-tab.active {
+    background: var(--gw-card-bg);
+    color: var(--gw-text-primary);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .1);
+}
+
+.gwa-log-search {
+    width: 200px;
+    height: 32px;
+    font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .gwa-log-search {
+        width: 100%;
+    }
+}
+
+/* ============================================================
+   内嵌预览浮窗（txt 等）· 记录浮窗 · 细节统一
+   ============================================================ */
+
+/* 内嵌预览：大尺寸浮窗 + 撑满内容的 iframe */
+.gwa-modal.gwa-modal-preview {
+    width: 92vw;
+    max-width: 1200px;
+    height: 88vh;
+    max-height: 88vh;
+}
+
+.gwa-modal-preview .gwa-modal-body {
+    padding: 0;
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+}
+
+.gwa-preview-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: var(--gw-card-bg);
+}
+
+/* 记录浮窗：表格区限高内滚，避免浮窗过高 */
+.gwa-logs-modal .gwa-table-wrap {
+    max-height: 56vh;
+    overflow: auto;
+}
+
+/* 键值行内的链接 / 行内按钮（如「上传记录 / 下载记录」入口） */
+.gwa-kv .v a {
+    color: var(--gw-accent);
+    text-decoration: none;
+}
+
+.gwa-kv .v a:hover {
+    text-decoration: underline;
+}
+
+.gwa-kv .v code {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    word-break: break-all;
+    background: none;
+    padding: 0;
+}
+
+.gwa-link-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    color: var(--gw-accent);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.gwa-link-btn:hover {
+    text-decoration: underline;
+}
+
+/* 卡片内的日志框：去掉重复外边距 */
+.gwa-card .log-box {
+    margin: 0;
+}
+
+/* ============================================================
+   移动端（≤640px）触控与可读性优化
+   ============================================================ */
+@media (max-width: 640px) {
+    /* 浮窗更贴合手机：收紧内边距，让内容区更宽 */
+    .gwa-modal-head {
+        padding: 10px 14px;
+    }
+
+    .gwa-modal-body {
+        padding: 14px;
+    }
+
+    .gwa-modal-foot {
+        padding: 10px 14px;
+    }
+
+    /* 浮窗底部按钮加大触控面积 */
+    .gwa-modal-foot .btn {
+        min-height: 40px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    /* 关闭按钮触控目标放大到 36×36 */
+    .gwa-modal-close {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        margin-right: -6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        line-height: 1;
+    }
+
+    /* 表单控件字号 ≥16px，避免 iOS 聚焦时自动放大页面 */
+    .gwa-modal-body input:not([type="checkbox"]):not([type="radio"]),
+    .gwa-modal-body select,
+    .gwa-modal-body textarea,
+    .gwa-drawer-body input:not([type="checkbox"]):not([type="radio"]),
+    .gwa-drawer-body select,
+    .gwa-drawer-body textarea {
+        font-size: 16px;
+    }
+
+    /* 表格转卡片后，操作按钮加大触控面积 */
+    .gwa-table td .btn {
+        min-height: 34px;
+    }
+}

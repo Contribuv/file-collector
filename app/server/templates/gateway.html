@@ -23,6 +23,7 @@
 })();
 </script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gateway.css', v=VERSION) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/gateway-admin.css', v=VERSION) }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
 <body data-gateway-prefix="{{ gateway_prefix }}" data-default-port="{{ config.port or 7786 }}" data-upload-base="{{ upload_base }}" data-is-fn-admin="{{ '1' if is_fn_admin else '0' }}" data-csrf-token="{{ csrf_token }}">
@@ -144,11 +145,56 @@ initFnOSTheme();
 
         <!-- 侧边栏 -->
         <div class="mac-sidebar">
-            <div class="mac-sidebar-item active" data-section="collector" onclick="switchSection('collector')">
+            <div class="mac-sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    <rect x="3" y="3" width="7" height="9"/>
+                    <rect x="14" y="3" width="7" height="5"/>
+                    <rect x="14" y="12" width="7" height="9"/>
+                    <rect x="3" y="16" width="7" height="5"/>
                 </svg>
-                文件收集
+                信息面板
+            </div>
+            <div class="mac-sidebar-item" data-section="links" onclick="switchSection('links')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                收集链接
+            </div>
+            <div class="mac-sidebar-item" data-section="records" onclick="switchSection('records')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                文件记录
+            </div>
+            {% if is_fn_admin %}
+            <div class="mac-sidebar-item mobile-hidden" data-section="users" onclick="switchSection('users')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                用户管理
+            </div>
+            {% endif %}
+            <div class="mac-sidebar-item mobile-hidden" data-section="settings" onclick="switchSection('settings')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="4" y1="21" x2="4" y2="14"/>
+                    <line x1="4" y1="10" x2="4" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12" y2="3"/>
+                    <line x1="20" y1="21" x2="20" y2="16"/>
+                    <line x1="20" y1="12" x2="20" y2="3"/>
+                    <line x1="1" y1="14" x2="7" y2="14"/>
+                    <line x1="9" y1="8" x2="15" y2="8"/>
+                    <line x1="17" y1="16" x2="23" y2="16"/>
+                </svg>
+                收集设置
             </div>
             {% if is_fn_admin %}
             <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见 -->
@@ -215,7 +261,7 @@ initFnOSTheme();
             </div>
             <div class="mac-sidebar-divider mobile-hidden"></div>
             <div class="mac-sidebar-version mobile-hidden">
-                <a class="version-tag" href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer" title="在 作者博客 上查看项目">v{{ version }} ↗</a>
+                <a class="version-tag" href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer" title="在 作者博客 上查看项目">v{{ version }}</a>
             </div>
             <!-- 移动端「更多」抽屉：收纳日志/文件/帮助/主题 -->
             <div class="more-sheet" id="moreSheet">
@@ -224,6 +270,31 @@ initFnOSTheme();
                     <div class="more-sheet-handle"></div>
                     <div class="more-sheet-title">更多</div>
                     <div class="more-sheet-grid">
+                    {% if is_fn_admin %}
+                    <div class="more-sheet-item" onclick="switchSection('users'); closeMoreSheet()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span>用户管理</span>
+                    </div>
+                    {% endif %}
+                    <div class="more-sheet-item" onclick="switchSection('settings'); closeMoreSheet()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="4" y1="21" x2="4" y2="14"/>
+                            <line x1="4" y1="10" x2="4" y2="3"/>
+                            <line x1="12" y1="21" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12" y2="3"/>
+                            <line x1="20" y1="21" x2="20" y2="16"/>
+                            <line x1="20" y1="12" x2="20" y2="3"/>
+                            <line x1="1" y1="14" x2="7" y2="14"/>
+                            <line x1="9" y1="8" x2="15" y2="8"/>
+                            <line x1="17" y1="16" x2="23" y2="16"/>
+                        </svg>
+                        <span>收集设置</span>
+                    </div>
                     {% if is_fn_admin %}
                     <div class="more-sheet-item" onclick="switchSection('logs'); closeMoreSheet()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -274,7 +345,7 @@ initFnOSTheme();
                     </div>
                     </div>
                     <div class="more-sheet-version">
-                        <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }} ↗</a>
+                        <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }}</a>
                     </div>
                 </div>
             </div>
@@ -284,7 +355,7 @@ initFnOSTheme();
         <div class="mac-main">
 
             {% if is_fn_admin %}
-            <!-- 公网访问：反向代理配置 + 运行状态，仅飞牛管理员可见 -->
+            <!-- 公网访问：用飞牛证书做反向代理，把服务安全地暴露到外网（仅飞牛管理员） -->
             <div class="mac-section" id="section-access">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -292,106 +363,107 @@ initFnOSTheme();
                     </svg>
                     公网访问
                 </h2>
-                <div class="form-item">
-                    <label class="form-label">域名</label>
-                    <select class="form-select" id="domainSelect">
-                        <option value="">加载中...</option>
-                    </select>
-                    <div class="form-hint-warning">⚠ 需要开启飞牛 DDNS，才能使用该功能</div>
-                </div>
-                <div class="form-item">
-                    <label class="form-label">HTTPS 端口</label>
-                    <div class="port-input-row">
-                        <input type="number" class="form-input port-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
-                        <span class="port-status port-status-checking" id="portStatus">
-                            <span class="port-status-dot"></span>
-                            <span class="port-status-text" id="portStatusText">检测中...</span>
-                        </span>
+
+                <!-- 配置：选证书域名 → 填端口 → 启动反代 -->
+                <div class="gwa-card">
+                    <div class="gwa-card-title">反向代理</div>
+                    <div class="gwa-form-grid">
+                        <div class="gwa-field">
+                            <div class="gwa-label">域名</div>
+                            <select class="form-input" id="domainSelect">
+                                <option value="">加载中...</option>
+                            </select>
+                            <div class="gwa-hint">列出飞牛系统里已签发证书的域名。为空请先在飞牛「证书」中申请，再点下方「刷新证书」。</div>
+                        </div>
+                        <div class="gwa-field">
+                            <div class="gwa-label">HTTPS 端口</div>
+                            <div class="gwa-inline">
+                                <input type="number" class="form-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
+                                <span class="port-status port-status-checking" id="portStatus">
+                                    <span class="port-status-dot"></span>
+                                    <span class="port-status-text" id="portStatusText">检测中...</span>
+                                </span>
+                            </div>
+                            <div class="port-suggest" id="portSuggest" style="display:none;">
+                                <span class="port-suggest-text">端口被占用，试试：</span>
+                                <button type="button" class="port-suggest-btn" id="suggestBtn1">7787</button>
+                                <button type="button" class="port-suggest-btn" id="suggestBtn2">7788</button>
+                            </div>
+                            <div class="gwa-hint">路由器需把该端口转发到 NAS 的内网 IP，外网才能访问。</div>
+                        </div>
                     </div>
-                    <div class="port-suggest" id="portSuggest" style="display:none;">
-                        <span class="port-suggest-text">端口被占用，试试：</span>
-                        <button class="port-suggest-btn" id="suggestBtn1">7787</button>
-                        <button class="port-suggest-btn" id="suggestBtn2">7788</button>
+                    <div class="gwa-row" style="margin-top:2px;">
+                        <button class="btn btn-primary btn-sm" id="startBtn" onclick="startProxy()">启动</button>
+                        <button class="btn btn-danger btn-sm" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
+                        <button class="btn btn-default btn-sm" onclick="refreshCerts()">刷新证书</button>
                     </div>
-                    <div class="form-hint-warning">⚠ 路由器需将该端口转发到 NAS 内网 IP，否则外网无法访问</div>
-                </div>
-                <div class="action-row">
-                    <button class="btn btn-primary" id="startBtn" onclick="startProxy()">启动</button>
-                    <button class="btn btn-danger" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
-                    <button class="btn btn-default" onclick="refreshCerts()">刷新证书</button>
                 </div>
 
-                <h3 class="section-subtitle">运行状态</h3>
-                <div class="status-row">
-                    <div class="status-label">反代状态</div>
-                    <div class="status-value">
-                        <span class="status-stopped" id="statusText">
-                            <span class="status-dot"></span>未启动
+                <!-- 运行状态：由轮询自动刷新 -->
+                <div class="gwa-card">
+                    <div class="gwa-card-title">运行状态</div>
+                    <div class="gwa-kv">
+                        <span class="k">反向代理</span>
+                        <span class="v">
+                            <span class="status-stopped" id="statusText">
+                                <span class="status-dot"></span>未启动
+                            </span>
                         </span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">内网地址</div>
-                    <div class="status-value">
-                        <a class="url-link" id="localUrl" href="http://{{ local_ip }}:{{ local_port }}/" target="_blank">
-                            http://{{ local_ip }}:{{ local_port }}/ ↗
-                        </a>
-                        <span class="url-hint">仅局域网（同一网络）内可用</span>
+                    <div class="gwa-kv">
+                        <span class="k">公网地址</span>
+                        <span class="v">
+                            <div class="url-box" id="urlBox" style="display:none;">
+                                <span id="proxyUrl">--</span>
+                                <button type="button" class="copy-btn" onclick="copyUrl()">复制</button>
+                            </div>
+                            <span id="noUrl" class="gwa-muted">启动后显示；可分享给外网用户</span>
+                        </span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">公网地址</div>
-                    <div class="status-value">
-                        <div class="url-box" id="urlBox" style="display:none;">
-                            <span id="proxyUrl">--</span>
-                            <button class="copy-btn" onclick="copyUrl()">复制</button>
-                        </div>
-                        <span id="noUrl" style="color:var(--gw-text-tertiary);">启动后显示</span>
-                        <span class="url-hint">可分享给外网用户，通过 HTTPS 加密访问</span>
+                    <div class="gwa-kv">
+                        <span class="k">内网地址</span>
+                        <span class="v">
+                            <a class="url-link" id="localUrl" href="http://{{ local_ip }}:{{ local_port }}/" target="_blank">http://{{ local_ip }}:{{ local_port }}/ ↗</a>
+                            <span class="url-hint">仅同一局域网内可访问</span>
+                        </span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">打开后台</div>
-                    <div class="status-value">
+                    <div class="gwa-row" style="margin-top:8px;">
                         <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开公网后台 ↗</button>
-                        <span class="url-hint">通过上方公网地址访问管理后台，外网可用</span>
-                    </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">联系反馈</div>
-                    <div class="status-value">
-                        <span class="feedback-wechat" id="wechatCopy" title="点击复制微信号">微信：CQGGTF</span>
-                        <span class="copy-tip" id="copyTip" style="display:none;">已复制 ✓</span>
                     </div>
                 </div>
             </div>
 
             {% endif %}
 
-            <!-- 文件收集（点击 Tab 新窗口打开 /admin 后台，SSO 自动登录） -->
-            <div class="mac-section active" id="section-collector">
-                <h2>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    文件收集
-                </h2>
-                <div class="status-row">
-                    <div class="status-label">登录方式</div>
-                    <div class="status-value">
-                        <span style="color:var(--gw-text-tertiary);">飞牛统一网关 SSO 自动登录 —— 当前飞牛账号直接进入后台，无需输入应用账号密码</span>
-                    </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">操作</div>
-                    <div class="status-value">
-                        <button type="button" class="btn btn-primary btn-sm" onclick="openCollector()">打开后台（本机免密）</button>
-                    </div>
-                </div>
+            <!-- 信息面板 -->
+            <div class="mac-section active" id="section-dashboard">
+                {% include 'gateway/_dashboard.html' %}
+            </div>
+
+            <!-- 收集链接 -->
+            <div class="mac-section" id="section-links">
+                {% include 'gateway/_links.html' %}
+            </div>
+
+            <!-- 文件记录 -->
+            <div class="mac-section" id="section-records">
+                {% include 'gateway/_records.html' %}
             </div>
 
             {% if is_fn_admin %}
-            <!-- 实时日志：反向代理运行日志，仅飞牛管理员可见 -->
+            <!-- 用户管理（仅飞牛管理员） -->
+            <div class="mac-section" id="section-users">
+                {% include 'gateway/_users.html' %}
+            </div>
+            {% endif %}
+
+            <!-- 收集设置（管理员全量 / 普通用户精简，由前端按 is_admin 渲染） -->
+            <div class="mac-section" id="section-settings">
+                {% include 'gateway/_settings.html' %}
+            </div>
+
+            {% if is_fn_admin %}
+            <!-- 实时日志：反向代理运行日志 + 操作日志（审计），仅飞牛管理员可见 -->
             <div class="mac-section" id="section-logs">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -402,8 +474,27 @@ initFnOSTheme();
                     </svg>
                     实时日志
                 </h2>
-                <div class="log-box" id="logBox">
-                    <div class="log-line log-info">[系统] 等待反向代理启动...</div>
+
+                <div class="gwa-tabs" id="logTabs">
+                    <button type="button" class="gwa-tab active" data-logtab="activity">操作日志</button>
+                    <button type="button" class="gwa-tab" data-logtab="rproxy">反向代理</button>
+                </div>
+
+                <!-- 操作日志（审计）：登录 / 建链 / 删链 / 上传 / 下载 / 用户 / 设置等 -->
+                <div id="logPane-activity">
+                    <div class="gwa-panel" data-gwa-panel="logs">
+                        <div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>
+                    </div>
+                </div>
+
+                <!-- 反向代理运行日志 -->
+                <div id="logPane-rproxy" style="display:none;">
+                    <div class="gwa-card">
+                        <div class="gwa-card-title">反向代理运行日志</div>
+                        <div class="log-box" id="logBox">
+                            <div class="log-line log-info">[系统] 等待反向代理启动...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
             {% endif %}
@@ -417,21 +508,22 @@ initFnOSTheme();
                     </svg>
                     查看文件
                 </h2>
-                <div class="status-row">
-                    <div class="status-label">上传目录</div>
-                    <div class="status-value">
-                        <code id="uploadBasePath" style="word-break:break-all;">{{ upload_base or '未配置' }}</code>
+                <div class="gwa-card">
+                    <div class="gwa-card-title">上传目录</div>
+                    <div class="gwa-kv">
+                        <span class="k">路径</span>
+                        <span class="v"><code id="uploadBasePath">{{ upload_base or '未配置' }}</code></span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">操作</div>
-                    <div class="status-value">
-                        <button class="btn btn-primary btn-sm" id="openFmBtn" onclick="openUploadDir()">打开文件管理器</button>
+                    <div class="gwa-kv">
+                        <span class="k">操作</span>
+                        <span class="v">
+                            <button class="btn btn-primary btn-sm" id="openFmBtn" onclick="openUploadDir()">打开文件管理器</button>
+                        </span>
                     </div>
+                    <p class="help-note" id="fmTip" style="display:none;">
+                        无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。
+                    </p>
                 </div>
-                <p class="help-note" id="fmTip" style="display:none;">
-                    无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。
-                </p>
             </div>
 
             <!-- 应用信息（原 /settings 系统信息卡片，仅飞牛管理员可见：含服务端路径等敏感信息） -->
@@ -444,34 +536,36 @@ initFnOSTheme();
                     </svg>
                     应用信息
                 </h2>
-                <div class="status-row">
-                    <div class="status-label">开发者</div>
-                    <div class="status-value">
-                        <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">豪子</a>
+                <div class="gwa-card">
+                    <div class="gwa-kv">
+                        <span class="k">开发者</span>
+                        <span class="v">
+                            <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">豪子</a>
+                        </span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">数据库</div>
-                    <div class="status-value">SQLite</div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">版本号</div>
-                    <div class="status-value">
-                        v{{ version }}
-                        <a id="gwUpdateLink" href="https://github.com/Contribuv/file-collector/releases" target="_blank" rel="noopener noreferrer" style="display:none;margin-left:6px;font-size:12px;">发现新版本</a>
+                    <div class="gwa-kv">
+                        <span class="k">数据库</span>
+                        <span class="v">SQLite</span>
                     </div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">监听端口</div>
-                    <div class="status-value">{{ local_port }}</div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">数据目录</div>
-                    <div class="status-value"><code style="word-break:break-all;">{{ data_dir or '未获取' }}</code></div>
-                </div>
-                <div class="status-row">
-                    <div class="status-label">上传目录</div>
-                    <div class="status-value"><code style="word-break:break-all;">{{ upload_base or '未配置' }}</code></div>
+                    <div class="gwa-kv">
+                        <span class="k">版本号</span>
+                        <span class="v">
+                            v{{ version }}
+                            <a id="gwUpdateLink" href="https://github.com/Contribuv/file-collector/releases" target="_blank" rel="noopener noreferrer" style="display:none;margin-left:6px;font-size:12px;">发现新版本</a>
+                        </span>
+                    </div>
+                    <div class="gwa-kv">
+                        <span class="k">监听端口</span>
+                        <span class="v">{{ local_port }}</span>
+                    </div>
+                    <div class="gwa-kv">
+                        <span class="k">数据目录</span>
+                        <span class="v"><code>{{ data_dir or '未获取' }}</code></span>
+                    </div>
+                    <div class="gwa-kv">
+                        <span class="k">上传目录</span>
+                        <span class="v"><code>{{ upload_base or '未配置' }}</code></span>
+                    </div>
                 </div>
             </div>
             {% endif %}
@@ -530,16 +624,16 @@ initFnOSTheme();
                         <p>这一页都有啥，点一下直接跳：</p>
                         <ol>
                             <li><a href="#doc-intro">先说清楚这是个啥</a></li>
-                            <li><a href="#doc-install">一、先把应用装上</a></li>
-                            <li><a href="#doc-login">二、第一次登录，记得把密码改了</a></li>
+                            <li><a href="#doc-install">一、把应用装上，从哪进</a></li>
+                            <li><a href="#doc-login">二、第一次进来，先把密码设好</a></li>
                             <li><a href="#doc-create">三、建一个收集链接</a></li>
                             <li><a href="#doc-links">四、链接建好了，怎么发给别人</a></li>
                             <li><a href="#doc-uploader">五、对方怎么传文件给你</a></li>
                             <li><a href="#doc-share">六、收来的文件，大家怎么查看和下载</a></li>
-                            <li><a href="#doc-admin">七、后台还能干点什么</a></li>
-                            <li><a href="#doc-settings">八、后台「设置」页，逐项说清楚</a></li>
-                            <li><a href="#doc-batch">九、批量功能：一次建一堆链接</a></li>
-                            <li><a href="#doc-reverse">十、补充：想让外面的人也能访问</a></li>
+                            <li><a href="#doc-admin">七、管理面板：左边这几栏都是干嘛的</a></li>
+                            <li><a href="#doc-settings">八、「收集设置」逐项说清楚</a></li>
+                            <li><a href="#doc-batch">九、批量处理文件</a></li>
+                            <li><a href="#doc-reverse">十、想让外面的人也能访问：公网访问</a></li>
                         </ol>
                     </div>
 
@@ -550,7 +644,7 @@ initFnOSTheme();
                     </div>
 
                     <div id="doc-install">
-                        <h2>一、先把应用装上</h2>
+                        <h2>一、把应用装上，从哪进</h2>
                         <p>这是飞牛 fnOS 的专属应用，装起来和装别的应用差不多。</p>
                         <ol>
                             <li>先把安装包（<code>.fpk</code> 结尾的文件）下载到电脑或 NAS 上。</li>
@@ -558,33 +652,35 @@ initFnOSTheme();
                             <li>安装过程中会让你设置两样东西：管理员账号密码、监听端口。端口默认 <code>5557</code>，没有特殊需要就别动它。</li>
                             <li>等几秒钟，装完。桌面上会出现它的图标。</li>
                         </ol>
-                        <p>装完之后，在浏览器地址栏输入下面的地址就能打开：</p>
-                        <p><code>http://你NAS的IP:5557/admin</code></p>
-                        <div class="doc-note doc-ok">以后要升级，直接在应用商店点升级就行，数据都会保留，不会丢。</div>
+                        <h3>两种进入方式</h3>
+                        <ul>
+                            <li><b>推荐：从飞牛桌面点图标直接进</b>。应用会以“独立小窗”的方式嵌在飞牛桌面里打开，用你的飞牛账号自动登录，不用再单独记一套账号密码。整套管理面板、收集链接、文件记录都在这个窗口里。</li>
+                            <li><b>备用：浏览器直连独立后台</b>。在地址栏输入 <code>http://你NAS的IP:5557/admin</code>，用下面的默认账号登录。这个入口只建议在本机/内网排障时使用。</li>
+                        </ul>
+                        <div class="doc-note doc-ok">以后要升级，直接在应用商店点升级就行，数据都会保留，不会丢。日常使用建议只从飞牛桌面进入。</div>
                     </div>
 
                     <div id="doc-login">
-                        <h2>二、第一次登录，记得把密码改了</h2>
-                        <p>刚装好的应用有一个默认账号，登录的时候直接填这个：</p>
+                        <h2>二、第一次进来，先把密码设好</h2>
+                        <p>从飞牛桌面打开应用时，系统已经用你的飞牛账号登录好了，默认就能用，不需要额外注册。</p>
+                        <p>第一次进入时，如果右上角或「收集设置 → 账号设置」提示“尚未设置登录密码”，建议顺手设一个：填好新密码（至少 8 位，需同时包含字母和数字）点保存即可。这样即使换了浏览器或设备，也能用账号密码登回来。</p>
+                        <h3>如果你走的是独立后台（<code>/admin</code>）</h3>
+                        <p>刚装好的应用有一个默认账号，登录时直接填：</p>
                         <table>
                             <tr><td>用户名</td><td><code>admin</code></td></tr>
                             <tr><td>密码</td><td><code>admin123</code></td></tr>
                         </table>
                         <figure class="doc-figure">
-                            <img src="{{ url_for('static', filename='img/docs/09-login.png') }}" alt="登录页面">
-                            <figcaption>登录页长这样，用户名密码填上面那俩，点登录</figcaption>
+                            <img src="{{ url_for('static', filename='img/docs/09-login.png') }}" alt="独立后台登录页">
+                            <figcaption>独立后台（<code>/admin</code>）的登录页，用户名密码填上面那俩</figcaption>
                         </figure>
-                        <div class="doc-note doc-warn">第一次登录后，它会强制让你改一个新密码。这个新密码要记好，别再留着默认的 admin123，不然别人随便就登进来了。</div>
+                        <div class="doc-note doc-warn">第一次登录独立后台后，它会强制让你改一个新密码。这个新密码要记好，别再留着默认的 admin123，不然别人随便就登进来了。</div>
                     </div>
 
                     <div id="doc-create">
                         <h2>三、建一个收集链接</h2>
-                        <p>想开始收东西，就建一个收集链接。登录后台，点左边菜单的「收集链接」，再点「创建收集链接」。</p>
-                        <figure class="doc-figure">
-                            <img src="{{ url_for('static', filename='img/docs/01-create-link.png') }}" alt="创建收集链接表单">
-                            <figcaption>创建页面，往下看每个框是干嘛的</figcaption>
-                        </figure>
-                        <p>表单里几个关键的地方说一下：</p>
+                        <p>想开始收东西，就建一个收集链接。在左侧点「收集链接」，再点右上角的<b>「＋ 创建收集」</b>，会弹出一个创建窗口。</p>
+                        <p>窗口里几个关键的地方说一下：</p>
                         <ul>
                             <li><b>收集名称</b>：给这次收集起个名，比如“语文作业收集”。</li>
                             <li><b>收集描述</b>：告诉别人要传些什么，比如“请上传本周语文作业的照片，周末前交”。</li>
@@ -598,16 +694,12 @@ initFnOSTheme();
 
                     <div id="doc-links">
                         <h2>四、链接建好了，怎么发给别人</h2>
-                        <p>回到「收集链接」列表，能看到所有建好的链接。每个链接下面都有“复制”按钮，会复制两个地址，分别对应两种页面：</p>
+                        <p>「收集链接」列表里能看到所有建好的链接。每个链接都有“复制”按钮，会复制两个地址，分别对应两种页面：</p>
                         <ul>
                             <li><b>收集页链接</b>：给别人传文件用的，发群里。</li>
                             <li><b>分享页链接</b>：给别人看/下载文件用的，需要的时候发。</li>
                         </ul>
-                        <figure class="doc-figure">
-                            <img src="{{ url_for('static', filename='img/docs/02-links-list.png') }}" alt="链接列表">
-                            <figcaption>列表这里能复制链接，也能编辑、禁用、删除链接</figcaption>
-                        </figure>
-                        <p>列表里每个链接都能单独编辑（改密码、改限额）、禁用（禁了链接就失效，别人打不开）、删除。放心删，已经上传的文件还留在硬盘上，不会没。</p>
+                        <p>列表里每个链接都能单独<b>编辑</b>（改密码、改限额）、<b>启用/停用</b>（停用后链接就失效，别人打不开）、<b>删除</b>。勾选左边多个链接，再点<b>「批量删除」</b>可以一次删好几个。放心删，已经上传的文件还留在硬盘上，不会没。</p>
                     </div>
 
                     <div id="doc-uploader">
@@ -650,134 +742,121 @@ initFnOSTheme();
                     </div>
 
                     <div id="doc-admin">
-                        <h2>七、后台还能干点什么</h2>
-                        <p>后台就是 <code>/admin</code> 那个地址，左侧一排菜单，常用的就三个：</p>
+                        <h2>七、管理面板：左边这几栏都是干嘛的</h2>
+                        <p>从飞牛桌面打开应用后，左侧是一排导航，一个个说清楚：</p>
                         <h3>信息面板</h3>
-                        <p>一登录先看到的就是它。上面是几个数：建了多少链接、有几个是活跃的、一共收了多少文件、今天收了多少。下面“最近上传”列的是最新传上来的文件。</p>
-                        <figure class="doc-figure">
-                            <img src="{{ url_for('static', filename='img/docs/07-admin-dashboard.png') }}" alt="信息面板">
-                            <figcaption>一进来看到的总览，心里先有个数</figcaption>
-                        </figure>
+                        <p>一进来看到的就是它。上面是几个数：建了多少链接、有几个活跃、一共收了多少文件、今天收了多少；下面是最近上传的文件，心里先有个数。</p>
+                        <h3>收集链接</h3>
+                        <p>管理所有收集链接：创建、编辑、复制收集页/分享页地址、启用停用、删除、批量删除。</p>
                         <h3>文件记录</h3>
-                        <p>所有收上来的文件都在这里，像一个总仓库。可以按链接筛选，也能分页翻。每个文件都能预览、下载、删除，勾选好几个还能批量下载、批量删。</p>
-                        <figure class="doc-figure">
-                            <img src="{{ url_for('static', filename='img/docs/08-admin-records.png') }}" alt="文件记录">
-                            <figcaption>所有文件的大汇总，想找哪个文件来这翻</figcaption>
-                        </figure>
-                        <h3>其他两个</h3>
+                        <p>所有收上来的文件都在这里，像一个总仓库。可以按链接筛选、分页翻看；每个文件能预览、下载、删除，勾选多个还能批量打包下载（一个 ZIP）或批量删除。</p>
+                        <h3>用户管理（仅管理员）</h3>
+                        <p>管理能登录的账号：加人、启停、重置密码、编辑资料，以及生成和管理邀请码。开放注册时，别人凭邀请码就能注册账号。</p>
+                        <h3>收集设置</h3>
+                        <p>系统配置都在这里。管理员能看到全部设置卡片；普通用户进来只会看到「账号设置」和「我的默认设置」两块。下一节逐项讲。</p>
+                        <h3>公网访问（仅管理员）</h3>
+                        <p>用飞牛系统的证书给应用做反向代理，把服务安全地暴露到外网。最后一节详细讲。</p>
+                        <h3>实时日志（仅管理员）</h3>
+                        <p>分两栏：「反向代理」是反代的运行日志，启动失败时来这里看原因；「操作日志」记录谁在什么时候登录、建了/删了哪个链接、传了什么、下载了什么、改了哪些设置，可按分类和关键字筛选。</p>
+                        <h3>查看文件 / 应用信息（仅管理员）</h3>
                         <ul>
-                            <li><b>用户管理</b>：管理能登录后台的账号，加人、停用、重置密码都在这里。</li>
-                            <li><b>设置</b>：所有系统配置都在这，下一节逐项讲。</li>
+                            <li><b>查看文件</b>：显示上传目录位置，一键调用飞牛文件管理器打开它，直接翻硬盘上的文件。</li>
+                            <li><b>应用信息</b>：开发者、数据库、版本号、监听端口、数据与上传目录等只读信息，报错时把这里告诉开发者。</li>
                         </ul>
-                        <div class="doc-note doc-warn">记住：<code>/admin</code> 这个后台地址和密码，自己留着就行，别发给别人。发出去的应该是收集页和分享页的链接。</div>
+                        <div class="doc-note doc-warn">收集页和分享页的链接才是发给别人的；管理面板是你自己的后台，别把入口到处发。</div>
 
                         <div id="doc-settings">
-                            <h2>八、后台「设置」页，逐项说清楚</h2>
-                            <p>后台左侧点「设置」进来，所有的系统配置都在这张页面上，一屏装不下。下面按从上到下的顺序，把每一块讲明白。</p>
+                            <h2>八、「收集设置」逐项说清楚</h2>
+                            <p>左侧点「收集设置」进来，所有系统配置都在这。管理员从上到下能看到这么多卡片；普通用户只会看到「账号设置」和「我的默认设置」两张。</p>
                             <h3>1. 账号设置</h3>
-                            <p>改你自己的后台账号信息：</p>
+                            <p>改你自己的账号：</p>
                             <ul>
-                                <li><b>管理员用户名</b>：登录后台用的账号名。</li>
-                                <li><b>昵称</b>：批注为必填。这个昵称会显示在收集页和分享页上，别人看到的"xx邀请您上传文件"用的就是它。不填的话，页面会显示用户名。</li>
-                                <li><b>邮箱</b>：填了才能用登录页的"忘记密码"功能找回密码；配好 SMTP 后，会直接发验证码到这个邮箱。</li>
-                                <li><b>当前密码 / 新密码 / 确认新密码</b>：改任何信息都要验一次当前密码；想换密码就填后面两个，不换留空。</li>
+                                <li><b>用户名</b>：登录用的账号名。</li>
+                                <li><b>昵称</b>：这个昵称会显示在收集页和分享页上，别人看到的“xx 邀请您上传文件”用的就是它。不填就显示用户名。</li>
+                                <li><b>邮箱</b>：用于找回密码与系统通知，留空表示不设置。</li>
+                                <li><b>原密码 / 新密码 / 确认新密码</b>：改账号信息或密码时需验一次原密码；想换密码就填后面两个，不换留空。（若账号尚未设密码，则不显示原密码。）</li>
                             </ul>
-                            <h3>2. 邮箱设置 (SMTP)</h3>
-                            <p>这一块是给"忘记密码"用的。想要系统能从你的邮箱发验证码，就得配这里：</p>
-                            <ul>
-                                <li><b>SMTP 服务器地址</b>：邮箱服务商给的，QQ 邮箱填 <code>smtp.qq.com</code>。</li>
-                                <li><b>加密方式</b>：STARTTLS（端口 587）或 SSL（端口 465），跟着邮箱服务商的要求选。</li>
-                                <li><b>邮箱账号、密码/授权码</b>：QQ 邮箱这类一般要用"授权码"，不是登录密码。</li>
-                                <li><b>发件人名称、发件人邮箱</b>：别人收到邮件时看到的名字和地址。</li>
-                                <li>配完可以点<b>「发送测试邮件」</b>，系统会往发件人邮箱发一封，收到就说明配通了。</li>
-                            </ul>
-                            <h3>3. 页面与品牌</h3>
+                            <h3>2. 页面与品牌</h3>
                             <p>各个页面上显示的字，都在这改。不想折腾可以全不填：</p>
                             <ul>
                                 <li><b>站点标题</b>：显示在浏览器标签和页面顶部。</li>
                                 <li><b>分享页标题</b>：不填就沿用站点标题。</li>
-                                <li><b>公网网址</b>：在统一网关配好反向代理后这里自动带上公网地址；也可手动填第三方反代域名。</li>
-                                <li><b>收集页页尾、分享页页尾</b>：页面底部的说明文字，比如"有问题请联系李老师"。</li>
-                                <li><b>登录页提示</b>：后台登录页底部的提示信息。</li>
+                                <li><b>公网网址</b>：配好反向代理后这里自动带上公网地址；也可手动填第三方反代域名。</li>
+                                <li><b>收集页页尾、分享页页尾</b>：页面底部的说明文字，比如“有问题请联系李老师”。</li>
+                                <li><b>登录页提示</b>：独立后台登录页底部的提示信息。</li>
                             </ul>
-                            <h3>4. 默认设置</h3>
-                            <p>新建收集链接时的默认值。创建链接时不单独设，就用这里的默认：</p>
+                            <h3>3. 默认设置（全局）</h3>
+                            <p>新建收集链接时的默认值。创建链接时不单独设，就用这里的默认（普通用户这里是「我的默认设置」，仅对自己生效）：</p>
                             <ul>
                                 <li><b>默认最大文件数 / 单文件上限</b>：每个链接默认能收几个文件、单个文件多大。</li>
-                                <li><b>单次最多上传个数</b>：上传的人一次最多选几个文件，默认 30。<strong>填 0 表示不限制</strong>，想传多少传多少；最大 500。</li>
-                                <li><b>通行证缓存有效期</b>：输一次密码（通行证）管多久，默认 120 分钟，到期重新输。</li>
-                                <li><b>链接最大有效期</b>：新建链接能设的最长有效期（天）。</li>
-                                <li><b>禁止上传文件类型</b>：黑名单，默认禁 <code>.exe .php .sh .bat</code> 这类危险文件。想再加就空格分隔写上，如 <code>.exe .php .sh .bat .html</code>。</li>
-                                <li><b>收集附件上限</b>：创建链接时上传附件图的最大限制，默认 1000 MB。</li>
-                                <li><b>每页数量</b>：链接列表、文件记录列表每页显示几条。</li>
+                                <li><b>单次上传个数</b>：上传的人一次最多选几个文件。<strong>填 0 表示不限制</strong>，最大 500。</li>
+                                <li><b>通行证有效期</b>：输一次密码（通行证）管多久，到期重新输。</li>
+                                <li><b>默认链接有效期</b>：新建链接默认的有效期（天）。</li>
+                                <li><b>收集附件上限</b>：创建链接时上传附件图的最大限制。</li>
+                                <li><b>收集链接每页 / 上传记录每页</b>：两个列表每页显示几条。</li>
+                                <li><b>禁止上传的文件类型</b>：黑名单，默认禁 <code>.exe .php .sh .bat</code> 这类危险文件，空格分隔，留空用系统默认。</li>
                             </ul>
-                            <h3>5. 上传路径</h3>
-                            <p>文件默认存在系统盘，想存到别的硬盘就填自定义目录（如 <code>/vol2/1000/文件收集</code>）。改完需要在飞牛应用中心给这个目录加权限，再重启应用才会生效。</p>
-                            <h3>6. 功能开关</h3>
+                            <h3>4. 上传路径</h3>
+                            <p>文件默认存在应用数据目录，想存到别的硬盘就填自定义目录（如 <code>/vol2/1000/文件收集</code>）。改完需要在飞牛应用中心给这个目录授权读写，再重启应用才会生效；已有记录的路径会自动迁移。</p>
+                            <h3>5. 功能开关</h3>
                             <ul>
-                                <li><b>开放用户注册</b>：开启后别人能用邀请码注册你的后台账号。</li>
-                                <li><b>启用首页介绍页</b>：开启后访问首页看到的是介绍页。</li>
-                                <li><b>根目录创建文件夹</b>：开启后，收上来的文件直接按"收集名称"建文件夹放在上传根目录，不再按用户名分层；即使开了上传者登记，也不建上传者子文件夹。</li>
+                                <li><b>允许用户注册</b>：开启后别人能用邀请码注册你的账号。</li>
+                                <li><b>启用首页落地页</b>：开启后访问首页看到的是介绍页。</li>
+                                <li><b>启用根目录模式</b>：开启后，收上来的文件直接按“收集名称”建文件夹放在上传根目录，不再按上传者分层。</li>
                             </ul>
-                            <h3>7. 数据库管理</h3>
+                            <h3>6. 邮件（SMTP）</h3>
+                            <p>给“忘记密码”等系统通知用的，想让它从你的邮箱发信就配这里：</p>
                             <ul>
-                                <li><b>路径自动同步</b>：改了上传路径，系统会自动同步数据库里的记录，不用手动处理。</li>
-                                <li><b>备份数据库</b>：把整个数据库下载成 <code>.db</code> 文件存本地，搬家或存档用。</li>
-                                <li><b>恢复数据库</b>：上传 <code>.db</code> 备份恢复；恢复前系统会自动再备份一份当前的，不怕误操作。</li>
+                                <li><b>SMTP 服务器</b>：邮箱服务商给的，QQ 邮箱填 <code>smtp.qq.com</code>。</li>
+                                <li><b>加密方式 / 端口</b>：STARTTLS（587）或 SSL（465），跟着服务商要求选。</li>
+                                <li><b>邮箱账号、密码/授权码</b>：QQ 邮箱这类一般要用“授权码”，不是登录密码。</li>
+                                <li><b>发件人名称、发件人邮箱</b>：别人收到邮件时看到的名字和地址。</li>
+                                <li>配完可以点<b>「发送测试邮件」</b>，收到就说明配通了。</li>
                             </ul>
-                            <h3>8. 系统信息</h3>
-                            <p>只读区域：开发者、数据库类型、版本号、监听端口、数据目录和上传目录的位置，出问题报错时把这里告诉开发者。</p>
+                            <h3>7. 数据库备份与恢复</h3>
+                            <ul>
+                                <li><b>下载数据库备份</b>：把整个数据库导出成 <code>.db</code> 文件存本地，搬家或存档用。</li>
+                                <li><b>导入数据库备份</b>：上传 <code>.db</code> 覆盖恢复；导入前系统会自动再备份一份当前的，不怕误操作。仅支持由本系统导出的 <code>.db</code>。</li>
+                            </ul>
                         </div>
 
                         <div id="doc-batch">
-                            <h2>九、批量功能：一次建一堆链接</h2>
-                            <p>如果你要同时建很多个收集链接（比如给 30 个班每个班建一个作业收集），一个个点太累，用批量创建。后台「收集链接」列表右上角有<b>「＋ 批量创建」</b>按钮：</p>
-                            <h3>操作步骤</h3>
-                            <ol>
-                                <li>点「下载模板文件」，拿到一个 Excel 表格（表里前两行是演示数据，不会真的建出来，放心）。</li>
-                                <li>按列填：<b>收集名称</b>是必填的；其他列（描述、通行证、最大文件数量、单文件上限、有效期、是否允许删除、显示预览按钮、上传者登记、自定义链接、分享页开关等）空着就用系统默认值。通行证列空着 = 这个链接不需要密码。</li>
-                                <li>保存成 CSV（Excel 里"另存为 CSV"，建议 UTF-8 编码），拖到上传区或点选文件。</li>
-                                <li>等几秒出结果：成功建了哪几个、哪几行哪列填错，会一条条列出来。</li>
-                            </ol>
-                            <h3>列表里的批量操作</h3>
-                            <p>除了批量创建，链接列表和文件记录列表都有<b>「批量操作」</b>按钮，点开变成勾选模式：</p>
+                            <h2>九、批量处理文件</h2>
+                            <p>文件一多，一个个点太累，新面板里能批量处理：</p>
                             <ul>
-                                <li><b>收集链接列表</b>：勾选多个链接，可以一次批量删除。</li>
+                                <li><b>收集链接列表</b>：勾选左边多个链接，点<b>「批量删除」</b>一次删掉。</li>
                                 <li><b>文件记录列表</b>：勾选多个文件，能<b>批量打包下载</b>（合成一个 ZIP）或<b>批量删除</b>。收上来几百个文件想一起拷走，用这个最省事。</li>
                             </ul>
+                            <div class="doc-note">如果你要一次建很多个链接（比如给 30 个班各建一个作业收集），可以到独立后台 <code>http://你NAS的IP:5557/admin</code> 的「收集链接 → 批量创建」，下载 Excel 模板、填好后上传 CSV 一键生成。这是独立后台保留的功能。</div>
                         </div>
 
                         <div id="doc-reverse">
-                            <h2>十、补充：想让外面的人也能访问</h2>
-                            <p>文件收集器默认只监听内网端口，家里/公司的局域网能访问，外面网络访问不了。想让外面的朋友也能用，需要配反向代理，把端口暴露到公网。飞牛自带的统一网关就是干这个的。</p>
+                            <h2>十、想让外面的人也能访问：公网访问</h2>
+                            <p>默认情况下，应用只在局域网能访问，外面网络进不来。想让外网的朋友也能用，就用「公网访问」里的反向代理，把服务安全地暴露到公网（走 HTTPS 加密）。这几个页面只需要给管理员用。</p>
                             <div class="doc-note">
                                 <ul>
-                                    <li>通过反向代理，把服务暴露到公网，走 HTTPS 加密</li>
-                                    <li>证书自动从飞牛系统读取，不用自己申请</li>
+                                    <li>通过反向代理把服务暴露到公网，走 HTTPS 加密</li>
+                                    <li>证书直接读取飞牛系统里已有的，不用自己申请</li>
                                     <li>支持多台设备同时在线</li>
                                 </ul>
                             </div>
                             <h3>先做两件准备工作</h3>
                             <ol>
                                 <li><b>开 DDNS，拿到域名</b>：在飞牛系统里打开「DDNS」，添加一条解析，绑上你家宽带的动态公网 IP。成功后你会得到一个域名，比如 <code>xxx.fnos.net</code>。这一步的作用，是把外面访问的网址和你家公网 IP 绑定起来。</li>
-                                <li><b>确认域名有证书</b>：飞牛系统会自动给 DDNS 域名申请证书。证书是 HTTPS 加密用的，没有它，HTTPS 访问会报"不安全"。证书的事一般在飞牛系统里勾选"自动申请"就行，不用手动操作。</li>
+                                <li><b>确认域名有证书</b>：飞牛系统会自动给 DDNS 域名申请证书。证书是 HTTPS 加密用的，没有它，HTTPS 访问会报“不安全”。证书的事一般在飞牛系统里勾选“自动申请”就行。</li>
                             </ol>
-                            <h3>操作步骤（都在「公网访问」这个 tab 里完成）</h3>
-                            <p>进入应用后，点左侧栏的「公网访问」，页面长这样：</p>
-                            <figure class="doc-figure">
-                                <img src="{{ url_for('static', filename='img/docs/10-reverse-proxy-config.png') }}" alt="公网访问页面">
-                                <figcaption>公网访问：上方选域名、填端口并点启动，下方显示运行状态与访问地址</figcaption>
-                            </figure>
+                            <h3>操作步骤（左侧「公网访问」页）</h3>
+                            <p>页面分两张卡片：上面「反向代理」选域名、填端口、点启动；下面「运行状态」显示是否在跑、公网地址、内网地址。</p>
                             <h4>第 1 步：选域名</h4>
-                            <p>「域名」下拉框里，会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个域名。列表是空的？点下方「刷新证书」按钮再试试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到前面准备工作检查。</p>
+                            <p>「域名」下拉框里会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个。列表是空的？点「刷新证书」按钮再试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到准备工作检查。</p>
                             <h4>第 2 步：填 HTTPS 端口</h4>
-                            <p>默认填好 <code>7786</code>。一般不用改。如果提示"端口被占用"，页面会给出备用端口建议（7787、7788），点一下换掉就行。记下这个端口号，后面路由器要用。</p>
+                            <p>默认填好 <code>7786</code>，一般不用改。如果提示“端口被占用”，页面会给出备用端口建议（7787、7788），点一下换掉就行。记下这个端口号，后面路由器要用。</p>
                             <h4>第 3 步：点「启动」</h4>
-                            <p>点蓝色「启动」按钮，状态变成运行中，反代就起来了。以后想关掉就点它旁边的「停止」。</p>
-                            <div class="doc-note doc-warn">别忘了路由器：请在路由器管理页做「端口转发」（有的路由器叫"端口映射/虚拟服务器"），把第 2 步那个 HTTPS 端口转发到 NAS 的内网 IP。不做这一步，外面还是连不进来。</div>
+                            <p>点蓝色「启动」按钮，状态变成运行中，反代就起来了。以后想关掉就点它旁边的「停止」。启动后「公网地址」会显示出来，可以复制。</p>
+                            <div class="doc-note doc-warn">别忘了路由器：请在路由器管理页做「端口转发」（有的路由器叫“端口映射/虚拟服务器”），把第 2 步那个 HTTPS 端口转发到 NAS 的内网 IP。不做这一步，外面还是连不进来。</div>
                             <h4>第 4 步：浏览器验证</h4>
                             <p>在外面（手机流量、公司网络）打开 <code>https://你的域名:端口号</code>，能打开就成功了。比如域名是 <code>xxx.fnos.net</code>、端口 <code>7786</code>，地址就是 <code>https://xxx.fnos.net:7786</code>。注意前面带 <code>https://</code>，别漏了。</p>
-                            <div class="doc-note doc-ok">家里宽带如果没有公网 IP（运营商不给你，或你在路由器的"大内网"里），DDNS 拿到域名也连不进来。这种情况可以在路由器上开 UPnP、去运营商要公网 IP，或者用别的穿透方案，那是另一套玩法了。</div>
+                            <div class="doc-note doc-ok">家里宽带如果没有公网 IP（运营商不给你，或你在路由器的“大内网”里），DDNS 拿到域名也连不进来。这种情况可以在路由器上开 UPnP、去运营商要公网 IP，或者用别的穿透方案，那是另一套玩法了。局域网内日常使用则无需这一步，直接从飞牛桌面进入即可。</div>
                         </div>
                         <p>还有不懂的，去官网项目页 <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">https://www.infowe.site/projects/1</a>，拉到页面底部留个评论。</p>
                     </div>
@@ -797,6 +876,13 @@ initFnOSTheme();
     <img id="docLightboxImg" src="" alt="预览大图">
 </div>
 
+<script src="{{ url_for('static', filename='js/gateway-admin.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-dashboard.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-links.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-records.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-users.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-settings.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-admin/gw-logs.js', v=VERSION) }}"></script>
 <script>
 // ============================================================
 // 侧边栏切换
@@ -806,13 +892,16 @@ function switchSection(name) {
     const section = document.getElementById('section-' + name);
     if (section) section.classList.add('active');
 
-    // 侧边栏高亮：直接命中的 tab 高亮；日志/文件/帮助归到「更多」tab
+    // 侧边栏高亮：直接命中的 tab 高亮；日志/文件/帮助/用户/设置归到「更多」tab
     document.querySelectorAll('.mac-sidebar-item[data-section]').forEach(el => {
         el.classList.toggle('active', el.getAttribute('data-section') === name);
     });
-    const moreGroup = ['logs', 'files', 'appinfo', 'manual'];
+    const moreGroup = ['logs', 'files', 'appinfo', 'manual', 'users', 'settings'];
     const moreTab = document.querySelector('.mac-sidebar-item[data-more]');
     if (moreTab) moreTab.classList.toggle('active', moreGroup.indexOf(name) >= 0);
+
+    // 集成管理面板：按需初始化对应 Tab 模块（懒加载）
+    if (window.GW && GW.ensureSection) GW.ensureSection(name);
 }
 
 // 移动端「更多」抽屉开关
@@ -918,13 +1007,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
 
-    const wechatEl = document.getElementById('wechatCopy');
-    if (wechatEl) {
-        wechatEl.addEventListener('click', copyWechat);
-    }
+    // 初始化当前激活的集成管理面板 Tab（默认「信息面板」）
+    if (window.GW && GW.ensureSection) GW.ensureSection('dashboard');
 
     // 探测 GitHub 可达性，不可达时版本号链接切换为备用站点
     initVersionLink();
+
+    // 实时日志：反向代理 / 操作日志 分段切换
+    const logTabs = document.getElementById('logTabs');
+    if (logTabs) {
+        logTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('.gwa-tab');
+            if (btn) switchLogTab(btn.getAttribute('data-logtab'));
+        });
+    }
 });
 
 let polling = false;
@@ -1214,6 +1310,22 @@ async function stopProxy() {
 // ============================================================
 // 日志
 // ============================================================
+// 实时日志分段切换：反向代理 / 操作日志
+function switchLogTab(tab) {
+    const tabs = document.getElementById('logTabs');
+    if (tabs) {
+        tabs.querySelectorAll('.gwa-tab').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-logtab') === tab);
+        });
+    }
+    const rp = document.getElementById('logPane-rproxy');
+    const ac = document.getElementById('logPane-activity');
+    if (rp) rp.style.display = (tab === 'rproxy') ? '' : 'none';
+    if (ac) ac.style.display = (tab === 'activity') ? '' : 'none';
+    // 切到操作日志时按需初始化（懒加载）并刷新
+    if (tab === 'activity' && window.GW && GW.ensureSection) GW.ensureSection('logs');
+}
+
 let lastLogSignature = 'empty';
 
 function logSignature(logs) {
@@ -1281,14 +1393,6 @@ function copyUrl() {
     const url = document.getElementById('proxyUrl').textContent;
     navigator.clipboard.writeText(url).then(() => {
         addLog('success', '地址已复制到剪贴板');
-    });
-}
-
-function copyWechat() {
-    navigator.clipboard.writeText('CQGGTF').then(() => {
-        const tip = document.getElementById('copyTip');
-        tip.style.display = 'inline';
-        setTimeout(() => { tip.style.display = 'none'; }, 2000);
     });
 }
 

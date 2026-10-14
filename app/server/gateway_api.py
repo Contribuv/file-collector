@@ -9,6 +9,13 @@ import secrets
 import logging
 from flask import Blueprint, jsonify, request, render_template, abort, session
 
+# 统一网关访问守卫（共享模块，与 gateway_admin_api 复用同一套安全约束）
+from gateway_guard import (
+    guard_gateway_access,
+    guard_admin_only,
+    validate_csrf as _validate_csrf,
+)
+
 logger = logging.getLogger('gateway_api')
 
 # Blueprint 必须最早定义，确保 import 本模块时 gateway_bp 始终存在
@@ -19,17 +26,10 @@ gateway_bp = Blueprint('gateway', __name__, template_folder='templates')
 def _guard_gateway_access():
     """网关页面与接口只能经飞牛统一网关访问。
 
-    飞牛网关经 Unix Socket 转发时会由应用自身的 socket 代理注入内部令牌头；
-    而通过应用端口（如 http://127.0.0.1:5557/gateway）直连的请求不带该头，
-    一律返回 404，实现网关访问与端口访问的隔离。
+    端口直连（如 http://127.0.0.1:5557/gateway）不带内部令牌头，一律 404。
+    具体判定逻辑见 gateway_guard.guard_gateway_access。
     """
-    # 本地开发（Windows）或显式关闭守卫时豁免，便于调试前端
-    if os.name == 'nt' or os.environ.get('FC_GATEWAY_GUARD', '1') == '0':
-        return None
-    token = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN', '')
-    if not token or request.headers.get('X-FC-Gateway-Proxy') != token:
-        abort(404)
-    return None
+    return guard_gateway_access()
 
 
 # 仅飞牛管理员可调用的管理类接口（证书、反代启停、日志、端口检测）
@@ -50,26 +50,9 @@ def _guard_gateway_admin_only():
 
     页面上已对普通飞牛账号隐藏「公网访问 / 反向代理 / 实时日志」Tab，
     此处再对接口做一次拦截，避免绕过前端隐藏直接请求。
-    权限以应用会话 session['is_admin'] 为准：该会话仅在请求经飞牛网关转发时
-    由 SSO 建立，不直接信任客户端可伪造的 X-Trim-Isadmin 头。
+    权限判定逻辑见 gateway_guard.guard_admin_only。
     """
-    # 与访问来源守卫保持一致：本地开发或显式关闭守卫时豁免
-    if os.name == 'nt' or os.environ.get('FC_GATEWAY_GUARD', '1') == '0':
-        return None
-    if request.endpoint in _ADMIN_ONLY_ENDPOINTS:
-        if not session.get('is_admin'):
-            abort(403)
-    return None
-
-def _validate_csrf():
-    """校验 CSRF：从表单或 X-CSRFToken 头取令牌，与应用 session 中的比对。
-
-    POST 类管理接口（启动/停止反代、清空日志）必须校验，防止管理员
-    在已登录状态下被第三方页面诱导发起跨站请求。
-    """
-    token = request.form.get('csrf_token', '') or request.headers.get('X-CSRFToken', '')
-    expected = session.get('csrf_token', '')
-    return bool(token) and bool(expected) and secrets.compare_digest(token, expected)
+    return guard_admin_only(_ADMIN_ONLY_ENDPOINTS)
 
 
 # 延迟导入：避免模块加载时因依赖问题导致 Blueprint 注册失败
@@ -178,7 +161,7 @@ def gateway_index():
     config = RPROXY_PM.get_config() if RPROXY_PM else {}
 
     # 获取版本号（与 manifest 同步）
-    version = "2.3.51"
+    version = "2.3.53"
     try:
         from app import VERSION
         version = VERSION

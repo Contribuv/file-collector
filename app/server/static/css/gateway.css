@@ -5,6 +5,9 @@
 
 /* ---- CSS 变量：浅色模式（默认，对齐 Semi 官方 :root 块） ---- */
 :root {
+    /* 原生控件（数字框上下箭头 / 下拉 / 日期 / autofill / 默认滚动条）按浅色渲染，
+       否则深色主题下这些浏览器原生部件仍走浅色，出现白色箭头等问题 */
+    color-scheme: light;
     --gw-radius-sm: 8px;                    /* 输入框/按钮/徽章圆角 */
     --gw-radius-md: 12px;                   /* 卡片/日志框圆角 */
     --gw-bg: #f2f3f5;                        /* bg-0 = rgba(grey-1,1) */
@@ -44,6 +47,7 @@
 
 /* ---- CSS 变量：深色模式（对齐飞牛官方深色：深蓝灰基调） ---- */
 :root[data-theme="dark"] {
+    color-scheme: dark;                      /* 原生控件随深色主题渲染（修复数字框白色上下箭头） */
     --gw-bg: #14161a;                        /* 页面底色：深蓝灰 */
     --gw-window-bg: #1e2126;                 /* 窗口/卡片底色，比页面略亮 */
     --gw-sidebar-bg: #1a1d22;                /* 导航底色 */
@@ -180,28 +184,6 @@ body {
     padding: 8px 12px;
     font-size: 12px;
     color: var(--gw-text-tertiary);
-}
-
-.mac-sidebar-feedback {
-    padding: 4px 12px;
-    font-size: 12px;
-}
-
-.mac-sidebar-feedback .feedback-wechat {
-    color: var(--gw-success);
-    cursor: pointer;
-    user-select: all;
-    transition: opacity 0.15s;
-}
-
-.mac-sidebar-feedback .feedback-wechat:hover {
-    opacity: 0.7;
-}
-
-.mac-sidebar-feedback .copy-tip {
-    color: var(--gw-success);
-    font-size: 11px;
-    margin-left: 4px;
 }
 
 /* ---- 主内容区：独立卡片，浮在页面底色上（对齐官方卡片风格） ---- */
@@ -470,24 +452,6 @@ body {
     color: #fff;
 }
 
-.feedback-wechat {
-    color: var(--gw-success);
-    cursor: pointer;
-    user-select: all;
-    transition: opacity 0.15s;
-}
-
-.feedback-wechat:hover {
-    opacity: 0.7;
-}
-
-.copy-tip {
-    color: var(--gw-success);
-    font-size: 12px;
-    margin-left: 6px;
-    font-weight: 400;
-}
-
 .status-running {
     color: var(--gw-success);
     display: flex;
@@ -571,6 +535,7 @@ body {
     font-family: inherit;
     cursor: pointer;
     white-space: nowrap;
+    text-decoration: none;
     transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
     line-height: 1;
 }
@@ -797,6 +762,46 @@ body {
 }
 
 /* ============================================================
+   响应式：中等宽度（窄窗口 / 平板横屏）—— 逐级收窄侧栏与主区内边距
+   ============================================================ */
+@media (max-width: 1080px) {
+    .mac-sidebar {
+        width: 184px;
+        padding: 10px;
+    }
+
+    .mac-sidebar-item {
+        font-size: 13px;
+    }
+
+    .mac-main {
+        margin: 12px;
+        padding: 24px;
+    }
+}
+
+@media (max-width: 900px) {
+    .mac-sidebar {
+        width: 152px;
+        padding: 8px;
+    }
+
+    .mac-sidebar-item {
+        padding: 0 10px;
+        gap: 6px;
+    }
+
+    .mac-main {
+        margin: 10px;
+        padding: 18px 16px;
+    }
+
+    .mac-section h2 {
+        font-size: 16px;
+    }
+}
+
+/* ============================================================
    响应式：移动端 APP 化 —— 底部 Tab 栏 + 「更多」抽屉
    ============================================================ */
 @media (max-width: 640px) {
@@ -837,13 +842,13 @@ body {
     .mac-sidebar-item {
         flex: 1;
         height: auto;
-        min-height: 50px;
+        min-height: 52px;
         flex-direction: column;
         justify-content: center;
         gap: 3px;
         padding: 0;
         border-radius: 0;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 500;
         color: var(--gw-text-secondary);
     }

@@ -9,3 +9,6 @@ __pycache__/
 
 # 本地验证脚本
 verify_*.py
+
+# IDE
+.trae/

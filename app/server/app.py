@@ -129,7 +129,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.51"
+VERSION = "2.3.53"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -175,6 +175,19 @@ except Exception as e:
     print(f"[file_collector] Gateway 模块加载失败（应用仍可正常运行）: {e}")
     import traceback as _tb
     _tb.print_exc()
+
+# 统一网关「集成管理面板」JSON API（/gateway/admin/api/*）
+# 同样仅经飞牛网关可访问；失败不影响主应用
+gateway_admin_bp = None
+try:
+    from gateway_admin_api import gateway_admin_bp as _admin_bp
+    app.register_blueprint(_admin_bp, url_prefix='/gateway/admin')
+    gateway_admin_bp = _admin_bp
+    print("[file_collector] Gateway Admin API 模块已加载")
+except Exception as e:
+    print(f"[file_collector] Gateway Admin API 模块加载失败（应用仍可正常运行）: {e}")
+    import traceback as _tb2
+    _tb2.print_exc()
 
 # 预编译常用模板到 Jinja2 缓存，避免首次访问时的 I/O 和编译延迟
 _PRECOMPILE_TEMPLATES = [
@@ -988,6 +1001,29 @@ def init_db():
     except Exception as e:
         logger.error(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
+    # 操作日志表（审计：登录 / 建链 / 删链 / 上传 / 下载 / 用户 / 设置 等关键操作）
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT DEFAULT '',
+                username TEXT DEFAULT '',
+                category TEXT DEFAULT '',
+                action TEXT DEFAULT '',
+                target TEXT DEFAULT '',
+                detail TEXT DEFAULT '',
+                ip TEXT DEFAULT ''
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_category ON activity_logs(category)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action)")
+        conn.commit()
+        logger.info("activity_logs 表检查/创建完成")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(activity_logs): {e}")
+
     # 为 links 表添加附件字段（老师上传附件供学生下载）
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -1427,6 +1463,16 @@ def _log_download(record_id, source='admin'):
             (record_id, _get_client_ip(), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), source, ua)
         )
         conn.commit()
+        # 同步写入操作日志（审计）
+        try:
+            from admin_services import log_activity
+            row = conn.execute("SELECT original_name FROM upload_records WHERE id = ?", (record_id,)).fetchone()
+            fname = (row['original_name'] if row else '') or ('记录#' + str(record_id))
+            src = {'admin': '后台', 'share': '分享页', 'collect': '收集页'}.get(source, source)
+            log_activity('download', 'record', target=str(record_id),
+                         detail='下载文件：' + fname + '（来源：' + src + '）')
+        except Exception:
+            pass
         conn.close()
     except Exception as e:
         logger.error(f"下载日志记录失败: {e}")
@@ -1443,6 +1489,20 @@ def _log_upload(link_id, event, record_id=None, details=None, success=1, uploade
              datetime.now().strftime('%Y-%m-%d %H:%M:%S'), detail_str, success, uploader_name)
         )
         conn.commit()
+        # 同步写入操作日志（审计）：仅记录真正完成的文件上传，跳过 create / 失败等中间事件
+        if success and event in ('upload_complete', 'tus_upload'):
+            try:
+                from admin_services import log_activity
+                fname = ''
+                if record_id:
+                    row = conn.execute("SELECT original_name FROM upload_records WHERE id = ?", (record_id,)).fetchone()
+                    fname = (row['original_name'] if row else '') or ''
+                detail = '上传文件：' + (fname or ('记录#' + str(record_id or '')))
+                if uploader_name:
+                    detail += '（上传者：' + uploader_name + '）'
+                log_activity('upload', 'record', target=str(record_id or ''), detail=detail)
+            except Exception:
+                pass
         conn.close()
     except Exception as e:
         logger.error(f"上传日志记录失败: {e}")
@@ -2405,6 +2465,19 @@ def get_user_files(user_id):
     conn.close()
     return records_list
 
+
+def _password_gate_applies():
+    """默认密码 / SSO 强制改密跳转是否适用于当前请求。
+
+    网关集成面板复用旧 /admin 的文件下载与预览端点；若这些端点被强制改密
+    守卫重定向到旧后台设置页，面板内下载/预览会跳到旧后台（TCP 直连）页面。
+    因此「经飞牛统一网关」的请求（以及本地开发模式）豁免该跳转，旧后台
+    端口直连行为保持不变。
+    """
+    from gateway_guard import gateway_guards_disabled
+    return not (gateway_guards_disabled() or _via_fn_gateway())
+
+
 def _sso_force_password_check():
     """SSO 网关自动创建账号强制设置密码。
 
@@ -2412,6 +2485,8 @@ def _sso_force_password_check():
     已处理（返回响应）则返回响应；无需处理返回 None。
     """
     if not session.get('sso_need_pwd'):
+        return None
+    if not _password_gate_applies():
         return None
     # 豁免：设置页（改密入口）、登出页
     if request.endpoint in ('admin_settings', 'user_settings', 'admin_logout'):
@@ -2440,7 +2515,7 @@ def admin_required(f):
             return ret
         admin_hash = get_setting('admin_password_hash', '')
         # 默认密码强制改密（除设置页和登出外，强制跳转到设置页）
-        if verify_password(admin_hash, DEFAULT_ADMIN_PASS):
+        if _password_gate_applies() and verify_password(admin_hash, DEFAULT_ADMIN_PASS):
             if request.endpoint not in ('admin_settings', 'admin_logout'):
                 if request.path.startswith('/api/'):
                     return jsonify({'error': '请先修改默认密码'}), 403
@@ -2466,7 +2541,7 @@ def login_required(f):
         # 管理员默认密码强制改密（除设置页和登出外，强制跳转到设置页）
         if session.get('is_admin'):
             admin_hash = get_setting('admin_password_hash', '')
-            if verify_password(admin_hash, DEFAULT_ADMIN_PASS):
+            if _password_gate_applies() and verify_password(admin_hash, DEFAULT_ADMIN_PASS):
                 if request.endpoint not in ('admin_settings', 'admin_logout', 'user_settings'):
                     if request.path.startswith('/api/'):
                         return jsonify({'error': '请先修改默认密码'}), 403
@@ -6517,7 +6592,14 @@ def admin_login():
             conn.execute("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],))
             conn.commit()
             conn.close()
-            
+
+            try:
+                from admin_services import log_activity
+                log_activity('login', 'auth', target=user['username'],
+                             detail='用户「' + user['username'] + '」登录成功')
+            except Exception:
+                pass
+
             # 所有登录用户进入后台 dashboard
             return redirect(url_for('admin_dashboard'))
         else:
@@ -9575,6 +9657,13 @@ def restore_database():
 @app.route('/logout')
 def logout():
     """退出登录"""
+    uname = session.get('username') or ''
+    if uname:
+        try:
+            from admin_services import log_activity
+            log_activity('logout', 'auth', target=uname, detail='用户「' + uname + '」退出登录')
+        except Exception:
+            pass
     session.clear()
     return redirect(url_for('admin_login'))
 

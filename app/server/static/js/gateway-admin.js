@@ -449,8 +449,14 @@
             if (!r.ok) throw new Error('下载失败 (' + r.status + ')');
             var cd = r.headers.get('Content-Disposition') || '';
             var name = opts.filename || 'download';
-            var m = cd.match(/filename\*?=(?:UTF-8''|")?([^";\n]+)/i);
-            if (m) { try { name = decodeURIComponent(m[1].replace(/"/g, '')); } catch (e) { name = m[1]; } }
+            // 优先 RFC 5987 扩展名（filename*=UTF-8''编码中文），否则会先匹配到
+            // Werkzeug 对中文给出的 ASCII 降级名（filename=_.zip）导致「_.zip」
+            var m = cd.match(/filename\*=utf-8''([^;\n]+)/i) ||
+                    cd.match(/filename\s*=\s*"([^"\n]+)"/) ||
+                    cd.match(/filename\s*=\s*([^";\n]+)/i);
+            if (m) {
+                try { name = decodeURIComponent(m[1]); } catch (e) { name = m[1]; }
+            }
             return r.blob().then(function (blob) {
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement('a');

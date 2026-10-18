@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.90-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.91-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,9 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.91
+- **修复统一网关文件记录「打包下载」文件名变成 `_.zip`**：`GW.downloadBlob` 解析 `Content-Disposition` 的正则会先匹配到 Werkzeug 对中文文件名的 ASCII 降级名（`filename=_.zip`），改为优先取 `filename*=UTF-8''`（RFC 5987）再降级引号/裸名，下载恢复「文件收集_批量下载.zip」
 
 ### v2.3.90
 - **顶栏/底栏统一透明毛玻璃（双端、深浅主题）**：老后台 `header`/固定 `footer` 与收集/分享页 `cp-topbar`/`collect-page-footer` 均改用半透明玻璃 token（.92→.78）加饱和度增强的 backdrop-filter；修复深色主题下被 `!important` 换成不透明背景、毛玻璃失效的问题；不支持 backdrop-filter 的旧浏览器自动降级为近实色背景保证可读性

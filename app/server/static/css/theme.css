@@ -635,7 +635,7 @@ button.theme-switch:hover {
 }
 /* topbar 与老后台 header 内：靠右排 */
 .cp-topbar-inner .theme-switch { margin-left: auto; }
-.header .theme-switch { margin-left: auto; }
+.header .theme-switch { margin-left: 10px; }
 @media (max-width: 640px) {
   button.theme-switch { padding: 4px; width: 25px; height: 22px; }
 }

@@ -84,8 +84,8 @@
     function shareCellHtml(l) {
         // 未开启分享页
         if (!l.share_enabled) return '<span class="gwa-badge gwa-badge-muted">未开启</span>';
-        // 分享页自身有效期已到 → 停用
-        if (l.share_expired) return '<span class="gwa-badge gwa-badge-danger">已停用</span>';
+        // 分享页自身有效期已到 → 过期
+        if (l.share_expired) return '<span class="gwa-badge gwa-badge-danger">已过期</span>';
         // 收集链接被停用或已过期 → 分享页随链接停用
         if (!isAvailable(l)) return '<span class="gwa-badge gwa-badge-warn">随链接停用</span>';
         return '<span class="gwa-badge gwa-badge-ok">已开启</span>';
@@ -102,9 +102,12 @@
     }
 
     function rowHtml(l) {
+        // 状态口径：过期显示「已过期」（不再混入「已停用」）
         var status = isAvailable(l)
             ? '<span class="gwa-badge gwa-badge-ok">已启用</span>'
-            : '<span class="gwa-badge gwa-badge-muted">已停用</span>';
+            : (l.expired
+                ? '<span class="gwa-badge gwa-badge-warn">已过期</span>'
+                : '<span class="gwa-badge gwa-badge-muted">已停用</span>');
         return '<tr data-id="' + esc(l.id) + '">' +
             '<td class="gwa-col-sel"><input type="checkbox" class="gwa-sel-row" value="' + esc(l.id) + '"></td>' +
             '<td data-label="收集名称"><span class="gwa-ellipsis" title="' + esc(l.title) + '">' + esc(l.title) + '</span></td>' +

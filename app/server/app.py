@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.87"
+VERSION = "2.3.89"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -7438,7 +7438,7 @@ def admin_links():
     conn = get_db()
     # 明确指定需要的列（避免拉取不需要的列，但 description 在 data-* 属性中需要）
     _link_cols = ("l.id, l.user_id, l.title, l.description, l.passcode, l.passcode_plain, l.passcode_empty, "
-                  "l.max_files, l.max_file_size_gb, l.expires_at, l.created_at, l.updated_at, "
+                  "l.max_files, l.max_file_size_gb, l.expires_at, l.share_expires_at, l.created_at, l.updated_at, "
                   "l.status, l.allow_delete, l.allow_preview_download, l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
                   "l.require_uploader, l.collect_slug, l.share_slug, "
                   "u.username, u.nickname")
@@ -7487,9 +7487,14 @@ def admin_links():
     conn.close()
 
     # 为每个链接标记通行证状态（使用 passcode_empty 字段，避免 bcrypt 哈希）
+    # 状态派生（与统一网关管理面板 _serialize_link 同口径）：
+    # 链接到期时 status 可能仍是 'active'，须同时派生 expired / share_expired
+    from admin_services import _link_is_expired
     processed_links = []
     for link in links:
         d = dict(link)
+        d['expired'] = _link_is_expired(d.get('expires_at'))
+        d['share_expired'] = _link_is_expired(d.get('share_expires_at'))
         pp = d['passcode_plain']
         is_empty = d.get('passcode_empty', 0) == 1
         # _has_passcode: 是否有明文通行证（非空字符串）

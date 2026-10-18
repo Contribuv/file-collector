@@ -333,7 +333,7 @@ a:active { opacity: .6; }
   width: 26px; height: 26px; border-radius: 0;
   flex-shrink: 0; object-fit: contain;
 }
-.header-nav { display: flex; align-items: center; gap: 6px; }
+.header-nav { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .header-nav .header-user {
   font-size: var(--fs-sm); color: var(--c-text);
   font-weight: 500; max-width: 140px;
@@ -1206,6 +1206,10 @@ tbody tr:active { background: var(--c-bg-hover); }
   .auth-layout .main { padding: 0; }
   .form-row { grid-template-columns: 1fr; }
   .header-nav-link { font-size: var(--fs-sm); padding: 4px 10px; }
+  /* 头部右侧组（用户名 | 退出 | 主题切换）窄屏收紧，避免换行 */
+  .header-nav { gap: 4px; }
+  .header-nav .header-user { max-width: 96px; font-size: 13px; }
+  .header .theme-switch { margin-left: 6px; }
 }
 
 @media (max-width: 480px) {

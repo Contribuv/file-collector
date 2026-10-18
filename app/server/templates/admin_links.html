@@ -60,20 +60,27 @@
               <td class="col-sel col-sel-hide"><input type="checkbox" class="sel-check sel-check-row" value="{{ link['id'] }}"></td>
               <td class="col-title">{{ link['title'] }}</td>
               <td class="col-share">
-                {% if link['share_enabled'] and link['status'] == 'active' %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-success);font-size:.82rem;white-space:nowrap;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  已开启
+                {# 与统一网关 gw-links shareCellHtml 同口径：未开启 / 分享期已到已停用 / 链接停用或过期时随链接停用 / 已开启 #}
+                {% set _link_avail = link['status'] == 'active' and not link['expired'] %}
+                {% if not link['share_enabled'] %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-text-muted);font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  未开启
                 </span>
-                {% elif link['share_enabled'] and link['status'] != 'active' %}
+                {% elif link['share_expired'] %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-danger);font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  已过期
+                </span>
+                {% elif not _link_avail %}
                 <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-warning);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   随链接停用
                 </span>
                 {% else %}
-                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-text-muted);font-size:.82rem;white-space:nowrap;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  未开启
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-success);font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  已开启
                 </span>
                 {% endif %}
               </td>
@@ -81,10 +88,15 @@
                 {% if link['max_files'] == 0 %}不限制{% else %}{{ link['max_files'] }}个{% endif %}
               </td>
               <td class="col-status">
-                {% if link['status'] == 'active' %}
+                {% if _link_avail %}
                 <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-success);font-size:.82rem;white-space:nowrap;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
                   已启用
+                </span>
+                {% elif link['expired'] %}
+                <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-warning);font-size:.82rem;white-space:nowrap;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  已过期
                 </span>
                 {% else %}
                 <span style="display:inline-flex;align-items:center;gap:3px;color:var(--c-text-muted);font-size:.82rem;white-space:nowrap;">
@@ -93,8 +105,8 @@
                 </span>
                 {% endif %}
                 {% if link['expires_at'] %}
-                <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span style="display:inline-flex;align-items:center;margin-left:4px;" title="到期: {{ link['expires_at'] }}{% if link['expired'] %}（已过期）{% endif %}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{ '#f59e0b' if not link['expired'] else '#ef4444' }}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </span>
                 {% else %}
                 <span style="display:inline-flex;align-items:center;margin-left:4px;visibility:hidden;" aria-hidden="true">
@@ -115,6 +127,7 @@
                   data-title="{{ link['title']|e }}"
                   data-description="{{ link['description']|e if link['description'] else '' }}"
                   data-status="{{ link['status'] }}"
+                  data-expired="{{ '1' if link['expired'] else '0' }}"
                   data-max-files="{{ link['max_files'] }}"
                   data-max-size-gb="{{ link['max_file_size_gb'] }}"
                   data-expires-at="{{ link['expires_at'] or '' }}"
@@ -507,8 +520,15 @@ function showLinkPopover(btn) {
     csrfToken: document.querySelector('input[name="csrf_token"]').value
   };
 
-  var isActive = d.status === 'active';
-  var statusText = isActive ? '<span style="color:#059669;">● 已启用</span>' : '<span style="color:#999;">● 已停用</span>';
+  // 与统一网关同口径：status 是创建者手动启停，expires_at 到点后 status 可能
+  // 仍是 active，需同时判断是否过期（data-expired 由模板按 expires_at 派生）
+  var isActive = d.status === 'active' && btn.getAttribute('data-expired') !== '1';
+  var isExpired = btn.getAttribute('data-expired') === '1';
+  var statusText = isActive
+      ? '<span style="color:#059669;">● 已启用</span>'
+      : (isExpired
+          ? '<span style="color:#f59e0b;">● 已过期</span>'
+          : '<span style="color:#999;">● 已停用</span>');
 
   var limitText;
   if (parseInt(d.maxFiles) === 0) { limitText = '不限制'; }

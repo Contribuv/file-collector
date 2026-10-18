@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.87-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.89-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,14 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.89
+- **过期链接统一显示「已过期」（双端）**：统一网关收集链接面板与老后台 `/admin/links` 的「收集/分享」徽标在有效期到期时显示「已过期」（橙/红），不再与手动停用的「已停用」混为一谈；老后台「更多操作」弹层状态文本同口径
+- **老后台头部「主题切换」按钮位置修正**：移到「退出」按钮之后，紧贴成组、间隔 ~10px（去掉右侧过度推开的大空隙）；窄屏（≤640px）用户名限宽+收紧间距防换行
+
+### v2.3.88
+- **老后台 `/admin/links` 分享/收集徽标状态口径对齐统一网关**：补齐「分享页自身有效期已到 → 已停用（红）」分支、链接已过期的「随链接停用」「已停用」判定（此前已过期的链接 status 仍为 active，徽标错误显示已开启/已启用）
+- 表格行与「更多操作」弹层的状态文本均按「enabled 手动启停 + 到期」双口径判定，与网关 `_link_is_expired` 派生一致；过期时钟图标 title 补「（已过期）」提示并转红
 
 ### v2.3.87
 - **修复统一网关下文件类型图标 404**：老后台 `/admin/records` 与统一网关面板的图标 URL 均改为按访问形态自动带网关前缀（`X-Forwarded-Prefix → script_root` 判定，TCP 直连不带前缀），与收集页/分享页 `fc_base` 同一机制

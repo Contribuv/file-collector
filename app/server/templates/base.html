@@ -52,7 +52,6 @@
         <img class="header-logo" src="{{ url_for('static', filename='img/logo_fs.png', v=VERSION) }}" alt="Logo" onerror="this.style.display='none'">
         {{ config_title|default('文件收集器') }}
       </a>
-      <button type="button" class="theme-switch"></button>
       {% if session.user_id %}
       <nav class="header-nav">
         {% if session.get('sso_login') %}
@@ -64,6 +63,7 @@
         {% if not session.get('sso_login') %}<a href="{{ url_for('logout') }}" class="header-nav-link header-nav-logout">退出</a>{% endif %}
       </nav>
       {% endif %}
+      <button type="button" class="theme-switch"></button>
     </div>
   </header>
   {% endblock %}

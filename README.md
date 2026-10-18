@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.89-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.90-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.90
+- **顶栏/底栏统一透明毛玻璃（双端、深浅主题）**：老后台 `header`/固定 `footer` 与收集/分享页 `cp-topbar`/`collect-page-footer` 均改用半透明玻璃 token（.92→.78）加饱和度增强的 backdrop-filter；修复深色主题下被 `!important` 换成不透明背景、毛玻璃失效的问题；不支持 backdrop-filter 的旧浏览器自动降级为近实色背景保证可读性
+- **修复网关用户管理浮窗「最后一个管理员」提示双显**：禁用/删除拦截原因相同时合并为一条提示（此前同屏出现两条「至少需要保留一个管理员…」）
 
 ### v2.3.89
 - **过期链接统一显示「已过期」（双端）**：统一网关收集链接面板与老后台 `/admin/links` 的「收集/分享」徽标在有效期到期时显示「已过期」（橙/红），不再与手动停用的「已停用」混为一谈；老后台「更多操作」弹层状态文本同口径

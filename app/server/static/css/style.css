@@ -76,7 +76,6 @@
    ============================================================ */
 html[data-theme="dark"] {
   /* Header */
-  .header { background: var(--c-bg) !important; }
   .header-nav-link { color: var(--c-text-soft); }
   .header-nav-link:hover { color: var(--c-text); }
   .header-nav-link.active { color: var(--c-primary) !important; background: var(--c-primary-light) !important; }
@@ -85,7 +84,7 @@ html[data-theme="dark"] {
 
   /* Footer */
   .footer { color: var(--c-text-muted); }
-  .is-admin .footer { background: var(--c-bg) !important; border-top-color: var(--c-border); }
+  .is-admin .footer { border-top-color: var(--c-border); }
 
   /* Wechat Warning */
   .wechat-warn { color: var(--c-warning) !important; }
@@ -309,9 +308,9 @@ a:active { opacity: .6; }
    Header
    ============================================================ */
 .header {
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-bottom: .5px solid var(--c-border);
   height: var(--header-h);
   position: sticky; top: 0; z-index: 100;
@@ -374,8 +373,8 @@ a:active { opacity: .6; }
 
 .is-admin .footer {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
-  background: rgba(255,255,255,.88);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-top: .5px solid var(--c-border);
 }
 .is-admin .main { padding-bottom: 50px; }

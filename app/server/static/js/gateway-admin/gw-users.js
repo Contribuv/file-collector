@@ -218,27 +218,25 @@
         // 目标若是已禁用管理员，它不占用可用名额，应允许删除/清理（与后端口径一致）。
         var lastAdmin = u.is_admin && isActive && state.adminCount <= 1;
         var isSelf = state.currentUserId != null && String(u.id) === state.currentUserId;
-        var delBlocked = lastAdmin
-            ? '至少需要保留一个管理员，无法删除最后一个管理员'
-            : (isSelf ? '不能删除当前登录的账户' : '');
-        // 与删除同口径：仅剩一个可用管理员时禁止禁用该管理员（否则后台无人可管理）
-        var toggleBlocked = lastAdmin;
-        var toggleBlockedMsg = '至少需要保留一个管理员，无法禁用最后一个管理员';
+        // 提示合并为一条：禁用/删除被拦的原因相同（最后一个管理员），拼成一句避免双行重复
+        var hints = [];
+        if (lastAdmin) hints.push('至少需要保留一个管理员，无法禁用或删除最后一个管理员');
+        else if (isSelf) hints.push('不能删除当前登录的账户');
+        var blockedTitle = hints.length ? hints[0] : '';
 
         var html = '<div class="gwa-pop-info">' + rows + '</div>';
         html += '<div class="gwa-pop-actions">';
         html += '<button type="button" class="btn btn-default btn-sm" data-act="toggle"' +
-                (toggleBlocked ? ' disabled title="' + esc(toggleBlockedMsg) + '"' : '') + '>' +
+                (lastAdmin ? ' disabled title="' + esc(blockedTitle) + '"' : '') + '>' +
                 (isActive ? '禁用用户' : '启用用户') + '</button>';
         html += '<button type="button" class="btn btn-default btn-sm" data-act="edit">编辑信息</button>';
         html += '</div>';
         html += '<div class="gwa-pop-actions">';
         html += '<button type="button" class="btn btn-default btn-sm" data-act="reset">重置密码</button>';
         html += '<button type="button" class="btn btn-danger btn-sm" data-act="delete"' +
-                (delBlocked ? ' disabled title="' + esc(delBlocked) + '"' : '') + '>删除用户</button>';
+                ((lastAdmin || isSelf) ? ' disabled title="' + esc(blockedTitle) + '"' : '') + '>删除用户</button>';
         html += '</div>';
-        if (toggleBlocked) html += '<div class="gwa-pop-hint">' + esc(toggleBlockedMsg) + '</div>';
-        if (delBlocked) html += '<div class="gwa-pop-hint">' + esc(delBlocked) + '</div>';
+        hints.forEach(function (m) { html += '<div class="gwa-pop-hint">' + esc(m) + '</div>'; });
 
         GW.popover(anchor, html);
         var pop = document.querySelector('.gwa-popover');

@@ -55,8 +55,8 @@ html:not([data-theme="dark"]) {
   --scrollbar-thumb: #9ca3af;
 
   /* 玻璃拟态 */
-  --glass-bg: rgba(255,255,255,.92);
-  --glass-border: rgba(229,231,235,.5);
+  --glass-bg: rgba(255,255,255,.78);
+  --glass-border: rgba(229,231,235,.55);
 
   /* 代码/日志 */
   --code-bg: #1e1e1e;
@@ -155,8 +155,8 @@ html[data-theme="dark"] {
   --scrollbar-thumb: #5a6072;
 
   /* 玻璃拟态 */
-  --glass-bg: rgba(22,25,36,.92);
-  --glass-border: rgba(45,51,68,.8);
+  --glass-bg: rgba(22,25,36,.78);
+  --glass-border: rgba(45,51,68,.75);
 
   /* 代码/日志 */
   --code-bg: #161924;
@@ -638,4 +638,12 @@ button.theme-switch:hover {
 .header .theme-switch { margin-left: 10px; }
 @media (max-width: 640px) {
   button.theme-switch { padding: 4px; width: 25px; height: 22px; }
+}
+
+/* ---- 毛玻璃降级：不支持 backdrop-filter 的旧浏览器/老 WebView ----
+   透明度补足到近乎不透明，保证内容可读性 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  html:not([data-theme="dark"]) { --glass-bg: rgba(255,255,255,.97); }
+  html[data-theme="dark"] { --glass-bg: rgba(22,25,36,.97); }
 }

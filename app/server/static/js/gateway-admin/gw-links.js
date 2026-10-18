@@ -37,6 +37,12 @@
     function shareUrl(l) { return originBase() + 'share/' + encodeURIComponent(l.share_id); }
     function fmtTime(t) { return t ? String(t).replace('T', ' ').replace(/\.\d+/, '') : '-'; }
     function stripHtml(s) { return String(s || '').replace(/<[^>]*>/g, ''); }
+    // 数值归一化显示：去掉无意义的尾随 0（后端存的是 str(2.0) = "2.0"）
+    function normNum(v) {
+        var n = parseFloat(v);
+        if (!isFinite(n)) return v == null ? '' : String(v);
+        return String(Math.round(n * 1000) / 1000);
+    }
     function limitText(l) {
         var f = (l.max_files === 0 || l.max_files === '0') ? '不限制' : (l.max_files + ' 个');
         var gb = parseFloat(l.max_file_size_gb) || 0;
@@ -49,7 +55,7 @@
         if (page) state.page = page;
         if (!panel) panel = document.querySelector('[data-gwa-panel="links"]');
         if (!panel) return;
-        panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+        panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         var qs = '?page=' + state.page + '&per_page=' + state.perPage +
             (state.creator ? '&creator=' + encodeURIComponent(state.creator) : '');
         GW.api('/links' + qs).then(function (data) {
@@ -64,28 +70,47 @@
             state.selected = {};
             render();
         }).catch(function (err) {
-            panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 
     /* ---------- 渲染 ---------- */
+    // 链接当前是否可对外使用：status 是创建者手动启停，expires_at 到点后
+    // status 可能仍是 'active'，需同时判断是否过期
+    function isAvailable(l) {
+        return l.status === 'active' && !l.expired;
+    }
+
     function shareCellHtml(l) {
-        if (l.share_enabled && l.status === 'active') return '<span class="gwa-badge gwa-badge-ok">已开启</span>';
-        if (l.share_enabled) return '<span class="gwa-badge gwa-badge-warn">随链接停用</span>';
-        return '<span class="gwa-badge gwa-badge-muted">未开启</span>';
+        // 未开启分享页
+        if (!l.share_enabled) return '<span class="gwa-badge gwa-badge-muted">未开启</span>';
+        // 分享页自身有效期已到 → 停用
+        if (l.share_expired) return '<span class="gwa-badge gwa-badge-danger">已停用</span>';
+        // 收集链接被停用或已过期 → 分享页随链接停用
+        if (!isAvailable(l)) return '<span class="gwa-badge gwa-badge-warn">随链接停用</span>';
+        return '<span class="gwa-badge gwa-badge-ok">已开启</span>';
+    }
+
+    // 有效期图标（SVG，不使用表情符号）：inline-flex + 缩放不裁剪，窄屏也不换行
+    function expireIcon(l) {
+        if (!l.expires_at) return '';
+        return '<span class="gwa-expire-icon" title="到期: ' + esc(l.expires_at.replace('T', ' ')) +
+            (l.expired ? '（已过期）' : '') + '" aria-label="有效期至 ' + esc(l.expires_at.replace('T', ' ')) + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>';
     }
 
     function rowHtml(l) {
-        var status = l.status === 'active'
+        var status = isAvailable(l)
             ? '<span class="gwa-badge gwa-badge-ok">已启用</span>'
             : '<span class="gwa-badge gwa-badge-muted">已停用</span>';
-        var expireIcon = l.expires_at ? ' <span class="gwa-expire" title="到期: ' + esc(l.expires_at) + '">⏱</span>' : '';
         return '<tr data-id="' + esc(l.id) + '">' +
             '<td class="gwa-col-sel"><input type="checkbox" class="gwa-sel-row" value="' + esc(l.id) + '"></td>' +
             '<td data-label="收集名称"><span class="gwa-ellipsis" title="' + esc(l.title) + '">' + esc(l.title) + '</span></td>' +
             '<td data-label="分享">' + shareCellHtml(l) + '</td>' +
             '<td data-label="限制" class="gwa-muted gwa-nowrap">' + esc(limitText(l)) + '</td>' +
-            '<td data-label="状态">' + status + expireIcon + '</td>' +
+            '<td data-label="收集">' + status + expireIcon(l) + '</td>' +
             '<td data-label="创建人" class="gwa-muted">' + esc(l.creator_name) + '</td>' +
             '<td data-label="创建" class="gwa-muted gwa-nowrap">' + esc(fmtTime(l.created_at)) + '</td>' +
             '<td data-label="操作" class="gwa-col-actions">' +
@@ -105,7 +130,7 @@
         var html = '';
         html += '<div class="gwa-toolbar">';
         html += '<div class="gwa-toolbar-left">';
-        html += '<button type="button" class="btn btn-primary btn-sm" data-act="create">＋ 创建收集</button>';
+        html += '<button type="button" class="btn btn-primary btn-sm" data-act="create"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-text">创建收集</span></button>';
         html += '<button type="button" class="btn btn-default btn-sm" data-act="batch">批量删除</button>';
         html += creatorFilterHtml();
         html += '</div>';
@@ -113,12 +138,13 @@
         html += '</div>';
 
         if (!state.links.length) {
-            html += '<div class="gwa-empty">还没有收集链接<br><span class="gwa-muted">点击「创建收集」开始使用</span></div>';
+            html += '<div class="gwa-card"><div class="gwa-empty">还没有收集链接<br><span class="gwa-muted">点击「创建收集」开始使用</span></div></div>';
         } else {
+            html += '<div class="gwa-card">';
             html += '<div class="gwa-table-wrap"><table class="gwa-table"><thead><tr>';
             html += '<th class="gwa-col-sel"><input type="checkbox" class="gwa-sel-all"></th>';
-            html += '<th>收集名称</th><th>分享</th><th>限制</th><th>状态</th><th>创建人</th><th>创建</th><th style="text-align:right">操作</th>';
-            html += '</tr></thead><tbody>' + state.links.map(rowHtml).join('') + '</tbody></table></div>';
+            html += '<th>收集名称</th><th>分享</th><th>限制</th><th>收集</th><th>创建人</th><th>创建</th><th style="text-align:right">操作</th>';
+            html += '</tr></thead><tbody>' + state.links.map(rowHtml).join('') + '</tbody></table></div></div>';
         }
 
         html += '<div class="gwa-list-foot">';
@@ -187,10 +213,12 @@
     /* ---------- 操作浮窗 ---------- */
     function showActions(anchor, l) {
         var isActive = l.status === 'active';
+        // 启停按钮按手动启停状态判断（已过期的链接仍可启停）；
+        // 展示用「状态」则同时考虑有效期，与列表口径一致
         var descPlain = stripHtml(l.description).replace(/\s+/g, ' ').trim();
         if (descPlain.length > 80) descPlain = descPlain.substring(0, 80) + '...';
         var rows = '';
-        rows += kv('状态', isActive ? '<span class="gwa-badge gwa-badge-ok">已启用</span>' : '<span class="gwa-badge gwa-badge-muted">已停用</span>');
+        rows += kv('状态', isAvailable(l) ? '<span class="gwa-badge gwa-badge-ok">已启用</span>' : '<span class="gwa-badge gwa-badge-muted">已停用</span>');
         rows += kv('限制', esc(limitText(l)));
         rows += kv('有效期', l.expires_at ? '<span class="gwa-expire">' + esc(l.expires_at.replace('T', ' ')) + '</span>' : '<span class="gwa-muted">永不过期</span>');
         if (descPlain) rows += kv('描述', esc(descPlain));
@@ -330,10 +358,12 @@
         // 限制
         h += '<div class="gwa-form-row">';
         h += '<div class="gwa-field"><label class="gwa-label">最大文件数量</label><input type="number" id="gwa-max-files" name="max_files" class="form-input" min="0" step="1" value="' + esc(d.max_files != null ? d.max_files : def.max_files) + '"><div class="gwa-hint">0 表示不限制</div></div>';
+        // 单文件上限初始值：去掉尾随 0（后端存的是 str(2.0)="2.0"），避免输入框显示 2.0
+        var sizeInitGb = normNum(d.max_file_size_gb != null ? d.max_file_size_gb : def.max_file_size_gb);
         h += '<div class="gwa-field"><label class="gwa-label">单文件上限</label><div class="gwa-inline">' +
-            '<input type="number" id="gwa-size-val" class="form-input" min="0.01" step="0.01" value="' + esc(d.max_file_size_gb != null ? d.max_file_size_gb : def.max_file_size_gb) + '">' +
+            '<input type="number" id="gwa-size-val" class="form-input" min="0.01" step="0.01" value="' + esc(sizeInitGb) + '">' +
             '<select id="gwa-size-unit" class="form-input gwa-unit"><option value="MB">MB</option><option value="GB">GB</option></select>' +
-            '</div><input type="hidden" id="gwa-size-hid" name="max_file_size_gb" value="' + esc(d.max_file_size_gb != null ? d.max_file_size_gb : def.max_file_size_gb) + '">' +
+            '</div><input type="hidden" id="gwa-size-hid" name="max_file_size_gb" value="' + esc(sizeInitGb) + '">' +
             '<div class="gwa-hint">范围 0.01 - 64 GB</div></div>';
         h += '</div>';
 

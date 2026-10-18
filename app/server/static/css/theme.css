@@ -316,9 +316,10 @@ body {
   border-color: var(--border) !important;
 }
 .cp-card-head {
-  background: var(--bg-surface-alt) !important;
+  /* 卡片头融入卡片本体：不用灰底与底部分隔线（避免「两层边」观感） */
+  background: transparent !important;
   color: var(--text-secondary) !important;
-  border-bottom-color: var(--border-light) !important;
+  border-bottom: none !important;
 }
 .cp-card-head h2 {
   color: var(--text-secondary) !important;
@@ -601,4 +602,40 @@ body {
 .register-input:focus {
   border-color: var(--accent) !important;
   outline: none;
+}
+/* ============================================================
+   主题切换按钮（单按钮循环：自适应 → 深色 → 浅色）
+   老后台 header / 收集页 & 分享页 topbar 共用，深浅自动适配
+   ============================================================ */
+button.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  width: 27px;
+  height: 24px;
+  box-sizing: border-box;
+  background: var(--c-gray-100);
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .12s ease, border-color .12s ease;
+}
+button.theme-switch svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+button.theme-switch:hover {
+  color: var(--text-primary);
+  border-color: var(--border);
+  background: var(--bg-card-hover);
+}
+/* topbar 与老后台 header 内：靠右排 */
+.cp-topbar-inner .theme-switch { margin-left: auto; }
+.header .theme-switch { margin-left: auto; }
+@media (max-width: 640px) {
+  button.theme-switch { padding: 4px; width: 25px; height: 22px; }
 }

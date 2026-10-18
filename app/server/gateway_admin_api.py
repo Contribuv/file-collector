@@ -158,6 +158,7 @@ def api_records_list():
         page=request.args.get('page', 1),
         per_page=request.args.get('per_page'),
         link_filter=request.args.get('link_id', ''),
+        dir_path=request.args.get('dir', ''),
     )
     return jsonify({'ok': True, **data})
 

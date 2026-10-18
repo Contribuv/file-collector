@@ -346,3 +346,164 @@ html[data-theme="dark"] .batch-loading-spinner {
 }
 html[data-theme="dark"] .batch-loading-text { color: var(--c-text); }
 html[data-theme="dark"] .batch-loading-sub { color: var(--c-text-soft); }
+
+/* ============================================================
+   目录式导航 — 上传记录按目录逐层浏览
+   面包屑（.record-dirbar）+ 可点进的文件夹行
+   表格视图（tr.record-folder-row）与移动端卡片视图（a.record-folder-row--card）共用
+   ============================================================ */
+.record-dirbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 16px 2px;
+  padding: 0 0 4px;
+  min-height: 30px;
+  /* 融入页面背景：不加底色边框，靠面包屑文字与返回按钮呈现层级 */
+  overflow-x: auto;
+}
+
+.record-dir-back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--c-border-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-text-muted);
+  text-decoration: none;
+}
+.record-dir-back:hover { color: var(--c-primary-link, #2563eb); border-color: var(--c-primary-link, #2563eb); }
+.record-dir-back svg { width: 14px; height: 14px; }
+
+.record-crumbs { display: flex; align-items: center; gap: 1px; white-space: nowrap; font-size: .85rem; }
+.record-crumb {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.record-crumb:hover { background: var(--c-gray-100); color: var(--c-text); }
+.record-crumb.is-current { color: var(--c-text); font-weight: 600; cursor: default; }
+.record-crumb-sep { color: var(--c-text-muted); font-size: .8rem; padding: 0 1px; }
+
+.record-folder-row {
+  cursor: pointer;
+  user-select: none;
+}
+
+.record-folder-row .record-folder-cell {
+  padding: 0;
+  /* 背景与文件行保持一致（透明），仅靠图标与行为区分文件夹行 */
+  color: var(--c-text);
+  font-size: .85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.record-folder-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 左内边距与 .col-name（14px）一致，使文件夹名与文件名竖线对齐 */
+  padding: 11px 10px 11px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.record-folder-row--card {
+  display: flex;
+  align-items: center;
+  /* 与文件卡片（.record-card，padding 10px 12px / gap 8px）保持一致，使图标与名称左右对齐；
+     背景同样保持一致（不额外加底色） */
+  padding: 10px 12px;
+  gap: 8px;
+  border-radius: 6px;
+  color: var(--c-text);
+  font-size: .85rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.record-folder-row:hover .record-folder-cell,
+.record-folder-link:hover,
+.record-folder-row--card:hover {
+  background: var(--c-gray-100);
+}
+
+.record-folder-chevron {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--c-text-muted);
+  transition: transform .12s ease, color .12s ease;
+}
+.record-folder-row:hover .record-folder-chevron { color: var(--c-primary-link, #2563eb); transform: translateX(2px); }
+
+.record-folder-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.record-folder-name { word-break: break-all; }
+
+/* 类型图标列（文件行 / 文件夹行共用，保证名称列左对齐）；
+   文件行枚举专属扩展名图标（fpk/pdf/word… 与收集页、分享页同款） */
+.col-icon-col { width: 30px; text-align: center; color: var(--c-text-muted); }
+.record-type-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+/* 点击文件名打开所在目录（与文件夹行样式区分，带悬停下划线） */
+.record-file-open {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-file-open:hover {
+  color: var(--c-primary-link, #2563eb);
+  text-decoration: underline;
+}
+
+/* 移动端文件夹卡片：与文件卡片勾选框（17px）同宽的占位；初始由模板 inline style 隐藏，
+   批量模式开启时 toggleBatchMode 会把 .col-chk-hide 元素 display 设为 flex */
+.record-folder-row--card .record-card-check { width: 17px; flex-shrink: 0; display: flex; align-items: center; }
+
+.record-folder-meta {
+  font-size: .75rem;
+  font-weight: 400;
+  color: var(--c-text-muted);
+  white-space: nowrap;
+}
+/* 行内不再用「·」分隔，size 以留白间隔 */
+.record-folder-meta .cp-meta-size { margin-left: 8px; }
+
+/* 文件夹行不自带复选框列，桌面端表格需与其列宽对齐 */
+.admin-table--records tr.record-folder-row .col-chk { width: 38px; }
+
+html[data-theme="dark"] .record-folder-row:hover .record-folder-cell,
+html[data-theme="dark"] .record-folder-row--card:hover {
+  background: var(--c-bg-elev);
+}

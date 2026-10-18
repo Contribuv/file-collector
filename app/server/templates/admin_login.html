@@ -25,6 +25,15 @@
       <p class="auth-subtitle">登录以继续使用</p>
     </div>
     <div class="auth-form">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="auth-flash">
+        {% for category, message in messages %}
+        <div class="auth-flash-item">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
       <form method="POST" action="{{ url_for('admin_login') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
@@ -64,6 +73,11 @@
 .auth-tip {
   background: var(--c-warning-light); border: 1px solid var(--c-warning-border); color: var(--c-warning);
   padding: 10px 14px; border-radius: 8px; margin-top: 16px; font-size: .85rem;
+}
+.auth-flash { margin-bottom: 14px; }
+.auth-flash-item {
+  background: var(--c-danger-light); border: 1px solid var(--c-danger-border); color: var(--c-danger);
+  padding: 9px 14px; border-radius: 8px; font-size: .85rem;
 }
 .auth-no-perm {
   background: var(--c-danger-light); border: 1px solid var(--c-danger-border); color: var(--c-danger);

@@ -25,35 +25,72 @@
     };
 
     /* ---------- API ---------- */
-    // opts: { method, json, form, raw, headers }
+    // opts: { method, json, form, raw, headers, timeout(ms), retry(n) }
     GW.api = function (path, opts) {
         opts = opts || {};
-        var init = { method: opts.method || 'GET', headers: {} };
-        if (GW.csrf) init.headers['X-CSRFToken'] = GW.csrf;
-        if (opts.json !== undefined) {
-            init.headers['Content-Type'] = 'application/json';
-            init.body = JSON.stringify(opts.json);
-        } else if (opts.form !== undefined) {
-            init.body = opts.form; // FormData
-        }
-        if (opts.headers) {
-            for (var k in opts.headers) {
-                if (Object.prototype.hasOwnProperty.call(opts.headers, k)) init.headers[k] = opts.headers[k];
+        var retries = (opts.retry !== undefined && opts.retry >= 0) ? opts.retry : 0;
+        function call() {
+            var init = { method: opts.method || 'GET', headers: {} };
+            if (GW.csrf) init.headers['X-CSRFToken'] = GW.csrf;
+            if (opts.json !== undefined) {
+                init.headers['Content-Type'] = 'application/json';
+                init.body = JSON.stringify(opts.json);
+            } else if (opts.form !== undefined) {
+                init.body = opts.form; // FormData
             }
-        }
-        return fetch(GW.apiBase + path, init).then(function (r) {
-            if (opts.raw) return r;
-            return r.json().catch(function () { return {}; }).then(function (data) {
-                if (!r.ok || data.ok === false) {
-                    var msg = (data && data.message) || ('请求失败 (' + r.status + ')');
-                    var err = new Error(msg);
-                    err.status = r.status;
-                    err.data = data;
-                    throw err;
+            if (opts.headers) {
+                for (var k in opts.headers) {
+                    if (Object.prototype.hasOwnProperty.call(opts.headers, k)) init.headers[k] = opts.headers[k];
                 }
-                return data;
+            }
+            var timeoutMs = (opts.timeout !== undefined && opts.timeout > 0) ? opts.timeout : 0;
+            var t = null;
+            if (timeoutMs > 0 && typeof AbortController !== 'undefined') {
+                var ac = new AbortController();
+                init.signal = ac.signal;
+                t = setTimeout(function () { try { ac.abort(); } catch (e) {} }, timeoutMs);
+            }
+            return fetch(GW.apiBase + path, init).then(function (r) {
+                if (t) clearTimeout(t);
+                if (opts.raw) return r;
+                return r.json().catch(function () { return {}; }).then(function (data) {
+                    if (!r.ok || data.ok === false) {
+                        var msg = (data && data.message) || ('请求失败 (' + r.status + ')');
+                        var err = new Error(msg);
+                        err.status = r.status;
+                        err.data = data;
+                        throw err;
+                    }
+                    return data;
+                });
+            }).catch(function (err) {
+                if (t) clearTimeout(t);
+                // 网络异常/超时：统一转成中文提示
+                var name = (err && err.name) || '';
+                if (name === 'AbortError' || err && (err.message === 'The operation was aborted' || /abort/i.test(err.message))) {
+                    var e2 = new Error('请求超时，请稍后重试');
+                    e2.status = 408;
+                    throw e2;
+                }
+                if (err instanceof TypeError || /Failed to fetch/i.test(err.message)) {
+                    var e3 = new Error('网络连接失败，请检查网络后重试');
+                    e3.status = 0;
+                    throw e3;
+                }
+                throw err;
             });
-        });
+        }
+        function attempt(n) {
+            return call().catch(function (err) {
+                if (n > 0) {
+                    // 仅对网络/超时类错误重试（避免重复写操作导致副作用）
+                    var isNetErr = err.status === 0 || err.status === 408;
+                    if (isNetErr) return attempt(n - 1);
+                }
+                throw err;
+            });
+        }
+        return attempt(retries);
     };
 
     /* ---------- 通用格式化 ---------- */
@@ -349,22 +386,45 @@
     };
 
     /* ---------- 复制到剪贴板 ---------- */
+    // 注意：非安全上下文（http 局域网地址）或文档未聚焦时，
+    // navigator.clipboard.writeText 会抛 NotAllowedError；
+    // 必须 catch 并回退到 textarea + execCommand，否则复制会静默失效（无提示、无动作）。
     GW.copy = function (text) {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            return navigator.clipboard.writeText(text).then(function () { GW.toast('已复制', 'success'); });
+        function fallbackCopy() {
+            try {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.top = '-1000px';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                ta.setSelectionRange(0, ta.value.length);
+                var ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                GW.toast(ok ? '已复制' : '复制失败，请手动复制', ok ? 'success' : 'error');
+                return ok;
+            } catch (e) {
+                GW.toast('复制失败，请手动复制', 'error');
+                return false;
+            }
         }
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); GW.toast('已复制', 'success'); } catch (e) { GW.toast('复制失败', 'error'); }
-        ta.remove();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).then(function () {
+                GW.toast('已复制', 'success');
+            }, function () {
+                fallbackCopy();
+            });
+        }
+        fallbackCopy();
         return Promise.resolve();
     };
 
-    /* ---------- 触发下载（POST JSON -> blob；或 GET 直链） ---------- */
+    /* ---------- 触发下载（POST JSON/form -> blob；或 GET 直链） ---------- */
+    // opts: { method, json, form, filename, url(完整地址，给定则不拼 apiBase), timeout(ms) }
+    // 下载不做自动重试（非幂等且耗流量），仅做超时保护 + 中文网络报错；
+    // 默认 5 分钟，避免打包/备份等大文件下载被过早中断（传 timeout: 0 可关闭）。
     GW.downloadBlob = function (path, opts) {
         opts = opts || {};
         var init = { method: opts.method || 'POST', headers: {} };
@@ -375,7 +435,17 @@
         } else if (opts.form !== undefined) {
             init.body = opts.form;
         }
-        return fetch(GW.apiBase + path, init).then(function (r) {
+        var timeoutMs = (opts.timeout !== undefined) ? opts.timeout : 300000;
+        var timer = null;
+        if (timeoutMs > 0 && typeof AbortController !== 'undefined') {
+            var ac = new AbortController();
+            init.signal = ac.signal;
+            timer = setTimeout(function () { try { ac.abort(); } catch (e) {} }, timeoutMs);
+        }
+        var url = opts.url || (GW.apiBase + path);
+        function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+        return fetch(url, init).then(function (r) {
+            clearTimer();
             if (!r.ok) throw new Error('下载失败 (' + r.status + ')');
             var cd = r.headers.get('Content-Disposition') || '';
             var name = opts.filename || 'download';
@@ -391,6 +461,16 @@
                 a.remove();
                 setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
             });
+        }).catch(function (err) {
+            clearTimer();
+            var name = (err && err.name) || '';
+            if (name === 'AbortError' || (err && /abort/i.test(err.message || ''))) {
+                throw new Error('下载超时，请稍后重试');
+            }
+            if (err instanceof TypeError || /Failed to fetch/i.test(err.message || '')) {
+                throw new Error('网络连接失败，请检查网络后重试');
+            }
+            throw err;
         });
     };
 

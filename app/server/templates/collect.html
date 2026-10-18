@@ -15,24 +15,24 @@
   <script>
     (function(){
       try {
-        var saved = localStorage.getItem('fc-theme');
-        var url = new URL(window.location.href);
-        var param = (url.searchParams.get('theme') || '').trim().toLowerCase();
-        var fnOS = (document.body && document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
-        var mode;
-        if (saved === 'dark' || saved === 'light') {
-          mode = saved;
-        } else if (param === 'dark' || param === 'light') {
-          mode = param;
-        } else if (fnOS === 'dark') {
-          mode = 'dark';
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          mode = 'dark';
-        } else {
-          mode = 'light';
+        var saved = (localStorage.getItem('fc-theme') || 'auto').toLowerCase();
+        if (saved !== 'dark' && saved !== 'light') saved = 'auto';
+        var mode = saved;
+        if (mode === 'auto') {
+          var url = new URL(window.location.href);
+          var param = (url.searchParams.get('theme') || '').trim().toLowerCase();
+          var fnOS = (document.body && document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+          if (param === 'dark' || param === 'light') mode = param;
+          else if (fnOS === 'dark') mode = 'dark';
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) mode = 'dark';
+          else mode = 'light';
         }
         document.documentElement.setAttribute('data-theme', mode);
-      } catch(e) { document.documentElement.setAttribute('data-theme','light'); }
+      } catch(e) {
+        /* 兜底仍按设备偏好自适应，而非固定浅色 */
+        try { document.documentElement.setAttribute('data-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'); }
+        catch(e2) { document.documentElement.setAttribute('data-theme','light'); }
+      }
     })();
   </script>
 </head>
@@ -46,6 +46,7 @@
   <div class="cp-topbar-inner">
     <img class="cp-topbar-logo" src="{{ url_for('static', filename='img/logo_fs.png', v=VERSION) }}" alt="文件收集器">
     <span>{{ site_title }}</span>
+    <button type="button" class="theme-switch"></button>
   </div>
 </div>
 
@@ -1017,14 +1018,16 @@ function _readDroppedFolder(entry, basePath) {
         entries.forEach(function(child) {
           if (child.isFile) {
             child.file(function(file) {
-              // fullPath 格式 "/子目录/文件.txt"，拼上 basePath 得到 "文件夹名/子目录/文件.txt"
-              var rel = basePath + child.fullPath;
-              file._relPath = rel;
+              // 相对路径 = 父目录相对路径 + 本文件名（逐级累加）。
+              // 注意：不能用 child.fullPath —— 拖拽场景下它已包含顶层文件夹名
+              //（如 "/zb/2.png"），再拼一次 basePath 会产生 "zb/zb/2.png" 的双层目录。
+              file._relPath = basePath ? (basePath + '/' + child.name) : child.name;
               files.push(file);
               if (--pending === 0) readEntries();
             });
           } else if (child.isDirectory) {
-            _readDroppedFolder(child, basePath).then(function(subFiles) {
+            var subBase = basePath ? (basePath + '/' + child.name) : child.name;
+            _readDroppedFolder(child, subBase).then(function(subFiles) {
               files = files.concat(subFiles);
               if (--pending === 0) readEntries();
             });
@@ -1645,11 +1648,81 @@ function updateInfoLine(opts) {
 var _cacheData = null;  // 缓存最近一次 records 数据，resize 时无需重新请求
 var _currentPerPage = parseInt(localStorage.getItem('cp_pp_collect_' + linkId)) || 20;
 
+/* ---------- 目录式导航（与统一网关 / 后台记录页同一套方案） ----------
+   有文件夹时显示面包屑 + 可点进的文件夹行；点进去只列出该目录下的文件。
+   若该链接没有子目录（全是散文件），则不显示面包屑，保持原来的平铺列表。 */
+var CP_FOLDER_ICON = '📁';
+var CP_CHEVRON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+var CP_BACK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
+var _currentDir = '';
+
+function cpParentDir(dir) {
+  var d = String(dir || '').replace(/\/+$/, '');
+  var i = d.lastIndexOf('/');
+  return i > 0 ? d.slice(0, i) : '';
+}
+
+function cpDirBarHtml(dir, breadcrumb) {
+  var h = '<div class="cp-dirbar">';
+  if (dir) {
+    h += '<button type="button" class="cp-dir-back" data-cp-dir="' + escapeHtml(cpParentDir(dir)) + '" title="返回上级" aria-label="返回上级">' + CP_BACK_ICON + '</button>';
+  }
+  h += '<div class="cp-crumbs">';
+  h += '<button type="button" class="cp-crumb' + (dir ? '' : ' is-current') + '" data-cp-dir="">全部文件</button>';
+  (breadcrumb || []).forEach(function (c) {
+    var isLast = c.path === dir;
+    h += '<span class="cp-crumb-sep" aria-hidden="true">/</span>' +
+      '<button type="button" class="cp-crumb' + (isLast ? ' is-current' : '') + '" data-cp-dir="' + escapeHtml(c.path) + '">' + escapeHtml(c.name) + '</button>';
+  });
+  h += '</div></div>';
+  return h;
+}
+
+function cpFolderRowHtml(f, colCount, showBatch) {  // 表格视图：文件夹行（与文件行同构：勾选列 + 图标列 + 名称列）
+  var lead = showBatch ? 1 : 0;
+  return '<tr class="cp-folder-row" data-cp-dir="' + escapeHtml(f.path) + '" tabindex="0" title="打开文件夹 ' + escapeHtml(f.name) + '">' +
+    (lead ? '<td class="cp-sel-col" aria-hidden="true"></td>' : '') +
+    '<td class="cp-file-icon"><span class="cp-folder-icon">' + CP_FOLDER_ICON + '</span></td>' +
+    '<td colspan="' + Math.max(1, colCount - lead - 1) + '">' +
+    '<span class="cp-folder-name">' + escapeHtml(f.name) + '</span>' +
+    '<span class="cp-folder-meta">' + f.file_count + ' 个文件<span class="cp-meta-size">' + escapeHtml(f.size_display || formatSize(f.size || 0)) + '</span></span>' +
+    '<span class="cp-folder-chevron">' + CP_CHEVRON_ICON + '</span>' +
+    '</td></tr>';
+}
+
+function cpFolderCardHtml(f, showBatch) {  // 移动端卡片视图：文件夹行（showBatch 时补勾选用占位，使图标与文件卡片对齐）
+  return '<div class="cp-folder-head" data-cp-dir="' + escapeHtml(f.path) + '" tabindex="0" title="打开文件夹 ' + escapeHtml(f.name) + '">' +
+    (showBatch ? '<span class="cp-card-check" aria-hidden="true"></span>' : '') +
+    '<span class="cp-folder-icon">' + CP_FOLDER_ICON + '</span>' +
+    '<span class="cp-folder-name">' + escapeHtml(f.name) + '</span>' +
+    '<span class="cp-folder-meta">' + f.file_count + ' 个文件<span class="cp-meta-size">' + escapeHtml(f.size_display || formatSize(f.size || 0)) + '</span></span>' +
+    '<span class="cp-folder-chevron">' + CP_CHEVRON_ICON + '</span>' +
+    '</div>';
+}
+
+function cpGoDir(d) { loadHistory(1, d || ''); }
+
+function bindDirNav(wrap) {  // 渲染后绑定文件夹行与面包屑的点击 / 回车
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-cp-dir]').forEach(function (el) {
+    el.addEventListener('click', function () { cpGoDir(el.getAttribute('data-cp-dir')); });
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); cpGoDir(el.getAttribute('data-cp-dir')); }
+    });
+  });
+}
+
 function isMobileView() { return window.innerWidth <= 768; }
 
 function renderHistoryFromData(data) {
   var wrap = document.getElementById('history-wrap');
   if (!wrap) return;
+
+  var dir = data.dir || '';
+  _currentDir = dir;
+  var folders = data.folders || [];
+  var breadcrumb = data.breadcrumb || [];
+  var showDirBar = !!dir || folders.length > 0;
 
   // 过滤掉 .part 断点文件（用于显示，不影响断点续传）
   var displayRecords = [];
@@ -1660,9 +1733,11 @@ function renderHistoryFromData(data) {
   }
   _allRecords = displayRecords;  // 缓存供 previewFile 查文件大小
 
-  // 没有文件时不渲染任何内容（包括全选栏）
-  if (!displayRecords || displayRecords.length === 0) {
-    wrap.innerHTML = '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
+  // 既没有子文件夹、也没有文件 → 渲染空状态
+  if (folders.length === 0 && (!displayRecords || displayRecords.length === 0)) {
+    wrap.innerHTML = dir
+      ? '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg><p>此文件夹为空</p><p>这个文件夹里还没有文件</p></div>'
+      : '<div class="cp-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><p>暂无文件</p><p>上传文件后将在此列出</p></div>';
     return;
   }
 
@@ -1684,102 +1759,105 @@ function renderHistoryFromData(data) {
     }
   }
 
-  var mobile = isMobileView();
-  var html = '';
+  var dirBarHtml = showDirBar ? cpDirBarHtml(dir, breadcrumb) : '';
 
-  if (mobile) {
-    // --- 移动端：仅构建卡片列表 ---
-    html = '<div class="cp-card-list">';
-    // 批量模式下显示顶部全选栏
-    if (showBatch) {
-      html += '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
-    }
+  // 两套 DOM 同时渲染：移动端卡片（.cp-card-list）+ 桌面端表格（.cp-table-wrap），
+  // 由 CSS 媒体查询决定显隐。避免「JS 宽度分支 + CSS 媒体查询」双重切换，
+  // 否则窗口缩放跨越断点后列表会空白 / 错乱。
+  var cardHtml = '<div class="cp-card-list">';
+  // 批量模式下显示顶部全选栏
+  if (showBatch) {
+    cardHtml += '<div class="cp-sel-top-bar"><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
+  }
 
-    for (var j = 0; j < displayRecords.length; j++) {
-      var r = displayRecords[j];
-      var ext = r.original_name.split('.').pop().toLowerCase();
-      var fi = getFileIcon(ext);
-      var cardIconHtml = '<div class="cp-card-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></div>';
-      html += '<div class="cp-card-item">' +
-        (showBatch ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
-        cardIconHtml +
-        '<div class="cp-card-info">' +
-          '<div class="cp-card-name">' + escapeHtml(r.original_name) +
-            (canPreviewDownload && !canDelete && canPreviewExt(ext) ? ' <a class="cp-preview-inline" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')">预览</a>' : '') +
-          '</div>' +
-          '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
-        '</div>';
-      if (canDelete || canDownload) {
-        html += '<div class="cp-card-actions">';
-        if (canPreviewDownload && canPreviewExt(ext)) {
-          html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
-        }
-        if (canDownload) {
-          html += '<button class="cp-act-dl-txt" onclick="downloadFile(' + r.id + ')" style="margin-right:8px;">下载</button>';
-        }
-        if (canDelete) {
-          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
-        }
-        html += '</div>';
+  folders.forEach(function (f) { cardHtml += cpFolderCardHtml(f, showBatch); });
+  displayRecords.forEach(function (r) {
+    var ext = r.original_name.split('.').pop().toLowerCase();
+    var fi = getFileIcon(ext);
+    var cardIconHtml = '<div class="cp-card-icon"><img src="' + fi.iconUrl + '" width="18" height="18" style="vertical-align:middle"></div>';
+    cardHtml += '<div class="cp-card-item">' +
+      (showBatch ? '<div class="cp-card-check"><input type="checkbox" class="cp-sel-check" value="' + r.id + '"' + (_selectedIds.has(r.id) ? ' checked' : '') + ' onchange="toggleSelect(' + r.id + ',this.checked)"></div>' : '') +
+      cardIconHtml +
+      '<div class="cp-card-info">' +
+        '<div class="cp-card-name">' + escapeHtml(r.original_name) +
+          (canPreviewDownload && !canDelete && canPreviewExt(ext) ? ' <a class="cp-preview-inline" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')">预览</a>' : '') +
+        '</div>' +
+        '<div class="cp-card-meta"><span>' + escapeHtml(r.file_size_display) + '</span><span>' + escapeHtml(fmtTime(r.uploaded_at)) + '</span>' + (requireUploader ? '<span class="cp-card-uploader">上传者：' + escapeHtml(r.uploader_name || '——') + '</span>' : '') + '</div>' +
+      '</div>';
+    if (canDelete || canDownload) {
+      cardHtml += '<div class="cp-card-actions">';
+      if (canPreviewDownload && canPreviewExt(ext)) {
+        cardHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(r.id, 10) + ',' + JSON.stringify(r.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
       }
-      html += '</div>';
+      if (canDownload) {
+        cardHtml += '<button class="cp-act-dl-txt" onclick="downloadFile(' + r.id + ')" style="margin-right:8px;">下载</button>';
+      }
+      if (canDelete) {
+        cardHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + r.id + ')">删除</button>';
+      }
+      cardHtml += '</div>';
     }
-    html += '</div>';
-    // 批量模式下显示底部全选栏
-    if (showBatch) {
-      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
-    }
-  } else {
-    // --- 桌面端：仅构建表格 ---
-    html = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
-      (showBatch ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
-      '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
-      '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
-      (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
-      (canDelete ? '<th class="cp-th-act">操作</th>' : '') +
-      '</tr></thead><tbody>';
+    cardHtml += '</div>';
+  });
+  cardHtml += '</div>';
 
-    for (var k = 0; k < displayRecords.length; k++) {
-      var rd = displayRecords[k];
-      var extD = rd.original_name.split('.').pop().toLowerCase();
-      var fiD = getFileIcon(extD);
-      var iconHtml = '<td class="cp-file-icon"><img src="' + fiD.iconUrl + '" width="18" height="18" style="vertical-align:middle"></td>';
-      html += '<tr>' +
-        (showBatch ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
-        iconHtml +
-        '<td class="cp-file-name" title="' + escapeHtml(rd.original_name) + '">' + escapeHtml(rd.original_name) +
-          (canPreviewDownload && !canDelete && canPreviewExt(extD) ? ' <a class="cp-preview-inline" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')">预览</a>' : '') +
-        '</td>' +
-        '<td class="cp-file-size">' + escapeHtml(rd.file_size_display) + '</td>' +
-        '<td class="cp-file-time">' + escapeHtml(fmtTime(rd.uploaded_at)) + '</td>';
-      if (requireUploader) {
-        html += '<td class="cp-file-uploader">' + escapeHtml(rd.uploader_name || '——') + '</td>';
-      }
-      if (canDelete || canDownload) {
-        html += '<td class="cp-file-act">';
-        if (canPreviewDownload && canPreviewExt(extD)) {
-          html += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
-        }
-        if (canDownload) {
-          html += '<button class="cp-act-dl-txt" onclick="downloadFile(' + rd.id + ')" style="margin-right:8px;">下载</button>';
-        }
-        if (canDelete) {
-          html += '<button class="cp-act-del-txt" onclick="deleteRecord(' + rd.id + ')">删除</button>';
-        }
-        html += '</td>';
-      }
-      html += '</tr>';
+  // --- 桌面端表格（与卡片同时存在，由 CSS 控制显隐） ---
+  var tableHtml = '<div class="cp-table-wrap"><table class="cp-table"><thead><tr>' +
+    (showBatch ? '<th class="cp-sel-col"><input type="checkbox" class="cp-sel-check" onchange="toggleSelectAll(this.checked)"></th>' : '') +
+    '<th class="cp-th-icon"></th><th class="cp-th-name">文件名</th>' +
+    '<th class="cp-th-size">大小</th><th class="cp-th-time">时间</th>' +
+    (requireUploader ? '<th class="cp-th-uploader">上传者</th>' : '') +
+    // 注意：行体的「操作」列条件是 (canDelete || canDownload)，表头与 colspan 必须一致，
+    // 否则开启下载但未开启删除时会出现列错位（“错乱”）。
+    ((canDelete || canDownload) ? '<th class="cp-th-act">操作</th>' : '') +
+    '</tr></thead><tbody>';
+
+  // 分组渲染：根目录文件平铺，随后每个文件夹一个分组头 + 组内文件行
+  var dColCount = (showBatch ? 1 : 0) + 4 + (requireUploader ? 1 : 0) + ((canDelete || canDownload) ? 1 : 0);
+  folders.forEach(function (f) { tableHtml += cpFolderRowHtml(f, dColCount, showBatch); });
+  displayRecords.forEach(function (rd) {
+    var extD = rd.original_name.split('.').pop().toLowerCase();
+    var fiD = getFileIcon(extD);
+    var iconHtml = '<td class="cp-file-icon"><img src="' + fiD.iconUrl + '" width="18" height="18" style="vertical-align:middle"></td>';
+    tableHtml += '<tr>' +
+      (showBatch ? '<td class="cp-sel-col"><input type="checkbox" class="cp-sel-check" value="' + rd.id + '"' + (_selectedIds.has(rd.id) ? ' checked' : '') + ' onchange="toggleSelect(' + rd.id + ',this.checked)"></td>' : '') +
+      iconHtml +
+      '<td class="cp-file-name" title="' + escapeHtml(rd.original_name) + '">' + escapeHtml(rd.original_name) +
+        (canPreviewDownload && !canDelete && canPreviewExt(extD) ? ' <a class="cp-preview-inline" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')">预览</a>' : '') +
+      '</td>' +
+      '<td class="cp-file-size">' + escapeHtml(rd.file_size_display) + '</td>' +
+      '<td class="cp-file-time">' + escapeHtml(fmtTime(rd.uploaded_at)) + '</td>';
+    if (requireUploader) {
+      tableHtml += '<td class="cp-file-uploader">' + escapeHtml(rd.uploader_name || '——') + '</td>';
     }
-    html += '</tbody></table></div>';
-    if (showBatch) {
-      html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
+    if (canDelete || canDownload) {
+      tableHtml += '<td class="cp-file-act">';
+      if (canPreviewDownload && canPreviewExt(extD)) {
+        tableHtml += '<button class="cp-act-preview-txt" onclick="previewFile(' + parseInt(rd.id, 10) + ',' + JSON.stringify(rd.original_name).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + ')" style="margin-right:8px;">预览</button>';
+      }
+      if (canDownload) {
+        tableHtml += '<button class="cp-act-dl-txt" onclick="downloadFile(' + rd.id + ')" style="margin-right:8px;">下载</button>';
+      }
+      if (canDelete) {
+        tableHtml += '<button class="cp-act-del-txt" onclick="deleteRecord(' + rd.id + ')">删除</button>';
+      }
+      tableHtml += '</td>';
     }
+    tableHtml += '</tr>';
+  });
+  tableHtml += '</tbody></table></div>';
+
+  var html = cardHtml + tableHtml;
+  // 批量模式下显示底部全选栏（卡片 / 表格共用）
+  if (showBatch) {
+    html += '<div class="cp-sel-bottom-bar"><div class="cp-sel-bottom-spacer"></div><label><input type="checkbox" class="cp-sel-check cp-sel-check-bar2" onchange="toggleSelectAll(this.checked)"> <span>全选当前页文件</span></label></div>';
   }
 
   // 分页控件
   var totalPages = data.total_pages || 1;
   var curPage = data.page || 1;
-  if (totalPages > 1 || data.total_uploaded > 20) {
+  var dirTotal = (data.total !== undefined ? data.total : data.total_uploaded);
+  if (totalPages > 1 || dirTotal > 20) {
     html += '<div class="cp-pagination-footer">';
     html += '<div class="pagination">';
     if (curPage > 1) {
@@ -1787,7 +1865,7 @@ function renderHistoryFromData(data) {
     } else {
       html += '<button class="page-btn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>上一页</button>';
     }
-    html += '<span class="page-info">第 ' + curPage + '/' + totalPages + ' 页，共 ' + data.total_uploaded + ' 个文件</span>';
+    html += '<span class="page-info">第 ' + curPage + '/' + totalPages + ' 页，共 ' + dirTotal + ' 个文件</span>';
     if (curPage < totalPages) {
       html += '<button class="page-btn" onclick="loadHistory(' + (curPage + 1) + ')">下一页<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>';
     } else {
@@ -1800,16 +1878,21 @@ function renderHistoryFromData(data) {
     html += '</div>';
   }
 
-  wrap.innerHTML = html;
+  wrap.innerHTML = dirBarHtml + html;
+  bindDirNav(wrap);
   updateBatchBar();
 }
 
-async function loadHistory(page) {
+async function loadHistory(page, dir) {
   page = page || 1;
+  if (dir !== undefined) _currentDir = dir || '';
   try {
-    var res = await fetch(FC_BASE + '/collect/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage);
+    var url = FC_BASE + '/collect/' + linkId + '/records?page=' + page + '&per_page=' + _currentPerPage +
+      (_currentDir ? '&dir=' + encodeURIComponent(_currentDir) : '');
+    var res = await fetch(url);
     var data = await res.json();
     totalUploaded = data.total_uploaded || 0;
+    _currentDir = data.dir || '';
     _cacheData = data;
     updateRemainingDisplay();
     updateTabBarVisibility();
@@ -2260,5 +2343,6 @@ window.addEventListener('resize', function(){
   }, 300);
 });
 </script>
+<script src="{{ url_for('static', filename='js/fc-theme.js', v=VERSION) }}" defer></script>
 </body>
 </html>

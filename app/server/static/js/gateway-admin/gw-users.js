@@ -35,8 +35,9 @@
             ? '<span class="gwa-badge gwa-badge-accent">管理账号</span>'
             : '<span class="gwa-badge">普通用户</span>';
     }
+    // 状态列只表达启用/禁用；管理员身份由独立的「角色」列展示，
+    // 这里不再返回「管理账号」，否则禁用的管理员看不出已禁用
     function statusBadge(u) {
-        if (u.is_admin) return '<span class="gwa-badge gwa-badge-accent">管理账号</span>';
         return u.status === 'active'
             ? '<span class="gwa-badge gwa-badge-ok">启用</span>'
             : '<span class="gwa-badge gwa-badge-danger">禁用</span>';
@@ -62,7 +63,7 @@
     function load() {
         if (!panel) panel = document.querySelector('[data-gwa-panel="users"]');
         if (!panel) return;
-        panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+        panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         var url = state.view === 'invites'
             ? '/invites'
             : '/users' + (state.q ? '?q=' + encodeURIComponent(state.q) : '');
@@ -76,7 +77,7 @@
             }
             render();
         }).catch(function (err) {
-            panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 
@@ -100,8 +101,9 @@
         html += '</div></div>';
 
         if (!state.users.length) {
-            html += '<div class="gwa-empty">' + (state.q ? '没有匹配的用户' : '暂无用户<br><span class="gwa-muted">用户可通过邀请码注册账户</span>') + '</div>';
+            html += '<div class="gwa-card"><div class="gwa-empty">' + (state.q ? '没有匹配的用户' : '暂无用户<br><span class="gwa-muted">用户可通过邀请码注册账户</span>') + '</div></div>';
         } else {
+            html += '<div class="gwa-card">';
             html += '<div class="gwa-table-wrap"><table class="gwa-table"><thead><tr>';
             html += '<th>用户名</th><th>邮箱</th><th>角色</th><th>状态</th>';
             html += '<th class="gwa-nowrap">链接 / 记录</th><th class="gwa-nowrap">注册时间</th><th style="text-align:right">操作</th>';
@@ -119,7 +121,7 @@
                 html += '<button type="button" class="btn btn-default btn-sm" data-act="user-actions" data-id="' + esc(u.id) + '">操作</button>';
                 html += '</td></tr>';
             });
-            html += '</tbody></table></div>';
+            html += '</tbody></table></div></div>';
         }
         panel.innerHTML = html;
         bindCommon();
@@ -139,8 +141,9 @@
         html += '</div>';
 
         if (!state.invites.length) {
-            html += '<div class="gwa-empty">暂无邀请码<br><span class="gwa-muted">点击「生成邀请码」供用户注册</span></div>';
+            html += '<div class="gwa-card"><div class="gwa-empty">暂无邀请码<br><span class="gwa-muted">点击「生成邀请码」供用户注册</span></div></div>';
         } else {
+            html += '<div class="gwa-card">';
             html += '<div class="gwa-table-wrap"><table class="gwa-table"><thead><tr>';
             html += '<th>邀请码</th><th class="gwa-nowrap">有效期至</th><th>状态</th><th>使用用户</th>';
             html += '<th class="gwa-nowrap">创建时间</th><th style="text-align:right">操作</th>';
@@ -159,7 +162,7 @@
                 html += '<button type="button" class="btn btn-danger btn-sm" data-act="del-invite" data-id="' + esc(c.id) + '">删除</button>';
                 html += '</td></tr>';
             });
-            html += '</tbody></table></div>';
+            html += '</tbody></table></div></div>';
         }
         panel.innerHTML = html;
         bindCommon();
@@ -211,15 +214,22 @@
         rows += kv('注册于', esc(fmtTime(u.created_at)));
         rows += kv('最近登录', esc(fmtTime(u.last_login_at)));
 
-        var lastAdmin = u.is_admin && state.adminCount <= 1;
+        // 「最后一个管理员」= 当前仅剩 1 个可用（active）管理员，且目标本身是 active。
+        // 目标若是已禁用管理员，它不占用可用名额，应允许删除/清理（与后端口径一致）。
+        var lastAdmin = u.is_admin && isActive && state.adminCount <= 1;
         var isSelf = state.currentUserId != null && String(u.id) === state.currentUserId;
         var delBlocked = lastAdmin
             ? '至少需要保留一个管理员，无法删除最后一个管理员'
             : (isSelf ? '不能删除当前登录的账户' : '');
+        // 与删除同口径：仅剩一个可用管理员时禁止禁用该管理员（否则后台无人可管理）
+        var toggleBlocked = lastAdmin;
+        var toggleBlockedMsg = '至少需要保留一个管理员，无法禁用最后一个管理员';
 
         var html = '<div class="gwa-pop-info">' + rows + '</div>';
         html += '<div class="gwa-pop-actions">';
-        html += '<button type="button" class="btn btn-default btn-sm" data-act="toggle">' + (isActive ? '禁用用户' : '启用用户') + '</button>';
+        html += '<button type="button" class="btn btn-default btn-sm" data-act="toggle"' +
+                (toggleBlocked ? ' disabled title="' + esc(toggleBlockedMsg) + '"' : '') + '>' +
+                (isActive ? '禁用用户' : '启用用户') + '</button>';
         html += '<button type="button" class="btn btn-default btn-sm" data-act="edit">编辑信息</button>';
         html += '</div>';
         html += '<div class="gwa-pop-actions">';
@@ -227,6 +237,7 @@
         html += '<button type="button" class="btn btn-danger btn-sm" data-act="delete"' +
                 (delBlocked ? ' disabled title="' + esc(delBlocked) + '"' : '') + '>删除用户</button>';
         html += '</div>';
+        if (toggleBlocked) html += '<div class="gwa-pop-hint">' + esc(toggleBlockedMsg) + '</div>';
         if (delBlocked) html += '<div class="gwa-pop-hint">' + esc(delBlocked) + '</div>';
 
         GW.popover(anchor, html);
@@ -250,6 +261,11 @@
     /* ---------- 用户操作 ---------- */
     function toggleUser(u) {
         var disable = u.status === 'active';
+        // 前端兜底校验：仅剩一个管理员时不可禁用（后端亦有同等校验）
+        if (disable && u.is_admin && state.adminCount <= 1) {
+            GW.toast('至少需要保留一个管理员，无法禁用最后一个管理员', 'error');
+            return;
+        }
         GW.confirm('确定' + (disable ? '禁用' : '启用') + '用户「' + u.username + '」？',
                    { danger: disable, okText: disable ? '禁用' : '启用' })
             .then(function (ok) {
@@ -261,8 +277,9 @@
     }
 
     function deleteUser(u) {
-        // 前端兜底校验：最后一个管理员 / 当前登录账户不可删除
-        if (u.is_admin && state.adminCount <= 1) { GW.toast('至少需要保留一个管理员，无法删除最后一个管理员', 'error'); return; }
+        // 前端兜底校验：最后一个「可用」管理员 / 当前登录账户不可删除。
+        // 已禁用的管理员不占可用名额，允许删除清理（与后端口径一致）。
+        if (u.is_admin && u.status === 'active' && state.adminCount <= 1) { GW.toast('至少需要保留一个管理员，无法删除最后一个管理员', 'error'); return; }
         if (state.currentUserId != null && String(u.id) === state.currentUserId) { GW.toast('不能删除当前登录的账户', 'error'); return; }
         GW.confirm('确定删除用户「' + u.username + '」？\n该操作不可恢复，其名下链接/记录将解除归属。',
                    { danger: true, okText: '确认删除' })
@@ -287,14 +304,15 @@
 
     function showPasswordModal(username, pwd) {
         var m = GW.modal({
-            title: '密码已重置',
-            width: '420px',
+            title: '密码已重置 · ' + username,
+            width: '440px',
             bodyHtml:
-                '<p style="margin:0 0 10px">用户「' + esc(username) + '」的新密码：</p>' +
+                '<p style="margin:0 0 10px">用户「' + esc(username) + '」的新登录密码：</p>' +
                 '<div class="gwa-note" style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
                 '<code class="gwa-mono" id="gwaNewPwd" style="font-size:15px">' + esc(pwd) + '</code>' +
                 '<button type="button" class="btn btn-default btn-sm" data-act="copy-pwd">复制</button></div>' +
-                '<p class="gwa-hint" style="margin:10px 0 0">请立即记录，关闭后将无法再次查看。</p>',
+                '<p class="gwa-hint" style="margin:10px 0 0">新密码只在此弹窗显示一次，请立即记录或点击「复制」，关闭后将无法再次查看。' +
+                '若该用户是飞牛账号登录，仍可用飞牛 SSO 直接进入。</p>',
             footerHtml: '<button type="button" class="btn btn-primary btn-sm" data-act="close">关闭</button>'
         });
         m.body.querySelector('[data-act="copy-pwd"]').addEventListener('click', function () {

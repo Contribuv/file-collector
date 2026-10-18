@@ -163,13 +163,13 @@
 
     function load() {
         var panel = document.querySelector('[data-gwa-panel="dashboard"]');
-        if (panel) panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+        if (panel) panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         GW.api('/dashboard').then(function (data) {
             stats = data.stats || stats;
             recent = data.recent || [];
             renderStats();
         }).catch(function (err) {
-            if (panel) panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            if (panel) panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 

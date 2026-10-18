@@ -4,6 +4,13 @@
    本文件只补充 gateway.css 未覆盖的组件，尽量复用 .btn / .form-* / .status-row。
    ============================================================ */
 
+/* ---- 按钮内的内联 SVG 图标：随文本垂直居中（弹性盒 align-items:center 已保证） ---- */
+.btn .btn-ico {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
 /* ---- 工具条 ---- */
 .gwa-toolbar {
     display: flex;
@@ -32,7 +39,7 @@
 }
 
 .gwa-stat {
-    background: var(--gw-input-disabled-bg);
+    background: var(--gw-fill-0);
     border: 1px solid var(--gw-border-light);
     border-radius: var(--gw-radius-md);
     padding: 14px 16px;
@@ -123,6 +130,168 @@ table.gwa-table {
     white-space: nowrap;
 }
 
+/* ---- 文件记录：目录式导航（面包屑 + 可进入的文件夹行） ---- */
+.gwa-dirbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 5px 10px;
+    min-height: 36px;
+    background: var(--gw-fill-0);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-sm);
+    overflow-x: auto;
+}
+
+.gwa-back {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--gw-border);
+    border-radius: 6px;
+    background: var(--gw-window-bg);
+    color: var(--gw-text-secondary);
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease;
+}
+
+.gwa-back:hover {
+    color: var(--gw-accent);
+    border-color: var(--gw-accent);
+}
+
+.gwa-back svg {
+    width: 15px;
+    height: 15px;
+}
+
+.gwa-crumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 1px;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.gwa-crumb {
+    border: 0;
+    background: none;
+    padding: 3px 7px;
+    border-radius: 6px;
+    color: var(--gw-text-secondary);
+    cursor: pointer;
+    font: inherit;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background .12s ease, color .12s ease;
+}
+
+.gwa-crumb:hover {
+    background: var(--gw-fill-0);
+    color: var(--gw-text-primary);
+}
+
+.gwa-crumb.is-current {
+    color: var(--gw-text-primary);
+    font-weight: 600;
+    cursor: default;
+}
+
+.gwa-crumb.is-current:hover {
+    background: none;
+}
+
+.gwa-crumb-sep {
+    color: var(--gw-text-tertiary);
+    font-size: 12px;
+    padding: 0 1px;
+}
+
+/* 文件夹行：整行可点击进入 */
+.gwa-table .gwa-folder-row {
+    cursor: pointer;
+    user-select: none;
+}
+
+.gwa-table .gwa-folder-row td {
+    background: var(--gw-fill-0);
+    color: var(--gw-text-primary);
+    font-weight: 500;
+    padding: 11px 12px;
+    transition: background .12s ease;
+}
+
+.gwa-table .gwa-folder-row:hover td,
+.gwa-table .gwa-folder-row:focus-visible td {
+    background: var(--gw-accent-bg);
+}
+
+.gwa-table .gwa-folder-row:focus-visible {
+    outline: none;
+}
+
+/* 与文件行图标盒完全一致（18px 图标 + 6px 间距），名称左缘对齐同一竖线 */
+.gwa-folder-icon {
+    display: inline-block;
+    width: 18px;
+    text-align: center;
+    vertical-align: middle;
+    margin-right: 6px;
+    color: #f59e0b;
+}
+
+.gwa-folder-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: rgba(245, 158, 11, .18);
+    vertical-align: middle;
+}
+
+.gwa-folder-name {
+    margin-right: 10px;
+    word-break: break-all;
+}
+
+.gwa-folder-meta {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--gw-text-tertiary);
+    white-space: nowrap;
+}
+
+/* 图标 vertical-align:middle，名称/meta 若保持默认 baseline 会高低不一（用户反馈不横向对齐） */
+.gwa-table .gwa-folder-name,
+.gwa-table .gwa-folder-meta {
+    vertical-align: middle;
+}
+/* 行内不再用「·」分隔，size 以留白间隔 */
+.gwa-folder-meta .cp-meta-size { margin-left: 6px; }
+
+.gwa-folder-chevron {
+    float: right;
+    display: inline-flex;
+    vertical-align: -3px;
+    color: var(--gw-text-tertiary);
+    transition: transform .12s ease, color .12s ease;
+}
+
+.gwa-table .gwa-folder-row:hover .gwa-folder-chevron {
+    color: var(--gw-accent);
+    transform: translateX(2px);
+}
+
+.gwa-folder-chevron svg {
+    width: 15px;
+    height: 15px;
+}
+
 .gwa-table .gwa-col-check {
     width: 36px;
     text-align: center;
@@ -181,6 +350,167 @@ table.gwa-table {
 .gwa-badge-accent {
     background: var(--gw-accent-bg);
     color: var(--gw-accent);
+}
+
+/* ============================================================
+   自绘下拉组件（gateway-select.js）：替代浏览器原生弹出菜单
+   触发器与通用 form-select 同形态（40px / 自绘 chevron / 8px 圆角），
+   点开后为自绘选项浮层（卡片底 + 阴影 + 选中态勾），双端一致
+   ============================================================ */
+.gwa-select-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.gwa-select-wrap select.gwsel-native {
+    display: none !important;
+}
+
+.gwa-select-trigger {
+    width: 100%;
+    height: 40px;
+    padding: 0 34px 0 12px;
+    border: 1px solid var(--gw-input-border);
+    border-radius: var(--gw-radius-sm);
+    background: var(--gw-input-bg);
+    color: var(--gw-text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.gwa-select-trigger .gwa-select-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gwa-select-trigger .gwa-select-arrow {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    color: var(--gw-text-tertiary);
+    transition: transform 0.15s;
+    pointer-events: none;
+}
+
+.gwa-select-trigger .gwa-select-arrow svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.gwa-select-wrap.open .gwa-select-arrow {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+.gwa-select-wrap:not(.disabled) .gwa-select-trigger:hover {
+    border-color: var(--gw-accent);
+}
+
+.gwa-select-wrap.open .gwa-select-trigger,
+.gwa-select-trigger:focus-visible {
+    border-color: var(--gw-accent);
+    box-shadow: 0 0 0 3px var(--gw-accent-bg);
+}
+
+.gwa-select-wrap.disabled .gwa-select-trigger {
+    background: var(--gw-input-disabled-bg);
+    color: var(--gw-text-tertiary);
+    cursor: not-allowed;
+}
+
+.gwa-select-menu {
+    display: none;
+    position: fixed;
+    /* left/top/width 由组件 JS 按触发器位置计算（滚动容器会裁剪 absolute 浮层） */
+    z-index: 60;
+    max-height: 300px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px;
+    background: var(--gw-card-bg);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+    animation: gwsel-fade 0.12s ease;
+}
+
+@keyframes gwsel-fade {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: none; }
+}
+
+.gwa-select-wrap.open .gwa-select-menu {
+    display: block;
+}
+
+.gwa-select-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--gw-radius-sm);
+    font-size: 13px;
+    color: var(--gw-text-secondary);
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+}
+
+.gwa-select-option-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gwa-select-option:hover,
+.gwa-select-option.focused {
+    background: var(--gw-fill-0);
+    color: var(--gw-text-primary);
+}
+
+.gwa-select-option.selected {
+    color: var(--gw-accent);
+    font-weight: 500;
+}
+
+.gwa-select-option.selected:hover {
+    background: var(--gw-accent-bg);
+}
+
+.gwa-select-option-check {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
+    color: var(--gw-accent);
+}
+
+.gwa-select-option-check svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+}
+
+.gwa-select-option.disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+/* 工具栏内的下拉触发器与工具栏按钮等高（桌面 .btn 行高 32px），避免参差 */
+.gwa-toolbar .gwa-select-trigger,
+.gwa-toolbar .gwa-select-wrap .gwa-select-trigger {
+    height: 32px;
 }
 
 /* ---- 分页 ---- */
@@ -278,6 +608,17 @@ textarea.form-input {
 
 .gwa-inline .form-select.gwa-unit {
     flex: 0 0 76px;
+}
+
+/* 自绘下拉 wrapper 混入 flex 行时不再通用 100% 宽，按 unit 固定宽取位
+   （否则会把并排的数字输入压缩成一条缝） */
+.gwa-inline .gwa-select-wrap {
+    flex: 0 0 76px;
+    width: auto;
+}
+
+.gwa-inline .gwa-select-trigger {
+    width: 100%;
 }
 
 .gwa-prefix {
@@ -601,6 +942,8 @@ textarea.form-input {
 }
 
 /* ---- 移动端：表格转卡片 ---- */
+/* 窄屏：统计与卡片内边距收紧。
+   表格转卡片的规则统一放在下方 900px 断点，避免两段重复规则互相覆盖导致布局错乱。 */
 @media (max-width: 640px) {
     .gwa-stats {
         grid-template-columns: repeat(2, 1fr);
@@ -611,67 +954,12 @@ textarea.form-input {
     }
 
     .gwa-card {
-        padding: 12px;
-    }
-
-    .gwa-table-wrap {
-        border: none;
-    }
-
-    .gwa-table thead {
-        display: none;
-    }
-
-    .gwa-table,
-    .gwa-table tbody,
-    .gwa-table tr,
-    .gwa-table td {
-        display: block;
-        width: 100%;
-    }
-
-    .gwa-table tr {
-        border: 1px solid var(--gw-border-light);
-        border-radius: var(--gw-radius-md);
-        margin-bottom: 10px;
-        padding: 4px 2px;
-    }
-
-    .gwa-table tr:hover {
-        background: transparent;
-    }
-
-    .gwa-table td {
-        border: none;
-        display: flex;
-        gap: 10px;
-        padding: 6px 12px;
-    }
-
-    .gwa-table td::before {
-        content: attr(data-label);
-        flex: 0 0 84px;
-        color: var(--gw-text-tertiary);
-        font-size: 12px;
-    }
-
-    .gwa-table td.gwa-col-actions {
-        text-align: right;
-        justify-content: flex-end;
-        padding-top: 8px;
-    }
-
-    .gwa-table td.gwa-col-actions::before {
-        content: none;
-    }
-
-    .gwa-table td.gwa-col-check {
-        width: auto;
-        justify-content: flex-start;
+        padding: 10px;
     }
 }
 
-/* 中等及以下宽度：表格转卡片，避免横向滚动（与移动端一致） */
+/* 中等及以下宽度：表格转「分组列表」（如原生 APP 的 inset grouped list：
+   一组连续条目 + 细分隔线，不再每条一张独立小卡），避免横向滚动 */
 @media (max-width: 900px) {
     .gwa-table-wrap {
         border: none;
@@ -689,11 +977,17 @@ textarea.form-input {
         width: 100%;
     }
 
+    /* 条目平铺：去掉独立小卡的边框/圆角/外距，由上级容器（section 大卡）作组载体 */
     .gwa-table tr {
-        border: 1px solid var(--gw-border-light);
-        border-radius: var(--gw-radius-md);
-        margin-bottom: 10px;
-        padding: 4px 2px;
+        border: none;
+        border-radius: 0;
+        margin-bottom: 0;
+        padding: 0;
+    }
+
+    /* 组内分隔线：条目之间用 hairline（浅 .05 / 深 .06 的 border-light 令牌） */
+    .gwa-table tr + tr {
+        border-top: 1px solid var(--gw-border-light);
     }
 
     .gwa-table tr:hover {
@@ -703,25 +997,69 @@ textarea.form-input {
     .gwa-table td {
         border: none;
         display: flex;
-        gap: 10px;
-        padding: 6px 12px;
+        gap: 6px;
+        align-items: center;
+        padding: 4px 12px;
+        min-width: 0;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
 
     .gwa-table td::before {
         content: attr(data-label);
-        flex: 0 0 84px;
+        flex: 0 0 64px;
         color: var(--gw-text-tertiary);
-        font-size: 12px;
+        font-size: 11px;
     }
 
     .gwa-table td.gwa-col-actions {
         text-align: right;
         justify-content: flex-end;
-        padding-top: 8px;
+        padding-top: 4px;
     }
 
     .gwa-table td.gwa-col-actions::before {
         content: none;
+    }
+
+    /* 短字段（时间/大小/次数等 nowrap 列）并排显示，压缩卡片高度、每屏展示更多内容 */
+    .gwa-table td.gwa-nowrap {
+        display: inline-flex;
+        width: auto;
+        max-width: 100%;
+        overflow: hidden;
+        vertical-align: top;
+        margin-right: 4px;
+    }
+
+    /* 文件夹行：并入分组列表，平铺 + 分隔线，不再有独立卡片描边；
+       行内的 fill 填充底也取消（保持列表一致性，hover 走 chevron/主色反馈） */
+    .gwa-table tr.gwa-folder-row {
+        border: none;
+        border-radius: 0;
+        margin-bottom: 0;
+        padding: 0;
+    }
+
+    .gwa-table tr.gwa-folder-row td {
+        align-items: center;
+        padding: 4px 12px;
+        font-weight: 500;
+        background: transparent;
+    }
+
+    .gwa-table tr.gwa-folder-row td::before {
+        content: none;
+    }
+
+    .gwa-table tr.gwa-folder-row:hover td {
+        background: transparent;
+    }
+
+    /* 卡片模式下 td 为 flex，float 失效，箭头改用 margin-left:auto 右对齐 */
+    .gwa-table tr.gwa-folder-row .gwa-folder-chevron {
+        float: none;
+        margin-left: auto;
     }
 
     .gwa-table td.gwa-col-check,
@@ -756,6 +1094,24 @@ textarea.form-input {
     color: var(--gw-warning);
     font-size: 12px;
     margin-left: 2px;
+}
+
+/* 有效期 SVG 图标（替代表情符号）：inline-flex 不裁剪、可随行换行自适应 */
+.gwa-expire-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin-left: 4px;
+    vertical-align: middle;
+    color: var(--gw-warning);
+    line-height: 0;
+}
+
+.gwa-expire-icon svg {
+    display: block;
+    width: 13px;
+    height: 13px;
 }
 
 /* 表单 */
@@ -1029,6 +1385,43 @@ textarea.form-input {
 }
 
 @media (max-width: 640px) {
+    /* 移动端压缩卡片纵向间距：卡片 inline style 写了 margin-top:16px，需 !important 覆盖。
+       相邻兄弟 margin 会折叠，实际间距取 h2/前卡的 margin-bottom 与本卡 margin-top 的较大值。 */
+    .gwa-card {
+        margin-top: 8px !important;
+        margin-bottom: 8px;
+        padding: 8px;
+    }
+
+    .gwa-stat {
+        padding: 8px 10px;
+    }
+
+    .gwa-stats {
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    /* 表单：窄屏强制单列，避免 minmax(220px) 撑出横向滚动 */
+    .gwa-form-grid,
+    .gwa-form-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .gwa-field {
+        margin-bottom: 8px;
+    }
+
+    /* 工具栏/筛选换行靠左，不右侧堆叠导致按钮被挤出 */
+    .gwa-toolbar {
+        gap: 8px;
+    }
+
+    .gwa-toolbar-right {
+        margin-left: 0;
+    }
+
     .gwa-table td.gwa-col-sel {
         display: none;
     }
@@ -1036,28 +1429,46 @@ textarea.form-input {
     .gwa-form {
         font-size: 13px;
     }
+
+    /* 卡片底部主按钮（保存/提交类）：34px 与表单行同高，不再像桌面巨块 */
+    .gwa-card .gwa-row .btn {
+        min-height: 34px;
+    }
+
+    /* 文件选择器与同行按钮同高（否则并排时高低不齐） */
+    .gwa-card .gwa-row .gwa-file-picker {
+        min-height: 34px;
+    }
+
+    .gwa-card .gwa-row .btn-primary {
+        flex: 1;
+    }
+
+    /* 工具栏触控目标（收敛节奏：工具栏/表单行 34） */
+    .gwa-toolbar .btn {
+        min-height: 34px;
+    }
+
+    /* 工具栏下拉/搜索框：字号与正文一致（viewport 已禁缩放，无需 16px 兜底） */
+    .gwa-toolbar select,
+    .gwa-toolbar input {
+        font-size: 14px;
+        height: 38px;
+    }
 }
 
 /* ============================================================
    文件记录 · 列表与媒体查看器
    ============================================================ */
-.gwa-rec-thumb {
-    width: 34px;
-    height: 34px;
-    object-fit: cover;
-    border-radius: 6px;
-    border: 1px solid var(--gw-border-light);
-    vertical-align: middle;
-    margin-right: 8px;
-    background: var(--gw-fill-0);
-}
+/* ⛔ 已废弃：记录列表的图片文件不再显示缩略图（统一为扩展名专属图标，与收集页/分享页一致），
+   预览能力保留在详情弹窗/查看器中 */
 
 .gwa-rec-icon {
     display: inline-block;
-    width: 34px;
+    width: 18px;
     text-align: center;
     vertical-align: middle;
-    margin-right: 8px;
+    margin-right: 6px;
 }
 
 .gwa-rec-icon svg {
@@ -1067,10 +1478,38 @@ textarea.form-input {
     color: var(--gw-text-tertiary);
 }
 
+/* 扩展名专属图标（与收集页/分享页一致，fpk、pdf 等均有专属图形） */
+.gwa-rec-exticon {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
 .gwa-rec-name {
     display: inline-block;
     max-width: 320px;
     vertical-align: middle;
+}
+
+/* 点击文件名 → 打开飞牛文件管理器并定位到文件所在目录 */
+.gwa-file-open {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--gw-accent, #2563eb);
+    text-align: left;
+    cursor: pointer;
+}
+.gwa-file-open:hover {
+    text-decoration: underline;
+}
+.gwa-file-open:focus-visible {
+    outline: 2px solid var(--gw-accent, #2563eb);
+    outline-offset: 2px;
+    border-radius: 3px;
 }
 
 @media (max-width: 640px) {
@@ -1078,6 +1517,408 @@ textarea.form-input {
         max-width: none;
         flex: 1;
         min-width: 0;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+}
+
+/* ============================================================
+   文件记录 · 移动端卡片重设计（≤900px，与转卡片断点一致）
+   与收集页/分享页的「两行式文件卡」观感统一：
+   R1 = 图标 + 名称（文件夹行再加右端箭头）；
+   R2 = meta 灰字合并成一行，字段间以留白分隔（去掉字段标签）；
+   操作按钮挂 meta 行尾右端，卡片高度大幅收敛。
+   ============================================================ */
+@media (max-width: 900px) {
+    /* 组内平铺：由通用 tr 分隔线衔接，行块高度交给 td 自身内边距 */
+    #section-records .gwa-table tr {
+        padding: 0;
+    }
+
+    /* 首行（图标+文件名）满宽、名称提级；字段标签全部去除 */
+    #section-records .gwa-table td:first-child {
+        padding-top: 0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    /* meta 字段恢复字段标签（用户反馈：无标签时难以分辨字段含义）；
+       名称列与操作列不加（本身就是主信息/动作） */
+    #section-records .gwa-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--gw-text-tertiary);
+        font-size: 11px;
+        margin-right: 4px;
+    }
+
+    #section-records .gwa-table td[data-label="文件"]::before,
+    #section-records .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    /* meta 字段（来源/大小/下载/上传者/时间）由竖排标签行合并为同行灰字流；
+       以 [data-label] 精准命中，文件夹行（无 data-label）不会被误伤 */
+    #section-records .gwa-table tr[data-id] > td[data-label]:not(.gwa-col-actions) {
+        display: inline-flex;
+        width: auto;
+        max-width: 100%;
+        overflow: hidden;
+        vertical-align: top;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+
+    /* 操作按钮：独立成行右端（meta 流中的 inline 布局无 auto margin 可用） */
+    #section-records .gwa-table td.gwa-col-actions {
+        display: flex;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 4px;
+    }
+
+    #section-records .gwa-table td.gwa-col-actions .btn {
+        min-height: 32px;
+        padding-left: 10px;
+        padding-right: 10px;
+        font-size: 12px;
+    }
+
+    /* 文件夹行：并入分组列表（平铺），meta 折到第二行（DOM 顺序已把 chevron 提到 meta 前） */
+    #section-records .gwa-table tr.gwa-folder-row td {
+        display: flex;
+        width: 100%;
+        flex-wrap: wrap;
+        align-items: center;
+        row-gap: 2px;
+        padding: 6px 12px;
+    }
+
+    #section-records .gwa-table tr.gwa-folder-row .gwa-folder-meta {
+        flex-basis: 100%;
+    }
+
+    /* 「3 个文件 1.8 MB」两项之间留出间隔（用户反馈：连在一起读不出字段含义） */
+    #section-records .gwa-table tr.gwa-folder-row .cp-meta-size {
+        margin-left: 8px;
+    }
+
+    /* ---- 收集链接：同款两行式卡片（去掉收集名称/分享/限制…字段标签） ---- */
+    /* 组内平铺：由通用 tr 分隔线衔接 */
+    #section-links .gwa-table tr {
+        padding: 0;
+    }
+
+    #section-links .gwa-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--gw-text-tertiary);
+        font-size: 11px;
+        margin-right: 4px;
+    }
+
+    #section-links .gwa-table td[data-label="收集名称"]::before,
+    #section-links .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    /* 名称行沉底主信息：字号提级 */
+    #section-links .gwa-table td[data-label="收集名称"] {
+        padding-top: 0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    #section-links .gwa-table tr[data-id] > td[data-label]:not([data-label="收集名称"]):not(.gwa-col-actions) {
+        display: inline-flex;
+        width: auto;
+        max-width: 100%;
+        overflow: hidden;
+        vertical-align: top;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+
+    #section-links .gwa-table td.gwa-col-actions {
+        display: flex;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 4px;
+    }
+
+    #section-links .gwa-table td.gwa-col-actions .btn {
+        min-height: 32px;
+    }
+
+    /* ---- 用户管理 / 邀请码：两行式卡片（名称/邀请码为主行） ---- */
+    #section-users .gwa-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--gw-text-tertiary);
+        font-size: 11px;
+        margin-right: 4px;
+    }
+
+    #section-users .gwa-table td[data-label="用户名"]::before,
+    #section-users .gwa-table td[data-label="邀请码"]::before,
+    #section-users .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    #section-users .gwa-table td[data-label="用户名"],
+    #section-users .gwa-table td[data-label="邀请码"] {
+        padding-top: 0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    #section-users .gwa-table tr[data-id] > td[data-label]:not([data-label="用户名"]):not([data-label="邀请码"]):not(.gwa-col-actions) {
+        display: inline-flex;
+        width: auto;
+        max-width: 100%;
+        overflow: hidden;
+        vertical-align: top;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+
+    #section-users .gwa-table td.gwa-col-actions {
+        display: flex;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 4px;
+    }
+
+    /* ---- 信息面板 · 最近上传：同款两行式 ---- */
+    #section-dashboard .gwa-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--gw-text-tertiary);
+        font-size: 11px;
+        margin-right: 4px;
+    }
+
+    #section-dashboard .gwa-table td[data-label="文件名"]::before,
+    #section-dashboard .gwa-table td.gwa-col-actions::before {
+        content: none;
+    }
+
+    #section-dashboard .gwa-table td[data-label="文件名"] {
+        padding-top: 0;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    #section-dashboard .gwa-table tbody > tr > td[data-label]:not([data-label="文件名"]):not(.gwa-col-actions) {
+        display: inline-flex;
+        width: auto;
+        max-width: 100%;
+        overflow: hidden;
+        vertical-align: top;
+        margin-right: 12px;
+        font-size: 13px;
+    }
+
+    #section-dashboard .gwa-table td.gwa-col-actions {
+        display: flex;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 4px;
+    }
+
+    #section-dashboard .gwa-table td.gwa-col-actions .btn {
+        min-height: 32px;
+        padding-left: 10px;
+        padding-right: 10px;
+        font-size: 12px;
+    }
+}
+
+/* ============================================================
+   移动端（≤640px）· APP 化动作层
+   工具栏按钮去框化 → 主色文字动作；列表行右端操作 = 主色文字；
+   主操作（＋ 创建收集）升级为右下角悬浮圆钮（FAB）；页头大标题
+   ============================================================ */
+@media (max-width: 640px) {
+    /* 触屏无 hover 概念：点击残留的灰底/系统高亮块清干净 */
+    * {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .gwa-toolbar .btn {
+        background: none;
+        border: none;
+        box-shadow: none;
+        color: var(--gw-accent);
+        font-weight: 500;
+    }
+
+    /* hover 仅限真指针设备（触屏点击后会粘滞 hover 底色，表现为「出现一块」） */
+    @media (hover: hover) {
+        .gwa-toolbar .btn:hover {
+            background: var(--gw-fill-0);
+        }
+    }
+
+    .gwa-toolbar .btn:active {
+        opacity: .6;
+    }
+
+    .gwa-toolbar .btn-danger {
+        color: var(--gw-danger);
+    }
+
+    @media (hover: hover) {
+        .gwa-toolbar .btn-danger:hover {
+            background: var(--gw-danger-bg);
+        }
+    }
+
+    /* 列表行右端操作：主色文字（去灰边框的桌面后台感） */
+    .gwa-table td .btn {
+        background: none;
+        border-color: transparent;
+        box-shadow: none;
+        color: var(--gw-accent);
+        font-weight: 500;
+    }
+
+    /* 徽章在卡片 meta 流中收紧（桌面 22px 高在手机行里偏大、与灰字不般配） */
+    .gwa-table td .gwa-badge {
+        height: 20px;
+        padding: 0 7px;
+        font-size: 11px;
+    }
+
+    .gwa-table td .btn:active {
+        background: var(--gw-fill-0);
+    }
+
+    .gwa-table td .btn-danger {
+        color: var(--gw-danger);
+    }
+
+    /* 「＋ 创建收集」= 右下角悬浮圆钮（FAB），icon-only */
+    #section-links .gwa-toolbar .btn-primary {
+        position: fixed;
+        right: 14px;
+        bottom: calc(84px + env(safe-area-inset-bottom));
+        z-index: 30;
+        width: 52px;
+        height: 52px;
+        padding: 0;
+        border-radius: 26px;
+        background: var(--gw-accent);
+        color: #fff;
+        font-size: 0;
+        /* 内联 SVG 图标由弹盒居中（文本 btn-ico 在 52px 圆钮内 22px 展示） */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        box-shadow: 0 6px 16px rgba(0, 102, 255, .35);
+    }
+
+    #section-links .gwa-toolbar .btn-primary .btn-ico {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* FAB 内隐藏文字（svg 独占圆心），去掉 gap 参与导致的 3px 左偏 */
+    #section-links .gwa-toolbar .btn-primary {
+        gap: 0;
+    }
+
+    #section-links .gwa-toolbar .btn-primary .btn-text {
+        display: none;
+    }
+
+    #section-links .gwa-toolbar .btn-primary:hover {
+        background: var(--gw-accent-hover);
+        color: #fff;
+    }
+
+    /* 页面标题：app 大标题 */
+    .mac-section h2 {
+        font-size: 17px;
+        margin: 2px 0 10px;
+    }
+
+    .mac-section h2 svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* ============================================================
+        原生控件 APP 化
+        下拉全部由 gateway-select.js 自绘组件接管（菜单+触发器双端同形态，
+        统一 8px 圆角，不再有「移动 20px 全圆 / PC 8px」的割裂）；输入框
+        字号 16px 防 iOS 聚焦缩放；分页收敛为 ‹ 页码 › 居中
+        ============================================================ */
+
+    /* 输入框：仅调字号（尺寸/圆角由基础样式统一定义，双端一致）；
+       14px 与 PC 同级，viewport 已禁缩放避免聚焦跳动 */
+    .form-input:not(textarea):not(select) {
+        font-size: 14px;
+    }
+
+    /* 移动端表单统一「填充态」：输入/下拉触发器/文本域一律 fill 底 + 无边框（app 常规形态），聚焦白底主色描边 */
+    .form-input,
+    .gwa-select-trigger {
+        background: var(--gw-fill-0);
+        border-color: transparent;
+    }
+
+    .form-input:focus,
+    .gwa-select-trigger:focus {
+        background: var(--gw-card-bg);
+        border-color: var(--gw-accent);
+    }
+
+    .gwa-select-wrap.open .gwa-select-trigger {
+        border-color: var(--gw-accent);
+        background: var(--gw-card-bg);
+    }
+
+    /* 移动工具栏按钮为 36px：下拉触发器同高对齐（与全局三段选择器同权重） */
+    .gwa-toolbar .gwa-select-trigger,
+    .gwa-toolbar .gwa-select-wrap .gwa-select-trigger {
+        height: 36px;
+    }
+
+    /* 工具栏里的筛选控件独占一行（按钮一行 / 筛选一行，层次清晰） */
+    .gwa-toolbar .gwa-filter {
+        flex: 0 0 100%;
+    }
+
+    /* 工具栏右侧动态统计文案（共 N 个 · 第 x/y 页）独占一行，避免动态值变化时挤压左组错位 */
+    .gwa-toolbar .gwa-toolbar-right {
+        flex: 0 0 100%;
+        justify-content: flex-start;
+        margin-top: 2px;
+        color: var(--gw-text-tertiary);
+        font-size: 12px;
+    }
+
+    /* 分页：移动端收紧——隐藏「每页 N 条」桌面参数，‹ 页码 › 居中 */
+    .gwa-perpage {
+        display: none;
+    }
+
+    .gwa-pager {
+        gap: 14px;
+        margin-top: 12px;
+    }
+
+    .gwa-pager .btn {
+        min-width: 36px;
+        height: 36px;
+        padding: 0 14px;
+        border-radius: 18px;
+    }
+
+    .gwa-pager .gwa-pager-info {
+        font-size: 13px;
     }
 }
 
@@ -1221,6 +2062,13 @@ textarea.form-input {
     box-shadow: 0 1px 2px rgba(0, 0, 0, .1);
 }
 
+/* 深色下 tab 高光由白卡阴影失效：active 提为下一级亮面（容器为 .05-.06 亮层）+ 白字强化 */
+:root[data-theme="dark"] .gwa-tab.active {
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+}
+
 .gwa-log-search {
     width: 200px;
     height: 32px;
@@ -1323,9 +2171,9 @@ textarea.form-input {
         padding: 10px 14px;
     }
 
-    /* 浮窗底部按钮加大触控面积 */
+    /* 弹窗底部按钮触控面积（36px，与卡片主按钮层级区分） */
     .gwa-modal-foot .btn {
-        min-height: 40px;
+        min-height: 36px;
         padding-left: 16px;
         padding-right: 16px;
     }
@@ -1343,18 +2191,32 @@ textarea.form-input {
         line-height: 1;
     }
 
-    /* 表单控件字号 ≥16px，避免 iOS 聚焦时自动放大页面 */
+    /* 表单控件字号与正文一致（viewport 已禁缩放） */
     .gwa-modal-body input:not([type="checkbox"]):not([type="radio"]),
     .gwa-modal-body select,
     .gwa-modal-body textarea,
     .gwa-drawer-body input:not([type="checkbox"]):not([type="radio"]),
     .gwa-drawer-body select,
     .gwa-drawer-body textarea {
-        font-size: 16px;
+        font-size: 14px;
     }
 
-    /* 表格转卡片后，操作按钮加大触控面积 */
+    /* 表格转卡片后，操作按钮触控面积（与 btn-sm 固有 32px 对齐，不再撑高） */
     .gwa-table td .btn {
-        min-height: 34px;
+        min-height: 32px;
+    }
+}
+
+/* ============================================================
+   移动端：内容卡片化迁移到 JS 输出后，小屏的 section 大卡
+   与内部 gwa-card 融合，避免「卡中卡」双层边框观感
+   ============================================================ */
+@media (max-width: 640px) {
+    .mac-section .gwa-card {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        margin: 0;
     }
 }

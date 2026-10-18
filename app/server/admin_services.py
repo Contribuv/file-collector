@@ -82,6 +82,10 @@ def _serialize_record(r):
     return {
         'id': d.get('id'),
         'original_name': name,
+        # 相对存储名（含子目录，如 zb/x.png），供前端按目录浏览
+        'stored_name': d.get('stored_name') or '',
+        # 文件所在绝对目录，供「点击文件名 → 打开飞牛文件管理器」定位使用
+        'stored_dir': os.path.dirname(d.get('stored_path') or '') if d.get('stored_path') else '',
         'file_size': size,
         'file_size_display': display,
         'source': d.get('link_title') or d.get('link_id') or '',
@@ -224,7 +228,7 @@ _LINK_LIST_COLS = (
     "l.max_files, l.max_file_size_gb, l.expires_at, l.created_at, l.updated_at, "
     "l.status, l.allow_delete, l.allow_preview_download, l.allow_download, "
     "l.share_enabled, l.share_passcode, l.share_passcode_plain, l.share_passcode_empty, "
-    "l.require_uploader, l.collect_slug, l.share_slug, "
+    "l.share_expires_at, l.require_uploader, l.collect_slug, l.share_slug, "
     "u.username, u.nickname"
 )
 
@@ -238,6 +242,26 @@ def link_form_defaults(user_id):
         'attachment_max_mb': app.fmt_mb(app.get_user_setting(user_id, 'attachment_max_mb', str(app.DEFAULT_ATTACHMENT_MAX_MB))),
         'expire_days': app.get_user_setting(user_id, 'default_link_expire_days', '30'),
     }
+
+
+def _link_is_expired(expires_at):
+    """收集链接（或分享页）是否已过期。
+
+    与 collect/share 页面访问时的判断口径保持一致；expires_at 为空或格式
+    异常（历史遗留数据）时一律视为不过期，避免误判把有效链接显示成已停用。
+    """
+    if not expires_at:
+        return False
+    text = str(expires_at).strip()
+    if not text:
+        return False
+    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+        try:
+            return datetime.now() > datetime.strptime(text, fmt)
+        except (ValueError, TypeError):
+            continue
+    return False
 
 
 def _serialize_link(d):
@@ -272,6 +296,11 @@ def _serialize_link(d):
         'max_files': d.get('max_files'),
         'max_file_size_gb': d.get('max_file_size_gb'),
         'expires_at': str(d.get('expires_at') or ''),
+        'share_expires_at': str(d.get('share_expires_at') or ''),
+        # 是否已过期：status 只反映创建者的手动启停，有效期到点后 status 仍可能
+        # 是 'active'，前端据此把状态显示为「已停用」
+        'expired': _link_is_expired(d.get('expires_at')),
+        'share_expired': _link_is_expired(d.get('share_expires_at')),
         'created_at': str(d.get('created_at') or ''),
         'creator_name': d.get('nickname') or d.get('username') or '未知用户',
         'passcode': pp if has_passcode else '',
@@ -843,12 +872,16 @@ def delete_links(link_ids, user_id, is_admin):
 # ============================================================
 # 上传记录（列表）
 # ============================================================
-def list_records(user_id, is_admin, page=1, per_page=None, link_filter=''):
-    """上传记录列表（分页 + 按链接筛选）。
+def list_records(user_id, is_admin, page=1, per_page=None, link_filter='', dir_path=''):
+    """上传记录列表（分页 + 按链接筛选 + 目录视图）。
 
     查询逻辑与旧 /admin/records 保持一致：管理员可见全站，普通用户仅见
     自己名下链接的记录；返回记录列表、分页信息及「链接」筛选下拉选项。
     per_page 未提供时沿用该用户保存的「每页显示」偏好。
+
+    dir_path 为当前浏览的目录（相对上传目录，'' 表示根目录）：返回值中的
+    records 只包含「直接位于该目录」的文件，folders 为子文件夹聚合，
+    breadcrumb 为面包屑。
     """
     app = _app()
     if per_page in (None, ''):
@@ -872,7 +905,7 @@ def list_records(user_id, is_admin, page=1, per_page=None, link_filter=''):
     conn = _db()
     try:
         rec_cols = ("r.id, r.original_name, r.file_size, r.file_size_display, r.download_count, "
-                    "r.uploader_ip, r.uploaded_at, r.link_id, r.stored_name, r.uploader_name")
+                    "r.uploader_ip, r.uploaded_at, r.link_id, r.stored_name, r.stored_path, r.uploader_name")
 
         if is_admin:
             if link_filter:
@@ -893,6 +926,17 @@ def list_records(user_id, is_admin, page=1, per_page=None, link_filter=''):
                 count_params = (user_id,)
                 data_params = (user_id, per_page, (page - 1) * per_page)
 
+        # 目录视图：先聚合当前目录的子文件夹，再把查询限定为「直接位于该目录的文件」
+        from record_dirs import (normalize_dir, direct_file_condition, combine_where,
+                                 query_dir_view, breadcrumb)
+        dir_path = normalize_dir(dir_path)
+        folders, _direct_count = query_dir_view(conn, where, count_params, dir_path)
+        for _f in folders:
+            _f['size_display'] = app.format_file_size(_f['size'])
+        dcond, dparams = direct_file_condition(dir_path)
+        where = combine_where(where, dcond)
+        count_params = tuple(count_params) + tuple(dparams)
+
         count = conn.execute(
             f"SELECT COUNT(*) FROM upload_records r {where}", count_params).fetchone()[0]
         total_pages = max(1, (count + per_page - 1) // per_page)
@@ -908,7 +952,7 @@ def list_records(user_id, is_admin, page=1, per_page=None, link_filter=''):
                        FROM upload_records r {where}
                        ORDER BY r.uploaded_at DESC
                        LIMIT ? OFFSET ?"""
-        records = conn.execute(data_sql, data_params).fetchall()
+        records = conn.execute(data_sql, count_params + (per_page, (page - 1) * per_page)).fetchall()
 
         if is_admin:
             links = conn.execute("SELECT id, title FROM links ORDER BY created_at DESC").fetchall()
@@ -928,6 +972,9 @@ def list_records(user_id, is_admin, page=1, per_page=None, link_filter=''):
         'link_filter': link_filter,
         'links': [{'id': r['id'], 'title': r['title'] or r['id']} for r in links],
         'default_per_page': app.get_user_setting(user_id, 'records_per_page', '50'),
+        'dir': dir_path,
+        'folders': folders,
+        'breadcrumb': breadcrumb(dir_path),
     }
 
 
@@ -1209,7 +1256,11 @@ def list_users(search=''):
             continue
         users.append(u)
 
-    admin_count = sum(1 for u in users if u['is_admin'])
+    # 统计「可用」管理员（is_admin 且 status=active），用于判定「最后一个管理员」。
+    # 只数 is_admin 会把已禁用的管理员也算进去，导致仅剩 1 个可用管理员时
+    # 仍可把它禁用/删除，出现「后台无人可管理」的死锁。
+    admin_count = sum(
+        1 for u in users if u['is_admin'] and (u['status'] or 'active') == 'active')
     return {'users': users, 'total': len(users), 'admin_count': admin_count}
 
 
@@ -1260,10 +1311,19 @@ def toggle_user(user_id):
     """启用 / 禁用用户。返回 (ok, message, new_status)。"""
     conn = _db()
     try:
-        u = conn.execute("SELECT status, username FROM users WHERE id = ?", (user_id,)).fetchone()
+        u = conn.execute("SELECT status, username, is_admin FROM users WHERE id = ?", (user_id,)).fetchone()
         if not u:
             return False, '用户不存在', None
         new_status = 'inactive' if (u['status'] or 'active') == 'active' else 'active'
+        # 与 delete_user 一致：至少保留一个「可用」（active）管理员。
+        # 计数只算 status=active，已禁用的管理员不占名额——否则「1 个可用 + 1 个已禁用」
+        # 时仍能禁用掉唯一的可用管理员，导致后台无人可管理。
+        if new_status == 'inactive' and u['is_admin']:
+            active_admins = conn.execute(
+                "SELECT COUNT(*) AS c FROM users WHERE is_admin = 1 AND status = 'active'"
+            ).fetchone()['c']
+            if active_admins <= 1:
+                return False, '至少需要保留一个管理员，无法禁用最后一个管理员', None
         conn.execute("UPDATE users SET status = ? WHERE id = ?", (new_status, user_id))
         conn.commit()
         name = u['username'] or user_id
@@ -1314,16 +1374,21 @@ def edit_user(user_id, new_username, new_password, new_email):
 
 
 def delete_user(user_id):
-    """删除用户（至少保留一个管理员）。返回 (ok, message)。"""
+    """删除用户（删除后至少保留一个可用管理员）。返回 (ok, message)。"""
     conn = _db()
     try:
         u = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         if not u:
             return False, '用户不存在'
         if u['is_admin']:
-            admin_total = conn.execute(
-                "SELECT COUNT(*) AS c FROM users WHERE is_admin = 1").fetchone()['c']
-            if admin_total <= 1:
+            # 只统计 status=active 的「可用」管理员；删除后剩余可用管理员须 >= 1。
+            # 目标是已禁用管理员时不扣减名额，否则「1 可用 + 1 已禁用」场景下
+            # 反而会误拦清理已禁用账号的操作。
+            active_total = conn.execute(
+                "SELECT COUNT(*) AS c FROM users WHERE is_admin = 1 AND status = 'active'"
+            ).fetchone()['c']
+            target_active = (u['status'] or 'active') == 'active'
+            if active_total - (1 if target_active else 0) < 1:
                 return False, '至少需要保留一个管理员，无法删除最后一个管理员'
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.execute("UPDATE invite_codes SET used_by = NULL WHERE used_by = ?", (user_id,))
@@ -1952,13 +2017,19 @@ def _resolve_actor(user_id=None):
     uname = ''
     ip = ''
     try:
-        from flask import has_request_context, session, request
+        from flask import has_request_context, session
         if has_request_context():
             uid = uid or (session.get('user_id') or '')
             uname = session.get('username') or ''
-            ip = request.headers.get('X-Forwarded-For', '') or (request.remote_addr or '')
-            if ip and ',' in ip:
-                ip = ip.split(',')[0].strip()
+            # 统一走 app._get_client_ip()：它会依次尝试「ProxyFix 修正后的 remote_addr
+            # → X-Real-IP → X-Forwarded-For → 其他常见头」，兼容 Nginx 反代、内置反代
+            # 以及飞牛统一网关（Unix Socket / 127.0.0.1 回环）等场景。
+            # 旧实现只读 X-Forwarded-For，经网关（只注入 X-Real-IP）时会退化成 127.0.0.1，
+            # 这正是「实时日志里通过 gateway 操作显示 127.0.0.1」的根因。
+            try:
+                ip = _app()._get_client_ip() or ''
+            except Exception:
+                ip = ''
     except Exception:
         pass
     if uid and not uname:

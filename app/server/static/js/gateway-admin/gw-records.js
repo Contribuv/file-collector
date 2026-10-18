@@ -20,8 +20,8 @@
 
     function initState() {
         state = {
-            page: 1, perPage: null, total: 0, totalPages: 1, linkFilter: '',
-            isAdmin: GW.isAdmin, records: [], links: [],
+            page: 1, perPage: null, total: 0, totalPages: 1, linkFilter: '', dir: '',
+            isAdmin: GW.isAdmin, records: [], links: [], folders: [], breadcrumb: [],
             inited: false, selected: {},
             viewList: [], viewIndex: -1
         };
@@ -47,16 +47,21 @@
     }
 
     /* ---------- 列表加载 ---------- */
-    function load(page) {
+    function load(page, dir) {
         if (page) state.page = page;
+        if (dir !== undefined) state.dir = dir || '';
         if (!panel) panel = document.querySelector('[data-gwa-panel="records"]');
         if (!panel) return;
-        panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+        panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         var qs = '?page=' + state.page +
             (state.perPage ? '&per_page=' + state.perPage : '') +
-            (state.linkFilter ? '&link_id=' + encodeURIComponent(state.linkFilter) : '');
+            (state.linkFilter ? '&link_id=' + encodeURIComponent(state.linkFilter) : '') +
+            (state.dir ? '&dir=' + encodeURIComponent(state.dir) : '');
         GW.api('/records' + qs).then(function (data) {
             state.records = data.records || [];
+            state.folders = data.folders || [];
+            state.breadcrumb = data.breadcrumb || [];
+            state.dir = data.dir || '';
             state.page = data.page || 1;
             state.total = data.total || 0;
             state.totalPages = data.total_pages || 1;
@@ -66,7 +71,7 @@
             state.selected = {};
             render();
         }).catch(function (err) {
-            panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 
@@ -78,13 +83,102 @@
         file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
     };
 
+    /* 扩展名专属图标（与收集页 / 分享页列表同款，见 share.html getFileIcon）。
+       非 image/video/audio 的记录按扩展名取专属 svg，没有匹配项时退回内置的通用文件 svg。 */
+    var EXT_ICONS = {
+        pdf: '/static/img/pdf.svg',
+        fpk: '/static/img/fpk.svg',
+        doc: '/static/img/word.svg', docx: '/static/img/word.svg',
+        xls: '/static/img/excel.svg', xlsx: '/static/img/excel.svg', csv: '/static/img/excel.svg',
+        ppt: '/static/img/ppt.svg', pptx: '/static/img/ppt.svg',
+        zip: '/static/img/archive.svg', rar: '/static/img/archive.svg', '7z': '/static/img/archive.svg',
+        tar: '/static/img/archive.svg', gz: '/static/img/archive.svg', bz2: '/static/img/archive.svg', xz: '/static/img/archive.svg',
+        py: '/static/img/code.svg', js: '/static/img/code.svg', ts: '/static/img/code.svg', java: '/static/img/code.svg',
+        go: '/static/img/code.svg', rs: '/static/img/code.svg', c: '/static/img/code.svg', cpp: '/static/img/code.svg',
+        cs: '/static/img/code.svg', php: '/static/img/code.svg', rb: '/static/img/code.svg', sh: '/static/img/code.svg',
+        html: '/static/img/code.svg', css: '/static/img/code.svg', vue: '/static/img/code.svg',
+        txt: '/static/img/txt.svg', log: '/static/img/txt.svg', md: '/static/img/txt.svg', rtf: '/static/img/txt.svg',
+        json: '/static/img/config.svg', yaml: '/static/img/config.svg', yml: '/static/img/config.svg',
+        toml: '/static/img/config.svg', ini: '/static/img/config.svg', xml: '/static/img/config.svg',
+        env: '/static/img/config.svg', conf: '/static/img/config.svg'
+    };
+    var EXT_DEFAULT = '/static/img/file.svg';
+
+    function extIconCell(r) {
+        var ext = String(r.ext || '').toLowerCase();
+        var kind = r.preview_kind;
+        // 图标列统一使用与收集页/分享页一致的扩展名专属图标，不显示预览缩略图
+        if (kind === 'image' || ['jpg','jpeg','png','gif','webp','bmp','svg','ico','heic','heif'].indexOf(ext) >= 0) {
+            return '<img class="gwa-rec-exticon" src="/static/img/image.svg" alt="">';
+        }
+        if (EXT_ICONS[ext]) {
+            return '<img class="gwa-rec-exticon" src="' + EXT_ICONS[ext] + '" alt="">';
+        }
+        if (kind === 'video') return '<img class="gwa-rec-exticon" src="/static/img/video.svg" alt="">';
+        if (kind === 'audio') return '<img class="gwa-rec-exticon" src="/static/img/audio.svg" alt="">';
+        // 通用兜底：保持内置的文件 svg 外观
+        return '<span class="gwa-rec-icon" aria-hidden="true">' + (ICONS[kind] || ICONS.file) + '</span>';
+    }
+
+    /* ---------- 目录式导航（drill-down） ----------
+       记录页按「文件管理器」的方式逐层浏览：根目录列出子文件夹与散落文件，
+       点击文件夹进入后列出其子文件夹与文件。目录聚合由后端完成（见
+       record_dirs.py），前端只负责渲染面包屑与当前目录内容。 */
+    var ICON_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+    var ICON_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+    var ICON_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
+
+    /* 上一级目录（根目录返回 ''） */
+    function parentDir(dir) {
+        var d = String(dir || '').replace(/\/+$/, '');
+        var i = d.lastIndexOf('/');
+        return i > 0 ? d.slice(0, i) : '';
+    }
+
+    function crumbsHtml() {
+        var parts = ['<button type="button" class="gwa-crumb' + (state.dir ? '' : ' is-current') +
+            '" data-dir="">全部文件</button>'];
+        state.breadcrumb.forEach(function (c) {
+            var isLast = c.path === state.dir;
+            parts.push('<span class="gwa-crumb-sep" aria-hidden="true">/</span>');
+            parts.push('<button type="button" class="gwa-crumb' + (isLast ? ' is-current' : '') +
+                '" data-dir="' + esc(c.path) + '">' + esc(c.name) + '</button>');
+        });
+        return '<div class="gwa-crumbs">' + parts.join('') + '</div>';
+    }
+
+    function folderRowHtml(f, colCount) {
+        // 与文件行同构：先补一个空的勾选列单元格，使文件夹图标与文件行的图标列对齐，
+        // 否则整行 colspan 会让文件夹图标顶到表格最左侧，与文件列表错位。
+        return '<tr class="gwa-folder-row" data-dir="' + esc(f.path) + '" tabindex="0" title="打开文件夹 ' + esc(f.name) + '">' +
+            '<td class="gwa-col-sel" aria-hidden="true"></td>' +
+            '<td colspan="' + (colCount - 1) + '">' +
+            '<span class="gwa-folder-icon" aria-hidden="true">' + ICON_FOLDER + '</span>' +
+            '<span class="gwa-folder-name">' + esc(f.name) + '</span>' +
+            '<span class="gwa-folder-chevron" aria-hidden="true">' + ICON_CHEVRON + '</span>' +
+            '<span class="gwa-folder-meta">' + f.file_count + ' 个文件<span class="cp-meta-size">' +
+            esc(f.size_display || GW.fmtSize(f.size)) + '</span></span>' +
+            '</td></tr>';
+    }
+
+    function countText() {
+        var t = '共 ' + state.total + ' 个文件';
+        if (state.folders.length) t = state.folders.length + ' 个文件夹 · ' + t;
+        if (state.total > 0) t += ' · 第 ' + state.page + '/' + state.totalPages + ' 页';
+        return t;
+    }
+
     function nameCell(r) {
-        var thumb = '';
-        if (r.preview_kind === 'image') {
-            thumb = '<img class="gwa-rec-thumb" loading="lazy" src="' + esc(recordUrl(r, 'preview-img')) + '" alt="">';
-        } else {
-            var icon = ICONS[r.preview_kind] || ICONS.file;
-            thumb = '<span class="gwa-rec-icon" aria-hidden="true">' + icon + '</span>';
+        // 图标列统一：所有行共用同尺寸的扩展名专属图标盒（24px + 6px 间距），
+        // 与文件夹图标（.gwa-folder-icon）完全对齐；点击预览仍通过行内操作可用
+        var thumb = extIconCell(r);
+        // 有绝对路径时，点击文件名直接打开飞牛文件管理器并定位到该文件所在目录
+        if (r.stored_dir) {
+            return '<td data-label="文件">' + thumb +
+                '<button type="button" class="gwa-rec-name gwa-ellipsis gwa-file-open" data-act="open-dir"' +
+                ' data-dir="' + esc(r.stored_dir) + '"' +
+                ' title="点击打开文件所在目录：' + esc(r.stored_dir) + '">' +
+                esc(r.original_name) + '</button></td>';
         }
         return '<td data-label="文件">' + thumb +
             '<span class="gwa-ellipsis gwa-rec-name" title="' + esc(r.original_name) + '">' + esc(r.original_name) + '</span></td>';
@@ -95,8 +189,8 @@
         return '<td data-label="上传者" class="gwa-muted">' + esc(r.uploader_name || '-') + '</td>';
     }
 
-    function rowHtml(r, hasUploader) {
-        return '<tr data-id="' + esc(r.id) + '">' +
+    function rowHtml(r, hasUploader, gid) {
+        return '<tr data-id="' + esc(r.id) + '"' + (gid ? ' data-gid="' + gid + '"' : '') + '>' +
             '<td class="gwa-col-sel"><input type="checkbox" class="gwa-sel-row" value="' + esc(r.id) + '"></td>' +
             nameCell(r) +
             '<td data-label="大小" class="gwa-muted gwa-nowrap">' + esc(r.file_size_display || GW.fmtSize(r.file_size)) + '</td>' +
@@ -119,6 +213,7 @@
 
     function render() {
         var hasUploader = state.records.some(function (r) { return r.require_uploader || r.uploader_name; });
+        var colCount = hasUploader ? 8 : 7;
         var html = '';
         html += '<div class="gwa-toolbar">';
         html += '<div class="gwa-toolbar-left">';
@@ -127,18 +222,39 @@
         html += '<button type="button" class="btn btn-default btn-sm" data-act="refresh">刷新</button>';
         html += linkFilterHtml();
         html += '</div>';
-        html += '<div class="gwa-toolbar-right"><span class="gwa-muted">共 ' + state.total + ' 条 · 第 ' + state.page + '/' + state.totalPages + ' 页</span></div>';
+        html += '<div class="gwa-toolbar-right"><span class="gwa-muted">' + countText() + '</span></div>';
         html += '</div>';
 
-        if (!state.records.length) {
-            html += '<div class="gwa-empty">暂无上传记录<br><span class="gwa-muted">通过收集链接上传的文件会显示在这里</span></div>';
+        // 内容区块卡片化（对齐参考控制面板的多卡布局；面包屑随卡首行）
+        html += '<div class="gwa-card">';
+
+        // 目录面包屑：仅在「有子文件夹」或「已进入子目录」时显示，
+        // 全是散文件的平铺列表不带无意义的导航条（与收集页 / 老后台一致）
+        if (state.dir || state.folders.length) {
+            html += '<div class="gwa-dirbar">';
+            if (state.dir) {
+                html += '<button type="button" class="gwa-back" data-act="up" title="返回上级" aria-label="返回上级">' + ICON_BACK + '</button>';
+            }
+            html += crumbsHtml();
+            html += '</div>';
+        }
+
+        if (!state.records.length && !state.folders.length) {
+            html += '<div class="gwa-empty">' + (state.dir ? '此文件夹为空' : '暂无上传记录') +
+                '<br><span class="gwa-muted">' +
+                (state.dir ? '这个文件夹里还没有文件' : '通过收集链接上传的文件会显示在这里') +
+                '</span></div>';
         } else {
             html += '<div class="gwa-table-wrap"><table class="gwa-table"><thead><tr>';
             html += '<th class="gwa-col-sel"><input type="checkbox" class="gwa-sel-all"></th>';
             html += '<th>文件名</th><th>大小</th><th>来源</th><th>下载</th>';
             if (hasUploader) html += '<th>上传者</th>';
             html += '<th>上传时间</th><th style="text-align:right">操作</th>';
-            html += '</tr></thead><tbody>' + state.records.map(function (r) { return rowHtml(r, hasUploader); }).join('') + '</tbody></table></div>';
+            html += '</tr></thead><tbody>';
+            // 先列子文件夹，再列当前目录的文件
+            state.folders.forEach(function (f) { html += folderRowHtml(f, colCount); });
+            state.records.forEach(function (r) { html += rowHtml(r, hasUploader, ''); });
+            html += '</tbody></table></div></div>';
         }
 
         html += '<div class="gwa-list-foot">';
@@ -169,8 +285,23 @@
         }
         var filter = panel.querySelector('.gwa-filter');
         if (filter) {
-            filter.addEventListener('change', function () { state.linkFilter = filter.value; load(1); });
+            filter.addEventListener('change', function () { state.linkFilter = filter.value; load(1, ''); });
         }
+        // 点击文件夹行 → 进入该目录
+        panel.querySelectorAll('.gwa-folder-row').forEach(function (head) {
+            function enter() { load(1, head.getAttribute('data-dir')); }
+            head.addEventListener('click', enter);
+            head.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); enter(); }
+            });
+        });
+        // 面包屑：点击可跳转到任意层级
+        panel.querySelectorAll('.gwa-crumb').forEach(function (c) {
+            c.addEventListener('click', function () {
+                var d = c.getAttribute('data-dir') || '';
+                if (d !== state.dir) load(1, d);
+            });
+        });
         var selAll = panel.querySelector('.gwa-sel-all');
         if (selAll) {
             selAll.addEventListener('change', function () {
@@ -197,6 +328,12 @@
         if (!btn) return;
         var act = btn.getAttribute('data-act');
         if (act === 'refresh') { load(state.page); }
+        else if (act === 'up') { load(1, parentDir(state.dir)); }
+        else if (act === 'open-dir') {
+            var dir = btn.getAttribute('data-dir') || '';
+            if (window.openFileManagerDir) { window.openFileManagerDir(dir); }
+            else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
+        }
         else if (act === 'batch-delete') { batchDelete(); }
         else if (act === 'batch-download') { batchDownload(); }
         else if (act === 'actions') {
@@ -279,25 +416,21 @@
         var ids = Object.keys(state.selected);
         if (!ids.length) { GW.toast('请先选择要打包下载的记录', 'error'); return; }
         var fd = new FormData();
+        // 老后台端点从 form 读 csrf_token；downloadBlob 另外会带 X-CSRFToken 头，两者都留
         fd.append('csrf_token', GW.csrf);
         ids.forEach(function (id) { fd.append('ids[]', id); });
         GW.toast('正在打包，请稍候…');
-        fetch(GW.base + '/admin/records/batch-download', { method: 'POST', body: fd })
-            .then(function (r) {
-                if (!r.ok) throw new Error('打包失败 (' + r.status + ')');
-                var cd = r.headers.get('Content-Disposition') || '';
-                var name = 'files.zip';
-                var m = cd.match(/filename\*?=(?:UTF-8''|")?([^";\n]+)/i);
-                if (m) { try { name = decodeURIComponent(m[1].replace(/"/g, '')); } catch (e) { name = m[1]; } }
-                return r.blob().then(function (blob) {
-                    var url = URL.createObjectURL(blob);
-                    var a = document.createElement('a');
-                    a.href = url; a.download = name;
-                    document.body.appendChild(a); a.click(); a.remove();
-                    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-                });
-            })
-            .catch(function (e) { GW.toast(e.message || '打包下载失败', 'error'); });
+        // 走 GW.downloadBlob：统一的超时保护与中文网络报错（原裸 fetch 无超时且报英文）
+        GW.downloadBlob(null, {
+            url: GW.base + '/admin/records/batch-download',
+            method: 'POST',
+            form: fd,
+            filename: 'files.zip'
+        }).then(function () {
+            GW.toast('打包下载已开始', 'success');
+        }).catch(function (e) {
+            GW.toast(e.message || '打包下载失败', 'error');
+        });
     }
 
     /* ---------- 预览调度 ---------- */

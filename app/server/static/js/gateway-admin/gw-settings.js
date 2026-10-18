@@ -31,6 +31,34 @@
             '<span class="gwa-muted gwa-nowrap">' + esc(unit) + '</span></div>';
     }
 
+    // 数值归一化显示：去掉无意义的尾随 0（"2.0" → "2"，"1.50" → "1.5"）
+    function normNum(v) {
+        var n = parseFloat(v);
+        if (!isFinite(n)) return v == null ? '' : String(v);
+        return String(Math.round(n * 1000) / 1000);
+    }
+
+    // 「单文件上限」专用控件：数值输入 + MB/GB 单位选择 + 隐藏字段（以 GB 提交）。
+    // 后端 /settings/defaults 读取的 default_max_size 单位固定为 GB，
+    // 因此这里始终把用户输入换算成 GB 写入隐藏字段。
+    function sizeField(df) {
+        var gb = parseFloat(df.max_file_size_gb);
+        if (!isFinite(gb) || gb < 0) gb = 0;
+        var unit = 'GB', val = gb;
+        if (gb > 0 && gb < 1) { unit = 'MB'; val = Math.round(gb * 1024 * 10) / 10; }
+        var valAttrs = (unit === 'MB')
+            ? 'min="1" max="65536" step="1"'
+            : 'min="0.01" max="64" step="0.01"';
+        return '<div class="gwa-inline">' +
+            '<input type="number" id="gwa-set-size-val" class="form-input" ' + valAttrs + ' value="' + esc(normNum(val)) + '">' +
+            '<select id="gwa-set-size-unit" class="form-input gwa-unit">' +
+            '<option value="MB"' + (unit === 'MB' ? ' selected' : '') + '>MB</option>' +
+            '<option value="GB"' + (unit === 'GB' ? ' selected' : '') + '>GB</option>' +
+            '</select>' +
+            '</div>' +
+            '<input type="hidden" id="gwa-set-size-hid" name="default_max_size" value="' + esc(normNum(gb)) + '">';
+    }
+
     function sel(name, options, value) {
         var h = '<select class="form-input" name="' + name + '">';
         options.forEach(function (o) {
@@ -130,7 +158,7 @@
         var inner = '<div class="gwa-form-grid">';
         inner += field('默认最大文件数', inp('default_max_files', df.max_files, 'type="number" min="0" step="1"'),
             '0 表示不限制');
-        inner += field('单文件上限', inpUnit('default_max_size', df.max_file_size_gb, 'GB', 'type="number" min="0.01" max="64" step="0.01"'));
+        inner += field('单文件上限', sizeField(df), '范围 0.01 - 64 GB（换算后）；小于 1 GB 会以 MB 显示');
         if (admin) {
             inner += field('单次上传个数', inp('upload_batch_limit', df.upload_batch_limit, 'type="number" min="0" max="500" step="1"'),
                 '0 表示不限制');
@@ -224,13 +252,13 @@
         if (!panel) panel = document.querySelector('[data-gwa-panel="settings"]');
         if (!panel) return;
         if (!state.data) {
-            panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         }
         GW.api('/settings').then(function (data) {
             state.data = data;
             render();
         }).catch(function (err) {
-            panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 
@@ -245,6 +273,11 @@
     function submitForm(formEl) {
         var endpoint = formEl.getAttribute('data-endpoint');
         if (!endpoint) return;
+        // 单文件上限：提交前把数值换算成 GB（以隐藏字段为准）并校验范围
+        if (endpoint === '/settings/defaults') {
+            syncSize();
+            if (!validateDefaults()) return;
+        }
         // 显式补齐未勾选的功能开关（表单不会提交未勾选的 checkbox）
         var isToggles = endpoint === '/settings/feature-toggles';
         var fd = new FormData(formEl);
@@ -254,7 +287,12 @@
             });
         }
         setBusy(formEl, true);
-        GW.api(endpoint, { method: 'POST', form: fd }).then(function (data) {
+        // 设置类保存偶发抖动时做一次轻量重试（仅网络/超时错误）。
+        // 注意：账号改密不是幂等操作，不纳入重试，避免「其实已改成功」时二次提交报旧密码错误。
+        var retry = (endpoint === '/settings/defaults' || endpoint === '/settings/upload-path'
+            || endpoint === '/settings/page-branding' || endpoint === '/settings/feature-toggles'
+            || endpoint === '/settings/smtp') ? 1 : 0;
+        GW.api(endpoint, { method: 'POST', form: fd, retry: retry, timeout: 30000 }).then(function (data) {
             GW.toast(data.message || '已保存', 'success');
             if (endpoint === '/settings/account') {
                 if (data.require_relogin) {
@@ -262,10 +300,11 @@
                     setTimeout(function () { window.location.reload(); }, 1600);
                     return;
                 }
-                load(); // SSO 待改密状态可能已清除，重新拉取以刷新界面
-            } else if (endpoint === '/settings/upload-path') {
-                load(); // 上传路径/反代信息可能变化
             }
+            // 全部设置卡片保存后都回读：以服务端实际保存结果为准回填，
+            // 避免服务端做了格式归一化（如附件上限 fmt_mb）后表单值与实际值不一致，
+            // 从而出现「提示成功但界面值没变/实际没生效」的错觉。
+            load();
         }).catch(function (err) {
             GW.toast(err.message || '保存失败', 'error');
         }).then(function () {
@@ -293,6 +332,60 @@
             .catch(function (err) { GW.toast(err.message || '备份失败', 'error'); });
     }
 
+    /* ---------- 单文件上限：MB/GB 单位联动（事件委托，适配动态渲染） ---------- */
+    function sizeEls() {
+        if (!panel) return {};
+        return {
+            val: panel.querySelector('#gwa-set-size-val'),
+            unit: panel.querySelector('#gwa-set-size-unit'),
+            hid: panel.querySelector('#gwa-set-size-hid')
+        };
+    }
+
+    function syncSize() {
+        var el = sizeEls();
+        if (!el.val || !el.unit || !el.hid) return;
+        var v = parseFloat(el.val.value) || 0;
+        var gb = el.unit.value === 'MB' ? v / 1024 : v;
+        el.hid.value = String(Math.round(gb * 1000000) / 1000000);
+    }
+
+    function onSizeInput(e) {
+        if (e.target && e.target.id === 'gwa-set-size-val') syncSize();
+    }
+
+    function onSizeChange(e) {
+        var t = e.target;
+        if (!t) return;
+        if (t.id === 'gwa-set-size-unit') {
+            var el = sizeEls();
+            if (!el.val || !el.hid) return;
+            var curGb = parseFloat(el.hid.value) || 0;
+            if (t.value === 'MB') {
+                el.val.value = normNum(Math.round(curGb * 1024 * 10) / 10);
+                el.val.step = '1'; el.val.min = '1'; el.val.max = '65536';
+            } else {
+                el.val.value = normNum(Math.round(curGb * 100) / 100);
+                el.val.step = '0.01'; el.val.min = '0.01'; el.val.max = '64';
+            }
+            syncSize();
+        } else if (t.id === 'gwa-set-size-val') {
+            syncSize();
+        }
+    }
+
+    // 保存前校验单文件上限（换算成 GB 后须落在后端允许的 0.01 - 64）
+    function validateDefaults() {
+        var el = sizeEls();
+        if (!el.hid) return true;
+        var g = parseFloat(el.hid.value);
+        if (isNaN(g) || g < 0.01 || g > 64) {
+            GW.toast('单文件上限必须在 0.01 - 64 GB 之间', 'error');
+            return false;
+        }
+        return true;
+    }
+
     function bind() {
         if (!panel || panel.dataset.bound) return;
         panel.dataset.bound = '1';
@@ -313,6 +406,11 @@
                 backup();
             }
         });
+        // 单文件上限单位联动（内容动态渲染，使用事件委托）
+        panel.addEventListener('input', onSizeInput);
+        panel.addEventListener('change', onSizeChange);
+        // 进入面板时先同步一次隐藏字段，避免仅切换单位未触发 input 时提交旧值
+        setTimeout(syncSize, 0);
     }
 
     function init() {

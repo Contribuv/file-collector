@@ -25,22 +25,60 @@
         </div>
       </div>
 
-      {% if records %}
+      {% if dir_path or folders %}
+      <div class="record-dirbar">
+        {% if dir_path %}
+        <a class="record-dir-back" href="{{ url_for('admin_records', dir=parent_dir, link_id=link_filter, page=1, per_page=per_page) }}" title="返回上级" aria-label="返回上级">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </a>
+        {% endif %}
+        <div class="record-crumbs">
+          <a class="record-crumb{{ ' is-current' if not dir_path }}" href="{{ url_for('admin_records', link_id=link_filter, page=1, per_page=per_page) }}">全部文件</a>
+          {% for c in breadcrumb %}
+          <span class="record-crumb-sep" aria-hidden="true">/</span>
+          <a class="record-crumb{{ ' is-current' if c['path'] == dir_path }}" href="{{ url_for('admin_records', dir=c['path'], link_id=link_filter, page=1, per_page=per_page) }}">{{ c['name'] }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if records or folders %}
       <!-- PC 端：精简表格 -->
       <div class="records-table-pc">
         <table class="admin-table admin-table--records">
           <thead>
             <tr>
               <th class="col-chk col-chk-hide"><input type="checkbox" class="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
-              <th>文件名</th><th class="col-act">操作</th>
+              <th class="col-icon-col"></th><th>文件名</th><th class="col-act">操作</th>
             </tr>
           </thead>
           <tbody>
+            {% for f in folders %}
+            <tr class="record-folder-row">
+              <td class="col-chk col-chk-hide"></td>
+              <td class="col-icon-col" aria-hidden="true"><svg class="record-type-icon record-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></td>
+              <td colspan="2" class="record-folder-cell">
+                <a class="record-folder-link" href="{{ url_for('admin_records', dir=f['path'], link_id=link_filter, page=1, per_page=per_page) }}">
+                  <span class="record-folder-name">{{ f['name'] }}</span>
+                  <span class="record-folder-meta">{{ f['file_count'] }} 个文件<span class="cp-meta-size">{{ f['size_display'] }}</span></span>
+                  <svg class="record-folder-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
             {% for r in records %}
             {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
             <tr>
               <td class="col-chk col-chk-hide"><input type="checkbox" value="{{ r['id'] }}" class="sel-check sel-check-row"></td>
-              <td class="col-name"><span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span></td>
+              <td class="col-icon-col" aria-hidden="true"><img class="record-type-icon" src="{{ r['original_name']|file_icon_url }}" alt=""></td>
+              <td class="col-name">
+                {% if r['stored_path'] %}
+                {# 点击文件名直接打开飞牛文件管理器并定位到该文件所在目录（与统一网关行为一致） #}
+                <button type="button" class="record-file-open" title="点击查看详情与操作" data-dir="{{ r['stored_path']|file_dir }}">{{ r['original_name'] }}</button>
+                {% else %}
+                <span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span>
+                {% endif %}
+              </td>
               <td class="col-act">
                 <button class="btn btn-sm btn-outline btn-more" title="查看详情"
                   data-record-id="{{ r['id'] }}"
@@ -71,6 +109,16 @@
           <span class="records-mobile-h-col">文件名</span>
           <span class="records-mobile-h-act">操作</span>
         </div>
+        {% for f in folders %}
+        <a class="record-folder-row record-folder-row--card" href="{{ url_for('admin_records', dir=f['path'], link_id=link_filter, page=1, per_page=per_page) }}">
+          {# 与文件卡片同构：批量模式下补一个与勾选框同宽的占位，保证名称列对齐 #}
+          <span class="record-card-check col-chk-hide" aria-hidden="true" style="display:none;"></span>
+          <svg class="record-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+          <span class="record-folder-name">{{ f['name'] }}</span>
+          <span class="record-folder-meta">{{ f['file_count'] }} 个文件<span class="cp-meta-size">{{ f['size_display'] }}</span></span>
+          <svg class="record-folder-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+        </a>
+        {% endfor %}
         {% for r in records %}
         {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
         <div class="record-card">
@@ -78,7 +126,12 @@
             <label class="record-card-check col-chk-hide" style="flex-shrink:0;margin-top:2px;">
               <input type="checkbox" value="{{ r['id'] }}" class="sel-check sel-check-row">
             </label>
+            <img class="record-type-icon" src="{{ r['original_name']|file_icon_url }}" alt="" style="flex-shrink:0;margin-top:2px;">
+            {% if r['stored_path'] %}
+            <button type="button" class="record-card-name record-file-open" title="点击查看详情与操作" data-dir="{{ r['stored_path']|file_dir }}" style="flex:1;min-width:0;background:none;border:0;padding:0;font:inherit;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r['original_name'] }}</button>
+            {% else %}
             <span class="record-card-name" title="{{ r['original_name'] }}" style="flex:1;min-width:0;">{{ r['original_name'] }}</span>
+            {% endif %}
             <button class="btn btn-sm btn-outline btn-more" title="查看详情" style="flex-shrink:0;"
               data-record-id="{{ r['id'] }}"
               data-filename="{{ r['original_name']|e }}"
@@ -98,18 +151,18 @@
       </div>
 
       {% else %}
-      <div class="empty-state"><h3>暂无上传记录</h3></div>
+      <div class="empty-state"><h3>{{ '此文件夹为空' if dir_path else '暂无上传记录' }}</h3></div>
       {% endif %}
 
       {% if total_pages > 1 %}
       <div class="card-footer" style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;">
         <div class="pagination">
           {% if page > 1 %}
-          <a href="{{ url_for('admin_records', page=page-1, link_id=link_filter, per_page=per_page) }}" class="btn btn-sm">上一页</a>
+          <a href="{{ url_for('admin_records', page=page-1, link_id=link_filter, per_page=per_page, dir=dir_path) }}" class="btn btn-sm">上一页</a>
           {% endif %}
           <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
           {% if page < total_pages %}
-          <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter, per_page=per_page) }}" class="btn btn-sm">下一页</a>
+          <a href="{{ url_for('admin_records', page=page+1, link_id=link_filter, per_page=per_page, dir=dir_path) }}" class="btn btn-sm">下一页</a>
           {% endif %}
         </div>
         <div class="per-page-group">
@@ -206,6 +259,8 @@ function toggleBatchMode() {
     clearBatchSelection();
   }
 }
+
+// ===== 目录式导航：文件夹行与面包屑均为链接，点击直接跳转（无需折叠逻辑） =====
 
 function toggleSelectAll(checked) {
   var rows = document.querySelectorAll('.sel-check-row');
@@ -671,6 +726,43 @@ function previewFile(recordId, fileName, fileSizeBytes) {
     pollScanStatus();
     setInterval(pollScanStatus, _pollInterval);
   }, _pollInterval);
+})();
+
+// ============================================================
+// 点击文件名 → 弹出操作浮窗（与「操作」按钮同一套详情浮窗）；
+// 浮窗定位在所在行的「操作」按钮处，找不到按钮时降级为打开文件所在目录
+// ============================================================
+(function() {
+  var _trimSdk = null;
+
+  async function openFileManagerDir(dir) {
+    if (!dir) { return; }
+    try {
+      if (!_trimSdk) {
+        var mod = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
+        _trimSdk = new mod.TrimApp();
+      }
+      await _trimSdk.ready();
+      await _trimSdk.openFileManager(dir);
+    } catch (e) {
+      console.error('[admin] openFileManager 失败', e);
+      alert('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。');
+    }
+  }
+
+  document.addEventListener('click', function(ev) {
+    var btn = ev.target.closest ? ev.target.closest('.record-file-open') : null;
+    if (!btn) return;
+    ev.preventDefault();
+    // 复用所在行的「操作」按钮浮窗（桌面表格与移动卡片行内都有 .btn-more）
+    var hostRow = btn.closest('tr') || btn.parentElement;
+    var more = hostRow && hostRow.querySelector ? hostRow.querySelector('.btn-more') : null;
+    if (more) {
+      more.click();
+      return;
+    }
+    openFileManagerDir(btn.getAttribute('data-dir') || '');
+  });
 })();
 </script>
 {% endblock %}

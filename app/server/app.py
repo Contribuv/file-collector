@@ -25,6 +25,7 @@ import traceback
 import tempfile
 import threading
 import sys
+import ipaddress
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta, timezone
@@ -33,7 +34,8 @@ from pathlib import Path
 
 from flask import (
     Flask, request, render_template, redirect, url_for,
-    session, jsonify, flash, send_from_directory, send_file, abort, make_response, after_this_request
+    session, jsonify, flash, send_from_directory, send_file, abort, make_response, after_this_request,
+    has_request_context
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -129,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.53"
+VERSION = "2.3.86"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -139,7 +141,11 @@ app = Flask(__name__, template_folder=_TEMPLATE_DIR, static_folder=_STATIC_DIR)
 # TEMPLATES_AUTO_RELOAD: 不显式设置
 # - debug=True 时 Flask 自动启用模板自动重载（开发用）
 # - debug=False（生产打包）时 Flask 默认关闭，避免每次请求 stat 模板文件
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 * 24 * 7  # 静态资源缓存 7 天
+# 静态资源缓存策略：改为协商缓存（etags 304 校验）。
+# 原先 7 天强缓存依赖「v=版本号」URL 变化破缓存；版本号冻结后 URL 不再变化，
+# 强缓存会导致前端改动（CSS/JS/图标等）永远无法在用户端生效（WebView 无硬刷新）。
+# no-cache：每次请求都向服务器校验，内容未变返回 304、内容变了立即拿到新文件。
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024 * 1024  # 64GB 硬限制，防止超大文件耗尽磁盘
 app.config['MAX_FORM_MEMORY_SIZE'] = 1 * 1024 * 1024  # 超过 1MB 的文件流式写入磁盘，避免内存溢出
 
@@ -326,9 +332,111 @@ def _migrate_stored_paths(old_base, new_base):
         )
         conn.commit()
         actual_changed = conn.total_changes
-        flash(f'已自动修复 {actual_changed} 条文件记录路径（{old_base_norm} → {new_base_norm}）。')
+        # 该函数也会在应用启动（无请求上下文）时被调用，此时 flash 不可用，降级为日志
+        if has_request_context():
+            flash(f'已自动修复 {actual_changed} 条文件记录路径（{old_base_norm} → {new_base_norm}）。')
+        else:
+            logger.info(f'已自动修复 {actual_changed} 条文件记录路径（{old_base_norm} → {new_base_norm}）')
     finally:
         conn.close()
+
+def _repair_doubled_dirs_once():
+    """一次性修复历史数据（早期拖拽上传 bug 留下的问题）。
+
+    背景：collect 页拖拽文件夹上传时，相对路径曾被写成 `zb/zb/x.png`
+    （顶层目录名被重复拼接）。本函数做两件事：
+      1) 折叠「重复顶层目录」：`zb/zb/x.png` → `zb/x.png`，并把物理文件一并移动；
+      2) 去重：同一链接下规范化路径完全相同的记录，保留 id 最小的一条。
+
+    仅在 settings 无标记时执行一次；目标文件已存在时不覆盖、跳过折叠。
+    """
+    if get_setting('legacy_dir_repair_v1', '') == '1':
+        return
+    conn = get_db()
+    collapsed = moved = deduped = 0
+    try:
+        rows = conn.execute(
+            "SELECT id, link_id, stored_name, stored_path FROM upload_records "
+            "WHERE stored_name LIKE '%/%'"
+        ).fetchall()
+        for r in rows:
+            stored_name = (r['stored_name'] or '').replace('\\', '/').strip('/')
+            stored_path = r['stored_path'] or ''
+            segs = [s for s in stored_name.split('/') if s]
+            # 前两段相同 → 判定为 bug 产生的重复拼接路径
+            if len(segs) < 2 or segs[0] != segs[1]:
+                continue
+            new_name = '/'.join(segs[1:])
+            norm_sep = stored_name.replace('/', os.sep)
+            if stored_path.endswith(norm_sep):
+                prefix = stored_path[:len(stored_path) - len(norm_sep)]
+                new_path = prefix + new_name.replace('/', os.sep)
+            else:
+                new_path = os.path.join(os.path.dirname(stored_path),
+                                        new_name.replace('/', os.sep))
+            if os.path.exists(stored_path) and os.path.exists(new_path):
+                logger.warning(f'跳过折叠（目标已存在，避免覆盖）: {stored_path} → {new_path}')
+                continue
+            if os.path.exists(stored_path):
+                try:
+                    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+                    shutil.move(stored_path, new_path)
+                    moved += 1
+                    # 顺带清理移动后残留的空目录
+                    old_dir = os.path.dirname(stored_path)
+                    try:
+                        os.rmdir(old_dir)
+                    except OSError:
+                        pass
+                except Exception as e:
+                    logger.error(f'修复重复目录移动文件失败: {stored_path} → {new_path}: {e}')
+                    continue
+            conn.execute(
+                "UPDATE upload_records SET stored_name = ?, stored_path = ? WHERE id = ?",
+                (new_name, new_path, r['id'])
+            )
+            collapsed += 1
+
+        # 去重：同一链接下规范化路径相同的记录，保留 id 最小的一条
+        seen = {}
+        for r in conn.execute("SELECT id, link_id, stored_path FROM upload_records ORDER BY id"):
+            key = (r['link_id'], _norm_fs_path(r['stored_path']))
+            if not key[1]:
+                continue
+            if key in seen:
+                conn.execute("DELETE FROM upload_records WHERE id = ?", (r['id'],))
+                deduped += 1
+            else:
+                seen[key] = r['id']
+
+        conn.commit()
+        set_setting('legacy_dir_repair_v1', '1')
+        if collapsed or moved or deduped:
+            logger.info(f'历史记录修复完成：折叠目录 {collapsed} 条、移动文件 {moved} 个、去重 {deduped} 条')
+    except Exception as e:
+        logger.error(f'历史记录修复失败: {e}')
+    finally:
+        conn.close()
+
+
+def _auto_migrate_on_startup():
+    """启动时按需迁移 upload_records.stored_path。
+
+    仅当上传目录相对「上次运行时记录的目录」确实发生变化时才迁移。
+    早期实现固定传入 (当前base, 当前base)，函数只能从样本路径反推旧 base，
+    在 Windows 上会因路径分隔符/盘符差异误判并破坏已存的 stored_path，故改为与上次记录比较。
+    """
+    try:
+        current = get_upload_base()
+        previous = get_setting('last_upload_base', '')
+        if previous and os.path.normcase(os.path.normpath(previous)) != os.path.normcase(os.path.normpath(current)):
+            logger.info(f"检测到上传目录变更：{previous} → {current}，开始迁移记录路径")
+            _migrate_stored_paths(previous, current)
+        if previous != current:
+            set_setting('last_upload_base', current)
+        _repair_doubled_dirs_once()
+    except Exception as e:
+        logger.error(f"启动时上传路径迁移检查失败: {e}")
 
 DEBUG_MODE = os.environ.get('FLASK_DEBUG', '0') == '1'
 
@@ -1001,6 +1109,54 @@ def init_db():
     except Exception as e:
         logger.error(f"数据库迁移错误(upload_logs.uploader_name): {e}")
 
+    # 一次性回填：早期扫描入库的记录 stored_name 只是文件名，
+    # 按其 stored_path 相对链接根目录的位置补回子目录结构（供记录页按文件夹分组显示）。
+    # 用 settings 标记保证只执行一次；路径前缀校验失败（历史改名/迁移）时跳过，仅影响分组显示。
+    try:
+        _mark = conn.execute("SELECT value FROM settings WHERE key = 'records_dir_backfill'").fetchone()
+        if not _mark or _mark['value'] != '1':
+            pending = conn.execute(
+                "SELECT id, link_id, stored_path FROM upload_records "
+                "WHERE stored_name IS NULL OR stored_name = '' OR stored_name NOT LIKE '%/%'"
+            ).fetchall()
+            if pending:
+                _base = get_upload_base()
+                link_roots = {}
+                for lk in conn.execute(
+                        "SELECT l.id, l.user_id, l.folder_name, l.use_root_folder, u.username "
+                        "FROM links l LEFT JOIN users u ON u.id = l.user_id").fetchall():
+                    if lk['use_root_folder']:
+                        root = os.path.join(_base, lk['folder_name'] or lk['id'])
+                    elif lk['user_id'] and lk['username']:
+                        safe_username = re.sub(r'[^\w\-]', '_', lk['username'])
+                        root = os.path.join(_base, safe_username, lk['folder_name'] or lk['id'])
+                    else:
+                        root = os.path.join(_base, lk['id'])
+                    link_roots[lk['id']] = root
+                updated = 0
+                for row in pending:
+                    root = link_roots.get(row['link_id'])
+                    if not root or not row['stored_path']:
+                        continue
+                    root_real = os.path.realpath(root)
+                    path_real = os.path.realpath(row['stored_path'])
+                    if not path_real.startswith(root_real + os.sep):
+                        continue  # 已不在链接目录内（历史改名/迁移），保持原样
+                    rel = os.path.relpath(path_real, root_real).replace(os.sep, '/')
+                    if '/' not in rel:
+                        continue  # 根级文件无需回填
+                    _parts = rel.split('/')
+                    if '_attachment' in _parts or '.chunks' in _parts:
+                        continue  # 附件/分片临时目录不参与分组
+                    conn.execute("UPDATE upload_records SET stored_name = ? WHERE id = ?", (rel, row['id']))
+                    updated += 1
+                if updated:
+                    logger.info(f"已回填 {updated} 条上传记录的子目录结构")
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('records_dir_backfill', '1')")
+            conn.commit()
+    except Exception as e:
+        logger.error(f"数据库迁移错误(records_dir_backfill): {e}")
+
     # 操作日志表（审计：登录 / 建链 / 删链 / 上传 / 下载 / 用户 / 设置 等关键操作）
     try:
         conn.execute("""
@@ -1403,54 +1559,87 @@ def _get_zip_compress_type(filename, skip_set=SKIP_COMPRESS_EXTENSIONS):
     ext = os.path.splitext(filename)[1].lower()
     return zipfile.ZIP_STORED if ext in skip_set else zipfile.ZIP_DEFLATED
 
+def _as_ip(value):
+    """把候选值清洗为合法 IP 字符串；不合法返回 ''。
+
+    反代可能注入主机名等非 IP 值（如 fnOS 统一网关的 X-Forwarded-For 带 fnos），
+    ProxyFix 会把它写进 remote_addr，原样入日志会污染 IP 列，这里统一过滤。
+    """
+    if not value:
+        return ''
+    v = str(value).strip().strip('"\'')
+    if not v or v.lower() == 'unknown':
+        return ''
+    if v.startswith('['):                      # [IPv6] 或 [IPv6]:port
+        end = v.find(']')
+        v = v[1:end] if 0 < end else v
+    elif v.count(':') == 1:                    # IPv4:port
+        host, _, port = v.partition(':')
+        if port.isdigit():
+            v = host
+    try:
+        ipaddress.ip_address(v)
+        return v
+    except ValueError:
+        return ''
+
+
 def _get_client_ip():
     """获取客户端真实IP
-    
+
     支持多种反向代理场景：
     - Nginx HTTP 反向代理（ProxyFix 修正 remote_addr）
     - Unix Socket 反向代理（remote_addr 为 127.0.0.1 或特殊值时回退到 header）
-    
+    - fnOS 统一网关：拿不到真实 IP 头时返回文本「来自fnos」，TCP 直连返回真实 IP
+
     ProxyFix(x_for=1) 已修正 remote_addr 为 X-Forwarded-For 最右侧值。
     但在 Unix Socket 或未配置 ProxyFix 信任链时，remote_addr 可能是 127.0.0.1，
     此时回退到 X-Real-IP / X-Forwarded-For 等 header。
+    所有候选值都必须通过 _as_ip 合法性校验，非 IP 值（主机名等）一律跳过。
     """
-    ip = (request.remote_addr or '').strip()
-    # remote_addr 有效且非本地回环 → 直接用
-    if ip and ip != 'unknown' and not ip.startswith('unix') and ip not in ('127.0.0.1', '::1'):
+    raw_ip = (request.remote_addr or '').strip()
+    ip = _as_ip(raw_ip)
+    # remote_addr 有效且非本地回环 → 直接用（TCP 直连时即用户真实 IP）
+    if ip and ip not in ('127.0.0.1', '::1'):
         return ip
-    
+
     # 回退：remote_addr 是本地回环或 Unix Socket → 从 header 取真实 IP
     # 优先 X-Real-IP（Nginx 常用，代理服务器设置，客户端无法伪造）
-    x_real_ip = request.headers.get('X-Real-IP', '').strip()
-    if x_real_ip and x_real_ip != 'unknown' and x_real_ip not in ('127.0.0.1', '::1'):
+    x_real_ip = _as_ip(request.headers.get('X-Real-IP', ''))
+    if x_real_ip and x_real_ip not in ('127.0.0.1', '::1'):
         return x_real_ip
-    
-    # X-Forwarded-For（取第一个值，即最原始的客户端 IP）
-    x_forwarded_for = request.headers.get('X-Forwarded-For', '')
-    if x_forwarded_for:
-        first_ip = x_forwarded_for.split(',')[0].strip()
-        if first_ip and first_ip != 'unknown' and first_ip not in ('127.0.0.1', '::1'):
+
+    # X-Forwarded-For（取第一个合法值，即最原始的客户端 IP）
+    for candidate in (request.headers.get('X-Forwarded-For', '') or '').split(','):
+        first_ip = _as_ip(candidate)
+        if first_ip and first_ip not in ('127.0.0.1', '::1'):
             return first_ip
-    
-    # 其他可能的 header
+
+    # 其他可能的 header（同样只接受合法 IP）
     for header in ['X-Client-IP', 'X-Forwarded', 'Forwarded-For', 'Forwarded']:
-        val = request.headers.get(header, '').strip()
-        if val and val != 'unknown':
-            if header.lower() == 'forwarded':
-                for part in val.split(';'):
-                    part = part.strip()
-                    if part.lower().startswith('for='):
-                        ip_val = part[4:].strip()
-                        if ip_val.startswith(('"', "'")):
-                            ip_val = ip_val[1:-1]
-                        return ip_val
-            else:
-                return val
-    
-    # 所有方法都失败，返回 remote_addr 原始值（可能是 127.0.0.1）
-    return ip if ip else 'unknown'
-    # 如果都没有，返回一个标识性值
-    return 'unknown'
+        raw = (request.headers.get(header, '') or '').strip()
+        if not raw or raw == 'unknown':
+            continue
+        if header.lower() == 'forwarded':
+            for part in raw.split(';'):
+                part = part.strip()
+                if part.lower().startswith('for='):
+                    cand = _as_ip(part[4:])
+                    if cand:
+                        return cand
+        else:
+            cand = _as_ip(raw)
+            if cand:
+                return cand
+
+    # 兜底①：经 fnOS 统一网关（unix socket 代理链路，X-FC-Gateway-Proxy 由本应用
+    # 代理注入、直连时不可伪造）且没有任何真实 IP 头 → 显示「来自fnos」，
+    # 而不是误导性的 127.0.0.1
+    if request.headers.get(_GATEWAY_INTERNAL_HEADER, '') == _GATEWAY_INTERNAL_TOKEN:
+        return '来自fnos'
+
+    # 兜底②：回环地址或清洗后的残留值；实在拿不到则 unknown
+    return ip or 'unknown'
 
 def _log_download(record_id, source='admin'):
     """记录下载日志"""
@@ -2019,6 +2208,22 @@ def get_link_folder(link_id, user_id=None):
 
 _scan_cache = {}  # {link_id: timestamp} 文件夹扫描缓存，避免频繁 os.walk
 
+def _norm_fs_path(p):
+    """把文件系统路径规范化为可比较的形式。
+
+    用于去重比较：上传记录里 stored_path 由 abspath 生成（Windows 下带盘符，
+    如 C:\\tmp\\...），而扫描记录早期直接用 os.path.join 的原始形式
+    （如 /tmp\\...），两者字符串不同会导致同一文件被重复入库。
+    统一 normcase + abspath 后再比较即可消除该差异。
+    """
+    if not p:
+        return ''
+    try:
+        return os.path.normcase(os.path.abspath(p))
+    except Exception:
+        return p
+
+
 def scan_link_folder(link_id, conn=None):
     """扫描链接文件夹，识别手动放入的文件（带缓存：60 秒内不重复扫描）"""
     now = time.time()
@@ -2061,12 +2266,12 @@ def scan_link_folder(link_id, conn=None):
         if not os.path.exists(folder_path):
             return []
         
-        # 获取已记录文件（用 stored_path 做去重，支持同名文件在不同子目录）
+        # 获取已记录文件（用规范化后的 stored_path 做去重，支持同名文件在不同子目录）
         records = conn.execute(
             "SELECT stored_path FROM upload_records WHERE link_id = ?",
             (link_id,)
         ).fetchall()
-        existing_paths = {r['stored_path'] for r in records}
+        existing_paths = {_norm_fs_path(r['stored_path']) for r in records}
         
         # 递归扫描并批量 INSERT 新文件
         new_files = []
@@ -2090,14 +2295,16 @@ def scan_link_folder(link_id, conn=None):
                 filepath = os.path.join(root, filename)
                 if not os.path.isfile(filepath):
                     continue
-                if filepath in existing_paths:
+                if _norm_fs_path(filepath) in existing_paths:
                     continue
                 
                 file_size = os.path.getsize(filepath)
-                batch.append((link_id, user_id or '', filename, filename, filepath,
+                # 保留相对子目录结构到 stored_name（与在线上传的 relpath 口径一致，供记录页按文件夹分组显示）
+                stored_name = filename if rel_dir == '.' else (rel_dir.replace(os.sep, '/') + '/' + filename)
+                batch.append((link_id, user_id or '', filename, stored_name, os.path.abspath(filepath),
                              file_size, uploader_name, 'manual', now_str, 'manual'))
                 new_files.append(filepath)
-                existing_paths.add(filepath)
+                existing_paths.add(_norm_fs_path(filepath))
         
         if batch:
             conn.executemany(
@@ -2788,6 +2995,59 @@ def parse_json_filter(s):
         return json.loads(s)
     except (json.JSONDecodeError, TypeError):
         return None
+
+@app.template_filter('file_dir')
+def file_dir_filter(path):
+    """Jinja2 过滤器：取文件路径所在目录，供「点击文件名 → 打开文件管理器」使用"""
+    if not path:
+        return ''
+    return os.path.dirname(str(path))
+
+@app.template_filter('file_icon_url')
+def file_icon_url_filter(name):
+    """Jinja2 过滤器：按文件扩展名返回专属图标 URL（与收集页/分享页 getFileIcon 同一套，
+    图标资源在 /static/img/ 下）"""
+    ext = str(name or '').rsplit('.', 1)[-1].lower() if '.' in str(name or '') else ''
+    img_exts = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'heic', 'heif'}
+    vid_exts = {'mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv'}
+    aud_exts = {'mp3', 'wav', 'flac', 'aac', 'm4a'}
+    doc_exts = {'doc', 'docx'}
+    xls_exts = {'xls', 'xlsx', 'csv'}
+    ppt_exts = {'ppt', 'pptx'}
+    arc_exts = {'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'}
+    code_exts = {'py', 'js', 'ts', 'jsx', 'tsx', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs',
+                 'rb', 'php', 'swift', 'kt', 'scala', 'lua', 'r', 'sql', 'sh', 'bat', 'ps1',
+                 'dart', 'vue', 'svelte', 'css', 'scss', 'less', 'html', 'htm'}
+    txt_exts = {'txt', 'log', 'md', 'rtf', 'readme', 'license'}
+    cfg_exts = {'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'xml', 'env',
+                'properties', 'editorconfig', 'gitignore'}
+    if ext == 'pdf':
+        kind = 'pdf'
+    elif ext == 'fpk':
+        kind = 'fpk'
+    elif ext in img_exts:
+        kind = 'image'
+    elif ext in vid_exts:
+        kind = 'video'
+    elif ext in aud_exts:
+        kind = 'audio'
+    elif ext in doc_exts:
+        kind = 'word'
+    elif ext in xls_exts:
+        kind = 'excel'
+    elif ext in ppt_exts:
+        kind = 'ppt'
+    elif ext in arc_exts:
+        kind = 'archive'
+    elif ext in code_exts:
+        kind = 'code'
+    elif ext in txt_exts:
+        kind = 'txt'
+    elif ext in cfg_exts:
+        kind = 'config'
+    else:
+        kind = 'file'
+    return '/static/img/' + kind + '.svg'
 
 @app.template_filter('file_size')
 def file_size_filter(size_bytes):
@@ -3980,33 +4240,45 @@ def share_get_records(link_id):
         per_page = 20
     page = max(1, page)
     per_page = max(5, min(per_page, 100))
-    offset = (page - 1) * per_page
-    
+
     # 按上传者过滤
     uploader_filter = request.args.get('uploader', '').strip()
 
-    # 根据是否有上传者过滤来构建查询
+    # 目录视图：当前浏览目录（相对上传目录，'' 为根）与子文件夹聚合
+    from record_dirs import (normalize_dir, direct_file_condition, combine_where,
+                             query_dir_view, breadcrumb)
+    dir_path = normalize_dir(request.args.get('dir', ''))
+
+    # 记录范围：本链接（可选再按上传者过滤）；排除 _attachment 脏记录
+    scope_where = "WHERE r.link_id = ? AND r.uploader_name != '_attachment'"
+    scope_params = [link_id]
     if uploader_filter:
-        # 按上传者过滤时，支持分页
-        total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ? AND uploader_name != '_attachment'",
-            (link_id, uploader_filter)
-        ).fetchone()[0]
-        records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? AND uploader_name != '_attachment' ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
-            (link_id, uploader_filter, per_page, offset)
-        ).fetchall()
-        total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
-    else:
-        total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment'", (link_id,)
-        ).fetchone()[0]
-        records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment' ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
-            (link_id, per_page, offset)
-        ).fetchall()
-        total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
-    
+        scope_where += " AND r.uploader_name = ?"
+        scope_params.append(uploader_filter)
+    scope_params = tuple(scope_params)
+
+    # 范围内上传总数（与目录无关，供「共 N 个文件」等展示）
+    total_uploaded = conn.execute(
+        f"SELECT COUNT(*) FROM upload_records r {scope_where}", scope_params).fetchone()[0]
+
+    # 当前目录的子文件夹聚合（含各自文件数与合计大小）
+    folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path)
+    for _f in folders:
+        _f['size_display'] = format_file_size(_f['size'])
+
+    # 仅「直接位于当前目录」的文件参与分页
+    dcond, dparams = direct_file_condition(dir_path)
+    where2 = combine_where(scope_where, dcond)
+    params2 = tuple(scope_params) + tuple(dparams)
+    dir_total = conn.execute(
+        f"SELECT COUNT(*) FROM upload_records r {where2}", params2).fetchone()[0]
+    total_pages = max(1, (dir_total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    records = conn.execute(
+        f"SELECT id, original_name, stored_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records r {where2} ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+        params2 + (per_page, (page - 1) * per_page)
+    ).fetchall()
+
     # 获取上传者统计（每个上传者的总文件数）
     uploader_stats = conn.execute(
         "SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment' GROUP BY uploader_name",
@@ -4015,15 +4287,17 @@ def share_get_records(link_id):
     uploader_stats_dict = {row['uploader_name'] or '未署名': row['count'] for row in uploader_stats}
     conn.close()
 
-    total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
-
     return jsonify({
         'success': True,
         'require_uploader': require_uploader,
         'total_uploaded': total_uploaded,
+        'total': dir_total,
         'total_pages': total_pages,
         'page': page,
         'per_page': per_page,
+        'dir': dir_path,
+        'folders': folders,
+        'breadcrumb': breadcrumb(dir_path),
         'records': [dict(r) for r in records],
         'uploader_stats': uploader_stats_dict
     })
@@ -4648,32 +4922,53 @@ def get_upload_records(link_id):
         per_page = 20
     page = max(1, page)
     per_page = max(5, min(per_page, 100))
-    offset = (page - 1) * per_page
+
+    # 目录视图：当前浏览目录（相对上传目录，'' 为根）与子文件夹聚合
+    from record_dirs import (normalize_dir, direct_file_condition, combine_where,
+                             query_dir_view, breadcrumb)
+    dir_path = normalize_dir(request.args.get('dir', ''))
+    folders = []
 
     if require_uploader and uploader_name:
         # 上传者已设置身份 → 只看自己上传的文件
-        total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ?", (link_id, uploader_name)
-        ).fetchone()[0]
-        records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
-            (link_id, uploader_name, per_page, offset)
-        ).fetchall()
+        scope_where = "WHERE r.link_id = ? AND r.uploader_name = ?"
+        scope_params = (link_id, uploader_name)
     elif require_uploader:
         # 开启了上传者但未设置身份 → 什么也看不到
-        total_uploaded = 0
-        records = []
+        scope_where = ''
+        scope_params = ()
     else:
+        scope_where = "WHERE r.link_id = ?"
+        scope_params = (link_id,)
+
+    if require_uploader and not uploader_name:
+        # 未设置身份：无可见文件
+        total_uploaded = 0
+        dir_total = 0
+        records = []
+        total_pages = 1
+    else:
+        # 整个链接（或该上传者）范围内的上传总数 —— 与目录无关，
+        # 供配额 / 剩余可上传数量显示使用
         total_uploaded = conn.execute(
-            "SELECT COUNT(*) FROM upload_records WHERE link_id = ?", (link_id,)
-        ).fetchone()[0]
+            f"SELECT COUNT(*) FROM upload_records r {scope_where}", scope_params).fetchone()[0]
+
+        folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path)
+        for _f in folders:
+            _f['size_display'] = format_file_size(_f['size'])
+        dcond, dparams = direct_file_condition(dir_path)
+        where2 = combine_where(scope_where, dcond)
+        params2 = tuple(scope_params) + tuple(dparams)
+        # 当前目录下的文件数 —— 分页只在这批文件上进行
+        dir_total = conn.execute(
+            f"SELECT COUNT(*) FROM upload_records r {where2}", params2).fetchone()[0]
+        total_pages = max(1, (dir_total + per_page - 1) // per_page)
+        page = min(page, total_pages)
         records = conn.execute(
-            "SELECT id, original_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records WHERE link_id = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
-            (link_id, per_page, offset)
+            f"SELECT id, original_name, stored_name, file_size, file_size_display, uploaded_at, download_count, uploader_name FROM upload_records r {where2} ORDER BY uploaded_at DESC LIMIT ? OFFSET ?",
+            params2 + (per_page, (page - 1) * per_page)
         ).fetchall()
     conn.close()
-
-    total_pages = max(1, (total_uploaded + per_page - 1) // per_page)
 
     return jsonify({
         'success': True,
@@ -4682,10 +4977,14 @@ def get_upload_records(link_id):
         'allow_download': bool(link['allow_download'] if 'allow_download' in link.keys() else 0),
         'max_files': link['max_files'],
         'total_uploaded': total_uploaded,
+        'total': dir_total,
         'require_uploader': require_uploader,
         'page': page,
         'per_page': per_page,
         'total_pages': total_pages,
+        'dir': dir_path,
+        'folders': folders,
+        'breadcrumb': breadcrumb(dir_path),
         'records': [dict(r) for r in records]
     })
 
@@ -8310,6 +8609,7 @@ def admin_records():
     is_admin = session.get('is_admin', False)
     per_page = int(request.args.get('per_page') or get_user_setting(user_id, 'records_per_page', '50'))
     link_filter = request.args.get('link_id', '').strip()
+    dir_path = request.args.get('dir', '')
 
     # 验证权限（非管理员只能看自己的链接）
     if link_filter and not is_admin:
@@ -8347,6 +8647,17 @@ def admin_records():
             count_params = (user_id,)
             data_params = (user_id, per_page, (page - 1) * per_page)
 
+    # 目录视图：聚合当前目录的子文件夹，并把查询限定为「直接位于该目录的文件」
+    from record_dirs import (normalize_dir, direct_file_condition, combine_where,
+                             query_dir_view, breadcrumb)
+    dir_path = normalize_dir(dir_path)
+    folders, _direct_count = query_dir_view(conn, where, count_params, dir_path)
+    for _f in folders:
+        _f['size_display'] = format_file_size(_f['size'])
+    dcond, dparams = direct_file_condition(dir_path)
+    where = combine_where(where, dcond)
+    count_params = tuple(count_params) + tuple(dparams)
+
     # COUNT 查询（轻量，不用 JOIN）
     count_sql = f"SELECT COUNT(*) FROM upload_records r {where}"
     count = conn.execute(count_sql, count_params).fetchone()[0]
@@ -8363,7 +8674,7 @@ def admin_records():
                    FROM upload_records r {where}
                    ORDER BY r.uploaded_at DESC
                    LIMIT ? OFFSET ?"""
-    records = conn.execute(data_sql, data_params).fetchall()
+    records = conn.execute(data_sql, count_params + (per_page, (page - 1) * per_page)).fetchall()
 
     # 链接列表（用于筛选下拉）
     if is_admin:
@@ -8382,7 +8693,11 @@ def admin_records():
         total_pages=total_pages,
         total_count=count,
         link_filter=link_filter,
-        per_page=per_page)
+        per_page=per_page,
+        dir_path=dir_path,
+        parent_dir=(dir_path.rsplit('/', 1)[0] if '/' in dir_path else ''),
+        folders=folders,
+        breadcrumb=breadcrumb(dir_path))
 
 @app.route('/admin/records/<int:record_id>/download')
 @login_required
@@ -9007,6 +9322,19 @@ def admin_settings():
 
             admin_hash = get_setting('admin_password_hash', '')
             sso_need_set = bool(session.get('sso_need_pwd'))  # SSO 账号待设置密码状态
+            # 登录校验使用的是 users 表管理员记录的 password_hash；settings 中的
+            # admin_password_hash 是旧版遗留的初始密码哈希（如 admin123），可能与当前
+            # 密码不同步，导致改密时永远提示「原密码错误」。此处优先用登录侧哈希校验。
+            try:
+                _conn_u = get_db()
+                _cur_admin = _conn_u.execute(
+                    "SELECT password_hash FROM users WHERE username = ? AND is_admin = 1 LIMIT 1",
+                    (get_setting('admin_username', 'admin'),)).fetchone()
+                _conn_u.close()
+            except Exception:
+                _cur_admin = None
+            if _cur_admin and _cur_admin['password_hash']:
+                admin_hash = _cur_admin['password_hash']
             if not sso_need_set and not verify_password(admin_hash, old_pass):
                 flash('原密码错误，无法修改账号信息')
             elif not new_username:
@@ -9894,7 +10222,7 @@ def page_gone(e):
 if __name__ == '__main__':
     # Windows 本地开发：gunicorn 依赖 fcntl（仅 Unix 可用），直接用 Flask 开发服务器
     if os.name == 'nt':
-        _migrate_stored_paths(get_upload_base(), get_upload_base())
+        _auto_migrate_on_startup()
         start_bg_scanner(interval=30)
         logger.info(f"文件收集器 v{VERSION} 启动中 (Flask 开发服务器)...")
         logger.info(f"数据目录: {DATA_DIR}")
@@ -9925,9 +10253,8 @@ if __name__ == '__main__':
 
     # Gunicorn worker 启动后，启动后台文件扫描线程
     def post_worker_init(worker):
-        # 启动时自动修复可能不匹配的 stored_path（如管理员修改了上传路径后重启）
-        current_base = get_upload_base()
-        _migrate_stored_paths(current_base, current_base)
+        # 启动时按需修复不匹配的 stored_path（如管理员修改了上传路径后重启）
+        _auto_migrate_on_startup()
         start_bg_scanner(interval=30)
 
         # 反代自动恢复：NAS 重启后用保存的配置自动重启反代
@@ -10122,16 +10449,27 @@ if __name__ == '__main__':
                     # Werkzeug 抛出 "Contradictory scheme headers"
                     new_request_line = f"{method} {path} HTTP/1.0\r\n".encode('utf-8')
                     first_crlf = header_block.find(b'\r\n')
-                    # 剥离客户端自带的内部标记头，防止直连 socket 时伪造「经网关」身份
+                    # 剥离客户端自带的内部标记头，防止直连 socket 时伪造「经网关」身份。
+                    # 同时剥离客户端的 Connection / Proxy-Connection：本代理以后端 HTTP/1.0
+                    # 转发，若把客户端的 keep-alive 原样传给 Gunicorn，Gunicorn 会在响应后
+                    # 保持连接不关闭，导致下方「读到空才结束」的转发循环一直阻塞到 30s 超时，
+                    # 逐条连接占满 Gunicorn worker，表现为「保存/操作偶发网络错误」。统一改为
+                    # close，响应写完即断开，既能立即结束循环，又能释放后端 worker。
                     raw_rest = header_block[first_crlf + 2:]  # 原请求头（不含请求行）
+                    _drop_prefixes = (
+                        b'x-fc-gateway-proxy:',
+                        b'connection:',
+                        b'proxy-connection:',
+                    )
                     kept_lines = [
                         ln for ln in raw_rest.split(b'\r\n')
-                        if not ln.lower().startswith(b'x-fc-gateway-proxy:')
+                        if not ln.lower().startswith(_drop_prefixes)
                     ]
                     rest_headers = b'\r\n'.join(kept_lines)
                     extra_headers = (
                         f"X-Forwarded-Prefix: {prefix}\r\n"
                         f"{_GATEWAY_INTERNAL_HEADER}: {_GATEWAY_INTERNAL_TOKEN}\r\n"
+                        f"Connection: close\r\n"
                     ).encode('utf-8')
                     new_data = new_request_line + extra_headers + rest_headers + body
 

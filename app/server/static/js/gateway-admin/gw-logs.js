@@ -23,7 +23,7 @@
         if (page) state.page = page;
         if (!panel) panel = document.querySelector('[data-gwa-panel="logs"]');
         if (!panel) return;
-        panel.innerHTML = '<div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>';
+        panel.innerHTML = '<div class="gwa-card"><div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div></div>';
         var qs = '?page=' + state.page + '&per_page=' + state.perPage +
             (state.category ? '&category=' + encodeURIComponent(state.category) : '') +
             (state.action ? '&action=' + encodeURIComponent(state.action) : '') +
@@ -37,7 +37,7 @@
             state.actions = data.actions || [];
             render(data.logs || []);
         }).catch(function (err) {
-            panel.innerHTML = '<div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div>';
+            panel.innerHTML = '<div class="gwa-card"><div class="gwa-empty">加载失败：' + esc(err.message || '未知错误') + '</div></div>';
         });
     }
 
@@ -79,13 +79,14 @@
         html += '</div>';
 
         if (!logs.length) {
-            html += '<div class="gwa-empty">暂无操作日志<br>' +
-                '<span class="gwa-muted">登录、创建/删除收集链接、上传、下载等操作会记录在这里</span></div>';
+            html += '<div class="gwa-card"><div class="gwa-empty">暂无操作日志<br>' +
+                '<span class="gwa-muted">登录、创建/删除收集链接、上传、下载等操作会记录在这里</span></div></div>';
         } else {
+            html += '<div class="gwa-card">';
             html += '<div class="gwa-table-wrap"><table class="gwa-table"><thead><tr>';
             html += '<th style="width:150px">时间</th><th style="width:120px">操作者</th>' +
                 '<th style="width:160px">类型</th><th>内容</th><th style="width:130px">IP</th>';
-            html += '</tr></thead><tbody>' + logs.map(rowHtml).join('') + '</tbody></table></div>';
+            html += '</tr></thead><tbody>' + logs.map(rowHtml).join('') + '</tbody></table></div></div>';
         }
 
         html += '<div class="gwa-list-foot">';

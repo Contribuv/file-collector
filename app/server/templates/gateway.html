@@ -329,7 +329,7 @@ initFnOSTheme();
                         </svg>
                         <span>使用说明</span>
                     </div>
-                    <div class="more-sheet-item" onclick="toggleTheme()">
+                    <div class="more-sheet-item more-sheet-theme-item" onclick="toggleTheme(); closeMoreSheet()">
                         <svg class="sheet-theme-icon" id="sheetThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="5"/>
                             <line x1="12" y1="1" x2="12" y2="3"/>
@@ -883,6 +883,7 @@ initFnOSTheme();
 <script src="{{ url_for('static', filename='js/gateway-admin/gw-users.js', v=VERSION) }}"></script>
 <script src="{{ url_for('static', filename='js/gateway-admin/gw-settings.js', v=VERSION) }}"></script>
 <script src="{{ url_for('static', filename='js/gateway-admin/gw-logs.js', v=VERSION) }}"></script>
+<script src="{{ url_for('static', filename='js/gateway-select.js', v=VERSION) }}"></script>
 <script>
 // ============================================================
 // 侧边栏切换
@@ -1424,6 +1425,25 @@ async function openUploadDir() {
     }
 }
 
+// 打开飞牛文件管理器并定位到「文件所在目录」
+// 供 文件记录 页点击文件名时调用；与 openUploadDir 共用 trimSdk。
+async function openFileManagerDir(dir) {
+    if (!dir) { return; }
+    try {
+        if (!trimSdk) {
+            const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
+            trimSdk = new TrimApp();
+        }
+        await trimSdk.ready();
+        await trimSdk.openFileManager(dir);
+    } catch (e) {
+        console.error('[gateway] openFileManager 失败', e);
+        if (window.GW && window.GW.toast) {
+            window.GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error');
+        }
+    }
+}
+
 // ============================================================
 // 使用说明图片点击放大浮窗
 // ============================================================
@@ -1519,6 +1539,20 @@ document.getElementById('docLightbox').addEventListener('wheel', e => {
     e.preventDefault();
     zoomLightbox(e.deltaY < 0 ? 1.15 : 0.85);
 }, { passive: false });
+
+// 滚动条仅在滚动中显示：滚动时给 <html> 挂 data-gw-scrolling，
+// 静止 600ms 后摘除（配合 gateway.css 隐藏 thumb 着色）
+(function () {
+    const root = document.documentElement;
+    let timer = 0;
+    function mark() {
+        root.setAttribute('data-gw-scrolling', '1');
+        clearTimeout(timer);
+        timer = setTimeout(() => root.removeAttribute('data-gw-scrolling'), 600);
+    }
+    // scroll 事件不冒泡，用捕获阶段监听，window 与所有滚动容器一次覆盖
+    window.addEventListener('scroll', mark, { passive: true, capture: true });
+})();
 </script>
 </body>
 </html>

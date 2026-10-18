@@ -8,6 +8,29 @@
   <title>{% block title %}{{ config_title|default('文件收集器') }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=VERSION) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css', v=VERSION) }}">
+  <script>
+    (function(){
+      try {
+        var saved = (localStorage.getItem('fc-theme') || 'auto').toLowerCase();
+        if (saved !== 'dark' && saved !== 'light') saved = 'auto';
+        var mode = saved;
+        if (mode === 'auto') {
+          var param = (new URL(window.location.href).searchParams.get('theme') || '').trim().toLowerCase();
+          var fnOS = (document.body && document.body.getAttribute('theme-mode') || '').trim().toLowerCase();
+          if (param === 'dark' || param === 'light') mode = param;
+          else if (fnOS === 'dark') mode = 'dark';
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) mode = 'dark';
+          else mode = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', mode);
+      } catch(e) {
+        /* 兜底仍按设备偏好自适应，而非固定浅色 */
+        try { document.documentElement.setAttribute('data-theme', (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'); }
+        catch(e2) { document.documentElement.setAttribute('data-theme','light'); }
+      }
+    })();
+  </script>
+  <script src="{{ url_for('static', filename='js/fc-theme.js', v=VERSION) }}" defer></script>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico', v=VERSION) }}">
   {% block styles %}{% endblock %}
   <script type="application/json" id="fc-base-cfg">{{ fc_base|tojson }}</script>
@@ -29,6 +52,7 @@
         <img class="header-logo" src="{{ url_for('static', filename='img/logo_fs.png', v=VERSION) }}" alt="Logo" onerror="this.style.display='none'">
         {{ config_title|default('文件收集器') }}
       </a>
+      <button type="button" class="theme-switch"></button>
       {% if session.user_id %}
       <nav class="header-nav">
         {% if session.get('sso_login') %}

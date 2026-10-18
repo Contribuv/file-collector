@@ -201,11 +201,12 @@ body {
 }
 .cp-card-head {
   padding: 7px 12px;
-  border-bottom: 1px solid var(--c-border-soft);
+  /* 不再使用底部分隔线与灰底：避免外层卡片(边框+圆角)叠加出「两层边」的观感 */
+  border-bottom: none;
+  background: transparent;
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--c-bg-hover);
   flex-wrap: nowrap;
   justify-content: space-between;
 }
@@ -416,13 +417,13 @@ body {
 .cp-table tbody tr:last-child td { border-bottom: none; }
 .cp-table tbody tr:hover { background: var(--c-bg-hover); }
 
-.cp-th-icon { width: 40px; text-align: center; }
+.cp-th-icon { width: 30px; text-align: center; }
 .cp-th-name { flex: 1; }
 .cp-th-size { width: 80px; }
 .cp-th-time { width: 150px; }
 .cp-th-act { text-align: right !important; }
 
-.cp-file-icon { width: 40px; text-align: center; }
+.cp-file-icon { width: 30px; text-align: center; padding-left: 6px; padding-right: 2px; }
 .cp-file-icon svg { width: 18px; height: 18px; vertical-align: middle; flex-shrink: 0; }
 .cp-file-name {
   overflow: hidden;
@@ -985,8 +986,7 @@ body {
   .cp-uploader-folder-item {
     padding: 8px 12px;
     gap: 7px;
-  }
-  .cp-folder-icon-wrap {
+  }  .cp-folder-icon-wrap {
     width: 16px;
     height: 16px;
   }
@@ -1005,3 +1005,142 @@ body {
     font-size: .74rem;
   }
 }
+
+/* ============================================================
+   DIR NAV — 目录式导航（与收集页一致）
+   面包屑（.cp-dirbar）+ 可点进的文件夹行
+   表格视图（tr.cp-folder-row）与移动端卡片视图（div.cp-folder-head）
+   注意：.cp-folder-icon / .cp-folder-name 同时被「上传者文件夹列表」使用，
+   这里用更高特异度（.cp-folder-row / .cp-folder-head 内部选择器）覆盖。
+   ============================================================ */
+.cp-dirbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 4px 8px;
+  min-height: 34px;
+  /* 融入卡片本体：外层卡片已有边框圆角，这里不再叠加底色/边线/圆角 */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow-x: auto;
+}
+.cp-dir-back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--c-border-soft);
+  border-radius: 7px;
+  background: var(--c-white, #fff);
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
+.cp-dir-back:hover { color: var(--c-primary-link, #0066ff); border-color: var(--c-primary-link, #0066ff); }
+.cp-dir-back svg { width: 14px; height: 14px; }
+
+.cp-crumbs { display: flex; align-items: center; flex-wrap: nowrap; gap: 1px; white-space: nowrap; font-size: .76rem; }
+.cp-crumb {
+  border: 0;
+  background: none;
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  font: inherit;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-crumb:hover { background: var(--c-gray-50); color: var(--text-primary); }
+.cp-crumb.is-current { color: var(--text-primary); font-weight: 600; cursor: default; }
+.cp-crumb.is-current:hover { background: none; }
+.cp-crumb-sep { color: var(--c-text-muted); font-size: .7rem; padding: 0 1px; }
+
+.cp-folder-row { cursor: pointer; user-select: none; }
+.cp-folder-row td {
+  background: var(--c-gray-50);
+  font-size: .76rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .12s ease;
+}
+.cp-folder-row:hover td { background: var(--c-gray-100); }
+
+.cp-folder-chevron {
+  float: right;
+  display: inline-flex;
+  vertical-align: -3px;
+  color: var(--c-text-muted);
+  transition: transform .12s ease, color .12s ease;
+}
+.cp-folder-chevron svg { width: 14px; height: 14px; }
+.cp-folder-row:hover .cp-folder-chevron,
+.cp-folder-head:hover .cp-folder-chevron { color: var(--c-primary-link, #0066ff); transform: translateX(2px); }
+
+/* 目录行的图标 / 名称：覆盖上传者文件夹列表的同名样式 */
+.cp-folder-row .cp-folder-icon,
+.cp-folder-head .cp-folder-icon {
+  color: #f59e0b;
+}
+/* emoji 图标渲染控制（SHARE_FOLDER_ICON/CP_FOLDER_ICON 已由 svg 改为 emoji 📁） */
+.cp-table td .cp-folder-icon { font-size: 15px; line-height: 1; }
+.cp-folder-head .cp-folder-icon { font-size: 16px; line-height: 1; }
+/* 图标在独立图标单元格内，与文件图标共用 .cp-file-icon 的单元格样式（30px 居中，紧凑间距） */
+.cp-folder-row .cp-folder-icon {
+  color: #f59e0b;
+}
+.cp-folder-row .cp-folder-icon svg { fill: rgba(245, 158, 11, .18); }
+/* 移动端卡片：与文件卡片的 .cp-card-icon（26px 圆角块）一致 */
+.cp-folder-head .cp-folder-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-gray-50);
+  border-radius: 5px;
+  margin-right: 0;
+}
+.cp-folder-head .cp-folder-icon svg { width: 16px; height: 16px; }
+
+.cp-folder-row .cp-folder-name,
+.cp-folder-head .cp-folder-name {
+  font-size: .76rem;
+  font-weight: 500;
+  margin-right: 8px;
+  word-break: break-all;
+  flex: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.cp-folder-meta { font-weight: 400; color: var(--c-text-muted); white-space: nowrap; }
+/* 列表行内不再用「·」分隔（用户会把小圆点误读为多余图标元素），size 以留白间隔 */
+.cp-folder-meta .cp-meta-size { margin-left: 8px; }
+
+.cp-folder-head {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--c-gray-50);
+  border-bottom: 1px solid var(--c-border-soft);
+  font-size: .76rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s ease;
+}
+.cp-folder-head:hover { background: var(--c-gray-100); }
+.cp-folder-head .cp-folder-name { overflow-wrap: break-word; }
+.cp-folder-head .cp-folder-chevron { float: none; margin-left: auto; }
+.cp-folder-head .cp-folder-meta { margin-left: 2px; }

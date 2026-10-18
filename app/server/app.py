@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.86"
+VERSION = "2.3.87"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -3047,7 +3047,14 @@ def file_icon_url_filter(name):
         kind = 'config'
     else:
         kind = 'file'
-    return '/static/img/' + kind + '.svg'
+    # 统一网关（飞牛 fnOS）下静态资源需带网关路径前缀：
+    # unix socket 代理转发时注入 X-Forwarded-Prefix，request.script_root 在网关下
+    # 为 /app/file-collector、TCP 直连为空字符串（与模板 fc_base 同一判定）
+    try:
+        prefix = request.script_root or ''
+    except RuntimeError:
+        prefix = ''
+    return prefix + '/static/img/' + kind + '.svg'
 
 @app.template_filter('file_size')
 def file_size_filter(size_bytes):

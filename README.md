@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.86-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.87-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,11 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.87
+- **修复统一网关下文件类型图标 404**：老后台 `/admin/records` 与统一网关面板的图标 URL 均改为按访问形态自动带网关前缀（`X-Forwarded-Prefix → script_root` 判定，TCP 直连不带前缀），与收集页/分享页 `fc_base` 同一机制
+- **修复 `/admin/records` 刷新瞬间大图标闪现（FOUC）**：`admin-records-inline.css` 原来渲染在页面末尾（非阻塞、后加载），刷新首帧内联 SVG 以无约束尺寸闪现——移入 `<head>` 渲染阻塞区根治
+- 统一网关面板（gw-records.js）图标路径同样接入「仅经网关才拼前缀」约定（与 gateway-admin.js effectivePrefix 一致）
 
 ### v2.3.86
 - **「创建收集」按钮的「＋」改为内联 SVG 图标并真正居中**：原先全角＋字符受字体基线影响总有偏移，SVG 由弹性盒精确垂直居中；右下角 FAB 圆钮同步改用同一 SVG（消除双图标隐患）

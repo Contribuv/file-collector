@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.86
+version               = 2.3.87
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -17,4 +17,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://www.infowe.site/projects/1
-changelog             = v2.3.86 - 管理面板移动端全面 APP 化：表单、下拉、按钮全自绘并与桌面端统一形态，列表转卡片、右下角悬浮创建按钮、底部标签导航，按钮与字号按行内 32/表单 34/弹窗 36 三档收敛；修复设置页单文件上限行错位、统计卡配色双主题适配；静态资源改协商缓存配合版本号即时生效
+changelog             = v2.3.87 - 修复统一网关下文件类型图标 404（老后台与管理面板图标 URL 按访问形态自动带网关前缀）；修复 /admin/records 刷新瞬间大图标闪现（样式表提前至 head 阻塞渲染）

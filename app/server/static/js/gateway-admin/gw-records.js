@@ -102,6 +102,12 @@
         toml: '/static/img/config.svg', ini: '/static/img/config.svg', xml: '/static/img/config.svg',
         env: '/static/img/config.svg', conf: '/static/img/config.svg'
     };
+    /* 图标 URL：经飞牛统一网关访问时需带网关路径前缀。
+       仅当当前地址确实以该前缀开头才拼接（与 gateway-admin.js effectivePrefix 同约定）：
+       TCP 端口直连时前缀不存在，拼上会 404 */
+    var sysPref = document.body.getAttribute('data-gateway-prefix') || '';
+    if (sysPref && String(location.pathname).indexOf(sysPref) !== 0) sysPref = '';
+
     var EXT_DEFAULT = '/static/img/file.svg';
 
     function extIconCell(r) {
@@ -109,13 +115,13 @@
         var kind = r.preview_kind;
         // 图标列统一使用与收集页/分享页一致的扩展名专属图标，不显示预览缩略图
         if (kind === 'image' || ['jpg','jpeg','png','gif','webp','bmp','svg','ico','heic','heif'].indexOf(ext) >= 0) {
-            return '<img class="gwa-rec-exticon" src="/static/img/image.svg" alt="">';
+            return '<img class="gwa-rec-exticon" src="' + sysPref + '/static/img/image.svg" alt="">';
         }
         if (EXT_ICONS[ext]) {
-            return '<img class="gwa-rec-exticon" src="' + EXT_ICONS[ext] + '" alt="">';
+            return '<img class="gwa-rec-exticon" src="' + sysPref + EXT_ICONS[ext] + '" alt="">';
         }
-        if (kind === 'video') return '<img class="gwa-rec-exticon" src="/static/img/video.svg" alt="">';
-        if (kind === 'audio') return '<img class="gwa-rec-exticon" src="/static/img/audio.svg" alt="">';
+        if (kind === 'video') return '<img class="gwa-rec-exticon" src="' + sysPref + '/static/img/video.svg" alt="">';
+        if (kind === 'audio') return '<img class="gwa-rec-exticon" src="' + sysPref + '/static/img/audio.svg" alt="">';
         // 通用兜底：保持内置的文件 svg 外观
         return '<span class="gwa-rec-icon" aria-hidden="true">' + (ICONS[kind] || ICONS.file) + '</span>';
     }

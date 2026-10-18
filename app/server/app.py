@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.91"
+VERSION = "2.3.92"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -8698,8 +8698,16 @@ def admin_records():
         ).fetchall()
     conn.close()
 
+    # 统一时序条目：文件夹取其内最新上传时间（latest，由 record_dirs 聚合），
+    # 与散文件交错排序（文件夹-文件-文件夹-文件…），不再「文件夹全部在前」。
+    # 模板按 entries 的 kind 分支渲染。
+    entries = ([{'kind': 'folder', 'v': f, 'time': str(f.get('latest') or '')} for f in folders] +
+               [{'kind': 'file', 'v': r, 'time': str(r['uploaded_at'] or '')} for r in records])
+    entries.sort(key=lambda e: (e['time'], 0 if e['kind'] == 'folder' else 1), reverse=True)
+
     return render_template('admin_records.html',
         records=records,
+        entries=entries,
         links=links,
         page=page,
         total_pages=total_pages,

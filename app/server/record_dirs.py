@@ -70,16 +70,20 @@ def combine_where(base_where, cond):
 def aggregate_folders(rows, dir_path):
     """聚合当前目录的直接子文件夹。
 
-    rows: [(stored_name, file_size)]，需已限定在 dir_path 之下。
+    rows: [(stored_name, file_size, uploaded_at)]，需已限定在 dir_path 之下。
     返回 (folders, direct_count)：
-      folders      —— [{'name','path','file_count','size'}]，按名称排序；
+      folders      —— [{'name','path','file_count','size','latest'}]，按名称排序；
+                      latest 为该文件夹内最新一条记录的上传时间（可与文件
+                      uploaded_at 交错排序用）；目录为空或时间缺失时取 ''
       direct_count —— 直接位于 dir_path 的文件数。
     """
     d = normalize_dir(dir_path)
     prefix = (d + '/') if d else ''
     agg = {}
     direct = 0
-    for sn, fs in rows:
+    for row in rows:
+        sn, fs = row[0], row[1]
+        t = str(row[2]) if len(row) > 2 and row[2] else ''
         s = str(sn or '').replace('\\', '/').strip('/')
         if not s:
             if not d:
@@ -99,10 +103,12 @@ def aggregate_folders(rows, dir_path):
             seg = rest.split('/', 1)[0]
             a = agg.get(seg)
             if a is None:
-                a = {'files': 0, 'size': 0}
+                a = {'files': 0, 'size': 0, 'latest': ''}
                 agg[seg] = a
             a['files'] += 1
             a['size'] += int(fs or 0)
+            if t > a['latest']:
+                a['latest'] = t
         else:
             direct += 1
     folders = [{
@@ -110,6 +116,7 @@ def aggregate_folders(rows, dir_path):
         'path': (d + '/' + name) if d else name,
         'file_count': v['files'],
         'size': v['size'],
+        'latest': v['latest'],
     } for name, v in agg.items()]
     folders.sort(key=lambda x: x['name'].lower())
     return folders, direct
@@ -121,7 +128,7 @@ def query_dir_view(conn, base_where, base_params, dir_path):
     base_where / base_params 为记录范围（如管理员全站为空、普通用户限自己的链接）。
     """
     cond, cparams = under_dir_condition(dir_path)
-    sql = "SELECT %s AS sn, r.file_size AS fs FROM upload_records r %s" % (
+    sql = "SELECT %s AS sn, r.file_size AS fs, r.uploaded_at AS ua FROM upload_records r %s" % (
         _sn('r'), combine_where(base_where, cond))
     rows = conn.execute(sql, tuple(base_params) + tuple(cparams)).fetchall()
     return aggregate_folders(rows, dir_path)

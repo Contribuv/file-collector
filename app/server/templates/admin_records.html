@@ -53,7 +53,8 @@
             </tr>
           </thead>
           <tbody>
-            {% for f in folders %}
+            {% for e in entries %}
+            {% if e['kind'] == 'folder' %}{% set f = e['v'] %}
             <tr class="record-folder-row">
               <td class="col-chk col-chk-hide"></td>
               <td class="col-icon-col" aria-hidden="true"><svg class="record-type-icon record-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></td>
@@ -65,8 +66,7 @@
                 </a>
               </td>
             </tr>
-            {% endfor %}
-            {% for r in records %}
+            {% else %}{% set r = e['v'] %}
             {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
             <tr>
               <td class="col-chk col-chk-hide"><input type="checkbox" value="{{ r['id'] }}" class="sel-check sel-check-row"></td>
@@ -95,6 +95,7 @@
                   data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','pdf','txt','doc','docx','xls','xlsx','ppt','pptx','csv'] else '0' }}">操作</button>
               </td>
             </tr>
+            {% endif %}
             {% endfor %}
           </tbody>
         </table>
@@ -109,7 +110,8 @@
           <span class="records-mobile-h-col">文件名</span>
           <span class="records-mobile-h-act">操作</span>
         </div>
-        {% for f in folders %}
+        {% for e in entries %}
+        {% if e['kind'] == 'folder' %}{% set f = e['v'] %}
         <a class="record-folder-row record-folder-row--card" href="{{ url_for('admin_records', dir=f['path'], link_id=link_filter, page=1, per_page=per_page) }}">
           {# 与文件卡片同构：批量模式下补一个与勾选框同宽的占位，保证名称列对齐 #}
           <span class="record-card-check col-chk-hide" aria-hidden="true" style="display:none;"></span>
@@ -118,8 +120,7 @@
           <span class="record-folder-meta">{{ f['file_count'] }} 个文件<span class="cp-meta-size">{{ f['size_display'] }}</span></span>
           <svg class="record-folder-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
         </a>
-        {% endfor %}
-        {% for r in records %}
+        {% else %}{% set r = e['v'] %}
         {% set ext = r['original_name'].split('.')[-1].lower() if '.' in r['original_name'] else '' %}
         <div class="record-card">
           <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
@@ -147,6 +148,7 @@
               data-previewable="{{ '1' if ext in ['jpg','jpeg','png','gif','bmp','webp','svg','heic','heif','mp4','webm','ogg','mov','mp3','wav','flac','aac','m4a','pdf','txt','doc','docx','xls','xlsx','ppt','pptx','csv'] else '0' }}">操作</button>
           </div>
         </div>
+        {% endif %}
         {% endfor %}
       </div>
 

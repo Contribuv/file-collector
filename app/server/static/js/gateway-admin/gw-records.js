@@ -257,9 +257,18 @@
             if (hasUploader) html += '<th>上传者</th>';
             html += '<th>上传时间</th><th style="text-align:right">操作</th>';
             html += '</tr></thead><tbody>';
-            // 先列子文件夹，再列当前目录的文件
-            state.folders.forEach(function (f) { html += folderRowHtml(f, colCount); });
-            state.records.forEach(function (r) { html += rowHtml(r, hasUploader, ''); });
+            // 统一时序渲染：文件夹按其内最新上传时间（latest）与散文件交错排序
+            // （期望顺序：文件夹-文件-文件夹-文件-文件…），不再「文件夹全部优先」
+            var items = [];
+            state.folders.forEach(function (f) { items.push({ time: String(f.latest || ''), isFolder: true, v: f }); });
+            state.records.forEach(function (r) { items.push({ time: String(r.uploaded_at || ''), isFolder: false, v: r }); });
+            items.sort(function (a, b) {
+                if (a.time === b.time) return a.isFolder ? -1 : 1; // 同一时刻文件夹在前
+                return a.time < b.time ? 1 : -1;
+            });
+            items.forEach(function (it) {
+                html += it.isFolder ? folderRowHtml(it.v, colCount) : rowHtml(it.v, hasUploader, '');
+            });
             html += '</tbody></table></div></div>';
         }
 

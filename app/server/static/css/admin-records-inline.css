@@ -356,8 +356,8 @@ html[data-theme="dark"] .batch-loading-sub { color: var(--c-text-soft); }
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 2px 16px 2px;
-  padding: 0 0 4px;
+  margin: 4px 16px;
+  padding: 0;
   min-height: 30px;
   /* 融入页面背景：不加底色边框，靠面包屑文字与返回按钮呈现层级 */
   overflow-x: auto;

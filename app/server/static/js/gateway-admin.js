@@ -196,7 +196,21 @@
         overlay.querySelector('.gwa-modal-close').addEventListener('click', close);
         document.addEventListener('keydown', onKey);
         document.body.appendChild(overlay);
+        // 供外部统一关闭（如切换 Tab 时清理残留弹层）
+        overlay._close = close;
         return { el: overlay, body: bodyEl, footer: footEl, close: close };
+    };
+
+    /* 关闭页面上所有模态（switchSection 切 Tab 时调用，避免弹层跨 Tab 残留） */
+    GW.closeModal = function () {
+        document.querySelectorAll('.gwa-overlay').forEach(function (ov) {
+            if (ov._close) { ov._close(); } else { ov.remove(); }
+        });
+    };
+
+    /* 关闭灯箱（同上） */
+    GW.closeLightbox = function () {
+        document.querySelectorAll('.gwa-lightbox').forEach(function (lb) { lb.remove(); });
     };
 
     /* ---------- 内嵌预览浮窗（txt 等，避免开新窗口割裂） ---------- */

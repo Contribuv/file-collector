@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.97-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.98-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,9 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.98
+- **修复弹窗开着切 Tab 后残留不清**：浮层（详情/操作 popover）切 Tab 会自动关闭，但编辑、详情、下载/上传记录等模态弹窗此前不会；现切换 Tab 时统一清理所有浮层（模态/遮罩/浮层/灯箱），松手即干净
 
 ### v2.3.97
 - **移动端底部 Tab 与「更多」抽屉重新分配**：「公网访问」收入抽屉，「使用说明」上移为第 4 个主 Tab（与桌面对换）；抽屉内对应位置换成「公网访问」，切换后「更多」Tab 高亮同步

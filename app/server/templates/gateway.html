@@ -906,6 +906,13 @@ function switchSection(name) {
 
     // 集成管理面板：按需初始化对应 Tab 模块（懒加载）
     if (window.GW && GW.ensureSection) GW.ensureSection(name);
+
+    // 切换 Tab 时统一清理浮动层（用户反馈：弹窗开着切 Tab 会残留）
+    if (window.GW) {
+        if (GW.closePopover) GW.closePopover();
+        if (GW.closeModal) GW.closeModal();
+        if (GW.closeLightbox) GW.closeLightbox();
+    }
 }
 
 // 移动端「更多」抽屉开关

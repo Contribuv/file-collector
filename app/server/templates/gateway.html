@@ -263,93 +263,95 @@ initFnOSTheme();
             <div class="mac-sidebar-version mobile-hidden">
                 <a class="version-tag" href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer" title="在 作者博客 上查看项目">v{{ version }}</a>
             </div>
-            <!-- 移动端「更多」抽屉：收纳日志/文件/帮助/主题 -->
-            <div class="more-sheet" id="moreSheet">
-                <div class="more-sheet-mask" onclick="closeMoreSheet()"></div>
-                <div class="more-sheet-panel">
-                    <div class="more-sheet-handle"></div>
-                    <div class="more-sheet-title">更多</div>
-                    <div class="more-sheet-grid">
-                    {% if is_fn_admin %}
-                    <div class="more-sheet-item" onclick="switchSection('users'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                        <span>用户管理</span>
-                    </div>
-                    {% endif %}
-                    <div class="more-sheet-item" onclick="switchSection('settings'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="4" y1="21" x2="4" y2="14"/>
-                            <line x1="4" y1="10" x2="4" y2="3"/>
-                            <line x1="12" y1="21" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12" y2="3"/>
-                            <line x1="20" y1="21" x2="20" y2="16"/>
-                            <line x1="20" y1="12" x2="20" y2="3"/>
-                            <line x1="1" y1="14" x2="7" y2="14"/>
-                            <line x1="9" y1="8" x2="15" y2="8"/>
-                            <line x1="17" y1="16" x2="23" y2="16"/>
-                        </svg>
-                        <span>收集设置</span>
-                    </div>
-                    {% if is_fn_admin %}
-                    <div class="more-sheet-item" onclick="switchSection('logs'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
-                        </svg>
-                        <span>实时日志</span>
-                    </div>
-                    {% endif %}
-                    {% if is_fn_admin %}
-                    <div class="more-sheet-item" onclick="switchSection('files'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        <span>查看文件</span>
-                    </div>
-                    <div class="more-sheet-item" onclick="switchSection('appinfo'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="16" x2="12" y2="12"/>
-                            <line x1="12" y1="8" x2="12.01" y2="8"/>
-                        </svg>
-                        <span>应用信息</span>
-                    </div>
-                    {% endif %}
-                    <div class="more-sheet-item" onclick="switchSection('manual'); closeMoreSheet()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                        </svg>
-                        <span>使用说明</span>
-                    </div>
-                    <div class="more-sheet-item more-sheet-theme-item" onclick="toggleTheme(); closeMoreSheet()">
-                        <svg class="sheet-theme-icon" id="sheetThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="5"/>
-                            <line x1="12" y1="1" x2="12" y2="3"/>
-                            <line x1="12" y1="21" x2="12" y2="23"/>
-                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                            <line x1="1" y1="12" x2="3" y2="12"/>
-                            <line x1="21" y1="12" x2="23" y2="12"/>
-                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                        </svg>
-                        <span id="sheetThemeLabel">切换主题</span>
-                    </div>
-                    </div>
-                    <div class="more-sheet-version">
-                        <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }}</a>
-                    </div>
+        </div>
+
+        <!-- 移动端「更多」抽屉：收纳日志/文件/帮助/主题 -->
+        <div class="more-sheet" id="moreSheet">
+            <div class="more-sheet-mask" onclick="closeMoreSheet()"></div>
+            <div class="more-sheet-panel">
+                <div class="more-sheet-handle"></div>
+                <div class="more-sheet-title">更多</div>
+                <div class="more-sheet-grid">
+                {% if is_fn_admin %}
+                <div class="more-sheet-item" onclick="switchSection('users'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>用户管理</span>
+                </div>
+                {% endif %}
+                <div class="more-sheet-item" onclick="switchSection('settings'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="21" x2="4" y2="14"/>
+                        <line x1="4" y1="10" x2="4" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12" y2="3"/>
+                        <line x1="20" y1="21" x2="20" y2="16"/>
+                        <line x1="20" y1="12" x2="20" y2="3"/>
+                        <line x1="1" y1="14" x2="7" y2="14"/>
+                        <line x1="9" y1="8" x2="15" y2="8"/>
+                        <line x1="17" y1="16" x2="23" y2="16"/>
+                    </svg>
+                    <span>收集设置</span>
+                </div>
+                {% if is_fn_admin %}
+                <div class="more-sheet-item" onclick="switchSection('logs'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <span>实时日志</span>
+                </div>
+                {% endif %}
+                {% if is_fn_admin %}
+                <div class="more-sheet-item" onclick="switchSection('files'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>查看文件</span>
+                </div>
+                <div class="more-sheet-item" onclick="switchSection('appinfo'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>应用信息</span>
+                </div>
+                {% endif %}
+                <div class="more-sheet-item" onclick="switchSection('manual'); closeMoreSheet()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                    <span>使用说明</span>
+                </div>
+                <div class="more-sheet-item more-sheet-theme-item" onclick="toggleTheme(); closeMoreSheet()">
+                    <svg class="sheet-theme-icon" id="sheetThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <span id="sheetThemeLabel">切换主题</span>
+                </div>
+                </div>
+                <div class="more-sheet-version">
+                    <a class="version-tag" href="https://github.com/Contribuv/file-collector" target="_blank" rel="noopener noreferrer" title="在 GitHub 上查看项目">v{{ version }}</a>
                 </div>
             </div>
         </div>
+
 
         <!-- 主内容区 -->
         <div class="mac-main">

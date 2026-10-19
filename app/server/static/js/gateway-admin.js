@@ -272,7 +272,7 @@
                     '<td data-label="下载时间" class="gwa-muted gwa-nowrap">' + esc(r.time) + '</td>' +
                     '<td data-label="来源" class="gwa-nowrap">' + esc(r.source_label) + '</td>' +
                     '<td data-label="下载者 IP" class="gwa-muted gwa-nowrap">' + esc(r.ip) + '</td>' +
-                    '<td data-label="User-Agent" class="gwa-muted"><span class="gwa-ellipsis" style="max-width:320px" title="' +
+                    '<td data-label="User-Agent" class="gwa-muted"><span class="gwa-ellipsis" title="' +
                         esc(r.user_agent) + '">' + esc(r.user_agent) + '</span></td>' +
                     '</tr>';
             },

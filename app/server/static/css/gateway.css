@@ -15,6 +15,9 @@
     --gw-sidebar-bg: #fafafa;                /* nav-bg = rgba(grey-0,1) */
     --gw-glass-bg: rgba(255, 255, 255, .72);  /* 毛玻璃半透明底（居中弹窗/移动侧栏） */
     --gw-scrim-bg: rgba(17, 24, 39, .32);     /* 弹层背景遮罩（毛玻璃化前的前置色） */
+    /* 主内容区几何（浮窗定位与遮罩范围参照：PC 侧栏右侧/移动底部 Tab 上方） */
+    --gw-content-left: 220px;
+    --gw-content-bottom: 0px;
     --gw-card-bg: #ffffff;                   /* card-DefaultBg */
     --gw-text-primary: rgba(22, 20, 26, 1);  /* text-0 */
     --gw-text-secondary: rgba(22, 20, 26, .8);
@@ -865,6 +868,10 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
    响应式：中等宽度（窄窗口 / 平板横屏）—— 逐级收窄侧栏与主区内边距
    ============================================================ */
 @media (max-width: 1080px) {
+    :root {
+        --gw-content-left: 184px;
+    }
+
     .mac-sidebar {
         width: 184px;
         padding: 10px;
@@ -881,6 +888,10 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
 }
 
 @media (max-width: 900px) {
+    :root {
+        --gw-content-left: 152px;
+    }
+
     .mac-sidebar {
         width: 152px;
         padding: 8px;
@@ -905,6 +916,12 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
    响应式：移动端 APP 化 —— 底部 Tab 栏 + 「更多」抽屉
    ============================================================ */
 @media (max-width: 640px) {
+    :root {
+        --gw-content-left: 0px;
+        /* 移动端主内容区下缘 = 底部 Tab 栏上缘（64px = Tab 高 52 + 上下边距 12，含安全区） */
+        --gw-content-bottom: calc(64px + env(safe-area-inset-bottom));
+    }
+
     html, body {
         height: 100%;
         overflow: hidden;
@@ -960,7 +977,8 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         gap: 3px;
         padding: 0;
         border-radius: 10px;
-        margin: 4px 6px 8px;
+        /* 上下边距对称（用户反馈：选中背景块上下间距不一致） */
+        margin: 6px 6px;
         font-size: 11px;
         font-weight: 500;
         color: var(--gw-text-secondary);

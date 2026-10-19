@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.95-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.96-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,11 +306,18 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.3.96
+- **修复移动端「更多」抽屉显示异常**：抽屉原本嵌套在底部 Tab 栏元素内，v2.3.94 给 Tab 栏加毛玻璃（`backdrop-filter`）后成为 fixed 后代的包含块并把抽屉裁剪进 64px 高的 Tab 栏，点「更多」抽屉只露一条边；现将抽屉移出 Tab 栏、与侧栏同级，恢复全屏弹出
+- **修复移动端底部 Tab 选中背景块上下间距不一致**：Tab 圆角块的上下外边距统一为 6px（原上 4px/下 8px 不对称）
+- **浮窗遮罩与居中改为只参照主内容区（PC + 移动端）**：毛玻璃遮罩、居中弹窗、编辑模态的范围改为「PC 侧栏右侧 / 移动底部 Tab 上方」的主内容区——侧栏与底部 Tab 栏保持清晰正常显示，不再被毛玻璃覆盖；弹窗居中也不再以整屏（含侧栏）为基准；移动端浮窗限高同步扣除 Tab 高度
+- **信息面板最近上传：点击文件名打开所在目录**：与「文件记录」页一致，点击最近上传的文件名直接打开飞牛文件管理器并定位到该目录
+
 ### v2.3.95
-- **网关弹层背景统一毛玻璃遮罩（PC + 移动端）**：详情/操作浮窗（`GW.popover`）弹出时页面整体压暗 + 模糊（`--gw-scrim-bg` + blur 14px，淡入淡出 180ms），浮动层成为第一视觉层级，解决居中浮窗与页面内容层级混乱的问题；同步覆盖：编辑/确认模态（`gwa-overlay`）、移动端「更多」抽屉遮罩——全部换用同一玻璃 token；旧浏览器自动降级
 
 <details>
 <summary><b>📜 查看历史版本</b>（点击展开）</summary>
+
+- **网关弹层背景统一毛玻璃遮罩（PC + 移动端）**：详情/操作浮窗（`GW.popover`）弹出时页面整体压暗 + 模糊（`--gw-scrim-bg` + blur 14px，淡入淡出 180ms），浮动层成为第一视觉层级，解决居中浮窗与页面内容层级混乱的问题；同步覆盖：编辑/确认模态（`gwa-overlay`）、移动端「更多」抽屉遮罩——全部换用同一玻璃 token；旧浏览器自动降级
 
 ### v2.3.94
 - **统一网关详情弹窗屏幕居中 + 毛玻璃**：链接详情/记录详情等 `gwa-popover` 浮窗不再贴着操作按钮弹出，改为屏幕居中（PC + 移动端统一），背景换半透明玻璃底（.72 + blur 20px 饱和增强），长内容限高 84vh 可滚动，旧浏览器自动降级实色

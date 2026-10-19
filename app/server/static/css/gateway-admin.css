@@ -317,6 +317,27 @@ table.gwa-table {
     white-space: nowrap;
 }
 
+/* ---- 日志类弹层表格（下载/上传记录，GW.logsModal）：不出现横向滚动条 ----
+   单行显示不完的处理：固定宽度列（#/时间/IP/来源）按声明宽度收缩，
+   长文本列（User-Agent/详情）单行放不下不出滚动条：
+   - PC：User-Agent 单行省略号截断，鼠标悬浮 title 查看完整内容，其余短列自动换行
+   - 移动端：整表卡片化（见下方 640 断点），长文本最多 3 行后省略 */
+.gwa-logs-modal .gwa-table-wrap {
+    overflow-x: hidden;
+}
+.gwa-logs-modal table.gwa-table {
+    table-layout: fixed;
+}
+.gwa-logs-modal table.gwa-table td {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.gwa-logs-modal table.gwa-table td span.gwa-ellipsis {
+    display: block;
+    max-width: 100%;
+}
+
 /* ---- 徽章 ---- */
 .gwa-badge {
     display: inline-flex;
@@ -709,9 +730,13 @@ textarea.form-input {
 /* ---- 模态 / 浮窗 ---- */
 .gwa-overlay {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    left: var(--gw-content-left);
+    bottom: var(--gw-content-bottom);
     z-index: 50;
-    /* 背景毛玻璃遮罩：压暗 + 模糊，模态成为第一视觉层级（统一与 gwa-scrim） */
+    /* 背景毛玻璃遮罩：压暗 + 模糊，模态成为第一视觉层级（统一与 gwa-scrim；
+       范围同样只覆盖主内容区，侧栏/底部 Tab 保持清晰） */
     background: var(--gw-scrim-bg);
     backdrop-filter: blur(14px) saturate(130%);
     -webkit-backdrop-filter: blur(14px) saturate(130%);
@@ -772,10 +797,14 @@ textarea.form-input {
 }
 
 /* ---- 浮窗背景遮罩（毛玻璃）：
-      浮窗/模态弹出时页面压暗 + 模糊，浮窗成为第一视觉层级 ---- */
+      浮窗/模态弹出时主内容区压暗 + 模糊，浮窗成为第一视觉层级；
+      范围只覆盖主内容区（PC 侧栏 / 移动底部 Tab 栏保持清晰可见，不被盖） ---- */
 .gwa-scrim {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    left: var(--gw-content-left);
+    bottom: var(--gw-content-bottom);
     z-index: 55;
     background: var(--gw-scrim-bg);
     backdrop-filter: blur(14px) saturate(130%);
@@ -786,10 +815,10 @@ textarea.form-input {
 .gwa-scrim.is-show { opacity: 1; }
 
 .gwa-popover {
-    /* 屏幕居中弹窗（PC + 移动端统一；GW.popover 不再按锚点定位） */
+    /* 屏幕居中弹窗（PC + 移动端统一）；居中位置仅参照主内容区（侧栏/底部 Tab 不参与居中） */
     position: fixed;
-    left: 50%;
-    top: 50%;
+    left: calc(var(--gw-content-left) + (100% - var(--gw-content-left)) / 2);
+    top: calc((100% - var(--gw-content-bottom)) / 2);
     transform: translate(-50%, -50%);
     z-index: 60;
     /* 透明毛玻璃底 + 饱和增强；旧浏览器降级见下方 @supports */
@@ -811,6 +840,13 @@ textarea.form-input {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .gwa-popover {
         background: var(--gw-card-bg);
+    }
+}
+
+/* 移动端：浮窗限高再扣除底部 Tab 栏高度，避免下探到 Tab 区域 */
+@media (max-width: 640px) {
+    .gwa-popover {
+        max-height: min(calc(84vh - var(--gw-content-bottom)), 560px);
     }
 }
 
@@ -1764,6 +1800,66 @@ textarea.form-input {
         padding-left: 10px;
         padding-right: 10px;
         font-size: 12px;
+    }
+
+    /* ---- 日志类弹层表格（下载/上传记录）移动端卡片化：不出横向滚动条 ----
+       每行 = 竖排「字段名: 值」；长文本（User-Agent/详情）最多 3 行后省略 */
+    .gwa-logs-modal .gwa-table-wrap {
+        border: none;
+        border-radius: 0;
+        overflow: hidden;
+    }
+
+    .gwa-logs-modal table.gwa-table {
+        display: block;
+        width: 100%;
+    }
+
+    .gwa-logs-modal table.gwa-table thead {
+        display: none;
+    }
+
+    .gwa-logs-modal table.gwa-table tbody,
+    .gwa-logs-modal table.gwa-table tbody tr {
+        display: block;
+        width: 100%;
+    }
+
+    .gwa-logs-modal table.gwa-table tbody tr {
+        padding: 10px 2px;
+        border-bottom: 1px solid var(--gw-border-light);
+    }
+
+    .gwa-logs-modal table.gwa-table tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    .gwa-logs-modal table.gwa-table td {
+        display: flex;
+        gap: 8px;
+        padding: 3px 0;
+        border-bottom: none;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .gwa-logs-modal table.gwa-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: var(--gw-text-tertiary);
+        font-size: 11px;
+        padding-top: 2px;
+    }
+
+    /* 长文本值：换行 + 最多 3 行省略（完整内容已存于 title，桌面端悬浮可见） */
+    .gwa-logs-modal table.gwa-table td span.gwa-ellipsis {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+        white-space: normal;
+        max-width: 100%;
     }
 }
 

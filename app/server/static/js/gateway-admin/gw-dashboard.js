@@ -31,8 +31,20 @@
     }
 
     function rowHtml(r) {
+        // 文件名单元格：有存储目录时改为可点击按钮，与「文件记录」页一致——
+        // 点击直接打开飞牛文件管理器并定位到文件所在目录
+        var nameTd;
+        if (r.stored_dir) {
+            nameTd = '<td data-label="文件名">' +
+                '<button type="button" class="gwa-rec-name gwa-ellipsis gwa-file-open" data-act="open-dir"' +
+                ' data-dir="' + esc(r.stored_dir) + '"' +
+                ' title="点击打开文件所在目录：' + esc(r.stored_dir) + '">' +
+                esc(r.original_name) + '</button></td>';
+        } else {
+            nameTd = '<td data-label="文件名"><span class="gwa-ellipsis" title="' + esc(r.original_name) + '">' + esc(r.original_name) + '</span></td>';
+        }
         return '<tr>' +
-            '<td data-label="文件名"><span class="gwa-ellipsis" title="' + esc(r.original_name) + '">' + esc(r.original_name) + '</span></td>' +
+            nameTd +
             '<td data-label="来源" class="gwa-muted">' + esc(r.source) + '</td>' +
             '<td data-label="大小" class="gwa-nowrap">' + esc(r.file_size_display) + '</td>' +
             '<td data-label="时间" class="gwa-nowrap gwa-muted">' + esc(fmtTime(r.uploaded_at)) + '</td>' +
@@ -128,6 +140,10 @@
                 var id = parseInt(btn.getAttribute('data-id'), 10);
                 var r = recent.filter(function (x) { return x.id === id; })[0];
                 if (r) openDetail(r);
+            } else if (act === 'open-dir') {
+                var dir = btn.getAttribute('data-dir') || '';
+                if (window.openFileManagerDir) { window.openFileManagerDir(dir); }
+                else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
             }
         });
     }

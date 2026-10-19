@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.98-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.100-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,14 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.100
+- **紧急修复：访问网关页面可能卡死浏览器**：v2.3.99 引入的「液态胶囊游标」MutationObserver 脚本存在主线程卡死风险，整段撤销；移动端 Tab 选中态改由纯 CSS 静态液态胶囊底承担（观感不变，无 JS 依赖）
+- **优化 PC 端侧栏列表间距过紧**：项高 36→38px、项间距 4→6px、上下内边距微调；移动端底部 Tab 不受影响（其样式在 640 断点内独立覆盖）
+
+### v2.3.99
+- **移动端底部 Tab 栏升级 iOS 液态玻璃（Liquid Glass）**：新液态玻璃 token（浅/深双套）——更通透底色 + 折射级模糊饱和 + 顶部内高光条 + 半像素描边；选中 Tab 变为「液态胶囊游标」随切换滑动（带回弹曲线，MutationObserver 驱动，无 JS 时退回静态胶囊底）
+- **「更多」抽屉同步液态玻璃**：面板改为通透玻璃（圆角加大到 22px、顶部泛光内高光），抽屉内各功能项改为玻璃胶囊，按压微缩反馈；背景遮罩模糊饱和度同步提档；旧浏览器自动降级实色
 
 ### v2.3.98
 - **修复弹窗开着切 Tab 后残留不清**：浮层（详情/操作 popover）切 Tab 会自动关闭，但编辑、详情、下载/上传记录等模态弹窗此前不会；现切换 Tab 时统一清理所有浮层（模态/遮罩/浮层/灯箱），松手即干净

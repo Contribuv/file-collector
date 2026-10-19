@@ -922,6 +922,9 @@ function toggleMoreSheet() {
     sheet.classList.toggle('open');
 }
 
+// （v2.3.100 撤销）液态胶囊游标 JS 版本存在主线程卡死风险，已移除；
+// 选中态由 CSS 静态液态胶囊底承担。
+
 function closeMoreSheet() {
     const sheet = document.getElementById('moreSheet');
     if (sheet) sheet.classList.remove('open');

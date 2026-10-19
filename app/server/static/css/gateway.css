@@ -18,6 +18,11 @@
     /* 主内容区几何（浮窗定位与遮罩范围参照：PC 侧栏右侧/移动底部 Tab 上方） */
     --gw-content-left: 220px;
     --gw-content-bottom: 0px;
+    /* iOS 液态玻璃（移动端底 Tab / 更多抽屉）：通透玻璃 + 内高光 + 半像素描边 */
+    --gw-liquid-bg: rgba(255, 255, 255, .52);
+    --gw-liquid-hi: rgba(255, 255, 255, .65);
+    --gw-liquid-edge: rgba(255, 255, 255, .45);
+    --gw-liquid-pill: rgba(255, 255, 255, .55);
     --gw-card-bg: #ffffff;                   /* card-DefaultBg */
     --gw-text-primary: rgba(22, 20, 26, 1);  /* text-0 */
     --gw-text-secondary: rgba(22, 20, 26, .8);
@@ -58,6 +63,11 @@
     --gw-sidebar-bg: #0f1013;                /* 导航底色：近黑（对齐参考控制面板深色导航） */
     --gw-glass-bg: rgba(22, 25, 36, .72);     /* 毛玻璃半透明底（深色） */
     --gw-scrim-bg: rgba(0, 0, 0, .48);        /* 弹层背景遮罩（深色加深） */
+    /* iOS 液态玻璃（深色）：低透明度深底 + 弱化内高光 */
+    --gw-liquid-bg: rgba(28, 31, 42, .58);
+    --gw-liquid-hi: rgba(255, 255, 255, .12);
+    --gw-liquid-edge: rgba(255, 255, 255, .10);
+    --gw-liquid-pill: rgba(255, 255, 255, .10);
     --gw-card-bg: #1e2126;
     --gw-text-primary: rgba(244, 246, 248, 1);
     --gw-text-secondary: rgba(244, 246, 248, .78);
@@ -131,11 +141,12 @@ body {
 .mac-sidebar {
     width: 220px;
     background: var(--gw-sidebar-bg);
-    padding: 12px 12px;
+    padding: 14px 12px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    /* 用户反馈：PC 侧栏列表间距过紧，加大项间距（移动端覆盖为 0 不受影响） */
+    gap: 6px;
     overflow-y: auto;
     min-height: 0;
 }
@@ -144,7 +155,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
+    height: 38px;
     padding: 0 12px;
     border-radius: var(--gw-radius-sm);
     font-size: 14px;
@@ -936,7 +947,7 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         height: 100%;
     }
 
-    /* ---- 底部固定 Tab 栏：贴近移动 APP 底部导航 ---- */
+    /* ---- 底部固定 Tab 栏：iOS 液态玻璃 ---- */
     .mac-sidebar {
         position: fixed;
         top: auto;
@@ -951,14 +962,24 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         justify-content: space-around;
         gap: 0;
         overflow: hidden;
-        /* 透明毛玻璃 + 顶部发丝线微化 + 轻投影抬升层次 */
-        background: var(--gw-glass-bg);
-        backdrop-filter: blur(20px) saturate(160%);
-        -webkit-backdrop-filter: blur(20px) saturate(160%);
-        border-top: 1px solid var(--gw-border-light);
-        box-shadow: 0 -4px 20px rgba(0, 0, 0, .05);
+        /* 液态玻璃：通透底 + 折射级模糊饱和 + 顶部渐变高光缘 */
+        background: var(--gw-liquid-bg);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border-top: 1px solid var(--gw-liquid-edge);
+        box-shadow:
+            0 -6px 24px rgba(0, 0, 0, .06),
+            inset 0 1px 0 var(--gw-liquid-hi);
         padding: 0 0 env(safe-area-inset-bottom);
         -webkit-tap-highlight-color: transparent;
+    }
+
+    :root[data-theme="dark"] .mac-sidebar {
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+        box-shadow:
+            0 -6px 24px rgba(0, 0, 0, .30),
+            inset 0 1px 0 var(--gw-liquid-hi);
     }
 
     /* 不支持 backdrop-filter 的旧浏览器：退回实色底 */
@@ -968,21 +989,30 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         }
     }
 
+    /* 液态胶囊底（选中项静态玻璃胶囊底）——液态游标 JS 已撤销（曾致主线程卡死） */
+
     .mac-sidebar-item {
         flex: 1;
+        position: relative;
+        z-index: 1;
         height: auto;
         min-height: 52px;
         flex-direction: column;
         justify-content: center;
         gap: 3px;
         padding: 0;
-        border-radius: 10px;
+        border-radius: 12px;
         /* 上下边距对称（用户反馈：选中背景块上下间距不一致） */
         margin: 6px 6px;
         font-size: 11px;
         font-weight: 500;
         color: var(--gw-text-secondary);
-        transition: transform .12s ease, background .15s;
+        transition: color .18s ease, transform .18s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mac-sidebar-item:active {
+        transform: scale(.95);
     }
 
     .mac-sidebar-item svg {
@@ -991,13 +1021,19 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
     }
 
     .mac-sidebar-item.active {
-        background: transparent;
         color: var(--gw-accent);
+        /* 液态胶囊底（选中项静态玻璃胶囊底） */
+        background: var(--gw-liquid-pill);
+        box-shadow: inset 0 1px 0 var(--gw-liquid-hi), 0 4px 14px rgba(0, 0, 0, .10);
     }
 
-    .mac-sidebar-item:active {
-        background: var(--gw-fill-0);
+    /* 深色下同 specificity 覆盖上面的 dark 高亮底规则，保证移动端也是玻璃胶囊 */
+    :root[data-theme="dark"] .mac-sidebar-item.active {
+        background: var(--gw-liquid-pill);
+        box-shadow: inset 0 1px 0 var(--gw-liquid-hi), 0 4px 14px rgba(0, 0, 0, .10);
     }
+
+    /* 按压反馈统一在 .mac-sidebar-item:active 的 scale 变换中（见上） */
 
     /* 移动端隐藏：日志/文件/帮助 tab、主题入口、分割线、版本 */
     .mac-sidebar-item.mobile-hidden,
@@ -1025,23 +1061,44 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         position: absolute;
         inset: 0;
         background: var(--gw-scrim-bg);
-        backdrop-filter: blur(14px) saturate(130%);
-        -webkit-backdrop-filter: blur(14px) saturate(130%);
+        backdrop-filter: blur(20px) saturate(150%);
+        -webkit-backdrop-filter: blur(20px) saturate(150%);
         opacity: 0;
         transition: opacity .2s ease;
     }
 
+    /* 液态玻璃抽屉面板：通透底 + 顶部内高光 + 边缘泛光 */
     .more-sheet-panel {
         position: absolute;
         left: 0;
         right: 0;
         bottom: 0;
-        background: var(--gw-card-bg);
-        border-radius: 16px 16px 0 0;
+        background: var(--gw-liquid-bg);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border-radius: 22px 22px 0 0;
+        border-top: 1px solid var(--gw-liquid-edge);
         padding: 6px 12px calc(10px + env(safe-area-inset-bottom));
         transform: translateY(100%);
-        transition: transform .28s cubic-bezier(.32, .72, .34, 1);
-        box-shadow: 0 -8px 32px rgba(0, 0, 0, .12);
+        transition: transform .3s cubic-bezier(.32, .72, .34, 1);
+        box-shadow:
+            0 -10px 40px rgba(0, 0, 0, .14),
+            inset 0 1.5px 0 var(--gw-liquid-hi);
+    }
+
+    :root[data-theme="dark"] .more-sheet-panel {
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+        box-shadow:
+            0 -10px 40px rgba(0, 0, 0, .38),
+            inset 0 1.5px 0 var(--gw-liquid-hi);
+    }
+
+    /* 不支持 backdrop-filter：抽屉面板退回实色卡底 */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .more-sheet-panel {
+            background: var(--gw-card-bg);
+        }
     }
 
     .more-sheet.open {
@@ -1086,16 +1143,18 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         height: 84px;
         padding: 0;
         border-radius: var(--gw-radius-md);
-        background: var(--gw-fill-0);
+        /* 液态玻璃项：半透明白 + 内高光 + 半像素描边 */
+        background: var(--gw-liquid-pill);
+        box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
         font-size: 13px;
         color: var(--gw-text-primary);
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
-        transition: background .15s;
+        transition: transform .15s ease, background .15s ease;
     }
 
     .more-sheet-item:active {
-        background: var(--gw-border);
+        transform: scale(.96);
     }
 
     .more-sheet-item svg {

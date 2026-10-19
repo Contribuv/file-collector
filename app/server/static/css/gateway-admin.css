@@ -769,16 +769,32 @@ textarea.form-input {
 }
 
 .gwa-popover {
+    /* 屏幕居中弹窗（PC + 移动端统一；GW.popover 不再按锚点定位） */
     position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     z-index: 60;
-    background: var(--gw-card-bg);
+    /* 透明毛玻璃底 + 饱和增强；旧浏览器降级见下方 @supports */
+    background: var(--gw-glass-bg);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
     border: 1px solid var(--gw-border);
     border-radius: var(--gw-radius-md);
     box-shadow: var(--gw-shadow);
     padding: 14px 16px;
     min-width: 240px;
     max-width: min(92vw, 360px);
+    max-height: min(84vh, 560px);
+    overflow-y: auto;
     font-size: 13px;
+}
+
+/* 不支持 backdrop-filter 的旧浏览器：退回近实色卡底保证可读性 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .gwa-popover {
+        background: var(--gw-card-bg);
+    }
 }
 
 .gwa-popover-close {

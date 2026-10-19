@@ -74,8 +74,8 @@ func (rp *ReverseProxy) Start() error {
 			strings.Contains(errStr, "EOF") ||
 			strings.Contains(errStr, "connection reset") ||
 			strings.Contains(errStr, "connection refused") {
-			// 轮询接口（检查更新/日志）的客户端断开是正常行为，不记录，避免日志噪声
-			if r.URL.Path != "/api/check-update" && r.URL.Path != "/api/logs" {
+			// 轮询接口（检查更新/日志/扫描状态）的客户端断开是正常行为，不记录，避免日志噪声
+			if r.URL.Path != "/api/check-update" && r.URL.Path != "/api/logs" && r.URL.Path != "/api/scan-status" {
 				rp.logger.Add("DEBUG", fmt.Sprintf("后端暂不可达: %s %s -> %v", r.Method, r.URL.Path, err))
 			}
 		} else {

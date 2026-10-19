@@ -318,14 +318,7 @@
         pop.innerHTML = '<button type="button" class="gwa-popover-close" aria-label="关闭">&times;</button>' + html;
         pop.querySelector('.gwa-popover-close').addEventListener('click', GW.closePopover);
         document.body.appendChild(pop);
-        // 定位
-        var r = anchorEl.getBoundingClientRect();
-        var pw = pop.offsetWidth, ph = pop.offsetHeight;
-        var left = Math.min(Math.max(8, r.right - pw), window.innerWidth - pw - 8);
-        var top = r.bottom + 8;
-        if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 8);
-        pop.style.left = left + 'px';
-        pop.style.top = top + 'px';
+        // 屏幕居中弹窗：位置由 CSS（.gwa-popover，fixed + translate）控制，不再按锚点定位
         setTimeout(function () {
             document.addEventListener('click', onDocClick);
             document.addEventListener('keydown', onKey);

@@ -13,6 +13,7 @@
     --gw-bg: #f2f3f5;                        /* bg-0 = rgba(grey-1,1) */
     --gw-window-bg: #ffffff;                 /* bg-1 */
     --gw-sidebar-bg: #fafafa;                /* nav-bg = rgba(grey-0,1) */
+    --gw-glass-bg: rgba(255, 255, 255, .72);  /* 毛玻璃半透明底（居中弹窗/移动侧栏） */
     --gw-card-bg: #ffffff;                   /* card-DefaultBg */
     --gw-text-primary: rgba(22, 20, 26, 1);  /* text-0 */
     --gw-text-secondary: rgba(22, 20, 26, .8);
@@ -51,6 +52,7 @@
     --gw-bg: #14161a;                        /* 页面底色：深蓝灰 */
     --gw-window-bg: #1e2126;                 /* 窗口/卡片底色，比页面略亮 */
     --gw-sidebar-bg: #0f1013;                /* 导航底色：近黑（对齐参考控制面板深色导航） */
+    --gw-glass-bg: rgba(22, 25, 36, .72);     /* 毛玻璃半透明底（深色） */
     --gw-card-bg: #1e2126;
     --gw-text-primary: rgba(244, 246, 248, 1);
     --gw-text-secondary: rgba(244, 246, 248, .78);
@@ -930,23 +932,37 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         justify-content: space-around;
         gap: 0;
         overflow: hidden;
+        /* 透明毛玻璃 + 顶部发丝线微化 + 轻投影抬升层次 */
+        background: var(--gw-glass-bg);
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
         border-top: 1px solid var(--gw-border-light);
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, .05);
         padding: 0 0 env(safe-area-inset-bottom);
         -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 不支持 backdrop-filter 的旧浏览器：退回实色底 */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .mac-sidebar {
+            background: var(--gw-sidebar-bg);
+        }
     }
 
     .mac-sidebar-item {
         flex: 1;
         height: auto;
-        min-height: 56px;
+        min-height: 52px;
         flex-direction: column;
         justify-content: center;
         gap: 3px;
         padding: 0;
-        border-radius: 0;
+        border-radius: 10px;
+        margin: 4px 6px 8px;
         font-size: 11px;
         font-weight: 500;
         color: var(--gw-text-secondary);
+        transition: transform .12s ease, background .15s;
     }
 
     .mac-sidebar-item svg {

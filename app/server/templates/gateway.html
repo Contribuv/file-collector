@@ -197,8 +197,9 @@ initFnOSTheme();
                 收集设置
             </div>
             {% if is_fn_admin %}
-            <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见 -->
-            <div class="mac-sidebar-item" data-section="access" onclick="switchSection('access')">
+            <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见；
+                 公网访问在移动端收入「更多」抽屉（移动端 Tab 第 4 位改放使用说明） -->
+            <div class="mac-sidebar-item mobile-hidden" data-section="access" onclick="switchSection('access')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                 </svg>
@@ -230,7 +231,8 @@ initFnOSTheme();
                 应用信息
             </div>
             {% endif %}
-            <div class="mac-sidebar-item mobile-hidden" data-section="manual" onclick="switchSection('manual')">
+            <!-- 使用说明：移动端作为第 4 个主 Tab 显示（与「公网访问」对换） -->
+            <div class="mac-sidebar-item" data-section="manual" onclick="switchSection('manual')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -323,14 +325,13 @@ initFnOSTheme();
                     </svg>
                     <span>应用信息</span>
                 </div>
-                {% endif %}
-                <div class="more-sheet-item" onclick="switchSection('manual'); closeMoreSheet()">
+                <div class="more-sheet-item" onclick="switchSection('access'); closeMoreSheet()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
-                    <span>使用说明</span>
+                    <span>公网访问</span>
                 </div>
+                {% endif %}
                 <div class="more-sheet-item more-sheet-theme-item" onclick="toggleTheme(); closeMoreSheet()">
                     <svg class="sheet-theme-icon" id="sheetThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="5"/>
@@ -899,7 +900,7 @@ function switchSection(name) {
     document.querySelectorAll('.mac-sidebar-item[data-section]').forEach(el => {
         el.classList.toggle('active', el.getAttribute('data-section') === name);
     });
-    const moreGroup = ['logs', 'files', 'appinfo', 'manual', 'users', 'settings'];
+    const moreGroup = ['logs', 'files', 'appinfo', 'users', 'settings', 'access'];
     const moreTab = document.querySelector('.mac-sidebar-item[data-more]');
     if (moreTab) moreTab.classList.toggle('active', moreGroup.indexOf(name) >= 0);
 

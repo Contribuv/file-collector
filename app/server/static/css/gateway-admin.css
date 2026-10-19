@@ -1775,7 +1775,8 @@ textarea.form-input {
     #section-dashboard .gwa-table td[data-label="文件名"] {
         padding-top: 0;
         font-size: 14px;
-        font-weight: 600;
+        /* 用户反馈：与主信息行 600 粗体在小卡片里过于凝重，降为中黑 */
+        font-weight: 500;
     }
 
     #section-dashboard .gwa-table tbody > tr > td[data-label]:not([data-label="文件名"]):not(.gwa-col-actions) {

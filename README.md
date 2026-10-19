@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.96-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.97-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.97
+- **移动端底部 Tab 与「更多」抽屉重新分配**：「公网访问」收入抽屉，「使用说明」上移为第 4 个主 Tab（与桌面对换）；抽屉内对应位置换成「公网访问」，切换后「更多」Tab 高亮同步
+- **修复移动端信息面板「最近上传」文件名过粗**：卡片主信息字重 600 降为 500，与整体卡面更协调（文件记录/收集链接页保持不变）
 
 ### v2.3.96
 - **修复移动端「更多」抽屉显示异常**：抽屉原本嵌套在底部 Tab 栏元素内，v2.3.94 给 Tab 栏加毛玻璃（`backdrop-filter`）后成为 fixed 后代的包含块并把抽屉裁剪进 64px 高的 Tab 栏，点「更多」抽屉只露一条边；现将抽屉移出 Tab 栏、与侧栏同级，恢复全屏弹出

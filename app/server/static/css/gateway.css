@@ -14,6 +14,7 @@
     --gw-window-bg: #ffffff;                 /* bg-1 */
     --gw-sidebar-bg: #fafafa;                /* nav-bg = rgba(grey-0,1) */
     --gw-glass-bg: rgba(255, 255, 255, .72);  /* 毛玻璃半透明底（居中弹窗/移动侧栏） */
+    --gw-scrim-bg: rgba(17, 24, 39, .32);     /* 弹层背景遮罩（毛玻璃化前的前置色） */
     --gw-card-bg: #ffffff;                   /* card-DefaultBg */
     --gw-text-primary: rgba(22, 20, 26, 1);  /* text-0 */
     --gw-text-secondary: rgba(22, 20, 26, .8);
@@ -53,6 +54,7 @@
     --gw-window-bg: #1e2126;                 /* 窗口/卡片底色，比页面略亮 */
     --gw-sidebar-bg: #0f1013;                /* 导航底色：近黑（对齐参考控制面板深色导航） */
     --gw-glass-bg: rgba(22, 25, 36, .72);     /* 毛玻璃半透明底（深色） */
+    --gw-scrim-bg: rgba(0, 0, 0, .48);        /* 弹层背景遮罩（深色加深） */
     --gw-card-bg: #1e2126;
     --gw-text-primary: rgba(244, 246, 248, 1);
     --gw-text-secondary: rgba(244, 246, 248, .78);
@@ -1004,7 +1006,9 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
     .more-sheet-mask {
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, .45);
+        background: var(--gw-scrim-bg);
+        backdrop-filter: blur(14px) saturate(130%);
+        -webkit-backdrop-filter: blur(14px) saturate(130%);
         opacity: 0;
         transition: opacity .2s ease;
     }

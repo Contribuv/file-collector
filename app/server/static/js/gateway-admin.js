@@ -310,9 +310,14 @@
         });
     };
 
-    /* ---------- 浮窗（锚点定位） ---------- */
+    /* ---------- 浮窗（屏幕居中 + 毛玻璃背景遮罩） ---------- */
     GW.popover = function (anchorEl, html) {
         GW.closePopover();
+        // 背景遮罩：压暗 + 模糊页面其余内容，让浮窗成为第一视觉层级（PC/移动统一）
+        var scrim = document.createElement('div');
+        scrim.className = 'gwa-scrim';
+        document.body.appendChild(scrim);
+        requestAnimationFrame(function () { scrim.classList.add('is-show'); });
         var pop = document.createElement('div');
         pop.className = 'gwa-popover';
         pop.innerHTML = '<button type="button" class="gwa-popover-close" aria-label="关闭">&times;</button>' + html;
@@ -343,6 +348,11 @@
     GW.closePopover = function () {
         var ex = document.querySelector('.gwa-popover');
         if (ex) { if (ex._cleanup) ex._cleanup(); ex.remove(); }
+        var scrim = document.querySelector('.gwa-scrim');
+        if (scrim) {
+            scrim.classList.remove('is-show');
+            setTimeout(function () { scrim.remove(); }, 200);
+        }
     };
 
     /* ---------- 灯箱 ---------- */

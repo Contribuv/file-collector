@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.94-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.95-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,13 +306,16 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.3.95
+- **网关弹层背景统一毛玻璃遮罩（PC + 移动端）**：详情/操作浮窗（`GW.popover`）弹出时页面整体压暗 + 模糊（`--gw-scrim-bg` + blur 14px，淡入淡出 180ms），浮动层成为第一视觉层级，解决居中浮窗与页面内容层级混乱的问题；同步覆盖：编辑/确认模态（`gwa-overlay`）、移动端「更多」抽屉遮罩——全部换用同一玻璃 token；旧浏览器自动降级
+
+<details>
+<summary><b>📜 查看历史版本</b>（点击展开）</summary>
+
 ### v2.3.94
 - **统一网关详情弹窗屏幕居中 + 毛玻璃**：链接详情/记录详情等 `gwa-popover` 浮窗不再贴着操作按钮弹出，改为屏幕居中（PC + 移动端统一），背景换半透明玻璃底（.72 + blur 20px 饱和增强），长内容限高 84vh 可滚动，旧浏览器自动降级实色
 - **统一网关移动端底部 Tab 栏毛玻璃化**：侧栏 Tab 用半透明玻璃底 + 轻投影抬升，按压/选中项改圆角 pill（更贴移动 APP 观感）
 - **修复实时日志出现「后端暂不可达: GET /api/scan-status」**：rproxy 降噪名单补上后台扫描状态轮询接口（此前只有 check-update/logs），后端重启瞬间的轮询失败不再刷日志
-
-<details>
-<summary><b>📜 查看历史版本</b>（点击展开）</summary>
 
 ### v2.3.93
 - **修复老后台上传记录面包屑文字偏上**：`.record-dirbar` 原来用 `padding-bottom:4px` 使文字内容盒上间隙 0px、下间隙 4px（视觉靠上约 2px），改为上下均等的 `margin:4px 16px`，PC 与移动端面包屑均垂直居中

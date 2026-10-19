@@ -711,7 +711,10 @@ textarea.form-input {
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: rgba(0, 0, 0, .45);
+    /* 背景毛玻璃遮罩：压暗 + 模糊，模态成为第一视觉层级（统一与 gwa-scrim） */
+    background: var(--gw-scrim-bg);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -767,6 +770,20 @@ textarea.form-input {
 .gwa-modal-close:hover {
     color: var(--gw-text-primary);
 }
+
+/* ---- 浮窗背景遮罩（毛玻璃）：
+      浮窗/模态弹出时页面压暗 + 模糊，浮窗成为第一视觉层级 ---- */
+.gwa-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: var(--gw-scrim-bg);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    opacity: 0;
+    transition: opacity .18s ease;
+}
+.gwa-scrim.is-show { opacity: 1; }
 
 .gwa-popover {
     /* 屏幕居中弹窗（PC + 移动端统一；GW.popover 不再按锚点定位） */

@@ -39,10 +39,17 @@
 }
 
 .gwa-stat {
-    background: var(--gw-fill-0);
+    background: var(--gw-liquid-card);
     border: 1px solid var(--gw-border-light);
+    box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
     border-radius: var(--gw-radius-md);
     padding: 14px 16px;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .gwa-stat {
+        background: var(--gw-card-bg);
+    }
 }
 
 .gwa-stat-value {
@@ -62,13 +69,21 @@
     margin-top: 4px;
 }
 
-/* ---- 卡片 ---- */
+/* ---- 卡片（iOS 液态玻璃家族：半透卡底 + 顶部内高光；下层为纯色页面底，无 blur 即可通透） ---- */
 .gwa-card {
-    background: var(--gw-card-bg);
+    background: var(--gw-liquid-card);
     border: 1px solid var(--gw-border-light);
+    box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
     border-radius: var(--gw-radius-md);
     padding: 16px;
     margin-bottom: 16px;
+}
+
+/* 不支持 backdrop-filter 的浏览器家族回退为实色卡底（半透明底本身可读） */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .gwa-card {
+        background: var(--gw-card-bg);
+    }
 }
 
 .gwa-card-title {
@@ -747,9 +762,15 @@ textarea.form-input {
 }
 
 .gwa-modal {
-    background: var(--gw-card-bg);
+    /* iOS 液态玻璃面板：浮于毛玻璃遮罩之上，弹窗成为液态家族一员 */
+    background: var(--gw-liquid-panel);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--gw-liquid-edge);
+    box-shadow:
+        inset 0 1.5px 0 var(--gw-liquid-hi),
+        var(--gw-shadow);
     border-radius: var(--gw-radius-md);
-    box-shadow: var(--gw-shadow);
     width: 100%;
     max-width: 520px;
     max-height: 86vh;
@@ -821,13 +842,15 @@ textarea.form-input {
     top: calc((100% - var(--gw-content-bottom)) / 2);
     transform: translate(-50%, -50%);
     z-index: 60;
-    /* 透明毛玻璃底 + 饱和增强；旧浏览器降级见下方 @supports */
-    background: var(--gw-glass-bg);
+    /* iOS 液态玻璃面板（家族统一）：实底感与可读性兼顾，带顶部内高光 */
+    background: var(--gw-liquid-panel);
+    box-shadow:
+        inset 0 1.5px 0 var(--gw-liquid-hi),
+        var(--gw-shadow);
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid var(--gw-border);
+    border: 1px solid var(--gw-liquid-edge);
     border-radius: var(--gw-radius-md);
-    box-shadow: var(--gw-shadow);
     padding: 14px 16px;
     min-width: 240px;
     max-width: min(92vw, 360px);

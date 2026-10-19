@@ -145,6 +145,7 @@ initFnOSTheme();
 
         <!-- 侧边栏 -->
         <div class="mac-sidebar">
+            <div class="mac-side-group-title mobile-hidden">概览</div>
             <div class="mac-sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="7" height="9"/>
@@ -154,14 +155,14 @@ initFnOSTheme();
                 </svg>
                 信息面板
             </div>
+            <div class="mac-side-group-title mobile-hidden">收集</div>
             <div class="mac-sidebar-item" data-section="links" onclick="switchSection('links')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                 </svg>
                 收集链接
-            </div>
-            <div class="mac-sidebar-item" data-section="records" onclick="switchSection('records')">
+            </div>            <div class="mac-sidebar-item" data-section="records" onclick="switchSection('records')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                     <polyline points="14 2 14 8 20 8"/>
@@ -172,6 +173,7 @@ initFnOSTheme();
                 文件记录
             </div>
             {% if is_fn_admin %}
+            <div class="mac-side-group-title mobile-hidden">用户与设置</div>
             <div class="mac-sidebar-item mobile-hidden" data-section="users" onclick="switchSection('users')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -197,6 +199,7 @@ initFnOSTheme();
                 收集设置
             </div>
             {% if is_fn_admin %}
+            <div class="mac-side-group-title mobile-hidden">工具</div>
             <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见；
                  公网访问在移动端收入「更多」抽屉（移动端 Tab 第 4 位改放使用说明） -->
             <div class="mac-sidebar-item mobile-hidden" data-section="access" onclick="switchSection('access')">

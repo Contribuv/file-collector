@@ -23,6 +23,9 @@
     --gw-liquid-hi: rgba(255, 255, 255, .65);
     --gw-liquid-edge: rgba(255, 255, 255, .45);
     --gw-liquid-pill: rgba(255, 255, 255, .55);
+    /* 液态玻璃卡片 / 面板（全局家族：卡片、统计卡、模态、浮窗） */
+    --gw-liquid-card: rgba(255, 255, 255, .66);
+    --gw-liquid-panel: rgba(255, 255, 255, .80);
     --gw-card-bg: #ffffff;                   /* card-DefaultBg */
     --gw-text-primary: rgba(22, 20, 26, 1);  /* text-0 */
     --gw-text-secondary: rgba(22, 20, 26, .8);
@@ -68,6 +71,9 @@
     --gw-liquid-hi: rgba(255, 255, 255, .12);
     --gw-liquid-edge: rgba(255, 255, 255, .10);
     --gw-liquid-pill: rgba(255, 255, 255, .10);
+    /* 液态玻璃卡片 / 面板（深色） */
+    --gw-liquid-card: rgba(28, 31, 42, .62);
+    --gw-liquid-panel: rgba(24, 27, 36, .84);
     --gw-card-bg: #1e2126;
     --gw-text-primary: rgba(244, 246, 248, 1);
     --gw-text-secondary: rgba(244, 246, 248, .78);
@@ -137,25 +143,43 @@ body {
     height: 100%;
 }
 
-/* ---- 侧边栏：靠背景色差区分，无 border-right（对齐官方） ---- */
+/* ---- 侧边栏：iOS 液态玻璃（PC 端）+ 放松的分组垂直列表 ---- */
 .mac-sidebar {
     width: 220px;
-    background: var(--gw-sidebar-bg);
-    padding: 14px 12px;
+    background: var(--gw-liquid-bg);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
+    padding: 16px 12px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    /* 用户反馈：PC 侧栏列表间距过紧，加大项间距（移动端覆盖为 0 不受影响） */
-    gap: 6px;
+    /* 用户反馈：PC 侧栏列表过挤——项高放宽 + 项间距 4→8 */
+    gap: 8px;
     overflow-y: auto;
     min-height: 0;
+}
+
+/* 分组标题（iOS 设置页式：概览 / 收集 / 用户与设置 / 工具），仅 PC 显示 */
+.mac-side-group-title {
+    margin: 12px 12px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    color: var(--gw-text-tertiary);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.mac-side-group-title:first-child {
+    margin-top: 2px;
 }
 
 .mac-sidebar-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 38px;
+    height: 40px;
     padding: 0 12px;
     border-radius: var(--gw-radius-sm);
     font-size: 14px;
@@ -188,6 +212,13 @@ body {
 
 :root[data-theme="dark"] .mac-sidebar-item.active {
     background: rgba(51, 133, 255, .22);
+}
+
+/* 不支持 backdrop-filter：PC 侧栏退回实色导航底 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mac-sidebar {
+        background: var(--gw-sidebar-bg);
+    }
 }
 
 .mac-sidebar-item svg {
@@ -1035,8 +1066,9 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
 
     /* 按压反馈统一在 .mac-sidebar-item:active 的 scale 变换中（见上） */
 
-    /* 移动端隐藏：日志/文件/帮助 tab、主题入口、分割线、版本 */
+    /* 移动端隐藏：日志/文件/帮助 tab、主题入口、分割线、版本、PC 分组标题 */
     .mac-sidebar-item.mobile-hidden,
+    .mac-side-group-title.mobile-hidden,
     .mac-sidebar-divider.mobile-hidden,
     .mac-sidebar-version.mobile-hidden,
     .mac-sidebar-feedback {

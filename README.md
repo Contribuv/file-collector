@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.100-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.101-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.101
+- **网关全站接入 iOS 液态玻璃家族（PC + 移动端）**：PC 侧栏改液态玻璃（此前仅移动端）；信息面板卡片 / 统计卡、编辑与详情模态面板（`gwa-modal`）、居中浮窗（`gwa-popover`）统一使用液态玻璃 token（半透底 + blur 饱和增强 + 顶部内高光 + 半像素描边）；移动端底部 Tab 与「更多」抽屉维持既有液态玻璃，全站观感一致；旧浏览器自动降级实色
+- **PC 端侧栏垂直列表放松**：新增 iOS 设置页式分组标题（概览 / 收集 / 用户与设置 / 工具），项高 36→40px、项间距 4→8px、内边距放宽；移动端 Tab 与「更多」抽屉布局保持不变（分组标题移动端隐藏）
 
 ### v2.3.100
 - **紧急修复：访问网关页面可能卡死浏览器**：v2.3.99 引入的「液态胶囊游标」MutationObserver 脚本存在主线程卡死风险，整段撤销；移动端 Tab 选中态改由纯 CSS 静态液态胶囊底承担（观感不变，无 JS 依赖）

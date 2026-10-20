@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.109-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.110-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,11 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.110
+- **修复「打开文件管理器」彻底失效（严重）**：v2.3.108 的兜底链最后一步用了 `openFileManager()`（无参），而宿主端 `openFileManager` 同样会对 `undefined` 调 `startsWith` 直接崩溃 → 整条链断掉，点任何入口都打不开文件管理器。现改为兜底优先调用 **`openFileManagerApp`**（SDK 提供的无参接口，宿主端不会因缺参崩溃），确保「至少能把飞牛文件管理器打开」；`openFileManager` 无参调用降为最后一步
+- **独立浏览器直连不再做无谓尝试**：`isStandaloneWeb` 为 true 时说明页面不在宿主环境内（没有 host bridge），直接走「复制路径 + 明确说明」兜底，不再触发一串注定失败的控制台报错
+- **提示文案更准确**：明确区分「浏览器直连无法唤起（需在飞牛桌面/手机客户端内打开本应用）」与「桌面端已打开文件管理器但暂不支持自动定位目录」两种情况
 
 ### v2.3.109
 - **修复「查看文件」页操作行按钮贴死**：v2.3.108 新增的「复制路径」按钮与「打开文件管理器」在 inline 布局下间距为 0（两个按钮完全贴在一起）。新增 `.gwa-btn-row` 按钮组容器，统一 8px 间距；移动端整行排布、两按钮等宽、触控高 38px

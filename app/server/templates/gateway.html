@@ -1498,8 +1498,8 @@ async function openUploadDir() {
         } catch (e2) { copied = false; }
         if (tip) {
             tip.textContent = copied
-                ? '无法唤起飞牛文件管理器，已把上传目录路径复制到剪贴板，可粘贴到文件管理器中打开。'
-                : '无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。';
+                ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已把上传目录路径复制到剪贴板，可粘贴到文件管理器中打开。'
+                : '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用。';
             tip.style.display = 'block';
         }
     }
@@ -1551,6 +1551,12 @@ async function invokeFileManager(path, filePath) {
         return 'located';
     }
 
+    // 独立浏览器直连：没有 host bridge（SDK 初始化时已跳过），
+    // 任何调用都不可能成功 —— 直接走「复制路径 + 提示」的兜底，别做无谓尝试
+    if (trimSdk.isStandaloneWeb) {
+        throw new Error('standalone web: host bridge is not available');
+    }
+
     // 桌面客户端：应用以 iframe 嵌入 fnOS 桌面，走 host bridge
     // （无 bridge 时此处抛 "Host bridge is not available outside iframe or app runtime"）
     const methods = trimSdk.getWebMethods();
@@ -1577,10 +1583,12 @@ async function invokeFileManager(path, filePath) {
     }
 
     // 兜底：只把文件管理器打开
-    if (methods.openFileManager) {
-        await methods.openFileManager();
-    } else if (methods.openFileManagerApp) {
+    // 注意顺序：openFileManagerApp 无参，宿主端不会因缺参崩溃；
+    // openFileManager 即便无参，宿主端仍会对 undefined 调 startsWith 而崩溃
+    if (methods.openFileManagerApp) {
         await methods.openFileManagerApp();
+    } else if (methods.openFileManager) {
+        await methods.openFileManager();
     } else {
         throw new Error('文件管理器接口不可用');
     }
@@ -1614,8 +1622,8 @@ async function openFileManagerDir(dir, filePath) {
         } catch (e2) { copied = false; }
         if (window.GW && window.GW.toast) {
             GW.toast(copied
-                ? '无法唤起飞牛文件管理器，已复制路径到剪贴板'
-                : '无法唤起飞牛文件管理器，请在飞牛客户端内打开本页面', 'error');
+                ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已复制路径到剪贴板'
+                : '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用', 'error');
         }
     }
 }

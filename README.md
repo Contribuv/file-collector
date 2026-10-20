@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.110-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.111-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.111
+- **彻底修复「打开文件管理器」不可用（回到 v2.3.93 的可用行为）**：在真实飞牛 NAS 宿主上实测确认——宿主桥方法（`osConnector.methods`，Penpal/postMessage 转发器）**原样透传任意参数**，只接受**字符串路径**：`openFileManager('路径')` ✅ 成功定位目录；`openFileManager({path})` 与无参调用 ❌ 崩溃。v2.3.106~v2.3.110 走的 `osConnector.request(...)` 是**不存在的方法**（宿主桥上只有 `methods`/`config`），导致整条调用链全失败；无参兜底又触发宿主 `undefined.startsWith` 崩溃
+- **修复内容**：按 v2.3.93 的语义直调——`openFileManager('目录')` → 兜底 `openFile('文件路径')` → `openFileManager('文件路径')`，全部字符串参数；删除不存在的 `osConnector.request` 路线与无参 `openFileManagerApp` 兜底；失败提示区分「宿主拒绝调用」与「浏览器直连无宿主桥」两种情况
 
 ### v2.3.110
 - **修复「打开文件管理器」彻底失效（严重）**：v2.3.108 的兜底链最后一步用了 `openFileManager()`（无参），而宿主端 `openFileManager` 同样会对 `undefined` 调 `startsWith` 直接崩溃 → 整条链断掉，点任何入口都打不开文件管理器。现改为兜底优先调用 **`openFileManagerApp`**（SDK 提供的无参接口，宿主端不会因缺参崩溃），确保「至少能把飞牛文件管理器打开」；`openFileManager` 无参调用降为最后一步

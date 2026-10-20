@@ -1497,9 +1497,14 @@ async function openUploadDir() {
             copied = true;
         } catch (e2) { copied = false; }
         if (tip) {
+            const noBridge = e && /Host bridge is not available/i.test(String(e && e.message || e) + (e && e.stack || ''));
             tip.textContent = copied
-                ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已把上传目录路径复制到剪贴板，可粘贴到文件管理器中打开。'
-                : '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用。';
+                ? (noBridge
+                    ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已把上传目录路径复制到剪贴板，可粘贴到文件管理器中打开。'
+                    : '飞牛文件管理器调用被宿主拒绝，已把上传目录路径复制到剪贴板，可粘贴到文件管理器中打开。')
+                : (noBridge
+                    ? '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用。'
+                    : '无法唤起飞牛文件管理器，请稍后重试或反馈（控制台有详细日志）。');
             tip.style.display = 'block';
         }
     }
@@ -1526,17 +1531,22 @@ async function copyUploadPath() {
 //   openFileManager(path: string)  打开文件管理器并定位到指定路径
 //   openFile(path: string)          让宿主打开指定文件（同样会定位到它所在目录）
 //
-// 注意：官方 SDK 的 web 宿主实现在两处都丢弃了路径参数
-//   openFileManager: () => Te("openFileManager")     ← 没有把 path 传下去
-//   openFile:        () => Te("openFile")
-// 于是宿主侧收到 undefined，调用 path.startsWith() 直接抛
-//   TypeError: Cannot read properties of undefined (reading 'startsWith')
-// 所以 web 宿主下必须绕过 SDK 的 web methods，直接用底层 request 传参。
+// 关键事实（2026-10 在真实飞牛 NAS 上对宿主桥实测得出）：
+//   1. fnOS 桌面把宿主方法注入到 osConnector.methods，每个方法都是
+//      Penpal/postMessage 转发器（(...args) => postMessage({methodName, args})），
+//      参数原样透传 —— 并不存在 SDK「丢参」问题。
+//   2. 宿主只接受【字符串路径】：openFileManager('字符串') 成功定位目录；
+//      openFileManager({path}) 报 "e.startsWith is not a function"；
+//      openFileManagerApp() 无参调用同样崩（undefined.startsWith）。
+//   3. osConnector 上没有 request 方法（只有 methods/config）——
+//      v2.3.106~v2.3.110 走 osConnector.request 是调用不存在的方法，全部失败。
+//   v2.3.93 之所以可用：SDK 直调 trimSdk.openFileManager('字符串')，
+//   SDK 内部把参数交给宿主转发器（args=[字符串]）→ 宿主正常定位。
+//   本修复即按此真实语义实现。
 //
 // 返回值：
 //   'located'      —— 已定位到目录
 //   'opened-file'  —— 已打开文件（宿主会显示其所在目录）
-//   'opened'       —— 文件管理器已打开，但未定位
 // 抛错 → 当前环境没有 host bridge（普通浏览器直连），由调用方提示
 async function invokeFileManager(path, filePath) {
     if (!trimSdk) {
@@ -1546,53 +1556,37 @@ async function invokeFileManager(path, filePath) {
     await trimSdk.ready();
 
     if (!trimSdk.isWeb) {
-        // 飞牛 App：SDK 原生支持带路径定位
+        // 飞牛 App：SDK 原生支持带路径定位（v2.3.93 行为，参数为字符串）
         await trimSdk.openFileManager(path);
         return 'located';
     }
 
-    // 独立浏览器直连：没有 host bridge（SDK 初始化时已跳过），
-    // 任何调用都不可能成功 —— 直接走「复制路径 + 提示」的兜底，别做无谓尝试
-    if (trimSdk.isStandaloneWeb) {
-        throw new Error('standalone web: host bridge is not available');
-    }
-
-    // 桌面客户端：应用以 iframe 嵌入 fnOS 桌面，走 host bridge
-    // （无 bridge 时此处抛 "Host bridge is not available outside iframe or app runtime"）
+    // 桌面端（应用以 iframe 嵌入 fnOS 桌面/客户端）：走宿主注入的转发器。
+    // getWebMethods() 返回 osConnector.methods；无 bridge 时抛错由上层提示。
     const methods = trimSdk.getWebMethods();
-    const conn = trimSdk.osConnector;
 
-    if (conn && typeof conn.request === 'function') {
-        // 依次尝试不同参数形态，直到宿主接受
-        const attempts = [];
-        attempts.push({ m: 'openFileManager', p: { path: path } });   // 首选：对象参数定位目录
-        attempts.push({ m: 'openFileManager', p: path });             // 字符串参数
-        if (filePath) {
-            attempts.push({ m: 'openFile', p: { path: filePath } });   // 打开文件 → 宿主定位到其所在目录
-            attempts.push({ m: 'openFile', p: filePath });
-        }
-        for (let i = 0; i < attempts.length; i++) {
-            const a = attempts[i];
-            try {
-                await conn.request(a.m, a.p);
-                return a.m === 'openFileManager' ? 'located' : 'opened-file';
-            } catch (e) {
-                console.warn('[gateway] ' + a.m + ' 调用失败（参数形态 ' + (i + 1) + '）', e);
-            }
-        }
+    // 只用字符串参数（宿主实测仅接受 string path），第一个被接受的即返回
+    const tries = [
+        { call: methods.openFileManager, arg: path, tag: 'located', label: 'openFileManager(目录)' }
+    ];
+    if (filePath) {
+        tries.push({ call: methods.openFile, arg: filePath, tag: 'opened-file', label: 'openFile(文件)' });
+        tries.push({ call: methods.openFileManager, arg: filePath, tag: 'located', label: 'openFileManager(文件)' });
+        tries.push({ call: methods.openFile, arg: path, tag: 'opened-file', label: 'openFile(目录)' });
     }
 
-    // 兜底：只把文件管理器打开
-    // 注意顺序：openFileManagerApp 无参，宿主端不会因缺参崩溃；
-    // openFileManager 即便无参，宿主端仍会对 undefined 调 startsWith 而崩溃
-    if (methods.openFileManagerApp) {
-        await methods.openFileManagerApp();
-    } else if (methods.openFileManager) {
-        await methods.openFileManager();
-    } else {
-        throw new Error('文件管理器接口不可用');
+    for (let i = 0; i < tries.length; i++) {
+        const t = tries[i];
+        if (typeof t.call !== 'function') continue;
+        try {
+            await t.call(t.arg);
+            console.log('[gateway] FileManager 成功：' + t.label + ' → ' + t.arg);
+            return t.tag;
+        } catch (e) {
+            console.warn('[gateway] FileManager 尝试 ' + (i + 1) + '/' + tries.length + '（' + t.label + '）失败', e);
+        }
     }
-    return 'opened';
+    throw new Error('宿主拒绝所有参数形态');
 }
 
 // 打开飞牛文件管理器并定位到「文件所在目录」
@@ -1621,9 +1615,15 @@ async function openFileManagerDir(dir, filePath) {
             copied = true;
         } catch (e2) { copied = false; }
         if (window.GW && window.GW.toast) {
+            // 区分「没有宿主桥（浏览器直连）」与「有宿主桥但调用被拒」
+            const noBridge = e && /Host bridge is not available/i.test(String(e && e.message || e) + (e && e.stack || ''));
             GW.toast(copied
-                ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已复制路径到剪贴板'
-                : '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用', 'error');
+                ? (noBridge
+                    ? '浏览器直接访问时无法唤起飞牛文件管理器（该能力需在飞牛客户端内使用），已复制路径到剪贴板'
+                    : '飞牛文件管理器调用被宿主拒绝，已复制路径到剪贴板，可粘贴到文件管理器打开')
+                : (noBridge
+                    ? '浏览器直接访问时无法唤起飞牛文件管理器，请改用飞牛桌面/手机客户端打开本应用'
+                    : '无法唤起飞牛文件管理器，请稍后重试或反馈（控制台有详细日志）'), 'error');
         }
     }
 }

@@ -1,5 +1,5 @@
 appname               = file-collector
-version               = 2.3.109
+version               = 2.3.110
 display_name          = 文件收集器
 desc                  = 一个好用的文件收集与分享工具<br>创建收集链接发给别人，对方上传文件，你统一管理和下载<br><br>支持 PDF、图片、视频、音频、TXT、Office 文档在线预览，不用下载就能看<br>Office 预览用的 OnlyOffice，全部在浏览器本地处理，文件不经过第三方<br>大文件断点续传，网络断了接着传就行<br><br>每个链接有收集页和分享页两个入口，能分别设密码<br>可限制有效期、文件大小、上传数量，还能禁掉不想要的文件类型<br>支持按上传者自动分文件夹，同名文件提示改名<br><br>多用户系统，邀请码注册，管理员和普通用户分权<br>CSV 批量导入链接，省去一条条手动建<br><br>自带反向代理，配上飞牛 DDNS 域名就能从外网访问，证书直接用飞牛 NAS 里签发的<br><br>手机和电脑都能用，x86 和 ARM 都支持
 platform              = all
@@ -17,4 +17,4 @@ maintainer            = 豪子
 maintainer_url        = https://github.com/Contribuv/file-collector
 distributor           = 豪子
 distributor_url       = https://www.infowe.site/projects/1
-changelog             = v2.3.109 - 修复「查看文件」页操作行按钮贴死（新增复制路径按钮与打开文件管理器按钮间距 0）：统一按钮组 8px 间距，移动端两按钮等宽、触控高 38px；可点击复制的路径加虚线下划线与 hover 提示
+changelog             = v2.3.110 - 修复「打开文件管理器」彻底失效：兜底链末步 openFileManager 无参同样触发宿主 startsWith 崩溃，改为优先 openFileManagerApp（无参不崩），确保至少能打开飞牛文件管理器；独立浏览器直连直接走复制路径兜底，提示文案区分「浏览器直连无法唤起」与「已打开但暂不支持定位目录」

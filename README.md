@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.108-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.109-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.109
+- **修复「查看文件」页操作行按钮贴死**：v2.3.108 新增的「复制路径」按钮与「打开文件管理器」在 inline 布局下间距为 0（两个按钮完全贴在一起）。新增 `.gwa-btn-row` 按钮组容器，统一 8px 间距；移动端整行排布、两按钮等宽、触控高 38px
+- **可点击复制路径的视觉提示**：路径文本加虚线下划线与 hover 高亮，明确「可点」
 
 ### v2.3.108
 - **「点击文件名 → 打开所在目录」按官方 API 真正打通**：依据官方文档 [页面路由](https://developer.fnnas.com/api/page/routing/)（`openFileManager(path: string)` / `openFile(path: string)`），并根据飞牛桌面客户端的报错 `TypeError: Cannot read properties of undefined (reading 'startsWith')` 定位到真正根因——**官方 JS SDK 在 Web 宿主下把路径参数丢了**（`openFileManager: () => Te("openFileManager")`，`openFile` 同样），导致宿主收到 `undefined` 直接崩溃。现改为绕过 SDK 的 web methods，直接用底层 `request` 传参

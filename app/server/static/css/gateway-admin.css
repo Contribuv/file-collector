@@ -1194,6 +1194,14 @@ textarea.form-input {
     color: var(--gw-accent);
 }
 
+/* 按钮组（同一行多个按钮）：统一 8px 间距，避免 inline 布局下按钮贴死 */
+.gwa-btn-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* ---- 抽屉 ---- */
 .gwa-drawer-mask {
     position: fixed;
@@ -3176,5 +3184,18 @@ textarea.form-input {
     .gwa-pop-actions .btn {
         min-height: 40px;
         font-size: 13px;
+    }
+
+    /* 7) 按钮组：移动端整行排布，按钮等宽更好点 */
+    .gwa-btn-row {
+        display: flex;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .gwa-btn-row .btn {
+        flex: 1;
+        min-width: 0;
+        min-height: 38px;
     }
 }

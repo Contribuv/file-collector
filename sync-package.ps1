@@ -55,6 +55,12 @@ foreach ($t in $cleanupTargets) {
 }
 Write-Host "  已清理 __pycache__ / *.pyc / *.map"
 
+# 本地调试页（移动端预览工具），只在本机用，不能进发布包
+Get-ChildItem -Path $PackageDir -Recurse -Force -Filter "_mobile-preview.html" -ErrorAction SilentlyContinue |
+    Where-Object { $null -ne $_.PSPath } |
+    ForEach-Object { Remove-Item -Force $_.FullName -ErrorAction SilentlyContinue }
+Write-Host "  已清理本地调试页 _mobile-preview.html"
+
 # 应用图标：new-logo.png -> package/logo.png
 $newLogo = Join-Path $SourceDir "new-logo.png"
 if (Test-Path $newLogo) {

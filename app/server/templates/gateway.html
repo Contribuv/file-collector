@@ -1490,17 +1490,40 @@ async function openUploadDir() {
     }
 }
 
+// 是否运行在飞牛客户端内（桌面 / 移动 App）
+// 判据与 trim-app.js 内部一致：UA 头带 FNOS/ 或 FNAppType/
+function inFnClient() {
+    try {
+        return /FNOS\/|FNAppType\//i.test(navigator.userAgent);
+    } catch (e) {
+        return false;
+    }
+}
+
 // 打开飞牛文件管理器并定位到「文件所在目录」
-// 供 文件记录 页点击文件名时调用；与 openUploadDir 共用 trimSdk。
+// 供 文件记录 / 信息面板 点击文件名时调用；与 openUploadDir 共用 trimSdk。
+// 注意：飞牛 SDK 的 openFileManager 在 Web 端（桌面客户端内嵌 webview）会丢弃
+// 路径参数，只能打开文件管理器本身；移动 App 端才支持带路径定位。
+// 因此这里做三层兜底：定位 → 仅打开 → 明确提示，绝不「点了没反应」。
 async function openFileManagerDir(dir) {
     if (!dir) { return; }
+    if (!inFnClient()) {
+        if (window.GW && window.GW.toast) {
+            window.GW.toast('当前不在飞牛客户端中，无法唤起文件管理器；请在飞牛客户端内打开本页面', 'error');
+        }
+        return;
+    }
     try {
         if (!trimSdk) {
             const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
             trimSdk = new TrimApp();
         }
         await trimSdk.ready();
-        await trimSdk.openFileManager(dir);
+        try {
+            await trimSdk.openFileManager(dir);   // 优先：定位到指定目录
+        } catch (e1) {
+            await trimSdk.openFileManagerApp();    // 兜底：至少把文件管理器打开
+        }
     } catch (e) {
         console.error('[gateway] openFileManager 失败', e);
         if (window.GW && window.GW.toast) {

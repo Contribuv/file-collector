@@ -3078,3 +3078,93 @@ textarea.form-input {
         background: var(--gw-accent-bg);
     }
 }
+
+/* ============================================================
+   v2.3.106 · 移动端浮窗体系放大 + 文件名可点性收敛
+   ------------------------------------------------------------
+   1) 浮窗（弹出的详情浮层）此前 max-width 只有 min(92vw,360px)，
+      且居中位置按「主内容区」算（含底部 Tab 偏移），在手机上显得又小又偏。
+      移动端统一：完全视口居中、宽度 100vw-32px、圆角 16、正文 14px；
+      模态框、下拉菜单、日志浮层同步放大，按钮触控高度 40px。
+   2) 文件名在移动端是「蓝色 + 600 粗体」，看起来像链接，但点下去
+      在浏览器环境里毫无反应（飞牛 SDK 的 openFileManager 在 Web 端
+      会丢弃路径参数）。移动端收敛为正文色 + 500 字重，
+      只有按下/聚焦时才变主色，配合明确的反馈提示。
+   ============================================================ */
+@media (max-width: 640px) {
+    /* 1) 浮窗：视口完全居中 + 放大 */
+    .gwa-popover {
+        left: 50%;
+        top: 50%;
+        width: calc(100vw - 32px);
+        min-width: 0;
+        max-width: none;
+        max-height: min(76vh, 620px);
+        padding: 16px 18px;
+        font-size: 14px;
+        border-radius: 16px;
+    }
+
+    /* 2) 模态框：更满、更大、按钮适合手指 */
+    .gwa-overlay {
+        padding: 12px;
+    }
+
+    .gwa-modal {
+        width: 100%;
+        max-width: none;
+        border-radius: 16px;
+    }
+
+    .gwa-modal-head {
+        padding: 14px 16px;
+        font-size: 16px;
+    }
+
+    .gwa-modal-body {
+        padding: 14px 16px;
+        font-size: 14px;
+    }
+
+    .gwa-modal-foot {
+        padding: 12px 16px;
+    }
+
+    .gwa-modal-foot .btn {
+        flex: 1;
+        min-height: 40px;
+    }
+
+    /* 3) 下拉菜单：选项行更高更好点 */
+    .gwa-select-option {
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+
+    /* 4) 日志浮层：跟随模态框放大 */
+    .gwa-logs-modal {
+        width: 100%;
+        max-width: none;
+        border-radius: 16px;
+    }
+
+    /* 5) 文件名：不再做成「蓝色粗体链接」，改为正文色 + 中等字重 */
+    #section-records .gwa-table .gwa-file-open,
+    #section-dashboard .gwa-table .gwa-file-open {
+        color: var(--gw-text-primary);
+        font-weight: 500;
+    }
+
+    #section-records .gwa-table .gwa-file-open:active,
+    #section-dashboard .gwa-table .gwa-file-open:active,
+    #section-records .gwa-table .gwa-file-open:focus-visible,
+    #section-dashboard .gwa-table .gwa-file-open:focus-visible {
+        color: var(--gw-accent);
+    }
+
+    /* 6) 浮窗内按钮：手指友好高度 */
+    .gwa-pop-actions .btn {
+        min-height: 40px;
+        font-size: 13px;
+    }
+}

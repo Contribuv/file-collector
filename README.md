@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.105-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.106-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,12 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.106
+- **移动端浮窗放大并完全居中**：详情浮层此前宽度只有 `min(92vw,360px)`，且居中位置按「主内容区」计算（含底部 Tab 偏移），在手机上又小又偏；现改为完全视口居中、宽度 `100vw - 32px`、圆角 16px、正文 14px；模态框、下拉菜单、日志浮层同步放大，浮窗与模态按钮触控高度提升到 40px
+- **修复「点击文件名毫无反应」**：根因是飞牛 SDK 的 `openFileManager` 在 Web 端（桌面客户端内嵌 webview）会丢弃路径参数，导致点击后既不定位也不报错。现改为三层兜底——优先按路径定位 → 退化为只唤起文件管理器 → 明确 toast 提示；并新增 UA 判定，不在飞牛客户端内时直接提示「请在飞牛客户端内打开本页面」，不再静默失败
+- **新增「打开所在目录」入口**：文件记录操作浮窗与信息面板详情弹窗均新增该按钮（桌面客户端无法定位路径时的可靠入口）
+- **移动端文件名收敛可点样式**：不再做成「蓝色 + 600 粗体链接」，改为正文色 + 500 字重，按下/聚焦时才变主色（不加额外角标，保持列表干净）
 
 ### v2.3.105
 - **移动端界面重构（修「线贴字」「点击不融合」「底部空一截」）**：本轮按 390px 真实截图逐项定位根因，而不是只看数值——

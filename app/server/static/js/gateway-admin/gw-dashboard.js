@@ -224,6 +224,10 @@
             footer += '<button type="button" class="btn btn-default btn-sm" data-act="preview">预览</button>';
         }
         footer += '<button type="button" class="btn btn-default btn-sm" data-act="download">下载</button>';
+        if (r.stored_dir) {
+            // 明确的「打开所在目录」入口（SDK 在 Web 端无法定位路径时的兜底）
+            footer += '<button type="button" class="btn btn-default btn-sm" data-act="open-dir">打开所在目录</button>';
+        }
         footer += '<button type="button" class="btn btn-danger btn-sm" data-act="delete">删除</button>';
 
         var m = GW.modal({ title: '文件详情', bodyHtml: rows, footerHtml: footer, width: '460px' });
@@ -238,6 +242,10 @@
                 else window.open(url, '_blank');
             } else if (act === 'download') {
                 GW.triggerDownload(b + '/admin/records/' + id + '/download');
+            } else if (act === 'open-dir') {
+                m.close();
+                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir); }
+                else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
             } else if (act === 'delete') {
                 m.close();
                 doDelete(r);

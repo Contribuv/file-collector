@@ -378,6 +378,11 @@
         html += '<button type="button" class="btn btn-primary btn-sm" data-act="download">下载</button>';
         html += '</div>';
         html += '<div class="gwa-pop-actions">';
+        if (r.stored_dir) {
+            // 明确的「打开所在目录」入口：文件名点击在桌面客户端里只能唤起文件管理器
+            // （SDK 的 openFileManager 在 Web 端会丢弃路径参数），这里给出可控的入口
+            html += '<button type="button" class="btn btn-default btn-sm" data-act="open-dir">打开所在目录</button>';
+        }
         html += '<button type="button" class="btn btn-default btn-sm" data-act="logs">下载记录</button>';
         html += '<button type="button" class="btn btn-danger btn-sm" data-act="delete">删除</button>';
         html += '</div>';
@@ -392,6 +397,11 @@
             if (a === 'preview') { GW.closePopover(); previewRecord(r); }
             else if (a === 'download') { GW.closePopover(); doDownload(r); }
             else if (a === 'logs') { GW.closePopover(); GW.downloadLogsModal(r); }
+            else if (a === 'open-dir') {
+                GW.closePopover();
+                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir); }
+                else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
+            }
             else if (a === 'delete') { GW.closePopover(); doDelete(r); }
         });
     }

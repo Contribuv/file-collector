@@ -700,5 +700,5 @@
         }
     }
 
-    window.GWModules.links = { init: init };
+    window.GWModules.links = { init: init, openCreate: function () { openForm(null); } };
 })();

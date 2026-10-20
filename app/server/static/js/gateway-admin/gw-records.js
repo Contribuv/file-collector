@@ -530,6 +530,19 @@
     }
 
     /* ---------- 入口 ---------- */
+    /* 供其他面板（信息面板最近上传的文件夹行）直达某目录：
+       记录模块常驻（initState 在模块加载时执行），这里只改状态再触发节切换；
+       switchSection('records') 会调用 init() → load(state.page)，
+       此时 state.page=1、state.dir=目标目录，一次请求即达 */
+    function openDir(dir) {
+        dir = dir || '';
+        state.page = 1;
+        state.dir = dir;
+        state._jumpFromDashboard = true;
+        if (window.switchSection) { window.switchSection('records'); return; }
+        load(1, dir);
+    }
+
     function init() {
         panel = document.querySelector('[data-gwa-panel="records"]');
         if (!panel) return;
@@ -540,10 +553,18 @@
         if (!state.inited) {
             state.inited = true;
             load(1);
-        } else {
-            load(state.page);
+            return;
         }
+        if (state._jumpFromDashboard) {
+            state._jumpFromDashboard = false;
+            load(state.page || 1, state.dir || '');
+            return;
+        }
+        state.dir = '';
+        state.page = 1;
+        state.linkFilter = '';
+        load(1);
     }
 
-    window.GWModules.records = { init: init };
+    window.GWModules.records = { init: init, openDir: openDir };
 })();

@@ -9,6 +9,8 @@ __pycache__/
 
 # 本地验证脚本
 verify_*.py
+# 本地移动端预览页（仅本地调试用，static 目录会被打进 fpk，故不入库）
+app/server/static/_mobile-preview.html
 
 # IDE
 .trae/

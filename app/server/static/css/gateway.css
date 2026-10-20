@@ -43,6 +43,9 @@
     --gw-success-bg: rgba(52, 199, 89, .10);
     --gw-warning: #ff9500;
     --gw-warning-bg: rgba(255, 149, 0, .10);
+    /* 紫（信息面板统计/快捷入口的第四语义色，与蓝绿橙同族成套） */
+    --gw-violet: #7c3aed;
+    --gw-violet-bg: rgba(124, 58, 237, .10);
     --gw-input-bg: #ffffff;
     --gw-input-border: rgba(22, 20, 26, .16);
     --gw-input-disabled-bg: #f5f5f7;
@@ -91,6 +94,9 @@
     --gw-success-bg: rgba(52, 210, 122, .14);
     --gw-warning: #ffb13c;
     --gw-warning-bg: rgba(255, 177, 60, .14);
+    /* 紫（深色下提亮，保证图标在深底上的对比度） */
+    --gw-violet: #a78bfa;
+    --gw-violet-bg: rgba(167, 139, 250, .16);
     --gw-input-bg: #1e2126;
     --gw-input-border: rgba(255, 255, 255, .16);
     --gw-input-disabled-bg: #171a1e;
@@ -227,7 +233,10 @@ body {
     flex-shrink: 0;
 }
 
+/* 分隔线：分组标题（mac-side-group-title）已承担分层职能，
+   该废弃的单一分隔线整体隐藏（含 PC 端「最后一个 tab 后面的线」——用户反馈移除） */
 .mac-sidebar-divider {
+    display: none;
     height: 1px;
     background: var(--gw-border-light);
     margin: 8px 4px;

@@ -28,9 +28,9 @@
 </head>
 <body data-gateway-prefix="{{ gateway_prefix }}" data-default-port="{{ config.port or 7786 }}" data-upload-base="{{ upload_base }}" data-is-fn-admin="{{ '1' if is_fn_admin else '0' }}" data-csrf-token="{{ csrf_token }}">
 <script>
-// 首屏防闪烁：优先 URL ?theme=，其次读取 sessionStorage 缓存的上次主题，默认浅色。
-// 不使用 prefers-color-scheme（飞牛 WebView 中该值与飞牛主题不同步）。
-// 随后由飞牛 SDK(getPlatformConfig) 覆盖为系统真实主题并刷新缓存。
+// 首屏防闪烁：优先 URL ?theme=，其次读取 sessionStorage 缓存的上次主题；
+// 二者皆无时才用 prefers-color-scheme 猜一次（仅普通手机浏览器首访生效，
+// 飞牛 WebView 内该值可能与飞牛主题不同步，但随后 SDK 会立即纠正并写缓存）。
 (function() {
     try {
         var urlTheme = new URLSearchParams(window.location.search).get('theme');
@@ -39,7 +39,8 @@
             theme = urlTheme;
         } else {
             var cached = sessionStorage.getItem('fnos-theme');
-            theme = (cached === 'dark' || cached === 'light') ? cached : 'light';
+            theme = (cached === 'dark' || cached === 'light') ? cached
+                : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         }
         document.documentElement.setAttribute('data-theme', theme);
     } catch (e) {
@@ -92,18 +93,26 @@ function themeLocked() {
 }
 
 async function initFnOSTheme() {
+    // 标记飞牛侧是否成为主题来源；否，则回退跟随系统深浅偏好
+    var fnThemeSource = false;
     try {
         const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
         const sdk = new TrimApp();
         trimSdk = sdk;
 
         const config = await sdk.getPlatformConfig();
-        if (config && (config.theme === 'dark' || config.theme === 'light') && !themeLocked()) {
-            applyTheme(config.theme);
-            try { sessionStorage.setItem('fnos-theme', config.theme); } catch (e) {}
+        if (config && (config.theme === 'dark' || config.theme === 'light')) {
+            // 拿到过一次 SDK 真实主题即视为飞牛侧已提供主题来源
+            fnThemeSource = true;
+            if (!themeLocked()) {
+                applyTheme(config.theme);
+                try { sessionStorage.setItem('fnos-theme', config.theme); } catch (e) {}
+            }
         }
 
         if (sdk.isWeb === true && sdk.isStandaloneWeb === false) {
+            // 订阅 + 轮询成立即视为飞牛主题来源（后续系统偏好不再接管）
+            fnThemeSource = true;
             try {
                 await sdk.$on('os/theme', function(theme) {
                     if ((theme === 'dark' || theme === 'light') && !themeLocked()) {
@@ -133,6 +142,24 @@ async function initFnOSTheme() {
         }
     } catch (e) {
         console.warn('[gateway] fnOS 主题初始化失败，使用回退主题', e);
+    }
+    // 普通手机浏览器（飞牛 App 外）：SDK 取不到主题时跟随系统深/浅色偏好并监听变化。
+    // 飞牛 WebView 内（fnThemeSource=true）不接管，避免与飞牛主题不同步。
+    if (!fnThemeSource && window.matchMedia) {
+        try {
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            var applySystem = function (evt) {
+                if (themeLocked()) return;
+                var dark = evt && typeof evt.matches === 'boolean' ? evt.matches : mq.matches;
+                var t = dark ? 'dark' : 'light';
+                if (document.documentElement.getAttribute('data-theme') === t) return;
+                applyTheme(t);
+                try { sessionStorage.setItem('fnos-theme', t); } catch (err) {}
+            };
+            applySystem(null);
+            if (mq.addEventListener) mq.addEventListener('change', applySystem);
+            else if (mq.addListener) mq.addListener(applySystem);
+        } catch (err) {}
     }
 }
 
@@ -587,11 +614,29 @@ initFnOSTheme();
                 </h2>
                 <style>
                     .doc-toc { border:1px solid var(--gw-border); border-left:4px solid var(--gw-text-primary); padding:12px 16px; margin:0 0 24px; }
-                    .doc-toc p { color:var(--gw-text-tertiary); font-size:13px; margin:0 0 6px; }
+                    /* 目录折叠开关：桌面只作为普通提示文字，移动端才变成可点击的下拉头 */
+                    .doc-toc-check { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+                    .doc-toc-head { display:block; color:var(--gw-text-tertiary); font-size:13px; margin:0 0 6px; cursor:default; }
+                    .doc-toc-chevron { display:none; }
                     .doc-toc ol { padding-left:22px; margin:0; }
                     .doc-toc li { margin:4px 0; }
                     .doc-toc a { color:var(--gw-accent); text-decoration:none; }
                     .doc-toc a:hover { text-decoration:underline; }
+                    /* 移动端：目录收成一条「下拉按钮」，展开后是整块列表 */
+                    @media (max-width: 640px) {
+                        .doc-toc { padding:0; border-left-width:1px; border-radius:10px; margin:0 0 16px; overflow:hidden; }
+                        .doc-toc-head { display:flex; align-items:center; gap:8px; margin:0; padding:12px 14px;
+                            font-size:13px; font-weight:600; color:var(--gw-text-primary);
+                            background:var(--gw-fill-0); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+                        .doc-toc-head span { flex:1; min-width:0; }
+                        .doc-toc-chevron { display:block; width:16px; height:16px; flex:0 0 auto;
+                            color:var(--gw-text-tertiary); transition:transform .18s ease; }
+                        .doc-toc-check:checked ~ .doc-toc-head .doc-toc-chevron { transform:rotate(180deg); }
+                        .doc-toc-check:not(:checked) ~ ol { display:none; }
+                        .doc-toc ol { padding:6px 14px 10px 32px; }
+                        .doc-toc li { margin:0; }
+                        .doc-toc a { display:block; padding:7px 0; }
+                    }
                     /* 正文基准 14px，与侧边栏 Tab 文字（14px）保持一致，不再偏大 */
                     .doc { font-size:14px; }
                     .doc h2 { font-size:16px; padding-bottom:8px; margin:32px 0 12px; border-bottom:1px solid var(--gw-border); }
@@ -627,7 +672,11 @@ initFnOSTheme();
                 </style>
                 <div class="doc">
                     <div class="doc-toc">
-                        <p>这一页都有啥，点一下直接跳：</p>
+                        <input type="checkbox" id="docTocCheck" class="doc-toc-check">
+                        <label class="doc-toc-head" for="docTocCheck">
+                            <span>这一页都有啥，点一下直接跳：</span>
+                            <svg class="doc-toc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                        </label>
                         <ol>
                             <li><a href="#doc-intro">先说清楚这是个啥</a></li>
                             <li><a href="#doc-install">一、把应用装上，从哪进</a></li>
@@ -1512,12 +1561,17 @@ function resetLightbox() {
         return true;
     }
     // 拦截目录点击：阻止原生锚点导航，只滚 .mac-main，并用 pushState 更新地址栏
+    var docTocCheck = document.getElementById('docTocCheck');
     document.querySelectorAll('.doc-toc a[href^="#"]').forEach(function(a) {
         a.addEventListener('click', function(e) {
             var hash = (a.getAttribute('href') || '').slice(1);
             if (!jumpTo(hash, true)) return; // 无对应目标时退回原生行为
             e.preventDefault();
             try { history.pushState(null, '', '#' + hash); } catch (err) {}
+            // 移动端跳到目标后把下拉目录收回，避免整屏都是目录
+            if (docTocCheck && window.matchMedia('(max-width: 640px)').matches) {
+                docTocCheck.checked = false;
+            }
         });
     });
     // 前进/后退回到锚点时同样手动定位（popstate 不触发原生滚动，无需阻止）
@@ -1549,12 +1603,26 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeLightbox();
 });
 
-// 浮窗内滚轮缩放（只放大图片，不滚页面）
-document.getElementById('docLightbox').addEventListener('wheel', e => {
-    if (!document.getElementById('docLightbox').classList.contains('open')) return;
-    e.preventDefault();
-    zoomLightbox(e.deltaY < 0 ? 1.15 : 0.85);
-}, { passive: false });
+// 使用说明根节点：非飞牛管理员看不到「使用说明」Tab，这些节点不存在，需判空后再监听
+const docRoot = document.getElementById('section-manual');
+if (docRoot) {
+    // 滚轮在浮层内时缩放图片（仅浮层打开时拦截滚动）
+    docRoot.addEventListener('wheel', e => {
+        if (!document.getElementById('docLightbox').classList.contains('open')) return;
+        e.preventDefault();
+        zoomLightbox(e.deltaY < 0 ? 1.15 : 0.85);
+    }, { passive: false });
+}
+
+// 浮窗内滚轮缩放（只放大图片，不滚页面；浮层随「使用说明」Tab 一起渲染，故一并判空）
+const docLightboxEl = document.getElementById('docLightbox');
+if (docLightboxEl) {
+    docLightboxEl.addEventListener('wheel', e => {
+        if (!docLightboxEl.classList.contains('open')) return;
+        e.preventDefault();
+        zoomLightbox(e.deltaY < 0 ? 1.15 : 0.85);
+    }, { passive: false });
+}
 
 // 滚动条仅在滚动中显示：滚动时给 <html> 挂 data-gw-scrolling，
 // 静止 600ms 后摘除（配合 gateway.css 隐藏 thumb 着色）

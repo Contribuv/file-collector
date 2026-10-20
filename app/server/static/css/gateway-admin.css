@@ -30,10 +30,10 @@
     font-size: 13px;
 }
 
-/* ---- 统计卡网格 ---- */
+/* ---- 统计卡网格（信息面板：固定四列，窄屏折两列——见文末断点） ---- */
 .gwa-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 18px;
 }
@@ -44,12 +44,38 @@
     box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
     border-radius: var(--gw-radius-md);
     padding: 14px 16px;
+    /* 图标化改版：左侧色底图标片 + 右侧数值/标签 */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .gwa-stat {
         background: var(--gw-card-bg);
     }
+}
+
+.gwa-stat-ico {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gw-accent);
+    background: var(--gw-accent-bg);
+}
+
+.gwa-stat-ico svg {
+    width: 20px;
+    height: 20px;
+}
+
+.gwa-stat-body {
+    min-width: 0;
 }
 
 .gwa-stat-value {
@@ -67,6 +93,95 @@
     font-size: 12px;
     color: var(--gw-text-tertiary);
     margin-top: 4px;
+    white-space: nowrap;
+}
+
+/* ---- 语义色片（统计卡图标 / 快捷入口图标）：蓝·绿·橙·紫·红 同族 token，浅深主题自适应 ---- */
+.gwa-tint-blue .gwa-stat-ico, .gwa-tint-blue .gwa-quick-ico {
+    background: var(--gw-accent-bg);
+    color: var(--gw-accent);
+}
+
+.gwa-tint-green .gwa-stat-ico, .gwa-tint-green .gwa-quick-ico {
+    background: var(--gw-success-bg);
+    color: var(--gw-success);
+}
+
+.gwa-tint-orange .gwa-stat-ico, .gwa-tint-orange .gwa-quick-ico {
+    background: var(--gw-warning-bg);
+    color: var(--gw-warning);
+}
+
+.gwa-tint-violet .gwa-stat-ico, .gwa-tint-violet .gwa-quick-ico {
+    background: var(--gw-violet-bg);
+    color: var(--gw-violet);
+}
+
+.gwa-tint-red .gwa-stat-ico, .gwa-tint-red .gwa-quick-ico {
+    background: var(--gw-danger-bg);
+    color: var(--gw-danger);
+}
+
+/* ---- 快捷操作（信息面板）：图标直达格，auto-fit 自动分配每行个数 ---- */
+.gwa-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    gap: 10px;
+}
+
+.gwa-quick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 4px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--gw-radius-md);
+    background: var(--gw-fill-0);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--gw-text-secondary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+
+.gwa-quick:hover {
+    background: var(--gw-card-bg);
+    border-color: var(--gw-border);
+    color: var(--gw-text-primary);
+}
+
+.gwa-quick:active {
+    transform: scale(.96);
+}
+
+.gwa-quick:focus-visible {
+    outline: 2px solid var(--gw-accent);
+    outline-offset: 2px;
+}
+
+.gwa-quick-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gw-accent);
+    background: var(--gw-accent-bg);
+}
+
+.gwa-quick-ico svg {
+    width: 18px;
+    height: 18px;
+}
+
+.gwa-quick-label {
+    white-space: nowrap;
 }
 
 /* ---- 卡片（iOS 液态玻璃家族：半透卡底 + 顶部内高光；下层为纯色页面底，无 blur 即可通透） ---- */
@@ -91,6 +206,82 @@
     font-weight: 600;
     margin-bottom: 12px;
     color: var(--gw-text-primary);
+}
+
+/* 带图标的卡标题（信息面板：快捷操作 / 最近上传）：图标与文字同行居中 */
+.gwa-card-title--ico {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gwa-card-title--ico svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    color: var(--gw-accent);
+}
+
+/* ---- 快捷操作（信息面板）：图标直达格，auto-fit 自动分配每行个数 ---- */
+.gwa-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    gap: 10px;
+}
+
+.gwa-quick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 4px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--gw-radius-md);
+    background: var(--gw-fill-0);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--gw-text-secondary);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+
+.gwa-quick:hover {
+    background: var(--gw-card-bg);
+    border-color: var(--gw-border);
+    color: var(--gw-text-primary);
+}
+
+.gwa-quick:active {
+    transform: scale(.96);
+}
+
+.gwa-quick:focus-visible {
+    outline: 2px solid var(--gw-accent);
+    outline-offset: 2px;
+}
+
+.gwa-quick-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gw-accent);
+    background: var(--gw-accent-bg);
+}
+
+.gwa-quick-ico svg {
+    width: 18px;
+    height: 18px;
+}
+
+.gwa-quick-label {
+    white-space: nowrap;
 }
 
 .gwa-subtitle {
@@ -742,6 +933,16 @@ textarea.form-input {
     flex-wrap: wrap;
 }
 
+/* 信息面板「最近上传」标题卡：标题与卡顶（液态玻璃内高光线）保持呼吸距离，
+   修复 v2.3.102 后标题紧贴卡顶线的压迫感（PC / 移动端一致） */
+#section-dashboard .gwa-card {
+    padding-top: 18px;
+}
+
+#section-dashboard .gwa-row-between {
+    margin-bottom: 12px;
+}
+
 /* ---- 模态 / 浮窗 ---- */
 .gwa-overlay {
     position: fixed;
@@ -1037,16 +1238,13 @@ textarea.form-input {
 /* 窄屏：统计与卡片内边距收紧。
    表格转卡片的规则统一放在下方 900px 断点，避免两段重复规则互相覆盖导致布局错乱。 */
 @media (max-width: 640px) {
-    .gwa-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .gwa-stat-value {
-        font-size: 20px;
-    }
-
     .gwa-card {
         padding: 10px;
+    }
+    .gwa-dirbar {
+        margin: 4px 0 8px;
+        padding: 4px 8px;
+        min-height: 32px;
     }
 }
 
@@ -1676,14 +1874,24 @@ textarea.form-input {
         font-size: 12px;
     }
 
-    /* 文件夹行：并入分组列表（平铺），meta 折到第二行（DOM 顺序已把 chevron 提到 meta 前） */
+    /* 文件夹行：并入分组列表（平铺），meta 折到第二行；移动端收紧上下间距 */
     #section-records .gwa-table tr.gwa-folder-row td {
         display: flex;
         width: 100%;
         flex-wrap: wrap;
         align-items: center;
+        gap: 8px;
         row-gap: 2px;
-        padding: 6px 12px;
+        padding: 4px 0 6px;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    /* 首列旧规则给 td[data-label="文件"] 留了 margin-right:12px，
+       与 flex:0 0 100% 同存时会横向溢出卡片，移动端归零
+       （带 :not 特异性与旧规则打平，靠源顺序后置取胜） */
+    #section-records .gwa-table tr[data-id] > td[data-label="文件"]:not(.gwa-col-actions) {
+        margin-right: 0;
     }
 
     #section-records .gwa-table tr.gwa-folder-row .gwa-folder-meta {
@@ -2371,5 +2579,502 @@ textarea.form-input {
         border-radius: 0;
         padding: 0;
         margin: 0;
+    }
+}
+/* ============================================================
+   v2.3.102 · 移动端列表行统一收紧（信息面板 / 文件记录 / 收集链接）
+   病根（实测截图）：名称列在 records/dashboard 未排除出 inline-flex
+   meta 流，与带字段标签的 meta 一起撞栏换行堆成 3-4 层（行高 120-150px）；
+   「操作」又独立窄行，上下留白断裂。
+   统一为三段式：R1 主信息满宽 → R2 meta 灰字流（可换行、无纵向填充）
+   → R3 操作整行右置；浅色/深色同构。
+   ============================================================ */
+@media (max-width: 900px) {
+    #section-records .gwa-table tbody > tr,
+    #section-links .gwa-table tbody > tr,
+    #section-dashboard .gwa-table tbody > tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        row-gap: 2px;
+        padding: 8px 12px;
+    }
+
+    /* R1 主信息（文件 / 收集名称 / 文件名）满宽一行；文件夹行不受影响 */
+    #section-records .gwa-table td[data-label="文件"],
+    #section-links .gwa-table td[data-label="收集名称"],
+    #section-dashboard .gwa-table td[data-label="文件名"] {
+        display: flex;
+        flex: 0 0 100%;
+        align-items: center;
+        gap: 8px;
+        padding: 0 0 4px;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    /* R2 meta 灰字流：无纵向填充，12px 统一行高；沿保留字段标签（用户偏好） */
+    #section-records .gwa-table tr[data-id] > td[data-label]:not([data-label="文件"]):not(.gwa-col-actions),
+    #section-links .gwa-table tr[data-id] > td[data-label]:not([data-label="收集名称"]):not(.gwa-col-actions),
+    #section-dashboard .gwa-table tbody > tr > td[data-label]:not([data-label="文件名"]):not(.gwa-col-actions) {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: baseline;
+        max-width: 100%;
+        overflow: hidden;
+        padding: 0;
+        margin: 0 10px 0 0;
+        font-size: 12px;
+        line-height: 20px;
+    }
+
+    /* R3 操作行：整行右置 + 更紧凑的按钮，消除孤行悬空感 */
+    #section-records .gwa-table td.gwa-col-actions,
+    #section-links .gwa-table td.gwa-col-actions,
+    #section-dashboard .gwa-table td.gwa-col-actions {
+        display: flex;
+        flex: 0 0 100%;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 4px 0 0;
+    }
+
+    #section-records .gwa-table td.gwa-col-actions .btn,
+    #section-links .gwa-table td.gwa-col-actions .btn,
+    #section-dashboard .gwa-table td.gwa-col-actions .btn {
+        min-height: 32px;
+        padding-left: 10px;
+        padding-right: 10px;
+        font-size: 12px;
+    }
+
+    /* 信息面板「最近上传」标题行：标题与「查看全部」垂直居中、按钮收窄 */
+    #section-dashboard .gwa-row-between {
+        align-items: center;
+    }
+
+    #section-dashboard .gwa-row-between .gwa-card-title {
+        font-size: 15px;
+    }
+
+    #section-dashboard .gwa-row-between .btn {
+        min-height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+    }
+
+    /* 面包屑条：退掉灰底实条与描边，仅保留轻量胶囊（浅/深一致通透） */
+    #section-records .gwa-dirbar {
+        background: transparent;
+        border: none;
+        padding: 2px 2px 8px;
+    }
+
+    #section-records .gwa-dirbar .gwa-crumb {
+        padding: 4px 10px;
+        font-size: 13px;
+    }
+
+    /* 信息面板的文件夹行（目录聚合）：meta 折到第二行，与文件记录同构；
+       字号提级 + gap 8px，文件夹图标/昵称与文件行同基线同样左缘 */
+    #section-dashboard .gwa-table tr.gwa-folder-row .gwa-folder-meta {
+        flex-basis: 100%;
+    }
+
+    #section-dashboard .gwa-table tr.gwa-folder-row td {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        row-gap: 2px;
+        padding: 4px 0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    /* 错位根因二：移动端首行 flex 布局 gap 已提供 8px 图标-名称间距，
+       图标自带 margin(6px) 需归零，文件行(6+8=14px)与文件夹行(6px)方才一致 */
+    .gwa-table .gwa-rec-exticon,
+    .gwa-table tr.gwa-folder-row .gwa-folder-icon {
+        margin-right: 0;
+    }
+}
+/* ============================================================
+   v2.3.103 · 移动端列表行间线内缩（用户反馈：线顶满卡边、与内容挤在一起）
+   iOS 列表分隔线惯例：hairline 与内容对齐缩进 12px，不通铺到卡片边缘；
+   组内第一条行无线，卡顶自然呼吸。浅色 .05 / 深色 .06 同一令牌。
+   ============================================================ */
+@media (max-width: 900px) {
+    .gwa-table tbody tr {
+        position: relative;
+    }
+
+    .gwa-table tr + tr {
+        border-top: none;
+    }
+
+    .gwa-table tbody tr + tr::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: 0;
+        height: 1px;
+        background: var(--gw-border-light);
+        pointer-events: none;
+    }
+}
+
+/* ============================================================
+   v2.3.103 · 信息面板重构：图标化统计卡 + 快捷操作格 + 自适应
+   桌面四列一行（每卡：40px 色底图标 + 数值 + 标签）；
+   ≤900px 侧栏仍在但主区变窄 → 折两列；
+   ≤640px 移动端 → 两列 + 图标/字号收紧（快捷格每行 4 个左右，
+   auto-fit 依容器宽度自动分配，窄屏不横向溢出）。
+   ============================================================ */
+@media (max-width: 900px) {
+    .gwa-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .gwa-stat {
+        gap: 8px;
+        padding: 8px 10px;
+    }
+
+    .gwa-stat-ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+    }
+
+    .gwa-stat-ico svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .gwa-stat-value {
+        font-size: 20px;
+    }
+
+    .gwa-quick-grid {
+        gap: 8px;
+    }
+
+    .gwa-quick {
+        gap: 6px;
+        padding: 10px 4px 8px;
+        font-size: 11px;
+    }
+
+    .gwa-quick-ico {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+    }
+
+    .gwa-quick-ico svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+/* ============================================================
+   v2.3.104 · 移动端间距规范（4 / 8 / 12 三档节奏）
+   ------------------------------------------------------------
+   历史规则层层叠加后，同一个面板里同时存在 8 / 10 / 14 / 18 四种
+   间距：统计卡 8、工具栏 14、卡片 8、列表页脚 14，信息面板卡片
+   更是「上 18 / 下 0」。本段只在 ≤900 / ≤640 覆盖，桌面数值不动。
+   ============================================================ */
+@media (max-width: 900px) {
+    /* 1) 面板纵向节奏：统一 12px。
+       用 flex gap 取代 margin，避免「相邻 margin 取大值」造成 8/14 交替 */
+    .gwa-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .gwa-panel > * {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    /* 2) 列表行：触屏本来没有 hover，取消整行底色。
+       否则鼠标/手写笔经过时，铺满整行的底色与两端内缩 12px 的
+       hairline 分隔线对不齐，看起来「线是断的、块是歪的」 */
+    .gwa-table tbody tr:hover {
+        background: transparent;
+    }
+
+    .gwa-table tbody tr:active {
+        background: var(--gw-fill-0);
+    }
+
+    /* 3) 文件夹行里的勾选列：此前被 tr.gwa-folder-row td 的 display:flex
+       覆盖后仍占位（空 td 高 10px），把行撑高、内容基线也带偏 */
+    .gwa-table tr.gwa-folder-row > td.gwa-col-sel,
+    .gwa-table tr.gwa-folder-row > td.gwa-col-check {
+        display: none;
+    }
+
+    /* 4) 列表行内边距统一为「tr 管上下、td 只留横向」。
+       修掉信息面板（8px）与文件记录（上 4 / 下 6 不对称）两套节奏 */
+    #section-dashboard .gwa-table tbody > tr,
+    #section-records .gwa-table tbody > tr,
+    #section-links .gwa-table tbody > tr {
+        padding: 10px 12px;
+    }
+
+    #section-dashboard .gwa-table tr.gwa-folder-row td,
+    #section-records .gwa-table tr.gwa-folder-row td,
+    #section-links .gwa-table tr.gwa-folder-row td {
+        padding: 0;
+    }
+
+    /* 三段式行内节奏：主信息 2 / meta 8 / 操作 6，三档固定值 */
+    #section-dashboard .gwa-table td[data-label="文件名"],
+    #section-records .gwa-table td[data-label="文件"],
+    #section-links .gwa-table td[data-label="收集名称"] {
+        padding: 0 0 2px;
+    }
+
+    #section-dashboard .gwa-table tbody > tr > td[data-label]:not([data-label="文件名"]):not(.gwa-col-actions),
+    #section-records .gwa-table tr[data-id] > td[data-label]:not([data-label="文件"]):not(.gwa-col-actions),
+    #section-links .gwa-table tr[data-id] > td[data-label]:not([data-label="收集名称"]):not(.gwa-col-actions) {
+        margin: 0 8px 0 0;
+        line-height: 18px;
+    }
+
+    #section-dashboard .gwa-table td.gwa-col-actions,
+    #section-records .gwa-table td.gwa-col-actions,
+    #section-links .gwa-table td.gwa-col-actions {
+        padding: 6px 0 0;
+    }
+
+    /* 用户管理沿用同一套行节奏（原本 td 上 4 / 下 4、行内 12px 横向双份） */
+    #section-users .gwa-table tbody > tr {
+        padding: 10px 12px;
+    }
+
+    #section-users .gwa-table td[data-label="用户名"],
+    #section-users .gwa-table td[data-label="邀请码"] {
+        padding: 0 0 2px;
+    }
+
+    #section-users .gwa-table tr[data-id] > td[data-label]:not([data-label="用户名"]):not([data-label="邀请码"]):not(.gwa-col-actions) {
+        margin: 0 8px 0 0;
+        padding: 0;
+        line-height: 18px;
+    }
+
+    #section-users .gwa-table td.gwa-col-actions {
+        padding: 6px 0 0;
+    }
+
+    /* 5) 列表页脚：单页数据时只有「每页显示」，原来上下各 14px 只剩一行小字，
+       显得空；收到 12px 节奏内，并把分页容器为空时彻底移除。
+       移动端「每页显示」本身已隐藏（见上方 2265 行），所以分页为空时
+       页脚里一个可见元素都没有，整块应当消失而不是留 12px 空位 */
+    .gwa-list-foot {
+        margin: 0;
+        padding: 0 2px;
+        gap: 8px;
+    }
+
+    .gwa-list-foot .gwa-pager:empty {
+        display: none;
+    }
+
+    .gwa-list-foot .gwa-perpage {
+        margin-left: auto;
+        gap: 4px;
+        font-size: 12px;
+    }
+
+    .gwa-list-foot .gwa-perpage-input {
+        width: 52px;
+        height: 28px;
+        padding: 0 4px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 640px) {
+    /* 6) 页面与分组容器：页边距/分组间距/分组内边距统一 12px */
+    .mac-main {
+        padding: 12px 12px calc(88px + env(safe-area-inset-bottom));
+    }
+
+    .mac-section {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .mac-section h2 {
+        margin: 0 0 12px;
+        padding-bottom: 10px;
+        font-size: 16px;
+    }
+
+    /* 静态页（公网访问等）连续多张卡片：与面板同一档 12px，不再折叠成 8 */
+    .mac-section > .gwa-card {
+        margin-bottom: 0;
+    }
+
+    .mac-section > .gwa-card + .gwa-card {
+        margin-top: 12px !important;
+    }
+
+    /* 7) 信息面板三块（统计 / 快捷 / 最近上传）都是透明融合卡：
+       原规则只补了 18px 上内边距，底部仍为 0，上下极不对称 */
+    #section-dashboard .gwa-card {
+        padding: 0;
+    }
+
+    /* 移动端「每页显示」已隐藏，分页为空时页脚里没有任何可见元素，
+       整块不占位（否则卡片下方多出一段 12px 空档，看起来「很空」） */
+    .gwa-list-foot:not(:has(.gwa-pager:not(:empty))) {
+        display: none;
+    }
+
+    #section-dashboard .gwa-row-between {
+        margin-bottom: 10px;
+    }
+
+    /* 统计卡间距并入同一档 8px */
+    .gwa-stats {
+        gap: 8px;
+    }
+
+    /* 8) 文件记录面包屑：与列表行同一左基线，上下各留 8 */
+    #section-records .gwa-dirbar {
+        margin: 0 0 10px;
+        padding: 4px 0 8px;
+    }
+
+    /* 9) 使用说明正文：移动端收紧段落节奏，表格不再挤成两行 */
+    .doc h2 {
+        margin: 24px 0 10px;
+    }
+
+    .doc h3 {
+        margin: 16px 0 6px;
+    }
+
+    .doc p {
+        margin: 8px 0;
+    }
+
+    .doc ul,
+    .doc ol {
+        padding-left: 20px;
+    }
+
+    .doc table {
+        width: 100%;
+    }
+
+    .doc table td {
+        padding: 8px 10px;
+    }
+}
+
+/* ============================================================
+   v2.3.105 · 移动端界面重构
+   ------------------------------------------------------------
+   用户实测反馈的 4 个硬伤，根因与修法：
+   1)「文字紧贴上方的线」
+      → .gwa-card 顶部有 1px 液态玻璃内高光（inset 0 1px 0 --gw-liquid-hi）。
+      移动端卡片已与 section 融合（padding:0），这条高光正好落在标题文字
+      正上方，看起来就是「一条线贴着字」。融合态下没有玻璃质感，直接去掉。
+   2)「快捷操作 / 最近上传 标题上方有线」
+      → 快捷格每个按钮自带 1px 描边，4 个并排后上下边框连成两条横线；
+      hover 又变底色 + 变描边，和旁边的块完全对不上。移动端改为无描边、
+      纯底色分块，hover 只换底色。
+   3)「点击时背景色和上面的线不融合」
+      → 列表行 hover 底色铺满整行，却与两端内缩的 hairline 交叉。
+      移动端彻底取消行 hover 底色，改用按压态；同时把「操作」按钮
+      提到主信息行右侧，不再独占一行（每行省 40px，也不再空荡荡）。
+   4)「下边距留这么多」
+      → .mac-main 底部预留 88px，底部 Tab 实际只有 65px，多留 23px。
+   本段只在 ≤900 / ≤640 生效，桌面视觉不动。
+   ============================================================ */
+@media (max-width: 640px) {
+    /* 1) 融合态卡片不再有玻璃高光，标题上方那条线随之消失 */
+    .mac-section .gwa-card {
+        box-shadow: none;
+    }
+
+    /* 2) 快捷操作格：无描边、纯底色分块；hover 只换底色不换描边 */
+    .gwa-quick {
+        border-color: transparent;
+    }
+
+    .gwa-quick:hover {
+        border-color: transparent;
+        background: var(--gw-accent-bg);
+        color: var(--gw-text-primary);
+    }
+
+    /* 固定三列：6 个快捷项正好两行，不再出现「4 个 + 2 个」的空档 */
+    .gwa-quick-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    /* 3) 底部只留 Tab 栏高度 + 12px 呼吸，不再多留 23px */
+    .mac-main {
+        padding-bottom: calc(65px + 12px + env(safe-area-inset-bottom));
+    }
+
+    /* 4) 面包屑与卡片顶之间留 8px 呼吸 */
+    #section-records .gwa-dirbar {
+        margin-top: 8px;
+    }
+
+    /* 5) 统计卡：浅色主题下「半透明白卡 + 白高光 + 5% 描边」等于隐形，
+       四张卡直接散在白底上、没有分组感。改用实底（fill-0）+ 明确描边 */
+    .gwa-stat {
+        background: var(--gw-fill-0);
+        border-color: var(--gw-border);
+        box-shadow: none;
+    }
+}
+
+@media (max-width: 900px) {
+    /* 5) 「操作」按钮提到主信息行右上角：不再独占一行，行高从 105~123px 降到 60~80px */
+    #section-dashboard .gwa-table td.gwa-col-actions,
+    #section-records .gwa-table td.gwa-col-actions,
+    #section-links .gwa-table td.gwa-col-actions,
+    #section-users .gwa-table td.gwa-col-actions {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        margin: 0;
+        padding: 0;
+    }
+
+    #section-dashboard .gwa-table td.gwa-col-actions .btn,
+    #section-records .gwa-table td.gwa-col-actions .btn,
+    #section-links .gwa-table td.gwa-col-actions .btn,
+    #section-users .gwa-table td.gwa-col-actions .btn {
+        min-height: 28px;
+        padding: 0 12px;
+        font-size: 12px;
+    }
+
+    /* 主信息行给右上角按钮让位（长文件名自动省略，不会压到按钮） */
+    #section-dashboard .gwa-table td[data-label="文件名"],
+    #section-records .gwa-table td[data-label="文件"],
+    #section-links .gwa-table td[data-label="收集名称"],
+    #section-users .gwa-table td[data-label="用户名"] {
+        padding-right: 76px;
+    }
+
+    /* 6) 列表行按压反馈改为更轻的底色，不再与分隔线打架 */
+    .gwa-table tbody tr:active {
+        background: var(--gw-accent-bg);
     }
 }

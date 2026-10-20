@@ -1477,57 +1477,85 @@ async function openUploadDir() {
         return;
     }
     try {
-        if (!trimSdk) {
-            // 兜底：主题初始化失败时按需初始化
-            const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
-            trimSdk = new TrimApp();
+        const r = await invokeFileManager(path);
+        if (tip) {
+            tip.textContent = r === 'located' ? '已打开飞牛文件管理器。' : '已打开飞牛文件管理器（桌面端暂不支持自动定位到目录）。';
+            tip.style.display = 'block';
         }
-        await trimSdk.ready();
-        await trimSdk.openFileManager(path);
     } catch (e) {
         console.error('[gateway] openFileManager 失败', e);
         if (tip) { tip.textContent = '无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。'; tip.style.display = 'block'; }
     }
 }
 
-// 是否运行在飞牛客户端内（桌面 / 移动 App）
-// 判据与 trim-app.js 内部一致：UA 头带 FNOS/ 或 FNAppType/
-function inFnClient() {
-    try {
-        return /FNOS\/|FNAppType\//i.test(navigator.userAgent);
-    } catch (e) {
-        return false;
+// 统一的「唤起飞牛文件管理器」入口（PC 桌面客户端 / 飞牛 App / 独立浏览器）
+// 返回值：
+//   'located' —— 已按路径打开（App 端原生支持；桌面端 host 若接受路径参数同样成立）
+//   'opened'  —— 文件管理器已打开，但未定位到目录
+// 抛错 → 当前环境没有 host bridge（普通浏览器直连），由调用方给出提示
+async function invokeFileManager(path) {
+    if (!trimSdk) {
+        const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
+        trimSdk = new TrimApp();
     }
+    await trimSdk.ready();
+
+    if (!trimSdk.isWeb) {
+        // 飞牛 App：SDK 原生支持带路径定位
+        await trimSdk.openFileManager(path);
+        return 'located';
+    }
+
+    // 桌面客户端：应用以 iframe 嵌入 fnOS 桌面，走 host bridge
+    // （无 bridge 时此处抛 "Host bridge is not available outside iframe or app runtime"）
+    const methods = trimSdk.getWebMethods();
+    const conn = trimSdk.osConnector;
+    if (conn && typeof conn.request === 'function') {
+        // SDK 自带的 openFileManager 会丢弃路径参数，故先用底层 request 带路径试
+        try {
+            await conn.request('openFileManager', path);
+            return 'located';
+        } catch (e1) {
+            console.warn('[gateway] openFileManager 字符串参数失败，尝试对象参数', e1);
+            try {
+                await conn.request('openFileManager', { path: path });
+                return 'located';
+            } catch (e2) {
+                console.warn('[gateway] openFileManager 对象参数失败', e2);
+            }
+        }
+    }
+    // 兜底：只把文件管理器打开
+    if (methods.openFileManager) {
+        await methods.openFileManager();
+    } else if (methods.openFileManagerApp) {
+        await methods.openFileManagerApp();
+    } else {
+        throw new Error('文件管理器接口不可用');
+    }
+    return 'opened';
 }
 
 // 打开飞牛文件管理器并定位到「文件所在目录」
-// 供 文件记录 / 信息面板 点击文件名时调用；与 openUploadDir 共用 trimSdk。
-// 注意：飞牛 SDK 的 openFileManager 在 Web 端（桌面客户端内嵌 webview）会丢弃
-// 路径参数，只能打开文件管理器本身；移动 App 端才支持带路径定位。
-// 因此这里做三层兜底：定位 → 仅打开 → 明确提示，绝不「点了没反应」。
+// 供 文件记录 / 信息面板 点击文件名、点击「打开所在目录」时调用。
+//
+// 环境判定不看 UA（飞牛桌面客户端的 UA 里没有 FNOS/ 标记，那是手机 App 才有的；
+// 早期版本用 UA 判断会把桌面客户端误判成「不在客户端内」而直接报错），
+// 而是直接问 SDK：host bridge 是否可用。
+//   * 桌面客户端：iframe 内 → host bridge 可用 → 尽量带路径定位
+//   * 飞牛 App：SDK 直接带路径定位
+//   * 独立浏览器标签页：host bridge 不存在 → 明确提示，绝不静默失败
 async function openFileManagerDir(dir) {
     if (!dir) { return; }
-    if (!inFnClient()) {
-        if (window.GW && window.GW.toast) {
-            window.GW.toast('当前不在飞牛客户端中，无法唤起文件管理器；请在飞牛客户端内打开本页面', 'error');
-        }
-        return;
-    }
     try {
-        if (!trimSdk) {
-            const { TrimApp } = await import("{{ url_for('static', filename='js/trim-app.js', v=VERSION) }}");
-            trimSdk = new TrimApp();
-        }
-        await trimSdk.ready();
-        try {
-            await trimSdk.openFileManager(dir);   // 优先：定位到指定目录
-        } catch (e1) {
-            await trimSdk.openFileManagerApp();    // 兜底：至少把文件管理器打开
+        const r = await invokeFileManager(dir);
+        if (window.GW && window.GW.toast) {
+            GW.toast(r === 'located' ? '已打开飞牛文件管理器' : '已打开飞牛文件管理器（桌面端暂不支持自动定位到目录）', 'success');
         }
     } catch (e) {
         console.error('[gateway] openFileManager 失败', e);
         if (window.GW && window.GW.toast) {
-            window.GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error');
+            GW.toast('无法唤起飞牛文件管理器，请在飞牛客户端内打开本页面', 'error');
         }
     }
 }

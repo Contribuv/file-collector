@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.106-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.107-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,12 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.107
+- **修复 v2.3.106 引入的回归：飞牛桌面客户端点文件名误报「不在飞牛客户端中」**：v2.3.106 用 UA（`FNOS/` / `FNAppType/`）判断是否在客户端内，但飞牛**桌面客户端**的 UA 根本没有这两个标记（那是手机 App 才有的），导致本可用的调用被提前拦下。现改为**向 SDK 查询 host bridge 是否可用**（桌面端应用以 iframe 嵌入 fnOS 桌面 → bridge 存在；独立浏览器标签页 → bridge 为 null，SDK 报 `Host bridge is not available`），PC 端与移动端同时修复
+- **桌面端优先带路径定位文件目录**：SDK 自带的 `openFileManager` 会丢弃路径参数，现改用底层 `request('openFileManager', path)` 依次尝试字符串参数与 `{path}` 对象参数；host 若接受即可直接定位到目录，不接受则回退为「只打开文件管理器」并如实提示「桌面端暂不支持自动定位到目录」，不再静默失败
+- **「查看文件」页的「打开文件管理器」按钮同步走同一套逻辑**（此前同样受 SDK 丢参数影响，只能打开管理器、无法定位到上传目录）
+- **独立浏览器直连**：仍会明确提示「无法唤起飞牛文件管理器，请在飞牛客户端内打开本页面」，不再含糊报错
 
 ### v2.3.106
 - **移动端浮窗放大并完全居中**：详情浮层此前宽度只有 `min(92vw,360px)`，且居中位置按「主内容区」计算（含底部 Tab 偏移），在手机上又小又偏；现改为完全视口居中、宽度 `100vw - 32px`、圆角 16px、正文 14px；模态框、下拉菜单、日志浮层同步放大，浮窗与模态按钮触控高度提升到 40px

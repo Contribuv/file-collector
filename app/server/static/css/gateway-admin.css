@@ -1184,6 +1184,16 @@ textarea.form-input {
     word-break: break-all;
 }
 
+/* 可点击复制的路径（查看文件页）：虚线下划线提示可点 */
+.gwa-copyable {
+    cursor: pointer;
+    border-bottom: 1px dashed var(--gw-accent);
+}
+
+.gwa-copyable:hover {
+    color: var(--gw-accent);
+}
+
 /* ---- 抽屉 ---- */
 .gwa-drawer-mask {
     position: fixed;

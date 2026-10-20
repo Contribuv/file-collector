@@ -173,6 +173,7 @@
             nameTd = '<td data-label="文件名">' +
                 '<button type="button" class="gwa-rec-name gwa-ellipsis gwa-file-open" data-act="open-dir"' +
                 ' data-dir="' + esc(r.stored_dir) + '"' +
+                ' data-path="' + esc(r.stored_path || '') + '"' +
                 ' title="点击打开文件所在目录：' + esc(r.stored_dir) + '">' +
                 esc(r.original_name) + '</button></td>';
         } else {
@@ -244,7 +245,7 @@
                 GW.triggerDownload(b + '/admin/records/' + id + '/download');
             } else if (act === 'open-dir') {
                 m.close();
-                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir); }
+                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir, r.stored_path || ''); }
                 else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
             } else if (act === 'delete') {
                 m.close();
@@ -304,7 +305,8 @@
                 if (r) openDetail(r);
             } else if (act === 'open-dir') {
                 var dir = btn.getAttribute('data-dir') || '';
-                if (window.openFileManagerDir) { window.openFileManagerDir(dir); }
+                var fpath = btn.getAttribute('data-path') || '';
+                if (window.openFileManagerDir) { window.openFileManagerDir(dir, fpath); }
                 else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
             }
         });

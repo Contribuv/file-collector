@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.107-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.3.108-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,13 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.3.108
+- **「点击文件名 → 打开所在目录」按官方 API 真正打通**：依据官方文档 [页面路由](https://developer.fnnas.com/api/page/routing/)（`openFileManager(path: string)` / `openFile(path: string)`），并根据飞牛桌面客户端的报错 `TypeError: Cannot read properties of undefined (reading 'startsWith')` 定位到真正根因——**官方 JS SDK 在 Web 宿主下把路径参数丢了**（`openFileManager: () => Te("openFileManager")`，`openFile` 同样），导致宿主收到 `undefined` 直接崩溃。现改为绕过 SDK 的 web methods，直接用底层 `request` 传参
+- **多形态参数兜底**：依次尝试 `openFileManager {path}` → `openFileManager "path"` → `openFile {path}`（打开文件本身，宿主会定位到其所在目录）→ `openFile "path"` → 最后才回退为「只打开文件管理器」并如实提示；命中最快的一次即返回
+- **后端补齐 `stored_path`**：记录接口新增文件完整绝对路径字段，供 `openFile` 兜底定位（此前只有所在目录 `stored_dir`）
+- **宿主不可用时自动复制路径**并提示，用户可自行粘贴到文件管理器；独立浏览器仍明确提示需在飞牛客户端内打开
+- **「查看文件」页同步修好**：「打开文件管理器」按钮改走同一套多形态调用（此前同样被 SDK 丢参数坑到，宿主直接抛 `startsWith` 报错）；新增「复制路径」按钮，路径文本本身也可点击复制，宿主不可用时自动把上传目录路径复制到剪贴板
 
 ### v2.3.107
 - **修复 v2.3.106 引入的回归：飞牛桌面客户端点文件名误报「不在飞牛客户端中」**：v2.3.106 用 UA（`FNOS/` / `FNAppType/`）判断是否在客户端内，但飞牛**桌面客户端**的 UA 根本没有这两个标记（那是手机 App 才有的），导致本可用的调用被提前拦下。现改为**向 SDK 查询 host bridge 是否可用**（桌面端应用以 iframe 嵌入 fnOS 桌面 → bridge 存在；独立浏览器标签页 → bridge 为 null，SDK 报 `Host bridge is not available`），PC 端与移动端同时修复

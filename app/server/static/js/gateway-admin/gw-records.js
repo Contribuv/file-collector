@@ -179,10 +179,12 @@
         // 与文件夹图标（.gwa-folder-icon）完全对齐；点击预览仍通过行内操作可用
         var thumb = extIconCell(r);
         // 有绝对路径时，点击文件名直接打开飞牛文件管理器并定位到该文件所在目录
+        // data-dir = 所在目录，data-path = 文件完整路径（定位失败时用 openFile 兜底）
         if (r.stored_dir) {
             return '<td data-label="文件">' + thumb +
                 '<button type="button" class="gwa-rec-name gwa-ellipsis gwa-file-open" data-act="open-dir"' +
                 ' data-dir="' + esc(r.stored_dir) + '"' +
+                ' data-path="' + esc(r.stored_path || '') + '"' +
                 ' title="点击打开文件所在目录：' + esc(r.stored_dir) + '">' +
                 esc(r.original_name) + '</button></td>';
         }
@@ -346,7 +348,8 @@
         else if (act === 'up') { load(1, parentDir(state.dir)); }
         else if (act === 'open-dir') {
             var dir = btn.getAttribute('data-dir') || '';
-            if (window.openFileManagerDir) { window.openFileManagerDir(dir); }
+            var fpath = btn.getAttribute('data-path') || '';
+            if (window.openFileManagerDir) { window.openFileManagerDir(dir, fpath); }
             else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
         }
         else if (act === 'batch-delete') { batchDelete(); }
@@ -399,7 +402,7 @@
             else if (a === 'logs') { GW.closePopover(); GW.downloadLogsModal(r); }
             else if (a === 'open-dir') {
                 GW.closePopover();
-                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir); }
+                if (window.openFileManagerDir) { window.openFileManagerDir(r.stored_dir, r.stored_path || ''); }
                 else { GW.toast('无法调用飞牛文件管理器，请在飞牛客户端中打开本页面。', 'error'); }
             }
             else if (a === 'delete') { GW.closePopover(); doDelete(r); }

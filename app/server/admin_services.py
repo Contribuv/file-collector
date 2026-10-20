@@ -86,6 +86,8 @@ def _serialize_record(r):
         'stored_name': d.get('stored_name') or '',
         # 文件所在绝对目录，供「点击文件名 → 打开飞牛文件管理器」定位使用
         'stored_dir': os.path.dirname(d.get('stored_path') or '') if d.get('stored_path') else '',
+        # 文件完整绝对路径：桌面端定位目录失败时，可用 openFile 打开文件本身
+        'stored_path': d.get('stored_path') or '',
         'file_size': size,
         'file_size_display': display,
         'source': d.get('link_title') or d.get('link_id') or '',

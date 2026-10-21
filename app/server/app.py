@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.3.111"
+VERSION = "2.3.112"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -3190,6 +3190,57 @@ def _safe_download(stored_path, original_name):
         download_name=original_name,
         as_attachment=True
     )
+
+def _resolve_upload_file(stored_path, upload_base, stored_name=''):
+    """把 upload_records 的路径信息解析为「上传目录内」的真实文件路径。
+
+    兼容三种历史数据：
+      * 绝对路径（正常上传写入的值）
+      * 相对路径（早期版本/手工迁移后可能只存了相对上传根的路径）
+      * stored_path 前缀已失效、但 stored_name（相对上传根）仍能定位文件
+        （例如管理员改过上传路径后，旧记录只迁移了数据库没移动文件）
+
+    返回 (real_path, reason)：
+      * 可用       → (真实路径, None)
+      * 路径为空   → (None, 'empty')
+      * 文件不存在 → (None, 'missing')
+      * 不在上传目录内 → (None, 'outside')
+    """
+    raw = str(stored_path or '').strip()
+    base_real = os.path.realpath(upload_base)
+    candidates = []
+    if raw:
+        candidates.append(raw)
+        if not os.path.isabs(raw):
+            # 相对路径优先按「上传根目录」解析，避免受进程 cwd 影响
+            candidates.insert(0, os.path.join(base_real, raw))
+
+    # 兜底：用 stored_name（相对上传根的路径）在当前位置再找一次
+    rel_name = str(stored_name or '').strip().replace('/', os.sep).replace('\\', os.sep)
+    if rel_name:
+        rel_name = rel_name.lstrip(os.sep)
+        if rel_name and '..' not in rel_name.split(os.sep):
+            candidates.append(os.path.join(base_real, rel_name))
+
+    if not candidates:
+        return None, 'empty'
+
+    outside = False
+    for cand in candidates:
+        real = os.path.realpath(cand)
+        try:
+            inside = os.path.commonpath([base_real, real]) == base_real
+        except ValueError:
+            # Windows 下盘符不同时 commonpath 会抛错，按越界处理
+            inside = False
+        if not inside:
+            outside = True
+            continue
+        if os.path.isfile(real):
+            return real, None
+
+    return None, ('outside' if outside else 'missing')
+
 
 def _serve_heic_as_jpeg(stored_path):
     """将 HEIC 文件转换为 JPEG 并返回 bytesio"""
@@ -9195,7 +9246,7 @@ def batch_download_records():
         try:
             if not is_admin:
                 row = conn.execute(
-                    """SELECT r.stored_path, r.original_name, r.link_id, r.uploader_name, r.file_size
+                    """SELECT r.stored_path, r.stored_name, r.original_name, r.link_id, r.uploader_name, r.file_size
                        FROM upload_records r
                        INNER JOIN links l ON r.link_id = l.id
                        WHERE r.id = ? AND l.user_id = ?""",
@@ -9203,12 +9254,13 @@ def batch_download_records():
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT stored_path, original_name, link_id, uploader_name, file_size FROM upload_records WHERE id = ?",
+                    "SELECT stored_path, stored_name, original_name, link_id, uploader_name, file_size FROM upload_records WHERE id = ?",
                     (rid,)
                 ).fetchone()
             if row:
                 records.append({
                     'stored_path': row['stored_path'],
+                    'stored_name': row['stored_name'],
                     'original_name': row['original_name'],
                     'link_id': row['link_id'],
                     'uploader_name': row['uploader_name'],
@@ -9227,64 +9279,115 @@ def batch_download_records():
     tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
     tmp_path = tmp.name
 
+    skipped = []  # 无法打包的文件名（缺失 / 越界），用于回传前端提示
     try:
         # 跟踪 ZIP 内已用路径，防止同名覆盖
         used_names = {}
         with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
             for r in records:
-                stored_path = r['stored_path']
-                original_name = r['original_name']
-                uploader_name = r['uploader_name'] or ''
+                original_name = str(r['original_name'] or '').strip()
+                uploader_name = (r['uploader_name'] or '').strip()
                 link_id = r['link_id']
 
-                # 路径遍历安全检查
-                real_path = os.path.realpath(stored_path)
-                if not (real_path.startswith(upload_base + os.sep) or real_path == upload_base):
-                    logger.warning(f"批量下载路径遍历拦截: {stored_path}")
-                    continue
-                if not os.path.isfile(real_path):
+                # 解析真实路径：兼容历史数据里的相对路径/失效前缀，并统一做目录越界校验
+                real_path, reason = _resolve_upload_file(
+                    r['stored_path'], upload_base, r.get('stored_name', ''))
+                if reason:
+                    skipped.append(original_name or str(r['stored_path'] or ''))
+                    if reason == 'outside':
+                        logger.warning(f"批量下载路径越界拦截: {r['stored_path']}")
+                    else:
+                        logger.warning(f"批量下载文件缺失({reason}): {r['stored_path']}")
                     continue
 
                 # 获取链接标题作为顶层文件夹
-                link = get_link_by_id(link_id)
-                link_title = link.get('title', '') or link_id if link else link_id
-                safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title.strip())
+                try:
+                    link = get_link_by_id(link_id)
+                except Exception:
+                    link = None
+                link_title = (link.get('title') or '') if link else str(link_id or '')
+                safe_title = re.sub(r'[<>:"/\\|?*]', '_', link_title.strip()) or '未命名链接'
+
+                # 压缩包内文件名只取 basename：原始文件名若含 ../ 会造成 zip slip
+                flat_name = os.path.basename(original_name.replace('\\', '/')) or os.path.basename(real_path)
 
                 # 构建 ZIP 内路径：链接标题 / [上传者 /] 文件名
                 if uploader_name:
-                    safe_uploader = re.sub(r'[<>:"/\\|?*]', '_', uploader_name.strip())
-                    arcname = f"{safe_title}/{safe_uploader}/{original_name}"
+                    safe_uploader = re.sub(r'[<>:"/\\|?*]', '_', uploader_name)
+                    arcname = f"{safe_title}/{safe_uploader}/{flat_name}"
                 else:
-                    arcname = f"{safe_title}/{original_name}"
+                    arcname = f"{safe_title}/{flat_name}"
 
-                # 处理重名
+                # 处理重名（同名时追加 (1)、(2)…，不覆盖已有条目）
                 if arcname in used_names:
                     used_names[arcname] += 1
-                    base, ext = os.path.splitext(arcname)
-                    arcname = f"{base}({used_names[arcname]}){ext}"
+                    base_name, ext = os.path.splitext(arcname)
+                    arcname = f"{base_name}({used_names[arcname]}){ext}"
                 else:
                     used_names[arcname] = 0
 
                 # 智能压缩：已压缩格式只存储不重新压缩
-                compress_type = _get_zip_compress_type(original_name)
+                compress_type = _get_zip_compress_type(flat_name)
                 zf.write(real_path, arcname=arcname, compress_type=compress_type)
 
         tmp.close()
 
-        @after_this_request
-        def cleanup_zip(response):
+        # 全部文件都不可用：明确报错，避免用户下到一个空 zip 却以为成功
+        if len(skipped) >= len(records):
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
-            return response
+            logger.warning(f"批量下载无可用文件: {len(records)} 条记录全部跳过")
+            return '选中的文件均无法打包（文件已丢失或不在上传目录内），请刷新记录列表后重试', 400
 
-        return send_file(
+        resp = send_file(
             tmp_path,
             download_name='文件收集_批量下载.zip',
             as_attachment=True,
             mimetype='application/zip'
         )
+
+        # 部分文件被跳过时告知前端，避免「压缩包莫名少文件」
+        if skipped:
+            from urllib.parse import quote
+            resp.headers['X-FC-Skipped'] = str(len(skipped))
+            resp.headers['X-FC-Skipped-Files'] = quote(','.join(skipped[:10]))[:800]
+
+        def _cleanup_tmp_zip():
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                # Windows 上响应仍持有句柄时会失败，由下面的迭代器兜底删除
+                logger.debug(f"临时 ZIP 暂未清理: {e}")
+
+        # Linux 上响应构造后即可删除；Windows 上 send_file 仍持有文件句柄，
+        # after_this_request / call_on_close 都可能早于句柄释放，故再用迭代器
+        # 包一层，保证响应体发送完（或客户端断开）后一定删除临时 ZIP。
+        @after_this_request
+        def cleanup_zip(response):
+            _cleanup_tmp_zip()
+            return response
+
+        original_iter = resp.response
+
+        def _iter_and_cleanup():
+            try:
+                for chunk in original_iter:
+                    yield chunk
+            finally:
+                try:
+                    original_iter.close()
+                except Exception:
+                    pass
+                _cleanup_tmp_zip()
+
+        resp.response = _iter_and_cleanup()
+        resp.direct_passthrough = False
+        resp.call_on_close(_cleanup_tmp_zip)
+        return resp
 
     except Exception as e:
         logger.error(f"批量下载失败: {e}\n{traceback.format_exc()}")

@@ -169,7 +169,13 @@
 
     function countText() {
         var t = '共 ' + state.total + ' 个文件';
-        if (state.folders.length) t = state.folders.length + ' 个文件夹 · ' + t;
+        if (state.folders.length) {
+            // 明确标出子文件夹内还有多少文件：否则用户容易把「共 N 个文件」理解为全站总数，
+            // 在根目录全选打包后会以为压缩包缺文件（文件夹里的文件本来就不在勾选范围内）
+            var inner = 0;
+            state.folders.forEach(function (f) { inner += (f.file_count || 0); });
+            t = state.folders.length + ' 个文件夹（内含 ' + inner + ' 个文件）· 当前目录 ' + t;
+        }
         if (state.total > 0) t += ' · 第 ' + state.page + '/' + state.totalPages + ' 页';
         return t;
     }
@@ -442,20 +448,43 @@
 
     function batchDownload() {
         var ids = Object.keys(state.selected);
-        if (!ids.length) { GW.toast('请先选择要打包下载的记录', 'error'); return; }
+        if (!ids.length) {
+            // 记录页是目录视图：表头全选只覆盖「当前目录」的散文件，文件夹里的文件必须先进入再勾选
+            GW.toast(state.folders.length
+                ? '请先勾选要打包的文件；上方文件夹内的文件需进入文件夹后再勾选（全选只选当前目录）'
+                : '请先选择要打包下载的记录', 'error');
+            return;
+        }
         var fd = new FormData();
         // 老后台端点从 form 读 csrf_token；downloadBlob 另外会带 X-CSRFToken 头，两者都留
         fd.append('csrf_token', GW.csrf);
         ids.forEach(function (id) { fd.append('ids[]', id); });
-        GW.toast('正在打包，请稍候…');
+        GW.toast('正在打包 ' + ids.length + ' 个文件，请稍候…');
         // 走 GW.downloadBlob：统一的超时保护与中文网络报错（原裸 fetch 无超时且报英文）
+        // 打包 + 传输大文件可能超过 5 分钟，这里放宽到 30 分钟
         GW.downloadBlob(null, {
             url: GW.base + '/admin/records/batch-download',
             method: 'POST',
             form: fd,
-            filename: 'files.zip'
-        }).then(function () {
-            GW.toast('打包下载已开始', 'success');
+            filename: 'files.zip',
+            timeout: 30 * 60 * 1000
+        }).then(function (res) {
+            var skipped = (res && res.skipped) || 0;
+            if (skipped > 0) {
+                // 后端会跳过已丢失/不在上传目录内的文件，必须显式提示，否则用户只会看到「压缩包缺文件」
+                var names = (res && res.skippedNames) || [];
+                var tip = '已跳过 ' + skipped + ' 个无法读取的文件';
+                if (names.length) {
+                    tip += '：' + names.slice(0, 3).join('、');
+                    if (skipped > names.length || names.length > 3) tip += ' 等';
+                }
+                GW.toast(tip, 'error');
+            } else {
+                var tail = state.folders.length
+                    ? '（不含 ' + state.folders.length + ' 个文件夹内的文件）'
+                    : '';
+                GW.toast('打包下载已开始' + tail, 'success');
+            }
         }).catch(function (e) {
             GW.toast(e.message || '打包下载失败', 'error');
         });

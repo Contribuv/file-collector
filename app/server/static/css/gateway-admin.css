@@ -3199,3 +3199,17 @@ textarea.form-input {
         min-height: 38px;
     }
 }
+
+/* 记录页移动端（含平板）：工具栏空间有限，隐藏「打包下载」「批量删除」两个批量按钮，
+   单条下载/删除与勾选仍可用；避免按钮挤压筛选与统计行（用户反馈） */
+@media (max-width: 900px) {
+    #section-records .gwa-toolbar [data-act="batch-download"],
+    #section-records .gwa-toolbar [data-act="batch-delete"] {
+        display: none;
+    }
+
+    /* 批量按钮隐藏后勾选列失去意义，一并收起，移动端卡片行主信息可占满整宽 */
+    #section-records .gwa-table .gwa-col-sel {
+        display: none;
+    }
+}

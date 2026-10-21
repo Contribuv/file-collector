@@ -463,7 +463,25 @@
         function clearTimer() { if (timer) { clearTimeout(timer); timer = null; } }
         return fetch(url, init).then(function (r) {
             clearTimer();
-            if (!r.ok) throw new Error('下载失败 (' + r.status + ')');
+            if (!r.ok) {
+                // 后端失败时通常返回纯文本原因（如「选中的文件均无法打包…」），
+                // 直接透出比「下载失败 (400)」有用得多；HTML 错误页则退化为状态码。
+                return r.text().then(function (t) {
+                    var msg = String(t || '').trim();
+                    if (!msg || msg.charAt(0) === '<') msg = '下载失败 (' + r.status + ')';
+                    else if (msg.length > 200) msg = msg.slice(0, 200) + '…';
+                    throw new Error(msg);
+                }, function () {
+                    throw new Error('下载失败 (' + r.status + ')');
+                });
+            }
+            // 后端用响应头回传「被跳过」的文件数量/名单，便于提示压缩包不完整
+            var skipped = parseInt(r.headers.get('X-FC-Skipped') || '0', 10) || 0;
+            var skippedNames = [];
+            var rawSkipped = r.headers.get('X-FC-Skipped-Files') || '';
+            if (rawSkipped) {
+                try { skippedNames = decodeURIComponent(rawSkipped).split(',').filter(Boolean); } catch (e) { skippedNames = []; }
+            }
             var cd = r.headers.get('Content-Disposition') || '';
             var name = opts.filename || 'download';
             // 优先 RFC 5987 扩展名（filename*=UTF-8''编码中文），否则会先匹配到
@@ -483,6 +501,7 @@
                 a.click();
                 a.remove();
                 setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                return { skipped: skipped, skippedNames: skippedNames };
             });
         }).catch(function (err) {
             clearTimer();

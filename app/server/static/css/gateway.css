@@ -220,6 +220,11 @@ body {
     background: rgba(51, 133, 255, .22);
 }
 
+/* 暗色下取消侧栏顶部 1px 液态高光（inset 白线）：近黑底上非常显眼，用户反馈顶部有白线 */
+:root[data-theme="dark"] .mac-sidebar {
+    box-shadow: none;
+}
+
 /* 不支持 backdrop-filter：PC 侧栏退回实色导航底 */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .mac-sidebar {
@@ -1017,9 +1022,8 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
     :root[data-theme="dark"] .mac-sidebar {
         backdrop-filter: blur(24px) saturate(150%);
         -webkit-backdrop-filter: blur(24px) saturate(150%);
-        box-shadow:
-            0 -6px 24px rgba(0, 0, 0, .30),
-            inset 0 1px 0 var(--gw-liquid-hi);
+        /* 暗色下同样去掉顶部 inset 高光，只保留向上投影与 1px 边线 */
+        box-shadow: 0 -6px 24px rgba(0, 0, 0, .30);
     }
 
     /* 不支持 backdrop-filter 的旧浏览器：退回实色底 */

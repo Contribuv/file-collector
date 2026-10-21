@@ -70,12 +70,16 @@ func (rp *ReverseProxy) Start() error {
 		// context canceled 是客户端主动断开（页面刷新/导航），不是真正的错误
 		// connection refused 是后端尚未就绪（反代启动竞态/后端重启中），属瞬态，降级为 DEBUG 避免刷 ERROR
 		errStr := err.Error()
-		if strings.Contains(errStr, "context canceled") ||
+		clientGone := strings.Contains(errStr, "context canceled") ||
 			strings.Contains(errStr, "EOF") ||
-			strings.Contains(errStr, "connection reset") ||
-			strings.Contains(errStr, "connection refused") {
-			// 轮询接口（检查更新/日志/扫描状态）的客户端断开是正常行为，不记录，避免日志噪声
-			if r.URL.Path != "/api/check-update" && r.URL.Path != "/api/logs" && r.URL.Path != "/api/scan-status" {
+			strings.Contains(errStr, "connection reset")
+		backendNotReady := strings.Contains(errStr, "connection refused")
+
+		if clientGone || backendNotReady {
+			// 浏览器对静态资源（favicon/图标/CSS/JS）是低优先级预取，页面刷新或应用内切页时
+			// 会直接 abort，产生大量 "context canceled"（典型如 /static/favicon.ico）；
+			// 这类断开会静音，但后端拒连（connection refused）仍要记录，便于发现后端没起来
+			if backendNotReady || !isClientCancelNoisePath(r.URL.Path) {
 				rp.logger.Add("DEBUG", fmt.Sprintf("后端暂不可达: %s %s -> %v", r.Method, r.URL.Path, err))
 			}
 		} else {
@@ -247,6 +251,19 @@ func (rp *ReverseProxy) handleConn(conn net.Conn) {
 	} else {
 		rp.handleHTTPRedirect(&peekConn{Conn: conn, peek: peek}, nil)
 	}
+}
+
+// isClientCancelNoisePath 判断「客户端主动取消」的请求是否属于可静音的噪声路径：
+//   - 轮询接口（检查更新/日志/扫描状态）——页面定时刷新会反复取消
+//   - 静态资源（favicon/图片/CSS/JS）——浏览器低优先级预取，页面刷新或导航时直接 abort
+//
+// 仅当错误类型是客户端断开时才调用，后端拒连（connection refused）等真实故障仍会记录。
+func isClientCancelNoisePath(path string) bool {
+	switch path {
+	case "/api/check-update", "/api/logs", "/api/scan-status", "/favicon.ico":
+		return true
+	}
+	return strings.HasPrefix(path, "/static/")
 }
 
 type peekConn struct {

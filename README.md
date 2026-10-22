@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.112-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.4.0-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -306,6 +306,12 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.4.0
+- **收集链接页移动端隐藏「批量删除」与勾选列**：≤900px 时工具栏只保留「创建收集」与「全部创建人」筛选（管理员可见），单条删除改走每行的「操作」浮窗；表格首列勾选框一并收起，移动端卡片行主信息占满整宽。与 v2.3.112 文件记录页隐藏「打包下载 / 批量删除」的处理同口径，批量操作保留为桌面端能力
+
+<details>
+<summary><b>📜 历史版本（v2.3.112 及更早，点击展开）</b></summary>
+
 ### v2.3.112
 - **修复「打包下载」得到空包或缺文件（静默跳过导致）**：旧逻辑在上传路径失效、文件已被移动/删除、或路径不在上传目录内时直接 `continue`，用户只能拿到一个少了文件的 ZIP，甚至空包却显示成功。现在会统计被跳过的文件：压缩包内缺文件时**弹出「已跳过 N 个无法读取的文件：xxx」**；选中文件全部不可用时返回明确中文错误，不再下发空 ZIP
 - **路径解析更宽容**：同时兼容 `stored_path` 为相对路径、以及 `stored_path` 前缀已失效（例如改过上传路径）但 `stored_name` 仍能定位文件的历史数据；ZIP 内文件名统一取 basename，防止原始文件名带 `../` 造成 zip slip
@@ -314,9 +320,6 @@ GET /api/status
 - **移动端工具栏精简**：记录页在移动端（≤900px）隐藏「打包下载」「批量删除」和左侧勾选列，不再与链接筛选、统计抢宽度；单条下载/删除与预览不受影响
 - **暗色主题侧栏顶部白线**：取消侧边栏在暗色下的 1px inset 液态高光（桌面侧栏与移动端底部 tab 栏同步处理），解决近黑底上那条显眼的细白线
 - **反向代理实时日志降噪**：`/static/*` 静态资源与 favicon 被浏览器取消（刷新/切页时的 `context canceled`）不再写入实时日志；后端拒连（`connection refused`）仍照常记录，不会掩盖真实故障
-
-<details>
-<summary><b>📜 历史版本（v2.3.111 及更早，点击展开）</b></summary>
 
 ### v2.3.111
 - **彻底修复「打开文件管理器」不可用（回到 v2.3.93 的可用行为）**：在真实飞牛 NAS 宿主上实测确认——宿主桥方法（`osConnector.methods`，Penpal/postMessage 转发器）**原样透传任意参数**，只接受**字符串路径**：`openFileManager('路径')` ✅ 成功定位目录；`openFileManager({path})` 与无参调用 ❌ 崩溃。v2.3.106~v2.3.110 走的 `osConnector.request(...)` 是**不存在的方法**（宿主桥上只有 `methods`/`config`），导致整条调用链全失败；无参兜底又触发宿主 `undefined.startsWith` 崩溃

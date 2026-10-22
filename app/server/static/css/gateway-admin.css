@@ -3212,4 +3212,14 @@ textarea.form-input {
     #section-records .gwa-table .gwa-col-sel {
         display: none;
     }
+
+    /* 收集链接页移动端同口径：隐藏「批量删除」（单条删除走行内「操作」浮窗），
+       勾选列一并收起（用户反馈） */
+    #section-links .gwa-toolbar [data-act="batch"] {
+        display: none;
+    }
+
+    #section-links .gwa-table .gwa-col-sel {
+        display: none;
+    }
 }

@@ -1079,6 +1079,24 @@ def init_db():
     except Exception as e:
         logger.error(f"数据库迁移错误(download_logs): {e}")
 
+    # 为 download_logs 表添加缺失列（仅对旧表做迁移:downloader_ip / downloaded_at / source / user_agent）
+    try:
+        cursor = conn.execute("PRAGMA table_info(download_logs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        _missing = {
+            'downloader_ip': "ALTER TABLE download_logs ADD COLUMN downloader_ip TEXT DEFAULT ''",
+            'downloaded_at': "ALTER TABLE download_logs ADD COLUMN downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            'source': "ALTER TABLE download_logs ADD COLUMN source TEXT DEFAULT 'admin'",
+            'user_agent': "ALTER TABLE download_logs ADD COLUMN user_agent TEXT DEFAULT ''",
+        }
+        for col, sql in _missing.items():
+            if col not in columns:
+                conn.execute(sql)
+                conn.commit()
+                logger.info(f"已为 download_logs 表添加 {col} 字段")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(download_logs 缺失列): {e}")
+
     # 上传日志表
     try:
         conn.execute("""
@@ -1100,6 +1118,22 @@ def init_db():
         logger.info("upload_logs 表检查/创建完成")
     except Exception as e:
         logger.error(f"数据库迁移错误(upload_logs): {e}")
+
+    # 为 upload_logs 表添加缺失列（仅对旧表做迁移:uploader_ip / event_time）
+    try:
+        cursor = conn.execute("PRAGMA table_info(upload_logs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        _missing = {
+            'uploader_ip': "ALTER TABLE upload_logs ADD COLUMN uploader_ip TEXT DEFAULT ''",
+            'event_time': "ALTER TABLE upload_logs ADD COLUMN event_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        }
+        for col, sql in _missing.items():
+            if col not in columns:
+                conn.execute(sql)
+                conn.commit()
+                logger.info(f"已为 upload_logs 表添加 {col} 字段")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(upload_logs 缺失列): {e}")
 
     # 为 upload_logs 表添加 uploader_name 列（仅对旧表做迁移 + 回填）
     try:

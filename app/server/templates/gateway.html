@@ -38,9 +38,15 @@
         if (urlTheme === 'dark' || urlTheme === 'light') {
             theme = urlTheme;
         } else {
-            var cached = sessionStorage.getItem('fnos-theme');
-            theme = (cached === 'dark' || cached === 'light') ? cached
-                : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            /* 手动选择的主题持久化（跟随飞牛被点了「深色/浅色主题」时写入），优先于飞牛缓存 */
+            var manual = localStorage.getItem('gateway-theme');
+            if (manual === 'dark' || manual === 'light') {
+                theme = manual;
+            } else {
+                var cached = sessionStorage.getItem('fnos-theme');
+                theme = (cached === 'dark' || cached === 'light') ? cached
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            }
         }
         document.documentElement.setAttribute('data-theme', theme);
     } catch (e) {
@@ -51,8 +57,8 @@
 <script>
 // 主题初始化：尽早启动飞牛 SDK 获取系统主题，减少首屏闪烁
 // 函数定义在全局作用域，后续 toggleTheme 等依赖它们
+// 手动主题持久化于 localStorage 'gateway-theme'（'dark'/'light'，选「跟随飞牛」时移除）
 let trimSdk = null;
-let manualThemeActive = false;
 
 function applyTheme(theme) {
     if (theme !== 'dark' && theme !== 'light') theme = 'light';
@@ -70,12 +76,16 @@ function updateThemeIcon(theme) {
     var sheetLabel = document.getElementById('sheetThemeLabel');
     if (!icon || !label) return;
     var inner, text;
-    if (theme === 'dark') {
+    if (!themeLocked()) {
+        // 未手动切换、链接未指定主题：跟随飞牛（fnOS 设什么主题就跟随什么主题）
+        inner = '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>';
+        text = '跟随飞牛';
+    } else if (theme === 'dark') {
         inner = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-        text = '外观：暗色';
+        text = '深色主题';
     } else {
         inner = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-        text = '外观：亮色';
+        text = '浅色主题';
     }
     icon.innerHTML = inner;
     label.textContent = text;
@@ -88,8 +98,16 @@ function hasUserThemeOverride() {
     return urlTheme === 'dark' || urlTheme === 'light';
 }
 
+function hasManualThemeStored() {
+    /* 持久化的手动主题（深色主题/浅色主题）；选「跟随飞牛」后为不存在 */
+    try {
+        var v = localStorage.getItem('gateway-theme');
+        return v === 'dark' || v === 'light';
+    } catch (e) { return false; }
+}
+
 function themeLocked() {
-    return hasUserThemeOverride() || manualThemeActive;
+    return hasUserThemeOverride() || hasManualThemeStored();
 }
 
 async function initFnOSTheme() {
@@ -277,7 +295,7 @@ initFnOSTheme();
                 </svg>
                 更多
             </div>
-            <div class="mac-sidebar-item mobile-hidden" onclick="toggleTheme()" title="点击切换亮色 / 暗色外观">
+            <div class="mac-sidebar-item mobile-hidden" onclick="toggleTheme()" title="主题：跟随飞牛 / 深色 / 浅色主题，点击切换">
                 <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="5"/>
                     <line x1="12" y1="1" x2="12" y2="3"/>
@@ -289,7 +307,7 @@ initFnOSTheme();
                     <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                 </svg>
-                <span id="themeLabel">外观</span>
+                <span id="themeLabel">跟随飞牛</span>
             </div>
             <div class="mac-sidebar-divider mobile-hidden"></div>
             <div class="mac-sidebar-version mobile-hidden">
@@ -374,7 +392,7 @@ initFnOSTheme();
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                     </svg>
-                    <span id="sheetThemeLabel">外观</span>
+                    <span id="sheetThemeLabel">跟随飞牛</span>
                 </div>
                 </div>
                 <div class="more-sheet-version">
@@ -1030,12 +1048,38 @@ function openCollector() {
     window.open(gatewayPrefix + '/admin', '_blank', 'noopener');
 }
 
-// 手动主题切换（临时覆盖，刷新后由飞牛系统主题重新接管）
+// 手动主题切换（持久化：跟随飞牛 → 深色主题 → 浅色主题 → 跟随飞牛 …循环；刷新后保持所选手动主题）
+function resolveFnosTheme() {
+    /* 与首屏防闪烁同口径：飞牛主题缓存 > body theme-mode > 系统偏好 > 浅色 */
+    try {
+        var cached = sessionStorage.getItem('fnos-theme');
+        if (cached === 'dark' || cached === 'light') return cached;
+    } catch (e) {}
+    try {
+        var fnOS = ((document.body && document.body.getAttribute('theme-mode')) || '').trim().toLowerCase();
+        if (fnOS === 'dark') return 'dark';
+    } catch (e) {}
+    try {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+    } catch (e) {}
+    return 'light';
+}
+
 function toggleTheme() {
     var current = document.documentElement.getAttribute('data-theme') || 'light';
-    var next = current === 'dark' ? 'light' : 'dark';
-    manualThemeActive = true; // 标记手动覆盖，暂停系统主题跟随（刷新后恢复）
-    applyTheme(next);
+    if (!hasManualThemeStored()) {
+        // 「跟随飞牛」(或 URL 覆盖) 下首点：切到当前视觉的相反主题并持久化
+        try { localStorage.setItem('gateway-theme', current === 'dark' ? 'light' : 'dark'); } catch (e) {}
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+        return;
+    }
+    if (current === 'dark') {
+        try { localStorage.setItem('gateway-theme', 'light'); } catch (e) {} // 深色 → 浅色
+        applyTheme('light');
+    } else {
+        try { localStorage.removeItem('gateway-theme'); } catch (e) {} // 浅色 → 移除手动，回到「跟随飞牛」
+        applyTheme(resolveFnosTheme());
+    }
 }
 
 // ============================================================

@@ -468,7 +468,18 @@ html[data-theme="dark"] .batch-loading-sub { color: var(--c-text-soft); }
   vertical-align: middle;
 }
 
-/* 点击文件名打开所在目录（与文件夹行样式区分，带悬停下划线） */
+/* 点击文件名打开所在目录（与文件夹行样式区分，带悬停下划线）
+   名称列过长时单行省略号截短，悬浮可见完整名（与统一网关记录表同口径） */
+td.col-name { max-width: 200px; }
+td.col-name .record-file-open,
+td.col-name .record-name-static {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .record-file-open {
   background: none;
   border: 0;

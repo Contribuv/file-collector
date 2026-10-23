@@ -72,10 +72,10 @@ function updateThemeIcon(theme) {
     var inner, text;
     if (theme === 'dark') {
         inner = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-        text = '亮色模式';
+        text = '外观：暗色';
     } else {
         inner = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-        text = '暗色模式';
+        text = '外观：亮色';
     }
     icon.innerHTML = inner;
     label.textContent = text;
@@ -277,7 +277,7 @@ initFnOSTheme();
                 </svg>
                 更多
             </div>
-            <div class="mac-sidebar-item mobile-hidden" onclick="toggleTheme()">
+            <div class="mac-sidebar-item mobile-hidden" onclick="toggleTheme()" title="点击切换亮色 / 暗色外观">
                 <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="5"/>
                     <line x1="12" y1="1" x2="12" y2="3"/>
@@ -289,7 +289,7 @@ initFnOSTheme();
                     <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                 </svg>
-                <span id="themeLabel">切换主题</span>
+                <span id="themeLabel">外观</span>
             </div>
             <div class="mac-sidebar-divider mobile-hidden"></div>
             <div class="mac-sidebar-version mobile-hidden">
@@ -374,7 +374,7 @@ initFnOSTheme();
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                     </svg>
-                    <span id="sheetThemeLabel">切换主题</span>
+                    <span id="sheetThemeLabel">外观</span>
                 </div>
                 </div>
                 <div class="more-sheet-version">

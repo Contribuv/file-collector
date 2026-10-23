@@ -462,7 +462,12 @@ table.gwa-table {
 
 .gwa-folder-name {
     margin-right: 10px;
-    word-break: break-all;
+    vertical-align: middle;
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .gwa-folder-meta {
@@ -1797,7 +1802,7 @@ textarea.form-input {
 
 .gwa-rec-name {
     display: inline-block;
-    max-width: 320px;
+    max-width: 160px;
     vertical-align: middle;
 }
 

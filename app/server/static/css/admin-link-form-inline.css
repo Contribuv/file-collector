@@ -174,25 +174,34 @@
 
 /* 附件选择区（替代原生 file input 的点击/拖放选择样式） */
 .attach-drop {
+  /* 形态参考收集页上传区（collect.css .cp-drop）:白卡底 + 居中列布局 + 大圆角虚线框 */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1.5px dashed var(--c-border);
-  border-radius: 8px;
-  background: var(--c-gray-100);
+  gap: 8px;
+  padding: 18px 16px;
+  border: 2px dashed var(--c-gray-300);
+  border-radius: 12px;
+  background: var(--c-bg-elev);
+  text-align: center;
   color: var(--c-text-muted);
   font-size: .84rem;
   cursor: pointer;
-  transition: border-color .15s, background .15s, color .15s;
+  transition: border-color .18s, background-color .18s, color .18s;
 }
-.attach-drop:hover,
-.attach-drop.dragover {
+.attach-drop:hover {
   border-color: var(--c-primary);
-  color: var(--c-primary);
   background: var(--c-gray-100);
+  color: var(--c-primary);
 }
-.attach-drop-icon { flex-shrink: 0; }
+.attach-drop.dragover {
+  border-style: solid;
+  border-color: var(--c-primary);
+  background: var(--c-gray-100);
+  color: var(--c-primary);
+}
+.attach-drop-icon { width: 28px; height: 28px; flex-shrink: 0; transition: transform .2s ease; }
+.attach-drop:hover .attach-drop-icon { transform: translateY(-2px) scale(1.06); }
 .attach-drop-text {
   display: flex;
   flex-direction: column;
@@ -316,7 +325,7 @@ html[data-theme="dark"] .attach-remove-btn {
 html[data-theme="dark"] .attach-remove-btn:hover { background: rgba(255,93,82,.12); }
 
 html[data-theme="dark"] .attach-drop {
-  background: var(--c-gray-100);
+  background: var(--c-bg-elev);
   border-color: var(--c-border);
   color: var(--c-text-muted);
 }

@@ -76,7 +76,7 @@
                 {# 点击文件名直接打开飞牛文件管理器并定位到该文件所在目录（与统一网关行为一致） #}
                 <button type="button" class="record-file-open" title="点击查看详情与操作" data-dir="{{ r['stored_path']|file_dir }}">{{ r['original_name'] }}</button>
                 {% else %}
-                <span title="{{ r['original_name'] }}">{{ r['original_name'] }}</span>
+                <span class="record-name-static" title="{{ r['original_name'] }}">{{ r['original_name'] }}</span>
                 {% endif %}
               </td>
               <td class="col-act">

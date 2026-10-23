@@ -1386,6 +1386,8 @@ async function switchShareIdentity() {
 
 (function initShareUploaderUi() {
   if (!shareRequireUploader) return;
+  // 页面刷新后若会话已认领身份,立即恢复徽标显示(否则无法退出/切换身份)
+  updateIdentityBadge();
   var input = document.getElementById('share-uploader-input');
   if (input) input.addEventListener('keydown', function(e){ if (e.key === 'Enter') claimShareUploader(); });
 })();

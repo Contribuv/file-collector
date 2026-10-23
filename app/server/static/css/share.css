@@ -292,6 +292,59 @@ body {
 .cp-passcode-msg.error { color: var(--c-danger); }
 .cp-passcode-msg.success { color: var(--c-success); }
 
+/* ---------- Uploader Identity Modal（分享页上传者验证） ---------- */
+.cp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: cp-modal-fadein .2s ease;
+}
+@keyframes cp-modal-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.cp-modal-card {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 28px 24px 22px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  animation: cp-modal-up .25s ease;
+}
+@keyframes cp-modal-up {
+  from { opacity: 0; transform: translateY(20px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.cp-modal-card .cp-passcode-icon { margin-bottom: 12px; }
+.cp-modal-card .cp-passcode-title { margin-bottom: 4px; }
+.cp-modal-card .cp-passcode-sub { margin-bottom: 16px; }
+.cp-modal-card .cp-passcode-row { max-width: 100%; }
+.cp-modal-card .cp-passcode-msg { margin-top: 10px; }
+
+.cp-identity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .72rem;
+  font-weight: 500;
+  color: var(--c-primary);
+  background: var(--c-primary-light);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 160px;
+}
+.cp-identity-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 @keyframes cp-shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
@@ -832,6 +885,8 @@ body {
   .cp-per-page-unit { font-size: .68rem; }
 
   .cp-passcode-indicator { font-size: .72rem; padding: 5px 10px; }
+  .cp-modal-card { max-width: 92%; padding: 24px 18px 20px; }
+  .cp-identity-badge { max-width: 120px; }
 }
 
 /* ============================================================

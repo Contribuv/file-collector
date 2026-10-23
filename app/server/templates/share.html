@@ -113,6 +113,12 @@
           </button>
           <span class="cp-uploader-view-title" id="current-uploader-name"></span>
         </div>
+        {%- if share_require_uploader %}
+        <span class="cp-identity-badge" id="share-identity-badge" style="display:none" onclick="switchShareIdentity()" title="点击切换身份">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="share-identity-name"></span>
+        </span>
+        {% endif %}
         <h2 id="file-list-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span id="title-text">文件列表</span>
@@ -174,10 +180,32 @@
   </div>
 </div>
 
+{% if share_require_uploader %}
+{# ---------- 分享页上传者身份浮窗 ---------- #}
+<div class="cp-modal-overlay" id="share-uploader-modal" style="display:none">
+  <div class="cp-modal-card">
+    <div class="cp-passcode-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <h2 class="cp-passcode-title">您是上传者吗？</h2>
+    <p class="cp-passcode-sub">输入您上传文件时填写的昵称，即可查看您本人上传的文件</p>
+    <div class="cp-passcode-row" id="share-uploader-row">
+      <input type="text" id="share-uploader-input" placeholder="您上传时的昵称，例如：张三 / Alex" maxlength="60">
+      <button class="cp-passcode-btn" onclick="claimShareUploader()">确认</button>
+    </div>
+    <div class="cp-passcode-msg" id="share-uploader-msg"></div>
+  </div>
+</div>
+{% endif %}
+
 {# ---------- 自定义灯箱（JS 动态创建） ---------- #}
 {%- set _js_cfg = {
     'linkId': link_id,
     'requireUploader': require_uploader,
+    'shareRequireUploader': share_require_uploader,
+    'shareUploader': share_uploader or '',
     'allowPreviewDownload': allow_preview_download,
     'dlToken': dl_token,
     'dlExpires': dl_token_expires,
@@ -193,6 +221,8 @@ var _C = JSON.parse(document.getElementById('js-config').textContent);
 window.FC_BASE = _C.fcBase || '';
 const linkId = _C.linkId;
 var requireUploader = _C.requireUploader;
+var shareRequireUploader = !!_C.shareRequireUploader;  // 分享页上传者验证开关
+var _shareUploader = _C.shareUploader || '';  // 当前认领的分享页身份
 var allowPreviewDownload = _C.allowPreviewDownload;
 var _dlToken = _C.dlToken;
 var _dlExpires = _C.dlExpires;
@@ -468,7 +498,8 @@ async function openUploaderFiles(uploaderName) {
   document.getElementById('history-wrap').style.display = 'block';
   
   // 显示返回按钮和当前上传者名称
-  document.getElementById('uploader-view-header').style.display = 'flex';
+  // （身份验证模式下由徽标代替，且不允许回到「全部文件/上传者列表」视图）
+  document.getElementById('uploader-view-header').style.display = shareRequireUploader ? 'none' : 'flex';
   document.getElementById('current-uploader-name').textContent = uploaderName;
   
   // 隐藏文件列表标题
@@ -502,6 +533,10 @@ async function loadUploaderRecords(uploaderName, page, dir) {
     if (_currentDir) reqUrl += '&dir=' + encodeURIComponent(_currentDir);
     var res = await fetch(reqUrl);
     var data = await res.json();
+    if (data.need_uploader) {
+      openShareUploaderModal();
+      return;
+    }
 
     var wrap = document.getElementById('history-wrap');
     _currentFolders = data.folders || [];
@@ -584,6 +619,8 @@ function onUploaderPerPageChange(input) {
 
 /* --- 返回上传者列表 --- */
 function goBackToUploaderList() {
+  // 分享页上传者验证开启时不允许回到上传者列表（只能浏览自己的文件）
+  if (shareRequireUploader) return;
   _currentView = 'uploader';
   _currentUploaderName = '';
   _currentDir = '';
@@ -907,6 +944,11 @@ async function loadHistory(page, dir) {
     if (_currentDir) reqUrl += '&dir=' + encodeURIComponent(_currentDir);
     var res = await fetch(reqUrl);
     var data = await res.json();
+    if (data.need_uploader) {
+      // 分享页上传者验证：未认领身份 → 弹出身份浮窗
+      openShareUploaderModal();
+      return;
+    }
     var wrap = document.getElementById('history-wrap');
     var folders = data.folders || [];
     var isUploaderMode = !!(requireUploader && data.require_uploader);
@@ -1244,7 +1286,121 @@ function downloadFile(recordId) {
   }
 })();
 
-if (_C.verified) { loadHistory(); }
+/* ========== 分享页上传者身份验证 ========== */
+function updateIdentityBadge() {
+  var badge = document.getElementById('share-identity-badge');
+  if (!badge) return;
+  if (shareRequireUploader && _shareUploader) {
+    badge.style.display = 'inline-flex';
+    document.getElementById('share-identity-name').textContent = _shareUploader;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openShareUploaderModal() {
+  var m = document.getElementById('share-uploader-modal');
+  if (!m) return;
+  m.style.display = 'flex';
+  var input = document.getElementById('share-uploader-input');
+  if (input) { input.value = ''; setTimeout(function(){ input.focus(); }, 50); }
+  var msg = document.getElementById('share-uploader-msg');
+  if (msg) { msg.textContent = ''; msg.className = 'cp-passcode-msg'; }
+}
+
+function closeShareUploaderModal() {
+  var m = document.getElementById('share-uploader-modal');
+  if (m) m.style.display = 'none';
+}
+
+async function claimShareUploader() {
+  var nameInput = document.getElementById('share-uploader-input');
+  var btn = document.querySelector('#share-uploader-row .cp-passcode-btn');
+  var row = document.getElementById('share-uploader-row');
+  var msg = document.getElementById('share-uploader-msg');
+  var name = nameInput ? nameInput.value.trim() : '';
+  msg.textContent = '';
+  msg.className = 'cp-passcode-msg';
+
+  if (!name) {
+    msg.textContent = '请输入您上传时填写的昵称';
+    msg.className = 'cp-passcode-msg error';
+    row.classList.add('cp-shake');
+    setTimeout(function(){ row.classList.remove('cp-shake'); }, 400);
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  try {
+    var res = await fetch(FC_BASE + '/share/' + linkId + '/set_share_uploader', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+      body: 'uploader_name=' + encodeURIComponent(name)
+    });
+    var data = await res.json();
+    if (data.success) {
+      _shareUploader = data.uploader_name || name;
+      closeShareUploaderModal();
+      updateIdentityBadge();
+      openUploaderFiles(_shareUploader);
+    } else {
+      msg.textContent = data.message || '身份确认失败，请重试';
+      msg.className = 'cp-passcode-msg error';
+      row.classList.add('cp-shake');
+      setTimeout(function(){ row.classList.remove('cp-shake'); }, 400);
+    }
+  } catch(e) {
+    msg.textContent = '网络错误，请重试';
+    msg.className = 'cp-passcode-msg error';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function switchShareIdentity() {
+  /* 切换身份：清除分享页会话身份并重新弹出浮窗 */
+  try {
+    await fetch(FC_BASE + '/share/' + linkId + '/clear_share_uploader', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+  } catch(e) {}
+  _shareUploader = '';
+  updateIdentityBadge();
+  // 退出批量模式并清空选择，回到空白状态等待重新认领
+  if (_isBatchMode) {
+    _isBatchMode = false;
+    var card = document.querySelector('.cp-card');
+    if (card) { card.classList.remove('batch-mode'); }
+  }
+  clearSelection();
+  var wrap = document.getElementById('history-wrap');
+  if (wrap) {
+    document.getElementById('uploader-folder-view').style.display = 'none';
+    document.getElementById('history-wrap').style.display = 'block';
+    document.getElementById('uploader-view-header').style.display = 'none';
+    wrap.innerHTML = '';
+  }
+  openShareUploaderModal();
+}
+
+(function initShareUploaderUi() {
+  if (!shareRequireUploader) return;
+  var input = document.getElementById('share-uploader-input');
+  if (input) input.addEventListener('keydown', function(e){ if (e.key === 'Enter') claimShareUploader(); });
+})();
+
+if (_C.verified) {
+  if (shareRequireUploader) {
+    if (_shareUploader) {
+      openUploaderFiles(_shareUploader);
+    } else {
+      openShareUploaderModal();
+    }
+  } else {
+    loadHistory();
+  }
+}
 
 /* ========== 批量选择 ========== */
 var _selectedIds = new Set();

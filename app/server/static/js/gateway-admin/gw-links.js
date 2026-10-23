@@ -410,6 +410,9 @@
         h += '<div class="gwa-field">' + switchBox('share_enabled', '1', d.share_enabled, '启用分享页', '开启后生成独立分享页面供他人查看和下载') + '</div>';
         h += '<div id="gwa-share-section"' + (d.share_enabled ? '' : ' style="display:none"') + '>';
         h += '<div class="gwa-field gwa-switches">' + switchBox('collect_disabled', '1', (d.collect_enabled === 0), '关闭收集页（仅保留分享页）', '关闭后收集链接不可访问，分享页仍可用') + '</div>';
+        // 分享页上传者验证（创建与编辑均可改；只影响分享页可见范围，不动文件目录）
+        h += '<div class="gwa-field gwa-switches">' + switchBox('share_require_uploader', '1', !!d.share_require_uploader, '分享页上传者验证',
+            '开启后访客需先输入自己上传时填写的昵称（须存在上传记录），只能浏览自己的文件；开启分享页通行证时先验证通行证、再认领身份。建议配合收集页「上传者登记」使用') + '</div>';
         // 分享页通行证
         h += '<div class="gwa-field"><label class="gwa-label">分享页通行证' + (isEdit ? '' : ' *') + '</label><div class="gwa-radio-group">';
         if (isEdit) h += radio('share_passcode_mode', 'keep', shareKeep, '保持原有设置不变', d.has_share_passcode ? '当前：已设置通行证' : (d.share_passcode_empty ? '当前：空通行证' : '当前：复用收集页'));

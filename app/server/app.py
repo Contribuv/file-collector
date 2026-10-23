@@ -978,6 +978,17 @@ def init_db():
     except Exception as e:
         logger.error(f"数据库迁移错误(require_uploader): {e}")
 
+    # 为 links 表添加 share_require_uploader 列（分享页是否要求访客认领上传者身份后仅浏览自己的文件）
+    try:
+        cursor = conn.execute("PRAGMA table_info(links)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'share_require_uploader' not in columns:
+            conn.execute("ALTER TABLE links ADD COLUMN share_require_uploader INTEGER DEFAULT 0")
+            conn.commit()
+            logger.info("已为 links 表添加 share_require_uploader 字段")
+    except Exception as e:
+        logger.error(f"数据库迁移错误(share_require_uploader): {e}")
+
     # 为 links 表添加 use_root_folder 列（根目录模式：跳过用户名层级，直接 UPLOAD_BASE/<folder_name>/）
     try:
         cursor = conn.execute("PRAGMA table_info(links)")
@@ -3805,6 +3816,63 @@ def _sanitize_uploader_name(name):
         name = 'unknown'
     return name
 
+
+def _validate_uploader_text(uploader_name):
+    """校验上传者昵称的字数规则（收集页登记与分享页身份认领共用）。
+
+    返回 None 表示通过，否则返回错误提示文本。清洗交由 _sanitize_uploader_name。
+    """
+    chinese_count = 0
+    other_count = 0
+    for c in uploader_name:
+        if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf':
+            chinese_count += 1
+        else:
+            other_count += 1
+    if chinese_count > 0:
+        # 含中文：中文至少2字，最多8字；英文/数字/符号最多20字
+        if chinese_count < 2:
+            return '中文昵称至少填写2个字'
+        if chinese_count > 8:
+            return '中文字符最多8个'
+        if other_count > 20:
+            return '英文/数字/符号最多20个'
+    else:
+        # 纯英文/数字/符号：至少3字，最多20字
+        if other_count < 3:
+            return '昵称至少填写3个字符'
+        if other_count > 20:
+            return '昵称最多填写20个字符'
+    if chinese_count + other_count > 60:
+        return '总字符数不能超过60个'
+    return None
+
+
+def _share_require_uploader(link, link_id):
+    """分享页「上传者进行身份验证」开关是否开启，并在开启时解析访客身份。
+
+    开关关闭 → 返回 None（不限制，保持现状）。
+    开关开启：
+      * session 已有分享页身份（share_uploader_<id>）→ 直接使用；
+      * 否则尝试自动沿用该浏览器在收集页登记过的身份（uploader_<id>），
+        沿用成功也写回分享页 session 键，之后免弹窗；
+      * 都没有 → 返回 ''（未认领，前端应弹出身份浮窗）。
+    """
+    if not link:
+        return None
+    try:
+        share_ru = link['share_require_uploader'] if 'share_require_uploader' in link.keys() else 0
+    except Exception:
+        share_ru = 0
+    if not share_ru:
+        return None
+    name = (session.get(f'share_uploader_{link_id}') or '').strip()
+    if not name:
+        name = (session.get(f'uploader_{link_id}') or '').strip()
+        if name:
+            session[f'share_uploader_{link_id}'] = name
+    return name
+
 @app.route('/collect/<link_id>/set_uploader', methods=['POST'])
 def set_uploader(link_id):
     """设置上传者身份（require_uploader 开启时使用）"""
@@ -3818,30 +3886,10 @@ def set_uploader(link_id):
     if not uploader_name:
         return jsonify({'success': False, 'message': '请输入您的身份'}), 400
 
-    # 字数限制
-    chinese_count = 0
-    other_count = 0
-    for c in uploader_name:
-        if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf':
-            chinese_count += 1
-        else:
-            other_count += 1
-    if chinese_count > 0:
-        # 含中文：中文至少2字，最多8字；英文/数字/符号最多20字
-        if chinese_count < 2:
-            return jsonify({'success': False, 'message': '中文昵称至少填写2个字'}), 400
-        if chinese_count > 8:
-            return jsonify({'success': False, 'message': '中文字符最多8个'}), 400
-        if other_count > 20:
-            return jsonify({'success': False, 'message': '英文/数字/符号最多20个'}), 400
-    else:
-        # 纯英文/数字/符号：至少3字，最多20字
-        if other_count < 3:
-            return jsonify({'success': False, 'message': '昵称至少填写3个字符'}), 400
-        if other_count > 20:
-            return jsonify({'success': False, 'message': '英文/数字/符号最多20个'}), 400
-    if chinese_count + other_count > 60:
-        return jsonify({'success': False, 'message': '总字符数不能超过60个'}), 400
+    # 字数限制（与分享页身份认领共用一套规则）
+    err = _validate_uploader_text(uploader_name)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
 
     # 安全化处理
     safe_name = _sanitize_uploader_name(uploader_name)
@@ -4038,6 +4086,8 @@ def share_page(link_id):
         expire_level=expire_level,
         creator_name=creator_name,
         require_uploader=bool(link.get('require_uploader', 0)),
+        share_require_uploader=bool(link.get('share_require_uploader', 0)),
+        share_uploader=(_share_require_uploader(link, link_id) or None),
         allow_preview_download=True,  # 分享页始终允许预览和下载
         csrf_token=csrf_token,
         dl_token=dl_token,
@@ -4117,6 +4167,78 @@ def share_logout_passcode(link_id):
         link_id = link['id']
     session.pop(f'share_verified_{link_id}', None)
     return jsonify({'success': True, 'message': '已退出通行证'})
+
+@app.route('/share/<link_id>/set_share_uploader', methods=['POST'])
+def share_set_uploader(link_id):
+    """分享页认领上传者身份（share_require_uploader 开启时使用）
+
+    开启后访客需输入自己上传时填写的昵称；昵称必须在该链接的
+    上传记录中真实存在（防止输错或冒用他人身份浏览他人文件）。
+    """
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+
+    uploader_name = (request.form.get('uploader_name') or '').strip()
+    if not uploader_name:
+        return jsonify({'success': False, 'message': '请输入您上传时填写的昵称'}), 400
+
+    err = _validate_uploader_text(uploader_name)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
+
+    safe_name = _sanitize_uploader_name(uploader_name)
+
+    conn = get_db()
+    link = conn.execute(
+        "SELECT * FROM links WHERE (share_slug = ? OR id = ?) AND status = 'active'",
+        (link_id, link_id)
+    ).fetchone()
+    if not link:
+        conn.close()
+        return jsonify({'success': False, 'message': '链接不存在或已失效'}), 404
+
+    link_id = link['id']
+    if not (link['share_require_uploader'] if 'share_require_uploader' in link.keys() else 0):
+        conn.close()
+        return jsonify({'success': False, 'message': '该链接未开启上传者身份验证'}), 400
+
+    # 通行证仍是第一道；未验证时不得认领身份
+    if not is_share_verified(link_id, link):
+        conn.close()
+        return jsonify({'success': False, 'message': '请先验证通行证'}), 403
+
+    # 名单校验：该链接确实存在此身份的上传记录
+    count = conn.execute(
+        "SELECT COUNT(*) FROM upload_records WHERE link_id = ? AND uploader_name = ? AND uploader_name != '_attachment'",
+        (link_id, safe_name)
+    ).fetchone()[0]
+    conn.close()
+    if not count:
+        return jsonify({'success': False,
+                        'message': '该链接下没有此昵称的上传记录，请核对您上传时填写的身份'}), 400
+
+    session[f'share_uploader_{link_id}'] = safe_name
+    return jsonify({'success': True, 'uploader_name': safe_name})
+
+@app.route('/share/<link_id>/clear_share_uploader', methods=['POST'])
+def share_clear_uploader(link_id):
+    """分享页退出身份认领（仅清除分享页会话身份，不影响收集页登记）"""
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$', link_id):
+        return jsonify({'success': False, 'message': '链接格式无效'}), 400
+    if not validate_csrf():
+        return jsonify({'success': False, 'message': '安全验证失败'}), 403
+    conn = get_db()
+    link = conn.execute(
+        "SELECT id FROM links WHERE (share_slug = ? OR id = ?)", (link_id, link_id)
+    ).fetchone()
+    conn.close()
+    if link:
+        link_id = link['id']
+    session.pop(f'share_uploader_{link_id}', None)
+    return jsonify({'success': True, 'message': '已切换，请重新选择身份'})
+
 
 @app.route('/api/download-token/<link_id>', methods=['GET'])
 def api_download_token(link_id):
@@ -4299,13 +4421,33 @@ def share_get_records(link_id):
     page = max(1, page)
     per_page = max(5, min(per_page, 100))
 
-    # 按上传者过滤
+    # 按上传者过滤；「分享页上传者验证」开启时，身份以 session 认领为准（沿用收集页登记）
     uploader_filter = request.args.get('uploader', '').strip()
 
     # 目录视图：当前浏览目录（相对上传目录，'' 为根）与子文件夹聚合
     from record_dirs import (normalize_dir, direct_file_condition, combine_where,
                              query_dir_view, breadcrumb, display_path_expr, norm_path_expr)
     dir_path = normalize_dir(request.args.get('dir', ''))
+
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None:
+        # 开关开启：未认领身份 → 要求先填写昵称
+        if not share_identity:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'need_uploader': True,
+                'message': '请先输入您上传时填写的昵称，以查看您的文件'
+            }), 401
+        # 已认领：URL 参数只能与本身份一致（防止改参数浏览他人文件）
+        if uploader_filter and uploader_filter != share_identity:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'need_uploader': True,
+                'message': '当前身份与请求的浏览身份不一致，请重新认领'
+            }), 403
+        uploader_filter = share_identity
 
     # 记录范围：本链接（可选再按上传者过滤）；排除 _attachment 脏记录
     scope_where = "WHERE r.link_id = ? AND r.uploader_name != '_attachment'"
@@ -4342,10 +4484,16 @@ def share_get_records(link_id):
         params2 + (per_page, (page - 1) * per_page)
     ).fetchall()
 
-    # 获取上传者统计（每个上传者的总文件数）
+    # 获取上传者统计（每个上传者的总文件数）；
+    # 「上传者验证」开启时只保留本人的统计，避免泄露链接内其他身份名单
+    stats_where = "link_id = ? AND uploader_name != '_attachment'"
+    stats_params = [link_id]
+    if share_identity is not None:
+        stats_where += " AND uploader_name = ?"
+        stats_params.append(share_identity)
     uploader_stats = conn.execute(
-        "SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE link_id = ? AND uploader_name != '_attachment' GROUP BY uploader_name",
-        (link_id,)
+        f"SELECT uploader_name, COUNT(*) as count FROM upload_records WHERE {stats_where} GROUP BY uploader_name",
+        tuple(stats_params)
     ).fetchall()
     uploader_stats_dict = {row['uploader_name'] or '未署名': row['count'] for row in uploader_stats}
     conn.close()
@@ -4353,6 +4501,8 @@ def share_get_records(link_id):
     return jsonify({
         'success': True,
         'require_uploader': require_uploader,
+        'share_require_uploader': share_identity is not None,
+        'share_uploader': share_identity if share_identity else None,
         'total_uploaded': total_uploaded,
         'total': dir_total,
         'total_pages': total_pages,
@@ -4385,6 +4535,12 @@ def share_preview_record(link_id, record_id):
         conn.close()
         return _render_error_html('请先验证通行证', 403, '请返回分享页输入通行证后再访问该文件')
 
+    # 「分享页上传者验证」开启时，访客必须先认领身份，且仅可访问自己的文件
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return _render_error_html('请先认领身份', 403, '请返回分享页输入您上传时填写的昵称')
+
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
@@ -4396,12 +4552,14 @@ def share_preview_record(link_id, record_id):
         return _render_error_html(err, 401, '请返回分享页刷新后重试')
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
     conn.close()
     if not record:
         return _render_error_html('文件不存在', 404)
+    if share_identity is not None and (record['uploader_name'] or '') != share_identity:
+        return _render_error_html('无权访问该文件', 403, '当前身份仅可查看自己上传的文件')
 
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -4477,14 +4635,22 @@ def share_download_record(link_id, record_id):
         conn.close()
         return _render_error_html(err, 401, '请返回分享页刷新后重试')
 
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return _render_error_html('请先认领身份', 403, '请返回分享页输入您上传时填写的昵称')
+
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
 
     if not record:
         conn.close()
         return _render_error_html('文件不存在', 404)
+    if share_identity is not None and (record['uploader_name'] or '') != share_identity:
+        conn.close()
+        return _render_error_html('无权访问该文件', 403, '当前身份仅可下载自己上传的文件')
 
     conn.execute("UPDATE upload_records SET download_count = download_count + 1 WHERE id = ?", (record_id,))
     conn.commit()
@@ -4514,6 +4680,11 @@ def share_preview_file(link_id, record_id):
         conn.close()
         return '请先验证通行证', 403
 
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return '请先认领身份', 403
+
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
@@ -4525,13 +4696,16 @@ def share_preview_file(link_id, record_id):
         return err, 401
 
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
 
     if not record:
         conn.close()
         return '文件不存在', 404
+    if share_identity is not None and (record['uploader_name'] or '') != share_identity:
+        conn.close()
+        return '无权访问该文件', 403
 
     conn.close()
 
@@ -4580,6 +4754,10 @@ def share_txt_info(link_id, record_id):
     if not is_share_verified(link_id, link):
         conn.close()
         return jsonify({'error': '请先验证通行证'}), 403
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return jsonify({'error': '请先认领身份'}), 403
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
@@ -4589,12 +4767,15 @@ def share_txt_info(link_id, record_id):
         conn.close()
         return jsonify({'error': err}), 401
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
     if not record:
         conn.close()
         return jsonify({'error': '文件不存在'}), 404
+    if share_identity is not None and (record['uploader_name'] or '') != share_identity:
+        conn.close()
+        return jsonify({'error': '无权访问该文件'}), 403
     conn.close()
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -4628,6 +4809,10 @@ def share_txt_chunk(link_id, record_id):
     if not is_share_verified(link_id, link):
         conn.close()
         return jsonify({'error': '请先验证通行证'}), 403
+    share_identity = _share_require_uploader(link, link_id)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return jsonify({'error': '请先认领身份'}), 403
     ok, err = _check_preview_rate_limit()
     if not ok:
         conn.close()
@@ -4637,12 +4822,15 @@ def share_txt_chunk(link_id, record_id):
         conn.close()
         return jsonify({'error': err}), 401
     record = conn.execute(
-        "SELECT stored_path, original_name FROM upload_records WHERE id = ? AND link_id = ?",
+        "SELECT stored_path, original_name, uploader_name FROM upload_records WHERE id = ? AND link_id = ?",
         (record_id, link_id)
     ).fetchone()
     if not record:
         conn.close()
         return jsonify({'error': '文件不存在'}), 404
+    if share_identity is not None and (record['uploader_name'] or '') != share_identity:
+        conn.close()
+        return jsonify({'error': '无权访问该文件'}), 403
     conn.close()
     upload_base = get_upload_base()
     real_path = os.path.realpath(record['stored_path'])
@@ -4690,11 +4878,22 @@ def share_download_all(link_id):
     if not validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
 
-    # 查询该链接下所有文件（最多 200 个）
-    records = conn.execute(
-        "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE link_id = ? ORDER BY uploaded_at ASC LIMIT 200",
-        (link_id_db,)
-    ).fetchall()
+    # 查询该链接下所有文件（最多 200 个）；
+    # 「分享页上传者验证」开启时仅打包本人上传的文件（未认领身份则要求先认领）
+    share_identity = _share_require_uploader(link, link_id_db)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return jsonify({'success': False, 'message': '请先认领身份'}), 403
+    if share_identity is not None:
+        records = conn.execute(
+            "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE link_id = ? AND uploader_name = ? ORDER BY uploaded_at ASC LIMIT 200",
+            (link_id_db, share_identity)
+        ).fetchall()
+    else:
+        records = conn.execute(
+            "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE link_id = ? ORDER BY uploaded_at ASC LIMIT 200",
+            (link_id_db,)
+        ).fetchall()
     conn.close()
 
     if not records:
@@ -4779,6 +4978,13 @@ def share_download_group(link_id):
 
     data = request.get_json(silent=True) or {}
     uploader_name = (data.get('uploader_name') or '').strip()
+    # 「分享页上传者验证」开启时，打包对象锁定为访客认领的身份（忽略请求里的其他名字）
+    share_identity = _share_require_uploader(link, link_id_db)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return jsonify({'success': False, 'message': '请先认领身份'}), 403
+    if share_identity is not None:
+        uploader_name = share_identity
     if not uploader_name:
         conn.close()
         return jsonify({'success': False, 'message': '缺少上传者名称'}), 400
@@ -4876,11 +5082,23 @@ def share_batch_download(link_id):
     # 限制每次最多下载 50 个文件
     record_ids = record_ids[:50]
 
-    records = conn.execute(
-        "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE id IN ({}) AND link_id = ?".format(
-            ','.join('?' * len(record_ids))),
-        record_ids + [link_id_db]
-    ).fetchall()
+    # 「分享页上传者验证」开启时仅打包本人上传的文件（未认领身份则要求先认领）
+    share_identity = _share_require_uploader(link, link_id_db)
+    if share_identity is not None and not share_identity:
+        conn.close()
+        return jsonify({'success': False, 'message': '请先认领身份'}), 403
+    if share_identity is not None:
+        records = conn.execute(
+            "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE id IN ({}) AND link_id = ? AND uploader_name = ?".format(
+                ','.join('?' * len(record_ids))),
+            record_ids + [link_id_db, share_identity]
+        ).fetchall()
+    else:
+        records = conn.execute(
+            "SELECT id, stored_path, original_name, file_size FROM upload_records WHERE id IN ({}) AND link_id = ?".format(
+                ','.join('?' * len(record_ids))),
+            record_ids + [link_id_db]
+        ).fetchall()
     conn.close()
 
     if not records:
@@ -7617,9 +7835,10 @@ def download_link_template():
         '分享页描述',         # share_description - 分享页描述（可选）
         '分享页通行证',       # share_passcode - 空表示无需验证（启用分享页后生效）
         '分享页有效期(天)',   # share_expire_days - 空表示永不过期（启用分享页后生效）
-        '自定义分享链接'      # share_slug - 可选，自定义分享页链接ID
+        '自定义分享链接',      # share_slug - 可选，自定义分享页链接ID
+        '分享页上传者验证'     # share_require_uploader - 可选，"是"表示访客需认领上传者身份后仅浏览自己的文件
     ]
-    
+
     # 演示数据（不会被导入）
     demo_data = [
         [
@@ -7637,7 +7856,8 @@ def download_link_template():
             '这是分享页的描述信息',
             '654321',
             '7',
-            'my-share-link'
+            'my-share-link',
+            '是'
         ],
         [
             '示例收集链接2（此行不会导入）',
@@ -7651,6 +7871,7 @@ def download_link_template():
             '否',
             '',
             '否',
+            '',
             '',
             '',
             '',
@@ -7750,7 +7971,9 @@ def batch_import_links():
                 share_passcode = str(row[12]).strip() if len(row) > 12 else ''
                 share_expire_days = str(row[13]).strip() if len(row) > 13 else ''
                 share_slug = str(row[14]).strip() if len(row) > 14 else ''
-                
+                # 可选尾列：分享页上传者验证（旧模板没有该列时默认关闭，兼容既有 CSV）
+                share_require_uploader = str(row[15]).strip() if len(row) > 15 else ''
+
                 # 转换字段类型（带友好错误提示）
                 try:
                     max_files = int(max_files) if max_files else DEFAULT_MAX_FILES
@@ -7764,6 +7987,7 @@ def batch_import_links():
                 allow_preview_download = 1 if allow_preview_download in ('是', '1', 'true', 'True') else 0
                 require_uploader = 1 if require_uploader in ('是', '1', 'true', 'True') else 0
                 share_enabled = 1 if share_enabled in ('是', '1', 'true', 'True') else 0
+                share_require_uploader = 1 if share_require_uploader in ('是', '1', 'true', 'True') else 0
                 
                 # 验证数字范围
                 if max_files < 0:
@@ -7831,14 +8055,14 @@ def batch_import_links():
                     INSERT INTO links (
                         id, user_id, title, description, passcode, passcode_plain, passcode_empty,
                         max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
-                        require_uploader, collect_slug, share_enabled, share_description, 
+                        require_uploader, share_require_uploader, collect_slug, share_enabled, share_description,
                         share_passcode, share_passcode_plain, share_passcode_empty, share_expires_at, share_slug,
                         status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
                 ''', (
                     link_id, user_id, title, description, passcode_hash, passcode_plain, passcode_empty,
                     max_files, max_file_size_gb, expires_at, allow_delete, allow_preview_download,
-                    require_uploader, collect_slug, share_enabled, share_description,
+                    require_uploader, share_require_uploader, collect_slug, share_enabled, share_description,
                     share_passcode_hash, share_passcode_plain, share_passcode_empty, share_expires_at, share_slug,
                     now_str, now_str
                 ))
@@ -8042,6 +8266,7 @@ def create_link():
     # 收集页开关
     collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
     require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
+    share_require_uploader = 1 if request.form.get('share_require_uploader') == '1' else 0
 
     # 自定义链接 ID
     collect_slug = request.form.get('collect_slug', '').strip()
@@ -8074,13 +8299,13 @@ def create_link():
             """INSERT INTO links (id, user_id, title, description, passcode, passcode_plain,
                max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, allow_download, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
-               share_description, share_expires_at, collect_enabled, require_uploader, 
-               folder_name, collect_slug, share_slug, use_root_folder)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               share_description, share_expires_at, collect_enabled, require_uploader,
+               share_require_uploader, folder_name, collect_slug, share_slug, use_root_folder)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_id, user_id, title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download, empty_passcode,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-             share_description, share_expires_at, collect_enabled, require_uploader, 
-             folder_name, collect_slug, share_slug, use_root_folder)
+             share_description, share_expires_at, collect_enabled, require_uploader,
+             share_require_uploader, folder_name, collect_slug, share_slug, use_root_folder)
         )
         conn.commit()
         conn.close()
@@ -8217,6 +8442,7 @@ def edit_link(link_id):
         # 收集页开关
         collect_enabled = 0 if request.form.get('collect_disabled') == '1' else 1
         require_uploader = 1 if request.form.get('require_uploader') == '1' else 0
+        share_require_uploader = 1 if request.form.get('share_require_uploader') == '1' else 0
 
         # 自定义链接 ID
         collect_slug = request.form.get('collect_slug', '').strip()
@@ -8253,20 +8479,20 @@ def edit_link(link_id):
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=1,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=1,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
         elif passcode:
             # 用户输入了新通行证：设置新通行证
@@ -8277,20 +8503,20 @@ def edit_link(link_id):
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=0,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?, passcode=?, passcode_plain=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?, passcode_empty=0,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, passcode_hash, passcode_plain, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
         else:
             # 保持原有通行证不变 - 只更新其他字段
@@ -8299,20 +8525,20 @@ def edit_link(link_id):
                     """UPDATE links SET title=?, description=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?,
                        share_enabled=?, share_passcode=?, share_passcode_plain=?, share_passcode_empty=?,
-                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
-                     share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
             else:
                 conn.execute(
                     """UPDATE links SET title=?, description=?,
                        max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, allow_preview_download=?, allow_download=?,
-                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
+                       share_enabled=?, share_description=?, share_expires_at=?, collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP
                        WHERE id=?""",
                     (title, description, max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download, allow_download,
-                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, collect_slug, share_slug, link_id)
+                     share_enabled, share_description, share_expires_at, collect_enabled, require_uploader, share_require_uploader, collect_slug, share_slug, link_id)
                 )
 
         # 处理附件（上传新附件 / 删除旧附件 / 保持不变）

@@ -318,6 +318,7 @@ def _serialize_link(d):
         'allow_download': 1 if d.get('allow_download') else 0,
         'share_enabled': 1 if d.get('share_enabled') else 0,
         'require_uploader': 1 if d.get('require_uploader') else 0,
+        'share_require_uploader': 1 if d.get('share_require_uploader') else 0,
         'collect_slug': collect_slug,
         'share_slug': share_slug,
         'collect_id': collect_slug or d.get('id'),
@@ -535,6 +536,7 @@ def create_link(form, files, user_id):
         share_description = form.get('share_description', '')
     collect_enabled = 0 if form.get('collect_disabled') == '1' else 1
     require_uploader = 1 if form.get('require_uploader') == '1' else 0
+    share_require_uploader = 1 if form.get('share_require_uploader') == '1' else 0
 
     collect_slug = collect_slug or None
     share_slug = share_slug or None
@@ -546,14 +548,14 @@ def create_link(form, files, user_id):
                max_file_size_gb, max_files, expires_at, allow_delete, allow_preview_download, allow_download, passcode_empty,
                share_enabled, share_passcode, share_passcode_plain, share_passcode_empty,
                share_description, share_expires_at, collect_enabled, require_uploader,
-               folder_name, collect_slug, share_slug, use_root_folder)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               share_require_uploader, folder_name, collect_slug, share_slug, use_root_folder)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_id, user_id, title, description, passcode_hash, passcode_plain,
              max_file_size_gb, max_files, expires_at or None, allow_delete, allow_preview_download,
              allow_download, empty_passcode,
              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
              share_description, share_expires_at, collect_enabled, require_uploader,
-             folder_name, collect_slug, share_slug, use_root_folder))
+             share_require_uploader, folder_name, collect_slug, share_slug, use_root_folder))
         conn.commit()
     finally:
         conn.close()
@@ -660,6 +662,7 @@ def update_link(link_id, form, files, user_id, is_admin):
             share_description = form.get('share_description', '')
         collect_enabled = 0 if form.get('collect_disabled') == '1' else 1
         require_uploader = 1 if form.get('require_uploader') == '1' else 0
+        share_require_uploader = 1 if form.get('share_require_uploader') == '1' else 0
 
         collect_slug = (form.get('collect_slug') or '').strip() or (row['collect_slug'] or '')
         share_slug = (form.get('share_slug') or '').strip() or (row['share_slug'] or '')
@@ -683,7 +686,7 @@ def update_link(link_id, form, files, user_id, is_admin):
                              allow_download, 1,
                              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                              share_description, share_expires_at, collect_enabled, require_uploader,
-                             collect_slug, share_slug, share_changed)
+                             share_require_uploader, collect_slug, share_slug, share_changed)
         elif passcode:
             passcode_hash = app.generate_password_hash(passcode)
             passcode_plain = passcode
@@ -692,7 +695,7 @@ def update_link(link_id, form, files, user_id, is_admin):
                              allow_download, 0,
                              share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                              share_description, share_expires_at, collect_enabled, require_uploader,
-                             collect_slug, share_slug, share_changed)
+                             share_require_uploader, collect_slug, share_slug, share_changed)
         else:
             # 保持通行证不变：仅更新其他字段
             _update_link_row_keep_passcode(conn, link_id, title, description,
@@ -700,7 +703,7 @@ def update_link(link_id, form, files, user_id, is_admin):
                                            allow_preview_download, allow_download,
                                            share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                                            share_description, share_expires_at, collect_enabled, require_uploader,
-                                           collect_slug, share_slug, share_changed)
+                                           share_require_uploader, collect_slug, share_slug, share_changed)
 
         # 附件处理
         remove_attachment = form.get('remove_attachment') == '1'
@@ -747,7 +750,7 @@ def _update_link_row(conn, link_id, title, description, passcode_hash, passcode_
                      allow_download, passcode_empty,
                      share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                      share_description, share_expires_at, collect_enabled, require_uploader,
-                     collect_slug, share_slug, share_changed):
+                     share_require_uploader, collect_slug, share_slug, share_changed):
     """更新链接（通行证有变更时）。"""
     base = ("title=?, description=?, passcode=?, passcode_plain=?, "
             "max_file_size_gb=?, max_files=?, expires_at=?, allow_delete=?, "
@@ -758,16 +761,16 @@ def _update_link_row(conn, link_id, title, description, passcode_hash, passcode_
     if share_changed:
         sql = (f"UPDATE links SET {base}, share_enabled=?, share_passcode=?, share_passcode_plain=?, "
                "share_passcode_empty=?, share_description=?, share_expires_at=?, collect_enabled=?, "
-               "require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
+               "require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
         params = base_params + [share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                                 share_description, share_expires_at, collect_enabled, require_uploader,
-                                collect_slug, share_slug, link_id]
+                                share_require_uploader, collect_slug, share_slug, link_id]
     else:
         sql = (f"UPDATE links SET {base}, share_enabled=?, share_description=?, share_expires_at=?, "
-               "collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, "
+               "collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, "
                "updated_at=CURRENT_TIMESTAMP WHERE id=?")
         params = base_params + [share_enabled, share_description, share_expires_at, collect_enabled,
-                                require_uploader, collect_slug, share_slug, link_id]
+                                require_uploader, share_require_uploader, collect_slug, share_slug, link_id]
     conn.execute(sql, params)
 
 
@@ -776,7 +779,7 @@ def _update_link_row_keep_passcode(conn, link_id, title, description,
                                    allow_preview_download, allow_download,
                                    share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                                    share_description, share_expires_at, collect_enabled, require_uploader,
-                                   collect_slug, share_slug, share_changed):
+                                   share_require_uploader, collect_slug, share_slug, share_changed):
     """更新链接（通行证保持不变：不写 passcode 列）。"""
     base = ("title=?, description=?, max_file_size_gb=?, max_files=?, expires_at=?, "
             "allow_delete=?, allow_preview_download=?, allow_download=?")
@@ -785,16 +788,16 @@ def _update_link_row_keep_passcode(conn, link_id, title, description,
     if share_changed:
         sql = (f"UPDATE links SET {base}, share_enabled=?, share_passcode=?, share_passcode_plain=?, "
                "share_passcode_empty=?, share_description=?, share_expires_at=?, collect_enabled=?, "
-               "require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
+               "require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
         params = base_params + [share_enabled, share_passcode_hash, share_passcode_plain, share_passcode_empty,
                                 share_description, share_expires_at, collect_enabled, require_uploader,
-                                collect_slug, share_slug, link_id]
+                                share_require_uploader, collect_slug, share_slug, link_id]
     else:
         sql = (f"UPDATE links SET {base}, share_enabled=?, share_description=?, share_expires_at=?, "
-               "collect_enabled=?, require_uploader=?, collect_slug=?, share_slug=?, "
+               "collect_enabled=?, require_uploader=?, share_require_uploader=?, collect_slug=?, share_slug=?, "
                "updated_at=CURRENT_TIMESTAMP WHERE id=?")
         params = base_params + [share_enabled, share_description, share_expires_at, collect_enabled,
-                                require_uploader, collect_slug, share_slug, link_id]
+                                require_uploader, share_require_uploader, collect_slug, share_slug, link_id]
     conn.execute(sql, params)
 
 

@@ -59,8 +59,9 @@
                 删除附件
               </button>
             </div>
-            <input type="hidden" name="remove_attachment" id="remove_attachment" value="0">
             {% endif %}
+            {# 新建/编辑两种模式都必须渲染：onAttachChange/handleSubmit 依赖此域（bug 回溯：此前仅在编辑态渲染，新建页选附件即抛 TypeError，选中文件后 UI 永不更新） #}
+            <input type="hidden" name="remove_attachment" id="remove_attachment" value="0">
             <input type="file" id="attachment" name="attachment" class="form-input"
                    style="display:none;"
                    accept="*/*"
@@ -842,7 +843,8 @@ function validateForm() {
 }
 
 function removeAttachment() {
-  document.getElementById('remove_attachment').value = '1';
+  var remEl = document.getElementById('remove_attachment');
+  if (remEl) remEl.value = '1';
   var currentEl = document.getElementById('attach-current');
   if (currentEl) currentEl.style.display = 'none';
   var fileInput = document.getElementById('attachment');
@@ -854,7 +856,8 @@ function removeAttachment() {
 function onAttachChange() {
   var fi = document.getElementById('attachment');
   if (fi && fi.files && fi.files[0]) {
-    document.getElementById('remove_attachment').value = '0';
+    var remEl = document.getElementById('remove_attachment');
+    if (remEl) remEl.value = '0'; // 新建页无此域（已改为始终渲染，此处再判空兜底）
     updateAttachDrop(fi.files[0]);
     var currentEl = document.getElementById('attach-current');
     if (currentEl) currentEl.style.display = 'none';

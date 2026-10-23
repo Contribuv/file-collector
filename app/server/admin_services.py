@@ -827,8 +827,12 @@ def toggle_link(link_id, user_id, is_admin):
         conn.close()
 
 
-def delete_links(link_ids, user_id, is_admin):
-    """删除若干链接及其所有文件/记录。返回实际删除的链接数。"""
+def delete_links(link_ids, user_id, is_admin, keep_files=False):
+    """删除若干链接及其所有记录；keep_files 为真时保留磁盘上的文件与文件夹。
+
+    返回实际删除的链接数。保留文件仅指磁盘内容：链接及上传记录、
+    下载/上传日志等数据库数据仍会清除（链接删除后记录已无归属）。
+    """
     app = _app()
     conn = _db()
     deleted = 0
@@ -842,16 +846,17 @@ def delete_links(link_ids, user_id, is_admin):
 
             records = conn.execute(
                 "SELECT id, stored_path FROM upload_records WHERE link_id = ?", (link_id,)).fetchall()
-            for r in records:
-                if r['stored_path']:
-                    try:
-                        app._safe_delete(r['stored_path'])
-                    except Exception:
-                        pass
-            try:
-                base_dir = app.create_upload_dir(link_id, '')
-            except Exception:
-                base_dir = None
+            if not keep_files:
+                for r in records:
+                    if r['stored_path']:
+                        try:
+                            app._safe_delete(r['stored_path'])
+                        except Exception:
+                            pass
+                try:
+                    base_dir = app.create_upload_dir(link_id, '')
+                except Exception:
+                    base_dir = None
 
             record_ids = [r['id'] for r in records]
             conn.execute("PRAGMA foreign_keys = OFF")
@@ -865,15 +870,18 @@ def delete_links(link_ids, user_id, is_admin):
             conn.execute("PRAGMA foreign_keys = ON")
             conn.commit()
 
-            if base_dir and base_dir != app.UPLOAD_BASE:
+            if not keep_files and base_dir and base_dir != app.UPLOAD_BASE:
                 try:
                     app._safe_delete_dir(base_dir)
                 except Exception:
                     pass
             deleted += 1
         if deleted:
+            detail = '删除 ' + str(deleted) + ' 个收集链接'
+            if keep_files:
+                detail += '（保留磁盘文件）'
             log_activity('delete', 'link', target=','.join(str(x) for x in link_ids),
-                         detail='删除 ' + str(deleted) + ' 个收集链接', user_id=user_id)
+                         detail=detail, user_id=user_id)
         return deleted
     finally:
         conn.close()

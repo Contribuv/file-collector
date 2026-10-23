@@ -147,6 +147,7 @@
                 '<div class="gwa-modal-body" style="font-size:14px;line-height:1.7"></div>' +
                 '<div class="gwa-modal-foot">' +
                 '<button type="button" class="btn btn-default btn-sm" data-act="cancel">取消</button>' +
+                (opts.extraText ? '<button type="button" class="btn btn-default btn-sm" data-act="extra">' + opts.extraText + '</button>' : '') +
                 '<button type="button" class="btn ' + (opts.danger ? 'btn-danger' : 'btn-primary') + ' btn-sm" data-act="ok">' +
                 (opts.okText || '确定') + '</button>' +
                 '</div></div>';
@@ -163,6 +164,7 @@
                 if (e.target === overlay) { done(false); return; }
                 var act = e.target.getAttribute && e.target.getAttribute('data-act');
                 if (act === 'ok') done(true);
+                else if (act === 'extra') done('extra');
                 else if (act === 'cancel') done(false);
             });
             document.addEventListener('keydown', onKey);

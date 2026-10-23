@@ -8801,10 +8801,11 @@ def toggle_link(link_id):
 @app.route('/admin/links/<link_id>/delete', methods=['POST'])
 @login_required
 def delete_link(link_id):
-    """删除链接及关联的所有上传文件和记录"""
+    """删除链接及关联的上传文件和记录；keep_files=1 时保留磁盘文件"""
     if not _check_link_ownership(link_id):
         flash('无权删除该链接')
         return redirect(url_for('admin_links'))
+    keep_files = request.form.get('keep_files', '') in ('1', 'true', 'True')
     conn = get_db()
 
     # 1. 查询所有关联的上传记录
@@ -8814,19 +8815,20 @@ def delete_link(link_id):
 
     # 2. 删除磁盘上的文件（使用安全删除函数）
     deleted_count = 0
-    for r in records:
-        stored_path = r['stored_path']
-        if not stored_path:
-            continue
-        try:
-            if _safe_delete(stored_path):
-                deleted_count += 1
-        except Exception:
-            pass
+    if not keep_files:
+        for r in records:
+            stored_path = r['stored_path']
+            if not stored_path:
+                continue
+            try:
+                if _safe_delete(stored_path):
+                    deleted_count += 1
+            except Exception:
+                pass
 
     # 3. 获取链接目录路径（在删除 DB 记录前获取）
     try:
-        base_dir = create_upload_dir(link_id, '')
+        base_dir = None if keep_files else create_upload_dir(link_id, '')
     except Exception:
         base_dir = None
 
@@ -8852,7 +8854,10 @@ def delete_link(link_id):
         except Exception:
             pass
 
-    flash(f'链接已删除，清理了 {deleted_count} 个文件及 {len(records)} 条上传记录' + ('，同时删除了整个文件夹' if folder_deleted else ''))
+    if keep_files:
+        flash(f'链接已删除，已保留磁盘上的文件，并清理了 {len(records)} 条上传记录')
+    else:
+        flash(f'链接已删除，清理了 {deleted_count} 个文件及 {len(records)} 条上传记录' + ('，同时删除了整个文件夹' if folder_deleted else ''))
     return redirect(url_for('admin_links'))
 
 @app.route('/admin/links/batch_delete', methods=['POST'])
@@ -8882,6 +8887,8 @@ def batch_delete_links():
     if not ids:
         return jsonify({'success': False, 'message': '未选择任何链接'})
     
+    keep_files = request.form.get('keep_files', '') in ('1', 'true', 'True')
+    
     conn = get_db()
     deleted_count = 0
     file_count = 0
@@ -8900,19 +8907,20 @@ def batch_delete_links():
         ).fetchall()
         
         # 删除磁盘上的文件
-        for r in records:
-            stored_path = r['stored_path']
-            if not stored_path:
-                continue
-            try:
-                if _safe_delete(stored_path):
-                    file_count += 1
-            except Exception:
-                pass
+        if not keep_files:
+            for r in records:
+                stored_path = r['stored_path']
+                if not stored_path:
+                    continue
+                try:
+                    if _safe_delete(stored_path):
+                        file_count += 1
+                except Exception:
+                    pass
         
         # 获取链接目录路径
         try:
-            base_dir = create_upload_dir(link_id, '')
+            base_dir = None if keep_files else create_upload_dir(link_id, '')
         except Exception:
             base_dir = None
         
@@ -8943,7 +8951,9 @@ def batch_delete_links():
     
     return jsonify({
         'success': True,
-        'message': f'已删除 {deleted_count} 个链接，清理了 {file_count} 个文件及 {record_count} 条上传记录'
+        'message': (f'已删除 {deleted_count} 个链接，已保留磁盘文件，清理了 {record_count} 条上传记录'
+                    if keep_files else
+                    f'已删除 {deleted_count} 个链接，清理了 {file_count} 个文件及 {record_count} 条上传记录')
     })
 
 @app.route('/admin/records')

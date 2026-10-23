@@ -286,10 +286,12 @@
     }
 
     function doDelete(l) {
-        GW.confirm('确定删除收集链接「' + l.title + '」？\n该链接的所有文件、文件夹及数据将被永久删除，无法找回！', { danger: true, okText: '确认删除' })
-            .then(function (ok) {
-                if (!ok) return;
-                GW.api('/links/' + encodeURIComponent(l.id) + '/delete', { method: 'POST' })
+        GW.confirm('确定删除收集链接「' + l.title + '」？\n\n「删除链接和文件」将连同磁盘上的文件、文件夹一并删除；\n「仅删链接」保留磁盘文件（数据记录不再保留）。', { danger: true, okText: '删除链接和文件', extraText: '仅删链接' })
+            .then(function (v) {
+                if (!v) return;
+                var keep = v === 'extra' ? 1 : 0;
+                GW.api('/links/' + encodeURIComponent(l.id) + '/delete',
+                       { method: 'POST', form: toForm({ keep_files: keep }) })
                     .then(function (d) { GW.toast(d.message || '已删除', 'success'); load(); })
                     .catch(function (e) { GW.toast(e.message || '删除失败', 'error'); });
             });
@@ -298,10 +300,11 @@
     function batchDelete() {
         var ids = Object.keys(state.selected);
         if (!ids.length) { GW.toast('请先选择要删除的链接', 'error'); return; }
-        GW.confirm('确定删除选中的 ' + ids.length + ' 个链接吗？\n所有关联文件与记录将被永久删除。', { danger: true, okText: '确认删除' })
-            .then(function (ok) {
-                if (!ok) return;
-                GW.api('/links/batch-delete', { method: 'POST', form: toForm({ link_ids: ids.join(',') }) })
+        GW.confirm('确定删除选中的 ' + ids.length + ' 个链接吗？\n\n「删除链接和文件」将连同磁盘上的文件、文件夹一并删除；\n「仅删链接」保留磁盘文件（数据记录不再保留）。', { danger: true, okText: '删除链接和文件', extraText: '仅删链接' })
+            .then(function (v) {
+                if (!v) return;
+                var keep = v === 'extra' ? 1 : 0;
+                GW.api('/links/batch-delete', { method: 'POST', form: toForm({ link_ids: ids.join(','), keep_files: keep }) })
                     .then(function (d) { GW.toast(d.message || '已删除', 'success'); load(1); })
                     .catch(function (e) { GW.toast(e.message || '删除失败', 'error'); });
             });

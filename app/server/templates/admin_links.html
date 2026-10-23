@@ -201,6 +201,9 @@
     <div class="modal-header"><h3>确认删除</h3></div>
     <div class="modal-body">
       <p id="delete-confirm-text" style="margin:0;line-height:1.6;"></p>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.85rem;cursor:pointer;">
+        <input type="checkbox" id="delete-keep-files"> 保留磁盘上的文件（仅删除链接）
+      </label>
     </div>
     <div class="modal-footer">
       <button class="btn btn-sm" onclick="closeDeleteConfirm()">取消</button>
@@ -224,8 +227,11 @@
     </div>
     <div class="modal-body">
       <p id="batch-delete-text" style="margin:0 0 12px;line-height:1.6;font-weight:500;">确定要删除选中的链接吗？</p>
-      <p style="margin:0;line-height:1.6;color:var(--c-text-soft);font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。</p>
+      <p style="margin:0;line-height:1.6;color:var(--c-text-soft);font-size:.85rem;">此操作将同时删除所有关联的上传文件和记录，且不可恢复。若只需删除链接、保留磁盘文件，请勾选下方选项。</p>
       <div id="batch-delete-list" style="margin-top:12px;padding:10px;background:var(--c-bg);border-radius:6px;max-height:120px;overflow-y:auto;font-size:.82rem;"></div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:.85rem;cursor:pointer;">
+        <input type="checkbox" id="batch-keep-files"> 保留磁盘上的文件（仅删除链接）
+      </label>
     </div>
     <div class="modal-footer">
       <button class="btn btn-sm" onclick="closeBatchDeleteModal()">取消</button>
@@ -404,6 +410,8 @@ function executeBatchDelete() {
   btn.textContent = '删除中...';
   
   var csrf = document.querySelector('input[name="csrf_token"]').value;
+  var keepFiles = document.getElementById('batch-keep-files');
+  var keepParam = (keepFiles && keepFiles.checked) ? '&keep_files=1' : '';
   
   // 过滤出有效ID（链接ID为8位hex字符串）
   var validIds = [];
@@ -423,7 +431,7 @@ function executeBatchDelete() {
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': csrf
     },
-    body: 'link_ids=' + encodeURIComponent(validIds.join(','))
+    body: 'link_ids=' + encodeURIComponent(validIds.join(',')) + keepParam
   })
   .then(function(res) {
     var ct = res.headers.get('content-type') || '';
@@ -635,7 +643,7 @@ var _deleteLinkId = null;
 
 function showDeleteConfirm(linkId, title) {
   _deleteLinkId = linkId;
-  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + escapeHtml(title) + '」吗？<br>该链接的所有文件、文件夹及数据将被永久删除，无法找回！此操作不可撤销。';
+  document.getElementById('delete-confirm-text').innerHTML = '确定删除收集链接「' + escapeHtml(title) + '」吗？<br>该链接的文件、文件夹及数据将被永久删除，无法找回！若只需删除链接、保留磁盘文件，请勾选下方选项。';
   document.getElementById('delete-confirm-modal').style.display = '';
   closeLinkPopover();
 }
@@ -648,7 +656,16 @@ function closeDeleteConfirm() {
 function confirmDeleteLink() {
   if (!_deleteLinkId) return;
   var form = document.getElementById('delete-form-' + _deleteLinkId);
-  if (form) form.submit();
+  if (form) {
+    if (document.getElementById('delete-keep-files').checked) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'keep_files';
+      input.value = '1';
+      form.appendChild(input);
+    }
+    form.submit();
+  }
   _deleteLinkId = null;
   document.getElementById('delete-confirm-modal').style.display = 'none';
 }

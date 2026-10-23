@@ -246,8 +246,11 @@ def api_links_batch_delete():
     ids = [x.strip() for x in ids.split(',') if x.strip()]
     if not ids:
         return jsonify({'ok': False, 'message': '未选择任何链接'}), 400
-    n = delete_links(ids, session.get('user_id'), bool(session.get('is_admin')))
-    return jsonify({'ok': True, 'deleted': n, 'message': f'已删除 {n} 个链接'})
+    keep_files = request.form.get('keep_files', '')
+    keep = keep_files in ('1', 'true', 'True')
+    n = delete_links(ids, session.get('user_id'), bool(session.get('is_admin')), keep_files=keep)
+    tip = '（已保留磁盘文件）' if keep else ''
+    return jsonify({'ok': True, 'deleted': n, 'message': f'已删除 {n} 个链接{tip}'})
 
 
 @gateway_admin_bp.route('/api/links/set-per-page', methods=['POST'])
@@ -312,12 +315,14 @@ def api_links_toggle(link_id):
 
 @gateway_admin_bp.route('/api/links/<link_id>/delete', methods=['POST'])
 def api_links_delete(link_id):
-    """删除收集链接（含所有文件与记录）。"""
+    """删除收集链接（默认连同其所有文件与记录）。"""
     from admin_services import delete_links
-    n = delete_links([link_id], session.get('user_id'), bool(session.get('is_admin')))
+    keep_files = request.form.get('keep_files', '')
+    keep = keep_files in ('1', 'true', 'True')
+    n = delete_links([link_id], session.get('user_id'), bool(session.get('is_admin')), keep_files=keep)
     if n == 0:
         return jsonify({'ok': False, 'message': '链接不存在或无权操作'}), 404
-    return jsonify({'ok': True, 'message': '链接已删除'})
+    return jsonify({'ok': True, 'message': '链接已删除（磁盘文件已保留）' if keep else '链接已删除'})
 
 
 @gateway_admin_bp.route('/api/links/<link_id>/upload-logs')

@@ -402,11 +402,8 @@
         h += '</div><input type="hidden" id="gwa-empty-passcode" name="empty_passcode" value="0"></div>';
 
         // 上传者登记
-        if (!isEdit) {
-            h += '<div class="gwa-field gwa-switches">' + switchBox('require_uploader', '1', false, '上传者登记', '开启后上传者需填写昵称，文件按上传者分文件夹存放（创建后不可修改）') + '</div>';
-        } else if (d.require_uploader) {
-            h += '<div class="gwa-field gwa-note">上传者登记：已开启（创建时设定，不可修改）</div>';
-        }
+        h += '<div class="gwa-field gwa-switches">' + switchBox('require_uploader', '1', !!d.require_uploader, '上传者登记',
+            isEdit ? '开启后新上传的文件按上传者分文件夹存放；切换开关只影响新上传，已有文件位置不变' : '开启后上传者需填写昵称，文件按上传者分文件夹存放') + '</div>';
 
         // 分享页
         h += '<hr class="gwa-hr"><h4 class="gwa-subtitle">分享页设置</h4>';

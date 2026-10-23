@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.4.0"
+VERSION = "2.4.1"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -4304,7 +4304,7 @@ def share_get_records(link_id):
 
     # 目录视图：当前浏览目录（相对上传目录，'' 为根）与子文件夹聚合
     from record_dirs import (normalize_dir, direct_file_condition, combine_where,
-                             query_dir_view, breadcrumb)
+                             query_dir_view, breadcrumb, display_path_expr, norm_path_expr)
     dir_path = normalize_dir(request.args.get('dir', ''))
 
     # 记录范围：本链接（可选再按上传者过滤）；排除 _attachment 脏记录
@@ -4313,6 +4313,11 @@ def share_get_records(link_id):
     if uploader_filter:
         scope_where += " AND r.uploader_name = ?"
         scope_params.append(uploader_filter)
+        # 上传者自视角：剥掉旧口径的姓名层，与新收集页口径保持一致
+        sn_expr = display_path_expr(_sanitize_uploader_name(uploader_filter))
+    else:
+        # 链接根视角：按记录自身 uploader_name 统一成规范路径 '<姓名>/<路径>'
+        sn_expr = norm_path_expr()
     scope_params = tuple(scope_params)
 
     # 范围内上传总数（与目录无关，供「共 N 个文件」等展示）
@@ -4320,12 +4325,12 @@ def share_get_records(link_id):
         f"SELECT COUNT(*) FROM upload_records r {scope_where}", scope_params).fetchone()[0]
 
     # 当前目录的子文件夹聚合（含各自文件数与合计大小）
-    folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path)
+    folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path, sn_expr=sn_expr)
     for _f in folders:
         _f['size_display'] = format_file_size(_f['size'])
 
     # 仅「直接位于当前目录」的文件参与分页
-    dcond, dparams = direct_file_condition(dir_path)
+    dcond, dparams = direct_file_condition(dir_path, sn_expr=sn_expr)
     where2 = combine_where(scope_where, dcond)
     params2 = tuple(scope_params) + tuple(dparams)
     dir_total = conn.execute(
@@ -4991,13 +4996,22 @@ def get_upload_records(link_id):
         # 上传者已设置身份 → 只看自己上传的文件
         scope_where = "WHERE r.link_id = ? AND r.uploader_name = ?"
         scope_params = (link_id, uploader_name)
+        # 上传者自视角：把旧口径 '<姓名>/…' 的姓名层剥掉，与新口径
+        # （相对姓名目录存盘）对齐 —— 清单里不再出现以自己称呼命名的文件夹
+        from record_dirs import display_path_expr
+        sn_expr = display_path_expr(_sanitize_uploader_name(uploader_name))
     elif require_uploader:
         # 开启了上传者但未设置身份 → 什么也看不到
         scope_where = ''
         scope_params = ()
+        sn_expr = None
     else:
         scope_where = "WHERE r.link_id = ?"
         scope_params = (link_id,)
+        # 链接根视角：按记录自身的 uploader_name 把两种存储口径统一成
+        # 规范路径 '<姓名>/<路径>' —— 新口径记录同样归入对应姓名文件夹
+        from record_dirs import norm_path_expr
+        sn_expr = norm_path_expr()
 
     if require_uploader and not uploader_name:
         # 未设置身份：无可见文件
@@ -5011,10 +5025,10 @@ def get_upload_records(link_id):
         total_uploaded = conn.execute(
             f"SELECT COUNT(*) FROM upload_records r {scope_where}", scope_params).fetchone()[0]
 
-        folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path)
+        folders, _direct_count = query_dir_view(conn, scope_where, scope_params, dir_path, sn_expr=sn_expr)
         for _f in folders:
             _f['size_display'] = format_file_size(_f['size'])
-        dcond, dparams = direct_file_condition(dir_path)
+        dcond, dparams = direct_file_condition(dir_path, sn_expr=sn_expr)
         where2 = combine_where(scope_where, dcond)
         params2 = tuple(scope_params) + tuple(dparams)
         # 当前目录下的文件数 —— 分页只在这批文件上进行
@@ -8710,14 +8724,17 @@ def admin_records():
             count_params = (user_id,)
             data_params = (user_id, per_page, (page - 1) * per_page)
 
-    # 目录视图：聚合当前目录的子文件夹，并把查询限定为「直接位于该目录的文件」
+    # 目录视图：聚合当前目录的子文件夹，并把查询限定为「直接位于该目录的文件」。
+    # 统一规范路径：按记录自身 uploader_name 把两种存储口径映射为 '<姓名>/<路径>',
+    # 与 gateway 新后台保持同一口径。
     from record_dirs import (normalize_dir, direct_file_condition, combine_where,
-                             query_dir_view, breadcrumb)
+                             query_dir_view, breadcrumb, norm_path_expr)
     dir_path = normalize_dir(dir_path)
-    folders, _direct_count = query_dir_view(conn, where, count_params, dir_path)
+    sn_expr = norm_path_expr()
+    folders, _direct_count = query_dir_view(conn, where, count_params, dir_path, sn_expr=sn_expr)
     for _f in folders:
         _f['size_display'] = format_file_size(_f['size'])
-    dcond, dparams = direct_file_condition(dir_path)
+    dcond, dparams = direct_file_condition(dir_path, sn_expr=sn_expr)
     where = combine_where(where, dcond)
     count_params = tuple(count_params) + tuple(dparams)
 

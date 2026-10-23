@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.4.0-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.4.1-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.4.1
+- **修复上传者目录视角混乱（四处界面统一归一化）**：收集页 / 分享页的已上传清单不再出现以上传者称呼命名的文件夹（按上传者身份浏览时直接平铺自己的全部文件，新旧两种存储口径混存的链接也能完整展示）；分享页全链浏览与 gateway 新后台、老后台记录页的目录视图统一为「按上传者分文件夹」的规范视角，未署名的新口径记录同样归入对应上传者文件夹而非散落根目录。
+- **编辑收集链接可切换「上传者登记」**：修复在 gateway 后台编辑链接保存后上传者登记被静默关闭的问题（编辑表单此前缺少字段兜底）；gateway 与老后台编辑表单现均提供可交互开关（回显当前值），切换只影响新上传，已有文件的位置与目录结构不变。
 
 ### v2.4.0
 - **收集链接页移动端隐藏「批量删除」与勾选列**：≤900px 时工具栏只保留「创建收集」与「全部创建人」筛选（管理员可见），单条删除改走每行的「操作」浮窗；表格首列勾选框一并收起，移动端卡片行主信息占满整宽。与 v2.3.112 文件记录页隐藏「打包下载 / 批量删除」的处理同口径，批量操作保留为桌面端能力

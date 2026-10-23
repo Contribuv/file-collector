@@ -221,14 +221,13 @@
             <input type="hidden" id="empty_passcode" name="empty_passcode" value="0">
           </div>
 
-          <!-- 上传者开关 -->
-          {% if not edit_link %}
+          <!-- 上传者开关（创建与编辑均可切换） -->
           <div id="uploader-section" style="padding:12px 16px;border:1px solid var(--c-border);border-radius:8px;margin-bottom:8px;">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:var(--c-warning-light);border:1px solid var(--c-warning-border);border-radius:4px;font-size:.74rem;color:var(--c-warning);">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
               </svg>
-              <span style="flex:1;">此设置创建后将<strong>不可修改</strong>，请谨慎选择</span>
+              <span style="flex:1;">切换开关只影响<strong>新上传</strong>，已有文件的位置与目录结构不变{% if edit_link %}（当前：{{ '已开启' if edit_link.get('require_uploader') else '未开启' }}）{% endif %}</span>
             </div>
             <div class="form-group" style="margin:0;">
               <label class="form-switch" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -244,23 +243,6 @@
               </div>
             </div>
           </div>
-          {% elif edit_link.get('require_uploader') %}
-          <input type="hidden" name="require_uploader" value="1">
-          <div id="uploader-section" style="padding:12px 16px;border:1px solid var(--c-success-border);border-radius:8px;margin-bottom:8px;background:var(--c-success-light);">
-            <div class="form-group" style="margin:0;">
-              <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--c-success)" stroke-width="2" width="18" height="18"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                <div style="flex:1;">
-                  <div style="font-size:.85rem;font-weight:600;color:var(--c-success);">上传者登记 · 已开启</div>
-                  <div style="font-size:.72rem;color:var(--c-success);margin-top:2px;">上传者需填写昵称身份，文件按上传者分文件夹存放</div>
-                </div>
-                <span style="font-size:.68rem;color:var(--c-text-muted);white-space:nowrap;">创建时设定，不可修改</span>
-              </div>
-            </div>
-          </div>
-          {% else %}
-          <input type="hidden" name="require_uploader" value="0">
-          {% endif %}
 
           <hr style="border: none; border-top: 1px solid var(--c-border); margin: 20px 0;">
 

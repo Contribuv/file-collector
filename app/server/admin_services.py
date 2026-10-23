@@ -928,14 +928,17 @@ def list_records(user_id, is_admin, page=1, per_page=None, link_filter='', dir_p
                 count_params = (user_id,)
                 data_params = (user_id, per_page, (page - 1) * per_page)
 
-        # 目录视图：先聚合当前目录的子文件夹，再把查询限定为「直接位于该目录的文件」
+        # 目录视图：先聚合当前目录的子文件夹，再把查询限定为「直接位于该目录的文件」。
+        # 统一规范路径：按记录自身 uploader_name 把两种存储口径映射为 '<姓名>/<路径>'，
+        # 新口径（无前缀）记录同样归入对应姓名文件夹，不再平铺为散文件。
         from record_dirs import (normalize_dir, direct_file_condition, combine_where,
-                                 query_dir_view, breadcrumb)
+                                 query_dir_view, breadcrumb, norm_path_expr)
         dir_path = normalize_dir(dir_path)
-        folders, _direct_count = query_dir_view(conn, where, count_params, dir_path)
+        sn_expr = norm_path_expr()
+        folders, _direct_count = query_dir_view(conn, where, count_params, dir_path, sn_expr=sn_expr)
         for _f in folders:
             _f['size_display'] = app.format_file_size(_f['size'])
-        dcond, dparams = direct_file_condition(dir_path)
+        dcond, dparams = direct_file_condition(dir_path, sn_expr=sn_expr)
         where = combine_where(where, dcond)
         count_params = tuple(count_params) + tuple(dparams)
 

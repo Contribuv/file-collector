@@ -35,12 +35,66 @@ def _like_escape(s):
     return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
-def direct_file_condition(dir_path, alias='r'):
+def _sql_lit(s):
+    """把字符串包成 SQL 字面量（单引号翻倍转义）。"""
+    return "'" + str(s).replace("'", "''") + "'"
+
+
+# 存储口径的两种历史形态：
+#   * 在线上传：文件存于 <链接>/<姓名>/ 下，stored_name 是相对姓名目录的路径（无前缀）；
+#   * 迁移 / 扫描回填：stored_name 是相对链接目录的路径，带 '<姓名>/' 前缀。
+# 两套口径并存曾导致列表里出现/缺少「姓名」文件夹的混乱。以下两个表达式把
+# 它们分别按「上传者自视角」与「链接根视角」归一，所有界面共用同一口径。
+
+def display_path_expr(sanitized_uploader, alias='r'):
+    """「上传者自视角」显示路径表达式：剥掉旧口径的 '<姓名>/' 前缀层。
+
+    适用于已把记录范围限定到某上传者的查询（收集页 / 分享页按上传者浏览）：
+      * 旧口径 '<姓名>/a.txt' → 'a.txt'；
+      * 新口径 'a.txt'        → 'a.txt'（原样，本来就相对姓名目录）。
+    sanitized_uploader 必须是调用方按目录名规则清洗过的姓名（与物理目录名
+    一致）；返回的 SQL 表达式不含占位符参数，姓名为空时返回 None（不归一）。
+    """
+    name = str(sanitized_uploader or '').strip()
+    if not name:
+        return None
+    sn = _sn(alias)
+    return ("(CASE WHEN %s LIKE %s ESCAPE '\\' "
+            "THEN substr(%s, %d) ELSE %s END)"
+            % (sn, _sql_lit(_like_escape(name) + '/%'), sn, len(name) + 2, sn))
+
+
+def norm_path_expr(alias='r'):
+    """「链接根视角」统一规范路径表达式：映射为 '<姓名>/<路径>'。
+
+    适用于不限单一上传者的查询（管理员后台 / 分享页全链浏览）：
+      * 旧口径（首段即本人的 '<姓名>/…'）      → 原样；
+      * 新口径（无前缀，物理存于姓名目录下）    → 前面补 '<姓名>/'；
+      * uploader_name 为空 / '_attachment'、
+        附件路径（_attachment/…）或空 stored_name → 原样（平铺为散文件）。
+    LIKE 转义在 SQL 内按行值完成，不引入占位符。
+    """
+    up = "replace(ifnull(%s.uploader_name,''), '\\', '/')" % alias
+    sn = _sn(alias)
+    upesc = ("replace(replace(replace(" + up
+             + ", " + _sql_lit('\\') + ", " + _sql_lit('\\\\')
+             + "), " + _sql_lit('%') + ", " + _sql_lit('\\%')
+             + "), " + _sql_lit('_') + ", " + _sql_lit('\\_') + ")")
+    base = ("(%s NOT IN ('', '_attachment') AND %s != '' AND %s NOT LIKE %s)"
+            % (up, sn, sn, _sql_lit(_ATTACH_PREFIX + '%')))
+    return ("(CASE WHEN %s THEN (CASE WHEN %s LIKE %s || '/%%' ESCAPE '\\' "
+            "THEN %s ELSE %s || '/' || %s END) ELSE %s END)"
+            % (base, sn, upesc, sn, up, sn, sn))
+
+
+def direct_file_condition(dir_path, sn_expr=None, alias='r'):
     """返回 (sql_cond, params)：仅匹配「直接位于 dir_path 的文件」。
 
     根目录：无 '/' 的文件，外加 _attachment/ 下的文件（保持平铺、不生成文件夹）。
+    sn_expr 可传入自定义的路径口径表达式（如 display_path_expr /
+    norm_path_expr 的返回值）；缺省为 stored_name 本身。
     """
-    sn = _sn(alias)
+    sn = sn_expr if sn_expr is not None else _sn(alias)
     d = normalize_dir(dir_path)
     if not d:
         return ("(%s NOT LIKE '%%/%%' OR %s LIKE '%s%%')" % (sn, sn, _ATTACH_PREFIX), [])
@@ -49,9 +103,9 @@ def direct_file_condition(dir_path, alias='r'):
             [like + '/%', like + '/%/%'])
 
 
-def under_dir_condition(dir_path, alias='r'):
+def under_dir_condition(dir_path, sn_expr=None, alias='r'):
     """返回 (sql_cond, params)：匹配 dir_path 之下（含更深层）的所有记录。"""
-    sn = _sn(alias)
+    sn = sn_expr if sn_expr is not None else _sn(alias)
     d = normalize_dir(dir_path)
     if not d:
         return ('', [])
@@ -122,14 +176,15 @@ def aggregate_folders(rows, dir_path):
     return folders, direct
 
 
-def query_dir_view(conn, base_where, base_params, dir_path):
+def query_dir_view(conn, base_where, base_params, dir_path, sn_expr=None):
     """执行目录聚合查询，返回 (folders, direct_count)。
 
     base_where / base_params 为记录范围（如管理员全站为空、普通用户限自己的链接）。
+    sn_expr 为自定义路径口径表达式（缺省为 stored_name 本身）。
     """
-    cond, cparams = under_dir_condition(dir_path)
+    cond, cparams = under_dir_condition(dir_path, sn_expr=sn_expr)
     sql = "SELECT %s AS sn, r.file_size AS fs, r.uploaded_at AS ua FROM upload_records r %s" % (
-        _sn('r'), combine_where(base_where, cond))
+        sn_expr if sn_expr is not None else _sn('r'), combine_where(base_where, cond))
     rows = conn.execute(sql, tuple(base_params) + tuple(cparams)).fetchall()
     return aggregate_folders(rows, dir_path)
 

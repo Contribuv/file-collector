@@ -174,51 +174,67 @@
 
 /* 附件选择区（替代原生 file input 的点击/拖放选择样式） */
 .attach-drop {
-  /* 形态参考收集页上传区（collect.css .cp-drop）:白卡底 + 居中列布局 + 大圆角虚线框 */
-  display: flex;
-  flex-direction: column;
+  /* 与统一网关链接表单的 GW.filePicker 同款：单行紧凑选择器(选择按钮段+文件名段)，不再占两行大空间 */
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 18px 16px;
-  border: 2px dashed var(--c-gray-300);
-  border-radius: 12px;
+  gap: 10px;
+  max-width: 100%;
+  min-height: 34px;
+  padding-right: 12px;
+  border: 1px dashed var(--c-border);
+  border-radius: 8px;
   background: var(--c-bg-elev);
-  text-align: center;
-  color: var(--c-text-muted);
-  font-size: .84rem;
   cursor: pointer;
-  transition: border-color .18s, background-color .18s, color .18s;
+  transition: border-color .18s, box-shadow .18s;
 }
 .attach-drop:hover {
   border-color: var(--c-primary);
-  background: var(--c-gray-100);
-  color: var(--c-primary);
+}
+.attach-drop:focus-visible {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px var(--accent-bg);
 }
 .attach-drop.dragover {
   border-style: solid;
   border-color: var(--c-primary);
-  background: var(--c-gray-100);
-  color: var(--c-primary);
+  box-shadow: 0 0 0 3px var(--accent-bg);
 }
-.attach-drop-icon { width: 28px; height: 28px; flex-shrink: 0; transition: transform .2s ease; }
-.attach-drop:hover .attach-drop-icon { transform: translateY(-2px) scale(1.06); }
+.attach-drop-btn {
+  flex-shrink: 0;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-gray-100);
+  border-right: 1px dashed var(--c-border);
+  border-radius: 7px 0 0 7px;
+}
+.attach-drop:hover .attach-drop-btn,
+.attach-drop.dragover .attach-drop-btn { color: var(--c-primary); }
 .attach-drop-text {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
+  font-size: 13px;
 }
 .attach-drop-main {
-  color: var(--c-text);
-  font-weight: 500;
+  color: var(--c-text-muted);
+  max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .attach-drop.has-file .attach-drop-main {
-  color: var(--c-success);
+  color: var(--c-text);
+  font-weight: 500;
 }
-.attach-drop-sub { font-size: .76rem; }
+.attach-drop-sub { font-size: 12px; color: var(--c-text-muted); white-space: nowrap; }
+.attach-drop.has-file .attach-drop-sub { color: var(--c-success); }
 .attach-drop.has-file { border-style: solid; border-color: var(--c-success); }
 
 /* 附件上传进度条 */

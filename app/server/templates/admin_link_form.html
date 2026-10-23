@@ -69,11 +69,11 @@
             <div class="attach-drop" id="attach-drop"
                  onclick="document.getElementById('attachment').click()"
                  ondragover="attachDragOver(event)" ondragleave="attachDragEnd(event)" ondrop="attachDrop(event)">
-              <svg class="attach-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <div class="attach-drop-text">
-                <span class="attach-drop-main" id="attach-drop-main">点击选择或拖入附件</span>
-                <span class="attach-drop-sub" id="attach-drop-sub">单个文件</span>
-              </div>
+              <span class="attach-drop-btn">选择附件</span>
+              <span class="attach-drop-text">
+                <span class="attach-drop-main" id="attach-drop-main">未选择文件，可拖入</span>
+                <span class="attach-drop-sub" id="attach-drop-sub"></span>
+              </span>
             </div>
             {% set att_limit_mb = defaults.attachment_max_mb | default('1000') | float %}
             <div class="form-hint">上传一个附件（如作业要求），最大 {{ ('%.0f'|format(att_limit_mb)) if att_limit_mb >= 1 else ('%.1f'|format(att_limit_mb)) }}{{ ' MB' if att_limit_mb < 1024 else (' GB (%.1f GB)'|format(att_limit_mb/1024)) }}。学生可在收集页下载。{% if edit_link and edit_link.get('attachment_name') %}重新上传将替换当前附件。{% endif %}</div>
@@ -883,8 +883,8 @@ function resetAttachDrop() {
   var main = document.getElementById('attach-drop-main');
   var sub = document.getElementById('attach-drop-sub');
   if (drop) drop.classList.remove('has-file');
-  if (main) main.textContent = '点击选择或拖入附件';
-  if (sub) sub.textContent = '单个文件';
+  if (main) main.textContent = '未选择文件，可拖入';
+  if (sub) sub.textContent = '';
 }
 
 function attachDragOver(ev) {

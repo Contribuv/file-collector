@@ -3868,6 +3868,10 @@ def _share_require_uploader(link, link_id):
         return None
     name = (session.get(f'share_uploader_{link_id}') or '').strip()
     if not name:
+        # 收集页登记身份的自动沿用是"一次性"的:访客在分享页点过「切换身份/退出」
+        # (share_uploader_off_<id> 标记)后不再沿用,避免退出后刷新又回到原身份
+        if session.get(f'share_uploader_off_{link_id}'):
+            return ''
         name = (session.get(f'uploader_{link_id}') or '').strip()
         if name:
             session[f'share_uploader_{link_id}'] = name
@@ -4219,6 +4223,7 @@ def share_set_uploader(link_id):
         return jsonify({'success': False,
                         'message': '该链接下没有此昵称的上传记录，请核对您上传时填写的身份'}), 400
 
+    session.pop(f'share_uploader_off_{link_id}', None)
     session[f'share_uploader_{link_id}'] = safe_name
     return jsonify({'success': True, 'uploader_name': safe_name})
 
@@ -4237,6 +4242,7 @@ def share_clear_uploader(link_id):
     if link:
         link_id = link['id']
     session.pop(f'share_uploader_{link_id}', None)
+    session[f'share_uploader_off_{link_id}'] = True  # 记住退出动作:刷新后不再自动沿用收集页身份
     return jsonify({'success': True, 'message': '已切换，请重新选择身份'})
 
 

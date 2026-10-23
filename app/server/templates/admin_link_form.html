@@ -62,9 +62,18 @@
             <input type="hidden" name="remove_attachment" id="remove_attachment" value="0">
             {% endif %}
             <input type="file" id="attachment" name="attachment" class="form-input"
-                   style="padding:6px 10px;font-size:.82rem;"
+                   style="display:none;"
                    accept="*/*"
                    onchange="onAttachChange()">
+            <div class="attach-drop" id="attach-drop"
+                 onclick="document.getElementById('attachment').click()"
+                 ondragover="attachDragOver(event)" ondragleave="attachDragEnd(event)" ondrop="attachDrop(event)">
+              <svg class="attach-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div class="attach-drop-text">
+                <span class="attach-drop-main" id="attach-drop-main">点击选择或拖入附件</span>
+                <span class="attach-drop-sub" id="attach-drop-sub">单个文件</span>
+              </div>
+            </div>
             {% set att_limit_mb = defaults.attachment_max_mb | default('1000') | float %}
             <div class="form-hint">上传一个附件（如作业要求），最大 {{ ('%.0f'|format(att_limit_mb)) if att_limit_mb >= 1 else ('%.1f'|format(att_limit_mb)) }}{{ ' MB' if att_limit_mb < 1024 else (' GB (%.1f GB)'|format(att_limit_mb/1024)) }}。学生可在收集页下载。{% if edit_link and edit_link.get('attachment_name') %}重新上传将替换当前附件。{% endif %}</div>
             <div class="attach-progress-wrap" id="attach-progress-wrap" style="display:none;">
@@ -838,6 +847,7 @@ function removeAttachment() {
   if (currentEl) currentEl.style.display = 'none';
   var fileInput = document.getElementById('attachment');
   if (fileInput) fileInput.value = '';
+  resetAttachDrop();
   resetAttachProgress();
 }
 
@@ -845,10 +855,55 @@ function onAttachChange() {
   var fi = document.getElementById('attachment');
   if (fi && fi.files && fi.files[0]) {
     document.getElementById('remove_attachment').value = '0';
+    updateAttachDrop(fi.files[0]);
     var currentEl = document.getElementById('attach-current');
     if (currentEl) currentEl.style.display = 'none';
   }
   resetAttachProgress();
+}
+
+function updateAttachDrop(file) {
+  var drop = document.getElementById('attach-drop');
+  var main = document.getElementById('attach-drop-main');
+  var sub = document.getElementById('attach-drop-sub');
+  if (!drop || !main) return;
+  drop.classList.add('has-file');
+  main.textContent = file.name;
+  if (sub) {
+    var size = file.size || 0;
+    sub.textContent = size >= 1048576 ? (size / 1048576).toFixed(1) + ' MB' : Math.ceil(size / 1024) + ' KB';
+  }
+}
+
+function resetAttachDrop() {
+  var drop = document.getElementById('attach-drop');
+  var main = document.getElementById('attach-drop-main');
+  var sub = document.getElementById('attach-drop-sub');
+  if (drop) drop.classList.remove('has-file');
+  if (main) main.textContent = '点击选择或拖入附件';
+  if (sub) sub.textContent = '单个文件';
+}
+
+function attachDragOver(ev) {
+  ev.preventDefault();
+  var drop = document.getElementById('attach-drop');
+  if (drop) drop.classList.add('dragover');
+}
+
+function attachDragEnd(ev) {
+  var drop = document.getElementById('attach-drop');
+  if (drop) drop.classList.remove('dragover');
+}
+
+function attachDrop(ev) {
+  ev.preventDefault();
+  attachDragEnd(ev);
+  var fi = document.getElementById('attachment');
+  if (!fi || !ev.dataTransfer || !ev.dataTransfer.files.length) return;
+  var dt = new DataTransfer();
+  dt.items.add(ev.dataTransfer.files[0]); // 只取第一个，保持单文件语义
+  fi.files = dt.files;
+  onAttachChange();
 }
 
 function resetAttachProgress() {

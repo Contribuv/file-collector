@@ -1,6 +1,6 @@
 /* ============================================================
    信息面板（dashboard）模块
-   - 图标化统计卡（四张：收集链接/活跃链接/上传总数/今日上传）
+   - 图标化统计卡（四张：收集链接/启用中链接/上传总数/今日上传）
    - 快捷操作格（创建收集直弹表单，其余跳对应分区）
    - 最近上传（按 stored_name 的相对目录聚合，规则与文件记录页一致）
    - 预览/下载复用既有 /admin/records/* 端点（经网关前缀）
@@ -129,9 +129,9 @@
     }
 
 
-    function statCard(icon, value, label, tint) {
+    function statCard(icon, value, label, tint, tip) {
         // 图标色片（tint）+ 右侧数值/标签：PC 四列、窄屏两列（见 gateway-admin.css）
-        return '<div class="gwa-stat gwa-tint-' + tint + '">' +
+        return '<div class="gwa-stat gwa-tint-' + tint + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
             '<span class="gwa-stat-ico" aria-hidden="true">' + icon + '</span>' +
             '<div class="gwa-stat-body">' +
             '<div class="gwa-stat-value">' + esc(value) + '</div>' +
@@ -328,7 +328,7 @@
         var html = '';
         html += '<div class="gwa-stats">';
         html += statCard(ICON.link, stats.total_links, '收集链接', 'blue');
-        html += statCard(ICON.activity, stats.active_links, '活跃链接', 'green');
+        html += statCard(ICON.activity, stats.active_links, '启用中链接', 'green', '状态为启用、未被手动停用的链接数量');
         html += statCard(ICON.upload, stats.total_uploads, '上传总数', 'violet');
         html += statCard(ICON.calendar, stats.today_uploads, '今日上传', 'orange');
         html += '</div>';

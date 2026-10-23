@@ -7680,9 +7680,12 @@ def admin_dashboard():
     
     if is_admin:
         total_links = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
-        active_links = conn.execute(
-            "SELECT COUNT(*) FROM links WHERE status = 'active'"
-        ).fetchone()[0]
+        # 「启用中」= 未停用且未过有效期（与 dashboard_stats 同口径）
+        from admin_services import _link_is_expired
+        active_rows = conn.execute(
+            "SELECT expires_at FROM links WHERE status = 'active'").fetchall()
+        active_links = sum(
+            1 for row in active_rows if not _link_is_expired(row['expires_at']))
         total_uploads = conn.execute("SELECT COUNT(*) FROM upload_records").fetchone()[0]
         today = datetime.now().strftime('%Y-%m-%d')
         today_uploads = conn.execute(
@@ -7699,9 +7702,11 @@ def admin_dashboard():
         total_links = conn.execute(
             "SELECT COUNT(*) FROM links WHERE user_id = ?", (user_id,)
         ).fetchone()[0]
-        active_links = conn.execute(
-            "SELECT COUNT(*) FROM links WHERE user_id = ? AND status = 'active'", (user_id,)
-        ).fetchone()[0]
+        active_rows = conn.execute(
+            "SELECT expires_at FROM links WHERE user_id = ? AND status = 'active'", (user_id,)
+        ).fetchall()
+        active_links = sum(
+            1 for row in active_rows if not _link_is_expired(row['expires_at']))
         # 普通用户只统计自己链接下的上传记录
         total_uploads = conn.execute(
             """SELECT COUNT(*) FROM upload_records r

@@ -108,14 +108,17 @@ def dashboard_stats(user_id, is_admin):
     """信息面板统计数据 + 最近 5 条上传记录。
 
     普通用户仅统计自己名下链接的数据；管理员统计全站数据。
+    「启用中」= 未被手动停用且未过有效期（过期链接对访客已不可用，不计入）。
     """
     conn = _db()
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         if is_admin:
             total_links = conn.execute("SELECT COUNT(*) FROM links").fetchone()[0]
-            active_links = conn.execute(
-                "SELECT COUNT(*) FROM links WHERE status = 'active'").fetchone()[0]
+            active_rows = conn.execute(
+                "SELECT expires_at FROM links WHERE status = 'active'").fetchall()
+            active_links = sum(
+                1 for row in active_rows if not _link_is_expired(row['expires_at']))
             total_uploads = conn.execute("SELECT COUNT(*) FROM upload_records").fetchone()[0]
             today_uploads = conn.execute(
                 "SELECT COUNT(*) FROM upload_records WHERE date(uploaded_at) = ?",
@@ -130,9 +133,11 @@ def dashboard_stats(user_id, is_admin):
         else:
             total_links = conn.execute(
                 "SELECT COUNT(*) FROM links WHERE user_id = ?", (user_id,)).fetchone()[0]
-            active_links = conn.execute(
-                "SELECT COUNT(*) FROM links WHERE user_id = ? AND status = 'active'",
-                (user_id,)).fetchone()[0]
+            active_rows = conn.execute(
+                "SELECT expires_at FROM links WHERE user_id = ? AND status = 'active'",
+                (user_id,)).fetchall()
+            active_links = sum(
+                1 for row in active_rows if not _link_is_expired(row['expires_at']))
             total_uploads = conn.execute(
                 """SELECT COUNT(*) FROM upload_records r
                    INNER JOIN links l ON r.link_id = l.id

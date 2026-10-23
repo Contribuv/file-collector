@@ -1323,7 +1323,7 @@ async function claimShareUploader() {
   msg.className = 'cp-passcode-msg';
 
   if (!name) {
-    msg.textContent = '请输入您上传时填写的昵称';
+    msg.textContent = '请输入上传时的昵称';
     msg.className = 'cp-passcode-msg error';
     row.classList.add('cp-shake');
     setTimeout(function(){ row.classList.remove('cp-shake'); }, 400);

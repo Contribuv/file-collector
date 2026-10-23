@@ -4255,7 +4255,7 @@ def share_set_uploader(link_id):
     conn.close()
     if not count:
         return jsonify({'success': False,
-                        'message': '该链接下没有此昵称的上传记录，请核对您上传时填写的身份'}), 400
+                        'message': '未找到该昵称的上传记录'}), 400
 
     session.pop(f'share_uploader_off_{link_id}', None)
     session[f'share_uploader_{link_id}'] = safe_name

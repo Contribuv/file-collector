@@ -1584,7 +1584,6 @@ def settings_overview(user_id, is_admin, sso_need_pwd=False, gateway_available=F
     if not is_admin:
         return data
 
-    rp_status = a.RPROXY_PM.status() or {}
     data['branding'] = {
         'site_title': a.get_setting('site_title', '文件收集器'),
         'share_page_title': a.get_setting('share_page_title', ''),
@@ -1592,8 +1591,6 @@ def settings_overview(user_id, is_admin, sso_need_pwd=False, gateway_available=F
         'share_footer_text': a.get_setting('share_footer_text', ''),
         'login_tip': a.get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
         'public_url': a._resolve_public_url(),
-        'rp_public_url': a.RPROXY_PM.get_public_url(),
-        'rp_running': bool(rp_status.get('running')),
     }
     data['toggles'] = {
         'allow_registration': a.get_setting('allow_registration', '0'),
@@ -1848,9 +1845,7 @@ def save_settings(section, form, user_id, is_admin):
         a.set_setting('share_page_title', (form.get('share_page_title') or '').strip())
         a.set_setting('share_footer_text', (form.get('share_footer_text') or '').strip())
         a.set_setting('login_tip', (form.get('login_tip_text') or '').strip())
-        # 反代运行时 public_url 只读，不覆盖
-        if not a.RPROXY_PM.get_public_url():
-            a.set_setting('public_url', (form.get('public_url') or '').strip())
+        a.set_setting('public_url', (form.get('public_url') or '').strip())
         _log('保存「页面与品牌」设置')
         return True, '页面与品牌设置已保存'
 
@@ -1989,12 +1984,6 @@ def restore_database(file_storage):
             except OSError:
                 pass
         return False, f'导入失败，请检查文件是否正确：{e}'
-
-
-def reverse_proxy_status():
-    """反向代理运行状态（供设置面板轮询）。"""
-    a = _app()
-    return a.RPROXY_PM.status() or {}
 
 
 # ============================================================

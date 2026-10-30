@@ -201,6 +201,16 @@
     }
 }
 
+/* 访问配置 Tab：内容卡已是实色圆角白卡（见 gateway.css .mac-main），
+   卡内分组随 .mac-main .gwa-card 统一走 fill 底 + 描边（对齐飞牛原生分组卡），
+   此处仅保留地址框的原生输入控件质感 */
+
+/* 地址框对齐原生输入控件：实色底 + 描边（亮色白底 / 暗色深底） */
+#section-access .url-box {
+    background: var(--gw-input-bg);
+    border: 1px solid var(--gw-input-border);
+}
+
 .gwa-card-title {
     font-size: 14px;
     font-weight: 600;

@@ -1,13 +1,15 @@
 """
-Gateway 反代管理 API（独立 Blueprint）
+Gateway 访问配置 API（独立 Blueprint）
 无需登录，飞牛统一网关已做认证
+
+原「内置反向代理」功能已移除：应用不再读取飞牛系统证书、不再自行监听 HTTPS 端口。
+本模块只负责「访问配置」页：展示应用的内网访问地址，并维护用户自行填写的
+公网访问地址（写入 settings.public_url，与 /admin/settings 的「公网网址」同源）。
 """
 import os
-import json
 import socket
-import secrets
 import logging
-from flask import Blueprint, jsonify, request, render_template, abort, session
+from flask import Blueprint, jsonify, request, render_template, session
 
 # 统一网关访问守卫（共享模块，与 gateway_admin_api 复用同一套安全约束）
 from gateway_guard import (
@@ -32,15 +34,10 @@ def _guard_gateway_access():
     return guard_gateway_access()
 
 
-# 仅飞牛管理员可调用的管理类接口（证书、反代启停、日志、端口检测）
+# 仅飞牛管理员可调用的管理类接口（访问配置读写）
 _ADMIN_ONLY_ENDPOINTS = {
-    'gateway.api_gateway_status',
-    'gateway.api_gateway_certs',
-    'gateway.api_gateway_start',
-    'gateway.api_gateway_stop',
-    'gateway.api_gateway_logs',
-    'gateway.api_gateway_clear_logs',
-    'gateway.api_gateway_check_port',
+    'gateway.api_access_info',
+    'gateway.api_access_save',
 }
 
 
@@ -48,46 +45,11 @@ _ADMIN_ONLY_ENDPOINTS = {
 def _guard_gateway_admin_only():
     """管理类接口仅飞牛管理员可调用。
 
-    页面上已对普通飞牛账号隐藏「公网访问 / 反向代理 / 实时日志」Tab，
-    此处再对接口做一次拦截，避免绕过前端隐藏直接请求。
-    权限判定逻辑见 gateway_guard.guard_admin_only。
+    页面上已对普通飞牛账号隐藏「访问配置」Tab，此处再对接口做一次拦截，
+    避免绕过前端隐藏直接请求。权限判定逻辑见 gateway_guard.guard_admin_only。
     """
     return guard_admin_only(_ADMIN_ONLY_ENDPOINTS)
 
-
-# 延迟导入：避免模块加载时因依赖问题导致 Blueprint 注册失败
-RPROXY_PM = None
-CertManager = None
-
-def _init_dependencies():
-    """延迟初始化依赖，失败时 gateway 页面仍可加载"""
-    global RPROXY_PM, CertManager
-    try:
-        from cert_manager import CertManager as _CertManager
-        CertManager = _CertManager
-    except Exception as e:
-        logger.warning(f"cert_manager 加载失败: {e}")
-
-    try:
-        import rproxy_manager
-        RPROXY_PM = rproxy_manager.GoRProxyManager()
-    except Exception as e:
-        logger.warning(f"rproxy_manager 加载失败: {e}")
-
-_init_dependencies()
-
-
-def _check_rp():
-    """检查反代管理器是否可用，不可用时返回错误响应"""
-    if RPROXY_PM is None:
-        return jsonify({'success': False, 'message': '反向代理模块未加载，请检查日志'})
-    return None
-
-def _check_cert():
-    """检查证书管理器是否可用，不可用时返回空列表"""
-    if CertManager is None:
-        return []
-    return None
 
 def _get_local_ip():
     """获取本机内网 IP"""
@@ -130,17 +92,29 @@ def _get_local_ip():
     return '127.0.0.1'
 
 
-def _check_port_available(port):
-    """检测端口是否可用（使用 SO_REUSEADDR 避免 TIME_WAIT 干扰）"""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def _local_address():
+    """应用自身的局域网访问地址（用户做反向代理时的后端目标地址）"""
+    return f'http://{_get_local_ip()}:{os.environ.get("PORT", "5557")}/'
+
+
+def _current_public_url():
+    """当前生效的公网地址（与应用内分享链接使用的一致）"""
     try:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('0.0.0.0', port))
-        s.close()
-        return True
-    except OSError:
-        s.close()
-        return False
+        import app as _app
+        return _app._resolve_public_url() or ''
+    except Exception as e:
+        logger.warning(f'读取公网地址失败: {e}')
+        return ''
+
+
+def _normalize_public_url(raw):
+    """规范化用户填写的公网地址：去首尾空白与结尾斜杠，必须带 http(s)://"""
+    url = (raw or '').strip().rstrip('/')
+    if not url:
+        return '', None
+    if not url.lower().startswith(('http://', 'https://')):
+        return '', '公网地址需以 http:// 或 https:// 开头，例如 https://file.example.com'
+    return url, None
 
 
 # ============================================================
@@ -149,40 +123,22 @@ def _check_port_available(port):
 @gateway_bp.route('')
 @gateway_bp.route('/')
 def gateway_index():
-    """Gateway 反代管理页面"""
+    """Gateway 访问配置页面"""
     local_ip = _get_local_ip()
     local_port = os.environ.get('PORT', '5557')
     gateway_prefix = os.environ.get('GATEWAY_PREFIX', '/app/file-collector')
 
-    # 获取所有证书（排除规则已在 load_certs 层处理）
-    certs = CertManager.get_certs_for_display() if CertManager else []
-
-    status = RPROXY_PM.status() if RPROXY_PM else {'running': False, 'message': '模块未加载'}
-    config = RPROXY_PM.get_config() if RPROXY_PM else {}
-
     # 获取版本号（与 manifest 同步）
-    version = "2.3.53"
-    try:
-        from app import VERSION
-        version = VERSION
-    except Exception:
-        pass
-
-    # 获取上传目录路径（与 /admin/settings 一致：自定义路径优先，否则默认）
+    version = "2.5.0"
     upload_base = ''
-    try:
-        from app import get_upload_base
-        upload_base = get_upload_base() or ''
-    except Exception:
-        pass
-
-    # 数据目录（与 /admin/settings「系统信息」一致：仅显示目录，不暴露完整文件名）
     data_dir = ''
     try:
-        from app import DB_PATH
-        data_dir = os.path.dirname(DB_PATH)
-    except Exception:
-        pass
+        import app as _app
+        version = _app.VERSION
+        upload_base = _app.get_upload_base() or ''
+        data_dir = os.path.dirname(_app.DB_PATH)
+    except Exception as e:
+        logger.warning(f'读取应用信息失败: {e}')
 
     # 当前访客是否为飞牛管理员：以应用会话为准（由网关 SSO 建立），
     # 不直接读取 X-Trim-Isadmin 头（该头可被客户端伪造）
@@ -192,148 +148,49 @@ def gateway_index():
         local_ip=local_ip,
         local_port=local_port,
         gateway_prefix=gateway_prefix,
-        certs=certs,
-        status=status,
-        config=config,
+        public_url=_current_public_url(),
         version=version,
         upload_base=upload_base,
         data_dir=data_dir,
         is_fn_admin=is_fn_admin,
-        csrf_token=session.get('csrf_token', ''),
-        all_certs_json=json.dumps(certs, ensure_ascii=False))
+        csrf_token=session.get('csrf_token', ''))
 
 
 # ============================================================
 # API 路由
 # ============================================================
-@gateway_bp.route('/api/status')
-def api_gateway_status():
-    """获取反代运行状态"""
-    err = _check_rp()
-    if err: return err
-    return jsonify(RPROXY_PM.status())
+@gateway_bp.route('/api/access')
+def api_access_info():
+    """访问配置信息：内网访问地址 + 当前生效的公网地址"""
+    return jsonify({
+        'local_url': _local_address(),
+        'public_url': _current_public_url(),
+    })
 
 
-@gateway_bp.route('/api/certs')
-def api_gateway_certs():
-    """获取飞牛证书列表（返回所有证书，排除规则已在 load_certs 层处理）"""
-    if CertManager is None:
-        return jsonify({'certs': [], 'domains': []})
-    certs = CertManager.get_certs_for_display()
-    domains = []
-    for cert in certs:
-        sans = cert.get('sans', [])
-        if not sans:
-            sans = [cert.get('domain', '')]
-        for san in sans:
-            if san and san not in domains:
-                domains.append(san)
-    return jsonify({'certs': certs, 'domains': domains})
-
-
-@gateway_bp.route('/api/start', methods=['POST'])
-def api_gateway_start():
-    """启动反向代理"""
+@gateway_bp.route('/api/access/public-url', methods=['POST'])
+def api_access_save():
+    """保存公网访问地址（写入 settings.public_url，与 /admin/settings 同源）"""
     if not _validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
     try:
-        data = request.get_json(force=True)
+        data = request.get_json(force=True) or {}
     except Exception:
         return jsonify({'success': False, 'message': '请求格式错误'})
 
-    domain = (str(data.get('domain', '') or '')).strip()
-    port_str = (str(data.get('port', '') or '')).strip()
-
-    if not domain:
-        return jsonify({'success': False, 'message': '请选择域名'})
+    url, err = _normalize_public_url(data.get('public_url', ''))
+    if err:
+        return jsonify({'success': False, 'message': err})
 
     try:
-        port = int(port_str) if port_str else 7786
-    except ValueError:
-        return jsonify({'success': False, 'message': '端口格式错误'})
+        import app as _app
+        _app.set_setting('public_url', url)
+    except Exception as e:
+        logger.warning(f'保存公网地址失败: {e}')
+        return jsonify({'success': False, 'message': '保存失败，请查看应用日志'})
 
-    if port < 1 or port > 65535:
-        return jsonify({'success': False, 'message': '端口范围 1-65535'})
-    if port in (80, 443, 8080):
-        return jsonify({'success': False, 'message': f'端口 {port} 已被飞牛系统占用，请使用其他端口（如 7786）'})
-
-    err = _check_rp()
-    if err: return err
-
-    # 解析证书路径：conf 记录可读则直用，否则自动扫描系统证书目录取最新可读版本
-    if CertManager is None:
-        return jsonify({'success': False, 'message': '证书模块未加载'})
-    cert_path, key_path, cert_err = CertManager.resolve_cert_paths(domain)
-    if not cert_path:
-        return jsonify({'success': False, 'message': cert_err})
-
-    local_port = int(os.environ.get('PORT', 5557))
-
-    success, msg = RPROXY_PM.start(
-        domain, port, cert_path, key_path,
-        f'http://127.0.0.1:{local_port}',
-        gzip_enabled=True, hsts_enabled=True, timeout=600
-    )
-    return jsonify({'success': success, 'message': msg})
-
-
-@gateway_bp.route('/api/stop', methods=['POST'])
-def api_gateway_stop():
-    """停止反向代理"""
-    if not _validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
-    err = _check_rp()
-    if err: return err
-    success, msg = RPROXY_PM.stop()
-    return jsonify({'success': success, 'message': msg})
-
-
-@gateway_bp.route('/api/logs')
-def api_gateway_logs():
-    """获取反代日志"""
-    err = _check_rp()
-    if err: return err
-    limit = request.args.get('limit', '200')
-    try:
-        limit = int(limit)
-    except ValueError:
-        limit = 200
-    return jsonify({'logs': RPROXY_PM.get_logs(limit)})
-
-
-@gateway_bp.route('/api/logs/clear', methods=['POST'])
-def api_gateway_clear_logs():
-    """清除反代日志"""
-    if not _validate_csrf():
-        return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
-    err = _check_rp()
-    if err: return err
-    RPROXY_PM.clear_logs()
-    return jsonify({'success': True})
-
-
-@gateway_bp.route('/api/check-port')
-def api_gateway_check_port():
-    """检测端口是否可用"""
-    port_str = request.args.get('port', '')
-    try:
-        port = int(port_str)
-    except ValueError:
-        return jsonify({'available': False, 'message': '端口格式错误'})
-
-    if port < 1 or port > 65535:
-        return jsonify({'available': False, 'message': '端口范围 1-65535'})
-
-    available = _check_port_available(port)
-    result = {
-        'available': available,
-        'port': port,
-        'message': '端口可用' if available else '端口已被占用'
-    }
-    # 如果被占用，尝试建议一个可用端口
-    if not available:
-        for p in range(port + 1, port + 100):
-            if _check_port_available(p):
-                result['suggested_port'] = p
-                break
-    return jsonify(result)
+    return jsonify({
+        'success': True,
+        'public_url': url,
+        'message': '公网地址已保存' if url else '已清空公网地址',
+    })

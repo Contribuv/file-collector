@@ -4,10 +4,7 @@
 {% block content %}
 <div class="admin-layout"
      data-test-smtp-url="{{ url_for('test_smtp') }}"
-     data-max-file-size-gb="{{ defaults.max_file_size_gb or 1 }}"
-     data-gateway-url="{{ gateway_url or '' }}"
-     data-rp-running="{{ '1' if (rp_status and rp_status.running) else '0' }}"
-     data-gateway-prefix="{{ gateway_prefix or '' }}">
+     data-max-file-size-gb="{{ defaults.max_file_size_gb or 1 }}">
   {% include "_admin_sidebar.html" %}
   <div class="admin-content">
     {% if session.get('sso_need_pwd') %}
@@ -132,18 +129,9 @@
             </div>
             <div class="form-group">
               <label class="form-label" for="public_url">公网网址</label>
-              {% if rp_status and rp_status.running and rp_status.public_url %}
-              <input type="text" id="public_url" name="public_url" class="form-input form-input-sm" readonly
-                     value="{{ rp_status.public_url }}" style="background:#f3f4f6;color:#6b7280;">
-              <div class="form-hint" style="color:#059669;" id="rp-url-hint">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:-2px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg>
-                反向代理已接管，分享链接使用 <strong id="rp-public-url-text">{{ rp_status.public_url }}</strong>
-              </div>
-              {% else %}
               <input type="text" id="public_url" name="public_url" class="form-input form-input-sm"
-                     value="{{ defaults.public_url or '' }}" placeholder="例：https://file.fnos.com:8080">
-              <div class="form-hint" id="rp-url-hint">{% if gateway_url %}通过「<a href="{{ gateway_url }}" target="_blank">统一网关</a>」配置反向代理后，此处将自动使用反代域名。也可手动填写第三方反代地址。{% else %}可手动填写公网访问地址（如反代域名）。{% endif %}</div>
-              {% endif %}
+                     value="{{ defaults.public_url or '' }}" placeholder="例：https://file.example.com">
+              <div class="form-hint" id="public-url-hint">自行用反向代理把应用暴露到公网后，把公网访问地址填在这里{% if gateway_url %}（与「<a href="{{ gateway_url }}" target="_blank">访问配置</a>」页是同一个值）{% endif %}。留空则链接使用内网地址。</div>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -546,63 +534,6 @@ function initSizeUnitToggle(valId, unitId, hidId, gbVal) {
 
   // 单文件上限 MB/GB 切换
   (function() { initSizeUnitToggle('default_max_size_val', 'default_max_size_unit', 'default_max_size', SETTINGS_CFG.maxFileSizeGb); })();
-
-  // ====== 反向代理状态轮询，保持公网网址实时同步 ======
-  (function() {
-    // 端口直连时 /gateway 接口一律 404，跳过轮询避免无谓请求
-    var gwAvailable = !!SETTINGS_CFG.gatewayUrl;
-    if (!gwAvailable) return;
-    var lastRunning = SETTINGS_CFG.rpRunning === '1';
-    var gwPrefix = SETTINGS_CFG.gatewayPrefix || '/app/file-collector';
-    var publicUrlInput = document.getElementById('public_url');
-    var rpUrlHint = document.getElementById('rp-url-hint');
-    var rpUrlText = document.getElementById('rp-public-url-text');
-    var firstLoad = true;
-
-    function pollRpStatus() {
-      // 兼容统一网关前缀和直接访问
-      var apiUrl = window.location.pathname.indexOf(gwPrefix) === 0
-        ? gwPrefix + '/gateway/api/status'
-        : '/gateway/api/status';
-      fetch(apiUrl).then(function(r){return r.json();}).then(function(d){
-        var nowRunning = d.running;
-        if (firstLoad || nowRunning !== lastRunning || (nowRunning && rpUrlText && rpUrlText.textContent !== d.public_url)) {
-          lastRunning = nowRunning;
-          firstLoad = false;
-          // 更新公网网址输入框
-          if (publicUrlInput) {
-            if (nowRunning && d.public_url) {
-              publicUrlInput.value = d.public_url;
-              publicUrlInput.readOnly = true;
-              publicUrlInput.style.background = '#f3f4f6';
-              publicUrlInput.style.color = '#6b7280';
-            } else {
-              publicUrlInput.readOnly = false;
-              publicUrlInput.style.background = '';
-              publicUrlInput.style.color = '';
-            }
-          }
-          // 更新公网网址提示
-          if (rpUrlHint) {
-            if (nowRunning && d.public_url) {
-              rpUrlHint.style.color = '#059669';
-              rpUrlHint.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:-2px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><circle cx="12" cy="16" r="1"/></svg> 反向代理已接管，分享链接使用 <strong id="rp-public-url-text">' + (d.public_url || '') + '</strong>';
-              rpUrlText = document.getElementById('rp-public-url-text');
-            } else {
-              rpUrlHint.style.cssText = '';
-              rpUrlHint.innerHTML = gwAvailable
-                ? '通过「<a href="' + SETTINGS_CFG.gatewayUrl + '" target="_blank">统一网关</a>」配置反向代理后，此处将自动使用反代域名。也可手动填写第三方反代地址。'
-                : '可手动填写公网访问地址（如反代域名）。';
-            }
-          }
-        }
-      }).catch(function(){});
-    }
-
-    // 页面加载后立即刷新一次，然后每 30 秒轮询
-    pollRpStatus();
-    setInterval(pollRpStatus, 30000);
-  })();
 })();
 </script>
 {% endblock %}

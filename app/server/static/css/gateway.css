@@ -149,13 +149,11 @@ body {
     height: 100%;
 }
 
-/* ---- 侧边栏：iOS 液态玻璃（PC 端）+ 放松的分组垂直列表 ---- */
+/* ---- 侧边栏：对齐飞牛原生应用导航——实色导航底（亮色浅灰白 / 暗色近黑），
+   不再用液态玻璃（模糊+高光），分组垂直列表保持放松间距 ---- */
 .mac-sidebar {
     width: 220px;
-    background: var(--gw-liquid-bg);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    box-shadow: inset 0 1px 0 var(--gw-liquid-hi);
+    background: var(--gw-sidebar-bg);
     padding: 16px 12px;
     flex-shrink: 0;
     display: flex;
@@ -220,17 +218,8 @@ body {
     background: rgba(51, 133, 255, .22);
 }
 
-/* 暗色下取消侧栏顶部 1px 液态高光（inset 白线）：近黑底上非常显眼，用户反馈顶部有白线 */
-:root[data-theme="dark"] .mac-sidebar {
-    box-shadow: none;
-}
-
-/* 不支持 backdrop-filter：PC 侧栏退回实色导航底 */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .mac-sidebar {
-        background: var(--gw-sidebar-bg);
-    }
-}
+/* PC 侧栏已是实色导航底（--gw-sidebar-bg），无需玻璃高光与 blur 回退；
+   移动端底部 Tab 在断点内另行声明液态玻璃样式 */
 
 .mac-sidebar-item svg {
     width: 16px;
@@ -254,18 +243,36 @@ body {
     color: var(--gw-text-tertiary);
 }
 
-/* ---- 主内容区：透明铺满，各面板内容以独立卡片呈现在页面底色上
-   （对齐参考控制面板的多卡布局；移动端此前即为该模式） ---- */
+/* ---- 主内容区：对齐飞牛官方应用——圆角描边内容卡浮于页面底色之上
+   （边线外透出 --gw-bg：亮色浅灰 / 暗色近黑，即官方「外层页面底 + 圆角白卡」形态；
+   移动端断点内改回透明铺满 + section 独立卡片） ---- */
 .mac-main {
     flex: 1;
-    margin: 12px 12px 12px 0;
+    margin: 12px;
     padding: 20px 24px;
     overflow-y: auto;
     min-width: 0;
     min-height: 0;
-    background: transparent;
-    border-radius: 0;
+    background: var(--gw-card-bg);
+    border: 1px solid var(--gw-border-light);
+    border-radius: var(--gw-radius-md);
     box-shadow: none;
+}
+
+/* 内容卡变实色后，卡内分组卡改用 fill 底 + 更明确描边分层
+   （对齐官方分组卡：白卡内放浅灰分组，亮暗两主题同理） */
+.mac-main .gateway-card,
+.mac-main .gwa-card,
+.mac-main .gwa-stat {
+    background: var(--gw-fill-0);
+    border-color: var(--gw-border);
+    box-shadow: none;
+}
+
+/* 卡内表格：分组底改 fill 后行 hover 换主色浅底，保证与灰底有可见对比
+   （与文件夹行 hover 一致，亮暗主题同理） */
+.mac-main .gwa-table tbody tr:hover {
+    background: var(--gw-accent-bg);
 }
 
 .mac-section {
@@ -304,7 +311,7 @@ body {
     color: var(--gw-accent);
 }
 
-/* 「公网访问」Tab 内分段小标题：分隔「反向代理配置」与「运行状态」 */
+/* 分段小标题：卡片内上下两块内容的分隔 */
 .section-subtitle {
     font-size: 13px;
     font-weight: 600;
@@ -1227,6 +1234,7 @@ html:not([data-gw-scrolling]) *::-webkit-scrollbar-thumb {
         padding: 8px 10px calc(88px + env(safe-area-inset-bottom));
         background: transparent;
         box-shadow: none;
+        border: 0;
         border-radius: 0;
     }
 

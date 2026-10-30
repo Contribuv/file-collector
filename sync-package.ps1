@@ -36,14 +36,11 @@ foreach ($file in $filesToSync) {
 }
 
 # ---------- 3. 清理不需要打包的内容 ----------
-# rproxy 只保留编译好的二进制，删除 Go 源码与构建脚本
-$rproxyDir = Join-Path $PackageDir "app\rproxy"
-if (Test-Path $rproxyDir) {
-    Remove-Item -Recurse -Force (Join-Path $rproxyDir "src") -ErrorAction SilentlyContinue
-    Remove-Item -Force (Join-Path $rproxyDir "build.sh") -ErrorAction SilentlyContinue
-    Remove-Item -Force (Join-Path $rproxyDir "go.mod") -ErrorAction SilentlyContinue
-    Remove-Item -Force (Join-Path $rproxyDir "go.sum") -ErrorAction SilentlyContinue
-    Write-Host "  已清理 rproxy 源码（仅保留二进制）"
+# 内置反向代理已移除（v2.5.0），避免源目录遗留的空 rproxy 目录混进发布包
+$rproxyRemnant = Join-Path $PackageDir "app\rproxy"
+if (Test-Path $rproxyRemnant) {
+    Remove-Item -Recurse -Force $rproxyRemnant
+    Write-Host "  已清理残留 rproxy 目录"
 }
 
 # Python 字节码缓存与调试用的 source map

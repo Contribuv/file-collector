@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/gateway-admin.css', v=VERSION) }}">
 <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo_192.png', v=VERSION) }}">
 </head>
-<body data-gateway-prefix="{{ gateway_prefix }}" data-default-port="{{ config.port or 7786 }}" data-upload-base="{{ upload_base }}" data-is-fn-admin="{{ '1' if is_fn_admin else '0' }}" data-csrf-token="{{ csrf_token }}">
+<body data-gateway-prefix="{{ gateway_prefix }}" data-upload-base="{{ upload_base }}" data-is-fn-admin="{{ '1' if is_fn_admin else '0' }}" data-csrf-token="{{ csrf_token }}">
 <script>
 // 首屏防闪烁：优先 URL ?theme=，其次读取 sessionStorage 缓存的上次主题；
 // 二者皆无时才用 prefers-color-scheme 猜一次（仅普通手机浏览器首访生效，
@@ -245,13 +245,13 @@ initFnOSTheme();
             </div>
             {% if is_fn_admin %}
             <div class="mac-side-group-title mobile-hidden">工具</div>
-            <!-- 公网访问 / 实时日志：属于网关与反代的管理功能，仅飞牛管理员可见；
-                 公网访问在移动端收入「更多」抽屉（移动端 Tab 第 4 位改放使用说明） -->
+            <!-- 访问配置 / 实时日志：属于网关的管理功能，仅飞牛管理员可见；
+                 访问配置在移动端收入「更多」抽屉（移动端 Tab 第 4 位改放使用说明） -->
             <div class="mac-sidebar-item mobile-hidden" data-section="access" onclick="switchSection('access')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                 </svg>
-                公网访问
+                访问配置
             </div>
             <div class="mac-sidebar-item mobile-hidden" data-section="logs" onclick="switchSection('logs')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -279,7 +279,7 @@ initFnOSTheme();
                 应用信息
             </div>
             {% endif %}
-            <!-- 使用说明：移动端作为第 4 个主 Tab 显示（与「公网访问」对换） -->
+            <!-- 使用说明：移动端作为第 4 个主 Tab 显示（与「访问配置」对换） -->
             <div class="mac-sidebar-item" data-section="manual" onclick="switchSection('manual')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -377,7 +377,7 @@ initFnOSTheme();
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
-                    <span>公网访问</span>
+                    <span>访问配置</span>
                 </div>
                 {% endif %}
                 <div class="more-sheet-item more-sheet-theme-item" onclick="toggleTheme(); closeMoreSheet()">
@@ -406,80 +406,53 @@ initFnOSTheme();
         <div class="mac-main">
 
             {% if is_fn_admin %}
-            <!-- 公网访问：用飞牛证书做反向代理，把服务安全地暴露到外网（仅飞牛管理员） -->
+            <!-- 访问配置：只展示应用访问地址；公网访问由用户自建反向代理后回填（仅飞牛管理员） -->
             <div class="mac-section" id="section-access">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
-                    公网访问
+                    访问配置
                 </h2>
 
-                <!-- 配置：选证书域名 → 填端口 → 启动反代 -->
+                <!-- 应用访问地址：局域网直连地址，同时也是用户做反向代理时的后端目标 -->
                 <div class="gwa-card">
-                    <div class="gwa-card-title">反向代理</div>
-                    <div class="gwa-form-grid">
-                        <div class="gwa-field">
-                            <div class="gwa-label">域名</div>
-                            <select class="form-input" id="domainSelect">
-                                <option value="">加载中...</option>
-                            </select>
-                            <div class="gwa-hint">列出飞牛系统里已签发证书的域名。为空请先在飞牛「证书」中申请，再点下方「刷新证书」。</div>
-                        </div>
-                        <div class="gwa-field">
-                            <div class="gwa-label">HTTPS 端口</div>
-                            <div class="gwa-inline">
-                                <input type="number" class="form-input" id="portInput" value="{{ config.port or 7786 }}" min="1" max="65535">
-                                <span class="port-status port-status-checking" id="portStatus">
-                                    <span class="port-status-dot"></span>
-                                    <span class="port-status-text" id="portStatusText">检测中...</span>
-                                </span>
-                            </div>
-                            <div class="port-suggest" id="portSuggest" style="display:none;">
-                                <span class="port-suggest-text">端口被占用，试试：</span>
-                                <button type="button" class="port-suggest-btn" id="suggestBtn1">7787</button>
-                                <button type="button" class="port-suggest-btn" id="suggestBtn2">7788</button>
-                            </div>
-                            <div class="gwa-hint">路由器需把该端口转发到 NAS 的内网 IP，外网才能访问。</div>
-                        </div>
-                    </div>
-                    <div class="gwa-row" style="margin-top:2px;">
-                        <button class="btn btn-primary btn-sm" id="startBtn" onclick="startProxy()">启动</button>
-                        <button class="btn btn-danger btn-sm" id="stopBtn" onclick="stopProxy()" style="display:none;">停止</button>
-                        <button class="btn btn-default btn-sm" onclick="refreshCerts()">刷新证书</button>
-                    </div>
-                </div>
-
-                <!-- 运行状态：由轮询自动刷新 -->
-                <div class="gwa-card">
-                    <div class="gwa-card-title">运行状态</div>
-                    <div class="gwa-kv">
-                        <span class="k">反向代理</span>
-                        <span class="v">
-                            <span class="status-stopped" id="statusText">
-                                <span class="status-dot"></span>未启动
-                            </span>
-                        </span>
-                    </div>
-                    <div class="gwa-kv">
-                        <span class="k">公网地址</span>
-                        <span class="v">
-                            <div class="url-box" id="urlBox" style="display:none;">
-                                <span id="proxyUrl">--</span>
-                                <button type="button" class="copy-btn" onclick="copyUrl()">复制</button>
-                            </div>
-                            <span id="noUrl" class="gwa-muted">启动后显示；可分享给外网用户</span>
-                        </span>
-                    </div>
+                    <div class="gwa-card-title">应用访问地址</div>
                     <div class="gwa-kv">
                         <span class="k">内网地址</span>
                         <span class="v">
-                            <a class="url-link" id="localUrl" href="http://{{ local_ip }}:{{ local_port }}/" target="_blank">http://{{ local_ip }}:{{ local_port }}/ ↗</a>
-                            <span class="url-hint">仅同一局域网内可访问</span>
+                            <div class="url-box">
+                                <span id="localUrlText">http://{{ local_ip }}:{{ local_port }}/</span>
+                                <button type="button" class="copy-btn" onclick="copyLocalUrl()">复制</button>
+                            </div>
                         </span>
                     </div>
+                    <!-- 提示语与「内网地址」标签左对齐（整行提示，不随值列缩进） -->
+                    <div class="url-hint">同一局域网内可直接打开；应用端口 {{ local_port }}</div>
                     <div class="gwa-row" style="margin-top:8px;">
-                        <button class="btn btn-primary btn-sm" id="openBtn" onclick="openAdmin()" style="display:none;">打开公网后台 ↗</button>
+                        <a class="btn btn-default btn-sm" href="http://{{ local_ip }}:{{ local_port }}/admin/login" target="_blank">打开管理后台 ↗</a>
+                    </div>
+                </div>
+
+                <!-- 公网访问：应用不再内置反代，由用户自建反代后把公网地址回填到这里 -->
+                <div class="gwa-card">
+                    <div class="gwa-card-title">公网访问（自行反向代理）</div>
+                    <div class="gwa-hint" style="line-height:2;">
+                        应用不再内置反向代理，也不会读取飞牛系统的证书。需要外网访问时，请自行用飞牛系统、nginx、Lucky、frp 等做一层反向代理：
+                        <div style="margin-top:6px;">① 反代目标地址填上面「内网地址」</div>
+                        <div>② 域名与 HTTPS 证书在反代那一侧配置</div>
+                        <div>③ 反代通了之后，把完整的公网地址填到下表单并保存——地址要写全、包含端口（例：https://file.example.com:8443；用 443/80 标准端口时可省略），分享与收集链接就会用这个地址</div>
+                    </div>
+                    <div class="gwa-form-grid">
+                        <div class="gwa-field" style="grid-column:1 / -1;">
+                            <div class="gwa-label">公网地址</div>
+                            <div class="gwa-inline">
+                                <input type="text" class="form-input" id="publicUrlInput" placeholder="https://file.example.com:8443"
+                                       value="{{ public_url or '' }}">
+                                <button class="btn btn-primary btn-sm" id="publicUrlBtn" onclick="savePublicUrl()">保存</button>
+                            </div>
+                            <div class="gwa-hint" id="publicUrlHint">留空表示不使用固定公网地址，收集与分享链接会按当前访问的域名生成（内网访问时即内网地址）</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -514,7 +487,7 @@ initFnOSTheme();
             </div>
 
             {% if is_fn_admin %}
-            <!-- 实时日志：反向代理运行日志 + 操作日志（审计），仅飞牛管理员可见 -->
+            <!-- 实时日志：操作日志（审计），仅飞牛管理员可见 -->
             <div class="mac-section" id="section-logs">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -526,25 +499,10 @@ initFnOSTheme();
                     实时日志
                 </h2>
 
-                <div class="gwa-tabs" id="logTabs">
-                    <button type="button" class="gwa-tab active" data-logtab="activity">操作日志</button>
-                    <button type="button" class="gwa-tab" data-logtab="rproxy">反向代理</button>
-                </div>
-
                 <!-- 操作日志（审计）：登录 / 建链 / 删链 / 上传 / 下载 / 用户 / 设置等 -->
                 <div id="logPane-activity">
                     <div class="gwa-panel" data-gwa-panel="logs">
                         <div class="gwa-loading"><span class="gwa-spinner"></span>加载中…</div>
-                    </div>
-                </div>
-
-                <!-- 反向代理运行日志 -->
-                <div id="logPane-rproxy" style="display:none;">
-                    <div class="gwa-card">
-                        <div class="gwa-card-title">反向代理运行日志</div>
-                        <div class="log-box" id="logBox">
-                            <div class="log-line log-info">[系统] 等待反向代理启动...</div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -669,6 +627,8 @@ initFnOSTheme();
                     .doc ul, .doc ol { padding-left:24px; margin:10px 0; }
                     .doc li { margin:6px 0; color:var(--gw-text-secondary); }
                     .doc code { background:var(--gw-fill-0); border:1px solid var(--gw-border); border-radius:4px; padding:0 5px; font-size:13px; color:var(--gw-accent); word-break:break-all; }
+                    .doc pre { background:var(--gw-fill-0); border:1px solid var(--gw-border); border-radius:8px; padding:12px 14px; margin:12px 0; overflow-x:auto; }
+                    .doc pre code { background:none; border:none; padding:0; color:var(--gw-text-primary); font-size:12.5px; line-height:1.7; white-space:pre; word-break:normal; }
                     .doc table { border-collapse:collapse; margin:12px 0; }
                     .doc table td { border:1px solid var(--gw-border); padding:8px 16px; color:var(--gw-text-secondary); }
                     .doc table td:first-child { background:var(--gw-fill-0); }
@@ -709,7 +669,7 @@ initFnOSTheme();
                             <li><a href="#doc-admin">七、管理面板：左边这几栏都是干嘛的</a></li>
                             <li><a href="#doc-settings">八、「收集设置」逐项说清楚</a></li>
                             <li><a href="#doc-batch">九、批量处理文件</a></li>
-                            <li><a href="#doc-reverse">十、想让外面的人也能访问：公网访问</a></li>
+                            <li><a href="#doc-reverse">十、想让外面的人也能访问：访问配置</a></li>
                         </ol>
                     </div>
 
@@ -830,10 +790,10 @@ initFnOSTheme();
                         <p>管理能登录的账号：加人、启停、重置密码、编辑资料，以及生成和管理邀请码。开放注册时，别人凭邀请码就能注册账号。</p>
                         <h3>收集设置</h3>
                         <p>系统配置都在这里。管理员能看到全部设置卡片；普通用户进来只会看到「账号设置」和「我的默认设置」两块。下一节逐项讲。</p>
-                        <h3>公网访问（仅管理员）</h3>
-                        <p>用飞牛系统的证书给应用做反向代理，把服务安全地暴露到外网。最后一节详细讲。</p>
+                        <h3>访问配置（仅管理员）</h3>
+                        <p>显示应用的内网访问地址（做反向代理时的上游目标），并可以把自行做好的反向代理公网地址填在这里。应用不再内置反向代理。最后一节详细讲。</p>
                         <h3>实时日志（仅管理员）</h3>
-                        <p>分两栏：「反向代理」是反代的运行日志，启动失败时来这里看原因；「操作日志」记录谁在什么时候登录、建了/删了哪个链接、传了什么、下载了什么、改了哪些设置，可按分类和关键字筛选。</p>
+                        <p>记录谁在什么时候登录、建了/删了哪个链接、传了什么、下载了什么、改了哪些设置，可按分类和关键字筛选。</p>
                         <h3>查看文件 / 应用信息（仅管理员）</h3>
                         <ul>
                             <li><b>查看文件</b>：显示上传目录位置，一键调用飞牛文件管理器打开它，直接翻硬盘上的文件。</li>
@@ -857,7 +817,7 @@ initFnOSTheme();
                             <ul>
                                 <li><b>站点标题</b>：显示在浏览器标签和页面顶部。</li>
                                 <li><b>分享页标题</b>：不填就沿用站点标题。</li>
-                                <li><b>公网网址</b>：配好反向代理后这里自动带上公网地址；也可手动填第三方反代域名。</li>
+                                <li><b>公网网址</b>：自行做好反向代理后，把公网地址填在这里（与「访问配置」页是同一个值）；不填则链接使用内网地址。</li>
                                 <li><b>收集页页尾、分享页页尾</b>：页面底部的说明文字，比如“有问题请联系李老师”。</li>
                                 <li><b>登录页提示</b>：独立后台登录页底部的提示信息。</li>
                             </ul>
@@ -907,32 +867,51 @@ initFnOSTheme();
                         </div>
 
                         <div id="doc-reverse">
-                            <h2>十、想让外面的人也能访问：公网访问</h2>
-                            <p>默认情况下，应用只在局域网能访问，外面网络进不来。想让外网的朋友也能用，就用「公网访问」里的反向代理，把服务安全地暴露到公网（走 HTTPS 加密）。这几个页面只需要给管理员用。</p>
+                            <h2>十、想让外面的人也能访问：访问配置</h2>
+                            <p>默认情况下，应用只在内网能访问，外面网络进不来。应用本身<b>不再内置反向代理</b>，需要你用现成的工具自行做一层反向代理，再把公网地址回填到「访问配置」页。这样分享出去的收集链接、分享链接就会使用公网地址。这个页面只对管理员开放。</p>
+                            <div class="doc-note"><b>从旧版本升级上来要注意</b>：2.5.0 起内置反向代理整块下线，应用不再监听 HTTPS 端口、也不再读取飞牛系统的证书。之前靠内置反代访问的域名会失效，需要你自己在 Nginx / Lucky / 路由器等处重新配一遍，然后把公网地址回填到本页。</div>
                             <div class="doc-note">
                                 <ul>
-                                    <li>通过反向代理把服务暴露到公网，走 HTTPS 加密</li>
-                                    <li>证书直接读取飞牛系统里已有的，不用自己申请</li>
-                                    <li>支持多台设备同时在线</li>
+                                    <li>页面只展示应用的访问地址，它就是你反代的「上游/目标」</li>
+                                    <li>域名解析、HTTPS 证书、端口转发都在你自己的反代工具里配</li>
+                                    <li>回填公网地址后，链接里显示的地址自动换成公网地址</li>
                                 </ul>
                             </div>
-                            <h3>先做两件准备工作</h3>
+                            <h3>第 1 步：复制应用的访问地址</h3>
+                            <p>左侧点「访问配置」，最上面「应用访问地址」卡片显示的是 <code>http://NAS的IP:应用端口/</code>，比如 <code>http://192.168.1.10:5557/</code>，点右侧按钮一键复制。反代里的「目标地址/上游地址」就填它。</p>
+                            <h3>第 2 步：自行做反向代理</h3>
+                            <p>用你顺手的任意方式把服务暴露出去都可以，例如 NAS 上已装的 Nginx、路由器/OpenWrt 的反代插件、Lucky、云服务器上的 Nginx，或者 frp 之类的内网穿透工具。三个要点：</p>
                             <ol>
-                                <li><b>开 DDNS，拿到域名</b>：在飞牛系统里打开「DDNS」，添加一条解析，绑上你家宽带的动态公网 IP。成功后你会得到一个域名，比如 <code>xxx.fnos.net</code>。这一步的作用，是把外面访问的网址和你家公网 IP 绑定起来。</li>
-                                <li><b>确认域名有证书</b>：飞牛系统会自动给 DDNS 域名申请证书。证书是 HTTPS 加密用的，没有它，HTTPS 访问会报“不安全”。证书的事一般在飞牛系统里勾选“自动申请”就行。</li>
+                                <li><b>上游填内网地址</b>：第 1 步复制的地址，IP 和端口别写错；</li>
+                                <li><b>域名和证书在反代侧配</b>：要走 HTTPS 就在反代工具里配好证书，本应用不参与证书管理；</li>
+                                <li><b>原样转发请求</b>：不要剥掉 Host 头，也不要改写路径前缀。</li>
                             </ol>
-                            <h3>操作步骤（左侧「公网访问」页）</h3>
-                            <p>页面分两张卡片：上面「反向代理」选域名、填端口、点启动；下面「运行状态」显示是否在跑、公网地址、内网地址。</p>
-                            <h4>第 1 步：选域名</h4>
-                            <p>「域名」下拉框里会自动列出飞牛系统里能用的证书域名，挑之前 DDNS 绑定的那个。列表是空的？点「刷新证书」按钮再试；还是没有，说明飞牛系统里 DDNS 和证书没弄好，回到准备工作检查。</p>
-                            <h4>第 2 步：填 HTTPS 端口</h4>
-                            <p>默认填好 <code>7786</code>，一般不用改。如果提示“端口被占用”，页面会给出备用端口建议（7787、7788），点一下换掉就行。记下这个端口号，后面路由器要用。</p>
-                            <h4>第 3 步：点「启动」</h4>
-                            <p>点蓝色「启动」按钮，状态变成运行中，反代就起来了。以后想关掉就点它旁边的「停止」。启动后「公网地址」会显示出来，可以复制。</p>
-                            <div class="doc-note doc-warn">别忘了路由器：请在路由器管理页做「端口转发」（有的路由器叫“端口映射/虚拟服务器”），把第 2 步那个 HTTPS 端口转发到 NAS 的内网 IP。不做这一步，外面还是连不进来。</div>
-                            <h4>第 4 步：浏览器验证</h4>
-                            <p>在外面（手机流量、公司网络）打开 <code>https://你的域名:端口号</code>，能打开就成功了。比如域名是 <code>xxx.fnos.net</code>、端口 <code>7786</code>，地址就是 <code>https://xxx.fnos.net:7786</code>。注意前面带 <code>https://</code>，别漏了。</p>
-                            <div class="doc-note doc-ok">家里宽带如果没有公网 IP（运营商不给你，或你在路由器的“大内网”里），DDNS 拿到域名也连不进来。这种情况可以在路由器上开 UPnP、去运营商要公网 IP，或者用别的穿透方案，那是另一套玩法了。局域网内日常使用则无需这一步，直接从飞牛桌面进入即可。</div>
+                            <h4>Nginx 写法参考</h4>
+                            <p>把 <code>file.example.com</code> 换成你的域名，<code>192.168.1.10:5557</code> 换成「应用访问地址」卡片上的实际 IP 和端口：</p>
+                            <pre><code>server {
+    listen 443 ssl;
+    server_name file.example.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location / {
+        proxy_pass http://192.168.1.10:5557;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 64g;   # 大文件上传，别让 Nginx 先拦下来
+    }
+}</code></pre>
+                            <p>用 Lucky、群晖反代或云服务器反代时思路一样：目标填内网地址、保留 Host 头、把上传体积上限调大（本应用单文件最大 64 GB）。</p>
+                            <div class="doc-note doc-warn">不要把应用挂在子路径下（例如 <code>https://example.com/files/</code>）。应用按根路径设计，子路径会导致页面、接口和上传都打不开，请用独立域名或独立端口。</div>
+                            <div class="doc-note doc-warn">如果 NAS 没有公网 IP（运营商的“大内网”），只配反代也连不进来，还需要做内网穿透，或者在路由器上开端口转发并向运营商申请公网 IP。</div>
+                            <h3>第 3 步：把公网地址填回来</h3>
+                            <p>反代配通、在外网用手机流量能打开之后，回到「访问配置」页，在下方「公网访问」卡片里填入完整的公网地址——要写全、包含端口，例如 <code>https://file.example.com:8443</code>（反代用 443 或 80 标准端口时端口可省略），点保存。地址必须以 <code>http://</code> 或 <code>https://</code> 开头。</p>
+                            <p>保存后，收集链接和分享链接里的域名就会换成这个公网地址，发给别人的就是外网可打开链接。「收集设置 → 页面与品牌 → 公网网址」填的是同一个值，改哪边都一样。</p>
+                            <div class="doc-note doc-warn">这里填的只是「链接里显示的域名」，不会帮你做端口转发。外网能不能访问，取决于你的反向代理和网络环境，与这里填不填无关。</div>
+                            <div class="doc-note doc-ok">只在内网（家里、办公室）用，就完全不用管这一章：不填公网地址时，链接自动使用内网地址。</div>
                         </div>
                         <p>还有不懂的，去官网项目页 <a href="https://www.infowe.site/projects/1" target="_blank" rel="noopener noreferrer">https://www.infowe.site/projects/1</a>，拉到页面底部留个评论。</p>
                     </div>
@@ -1086,15 +1065,9 @@ function toggleTheme() {
 // 全局变量
 // ============================================================
 const gatewayPrefix = document.body.dataset.gatewayPrefix || '';
-// 是否飞牛管理员：非管理员不渲染公网访问/日志 Tab，也不发起相关接口请求
+// 是否飞牛管理员：非管理员不渲染访问配置/日志 Tab，也不发起相关接口请求
 const IS_FN_ADMIN = document.body.dataset.isFnAdmin === '1';
-let isRunning = false;
-let currentDomain = '';
 const CSRF_TOKEN = document.body.dataset.csrfToken || '';
-let currentPort = Number(document.body.dataset.defaultPort) || 7786;
-let portCheckTimer = null;
-let uiLocked = false;
-let uiLockTimer = null;
 
 // ============================================================
 // API 路径
@@ -1110,12 +1083,8 @@ function apiPath(suffix) {
 // 初始化
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // 证书、反代状态、端口检测均属管理功能，仅飞牛管理员才加载与轮询
+    // 更新检查属管理功能，仅飞牛管理员才加载
     if (IS_FN_ADMIN) {
-        loadCerts();
-        poll();
-        setInterval(poll, 3000);
-        initPortCheck();
         initUpdateCheck();
     }
     updateThemeIcon(document.documentElement.getAttribute('data-theme') || 'light');
@@ -1125,393 +1094,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 探测 GitHub 可达性，不可达时版本号链接切换为备用站点
     initVersionLink();
-
-    // 实时日志：反向代理 / 操作日志 分段切换
-    const logTabs = document.getElementById('logTabs');
-    if (logTabs) {
-        logTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('.gwa-tab');
-            if (btn) switchLogTab(btn.getAttribute('data-logtab'));
-        });
-    }
 });
 
-let polling = false;
-async function poll() {
-    if (!IS_FN_ADMIN) return;
-    if (polling) return;
-    polling = true;
-    try {
-        await loadStatus();
-        await loadLogs();
-    } finally {
-        polling = false;
-    }
-}
-
-function lockUI(seconds) {
-    uiLocked = true;
-    if (uiLockTimer) clearTimeout(uiLockTimer);
-    uiLockTimer = setTimeout(() => { uiLocked = false; }, seconds * 1000);
-}
-
-function initPortCheck() {
-    const portInput = document.getElementById('portInput');
-    if (!portInput) return;
-
-    portInput.addEventListener('input', function() {
-        if (isRunning) return;
-        if (portCheckTimer) clearTimeout(portCheckTimer);
-        setPortStatus('checking', '检测中...');
-        portCheckTimer = setTimeout(() => {
-            const port = parseInt(portInput.value);
-            if (port && port > 0 && port <= 65535) {
-                checkPort(port);
-            } else {
-                setPortStatus('invalid', '端口无效');
-            }
-        }, 300);
-    });
-
-    setTimeout(() => {
-        if (!isRunning) {
-            const port = parseInt(portInput.value);
-            if (port && port > 0 && port <= 65535) checkPort(port);
-        }
-    }, 500);
-
-    const suggestBtn1 = document.getElementById('suggestBtn1');
-    const suggestBtn2 = document.getElementById('suggestBtn2');
-    if (suggestBtn1) {
-        suggestBtn1.addEventListener('click', function() {
-            if (isRunning) return;
-            const port = parseInt(this.textContent);
-            portInput.value = port;
-            checkPort(port);
-        });
-    }
-    if (suggestBtn2) {
-        suggestBtn2.addEventListener('click', function() {
-            if (isRunning) return;
-            const port = parseInt(this.textContent);
-            portInput.value = port;
-            checkPort(port);
-        });
-    }
-}
-
 // ============================================================
-// 证书加载
+// 访问配置：复制内网地址 / 保存公网地址
 // ============================================================
-async function loadCerts() {
-    try {
-        const res = await fetch(apiPath('/api/certs')).then(r => r.json());
-        const select = document.getElementById('domainSelect');
-        select.innerHTML = '';
-        if (res.certs && res.certs.length > 0) {
-            const seen = new Set();
-            res.certs.forEach(cert => {
-                const sans = cert.sans || [];
-                sans.forEach(san => {
-                    if (!seen.has(san)) {
-                        seen.add(san);
-                        const opt = document.createElement('option');
-                        opt.value = san;
-                        opt.textContent = san + (cert.expired ? ' (已过期)' : '');
-                        select.appendChild(opt);
-                    }
-                });
-            });
-            if (currentDomain) {
-                select.value = currentDomain;
-            }
-        } else {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '暂无可用证书，请先在飞牛系统中申请';
-            select.appendChild(opt);
-        }
-    } catch(e) {
-        console.error('加载证书失败', e);
-    }
+function copyLocalUrl() {
+    const el = document.getElementById('localUrlText');
+    const url = ((el && el.textContent) || '').trim();
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => {
+        if (window.GW && GW.toast) GW.toast('内网地址已复制', 'success');
+    }).catch(() => {});
 }
 
-async function refreshCerts() {
-    await loadCerts();
-    addLog('success', '证书列表已刷新');
+function setPublicUrlHint(text, isError) {
+    const hint = document.getElementById('publicUrlHint');
+    if (!hint) return;
+    hint.textContent = text;
+    hint.style.color = isError ? 'var(--gw-danger, #dc2626)' : '';
 }
 
-// ============================================================
-// 状态加载
-// ============================================================
-async function loadStatus() {
-    try {
-        const res = await fetch(apiPath('/api/status')).then(r => r.json());
-        if (uiLocked) return;
-        const wasRunning = isRunning;
-        isRunning = res.running || false;
-        currentDomain = res.domain || '';
-        currentPort = res.port || 7786;
-        updateUI();
-        if (isRunning !== wasRunning) {
-            lastLogSignature = '';
-        }
-    } catch(e) {
-        console.error('加载状态失败', e);
-    }
-}
+async function savePublicUrl() {
+    const input = document.getElementById('publicUrlInput');
+    const btn = document.getElementById('publicUrlBtn');
+    if (!input) return;
 
-function updateUI() {
-    const statusText = document.getElementById('statusText');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const urlBox = document.getElementById('urlBox');
-    const noUrl = document.getElementById('noUrl');
-    const openBtn = document.getElementById('openBtn');
-    const portInput = document.getElementById('portInput');
-
-    if (isRunning) {
-        portInput.value = currentPort;
-        portInput.disabled = true;
-        statusText.className = 'status-running';
-        statusText.innerHTML = '<span class="status-dot"></span>运行中';
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-flex';
-        urlBox.style.display = 'flex';
-        noUrl.style.display = 'none';
-        openBtn.style.display = 'inline-flex';
-
-        setPortStatus('available', '反代运行中');
-        hideSuggest();
-
-        const url = `https://${currentDomain}:${currentPort}`;
-        document.getElementById('proxyUrl').textContent = url;
-    } else {
-        portInput.disabled = false;
-        statusText.className = 'status-stopped';
-        statusText.innerHTML = '<span class="status-dot"></span>未启动';
-        startBtn.style.display = 'inline-flex';
-        stopBtn.style.display = 'none';
-        urlBox.style.display = 'none';
-        noUrl.style.display = 'inline';
-        openBtn.style.display = 'none';
-    }
-}
-
-// ============================================================
-// 端口检测
-// ============================================================
-async function checkPort(port) {
-    if (isRunning) {
-        setPortStatus('available', '反代运行中');
-        hideSuggest();
+    const value = input.value.trim();
+    if (value && !/^https?:\/\//i.test(value)) {
+        setPublicUrlHint('公网地址需以 http:// 或 https:// 开头，例如 https://file.example.com', true);
         return;
     }
+
+    if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
     try {
-        const res = await fetch(apiPath('/api/check-port?port=' + port)).then(r => r.json());
-        if (isRunning) {
-            setPortStatus('available', '反代运行中');
-            hideSuggest();
-            return;
-        }
-        if (res.available) {
-            setPortStatus('available', '端口可用');
-            hideSuggest();
-        } else {
-            setPortStatus('unavailable', res.message || '端口被占用');
-            if (res.suggested_port) {
-                showSuggest(res.suggested_port);
-            } else {
-                hideSuggest();
-            }
-        }
-    } catch(e) {
-        setPortStatus('unknown', '检测失败');
-        hideSuggest();
-    }
-}
-
-function setPortStatus(status, text) {
-    const statusEl = document.getElementById('portStatus');
-    const textEl = document.getElementById('portStatusText');
-    if (!statusEl || !textEl) return;
-    statusEl.className = 'port-status port-status-' + status;
-    textEl.textContent = text;
-}
-
-function showSuggest(suggestedPort) {
-    const suggestEl = document.getElementById('portSuggest');
-    const btn1 = document.getElementById('suggestBtn1');
-    const btn2 = document.getElementById('suggestBtn2');
-    if (!suggestEl) return;
-    suggestEl.style.display = 'flex';
-    if (btn1) { btn1.textContent = suggestedPort; btn1.style.display = 'inline-block'; }
-    if (btn2) { btn2.textContent = suggestedPort + 1; btn2.style.display = 'inline-block'; }
-}
-
-function hideSuggest() {
-    const suggestEl = document.getElementById('portSuggest');
-    if (suggestEl) suggestEl.style.display = 'none';
-}
-
-// ============================================================
-// 启动 / 停止
-// ============================================================
-async function startProxy() {
-    const domain = document.getElementById('domainSelect').value;
-    const port = parseInt(document.getElementById('portInput').value) || 7786;
-
-    if (!domain) { alert('请选择域名'); return; }
-    if (!port || port < 1 || port > 65535) { alert('请输入有效的端口号'); return; }
-
-    setPortStatus('checking', '启动中...');
-
-    try {
-        const res = await fetch(apiPath('/api/start'), {
+        const res = await fetch(apiPath('/api/access/public-url'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
-            body: JSON.stringify({ domain, port })
+            body: JSON.stringify({ public_url: value })
         }).then(r => r.json());
 
         if (res.success) {
-            isRunning = true;
-            currentDomain = domain;
-            currentPort = port;
-            updateUI();
-            lockUI(8);
-            const logBox = document.getElementById('logBox');
-            logBox.innerHTML = '';
-            addLog('info', '反向代理启动中...');
-            lastLogSignature = 'empty';
-            poll();
+            input.value = res.public_url || '';
+            setPublicUrlHint(res.public_url
+                ? '已保存，分享与收集链接将使用该地址'
+                : '已清空，收集与分享链接将按当前访问域名生成');
+            if (window.GW && GW.toast) GW.toast(res.message || '已保存', 'success');
         } else {
-            const msg = res.message || '未知错误';
-            alert('启动失败：' + msg);
-            addLog('error', '启动失败：' + msg);
-            setPortStatus('unavailable', msg);
-            checkPort(port);
+            setPublicUrlHint(res.message || '保存失败', true);
         }
-    } catch(e) {
-        alert('启动请求失败');
-        setPortStatus('unknown', '请求失败');
+    } catch (e) {
+        setPublicUrlHint('保存请求失败，请稍后重试', true);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '保存'; }
     }
-}
-
-async function stopProxy() {
-    if (!confirm('确定停止反向代理？')) return;
-
-    try {
-        const res = await fetch(apiPath('/api/stop'), { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN } }).then(r => r.json());
-        if (res.success) {
-            isRunning = false;
-            updateUI();
-            lockUI(8);
-            const logBox = document.getElementById('logBox');
-            logBox.innerHTML = '';
-            addLog('info', '反向代理已停止');
-            lastLogSignature = 'empty';
-            setTimeout(() => {
-                const port = parseInt(document.getElementById('portInput').value);
-                if (port) checkPort(port);
-            }, 2000);
-        }
-    } catch(e) {
-        console.error('停止失败', e);
-    }
-}
-
-// ============================================================
-// 日志
-// ============================================================
-// 实时日志分段切换：反向代理 / 操作日志
-function switchLogTab(tab) {
-    const tabs = document.getElementById('logTabs');
-    if (tabs) {
-        tabs.querySelectorAll('.gwa-tab').forEach((b) => {
-            b.classList.toggle('active', b.getAttribute('data-logtab') === tab);
-        });
-    }
-    const rp = document.getElementById('logPane-rproxy');
-    const ac = document.getElementById('logPane-activity');
-    if (rp) rp.style.display = (tab === 'rproxy') ? '' : 'none';
-    if (ac) ac.style.display = (tab === 'activity') ? '' : 'none';
-    // 切到操作日志时按需初始化（懒加载）并刷新
-    if (tab === 'activity' && window.GW && GW.ensureSection) GW.ensureSection('logs');
-}
-
-let lastLogSignature = 'empty';
-
-function logSignature(logs) {
-    if (!logs || logs.length === 0) return 'empty';
-    const last = logs[logs.length - 1];
-    return (last.time || last.Time || '') + '|' + (last.msg || last.Msg || '');
-}
-
-async function loadLogs() {
-    try {
-        const res = await fetch(apiPath('/api/logs?limit=50')).then(r => r.json());
-        if (!res.logs) return;
-        const logBox = document.getElementById('logBox');
-        if (!logBox) return;
-
-        const sig = logSignature(res.logs);
-        if (sig === lastLogSignature) return;
-        lastLogSignature = sig;
-
-        logBox.innerHTML = '';
-        if (res.logs.length === 0) {
-            const line = document.createElement('div');
-            line.className = isRunning ? 'log-line log-info' : 'log-line';
-            line.textContent = isRunning ? '[系统] 反向代理运行中...' : '[系统] 等待反向代理启动...';
-            logBox.appendChild(line);
-        } else {
-            res.logs.forEach(entry => appendLogEntry(logBox, entry));
-        }
-        logBox.scrollTop = logBox.scrollHeight;
-    } catch(e) { /* 静默失败 */ }
-}
-
-function appendLogEntry(logBox, entry) {
-    const rawLevel = (entry.level || entry.Level || 'INFO').toUpperCase();
-    let type = 'info';
-    if (rawLevel === 'ERROR') type = 'error';
-    else if (rawLevel === 'SUCCESS') type = 'success';
-    else if (rawLevel === 'WARN') type = 'warn';
-    else if (rawLevel === 'DEBUG') type = 'debug';
-    const msg = entry.msg || entry.Msg || entry.message || '';
-    const time = entry.time || entry.Time || '';
-    const line = document.createElement('div');
-    line.className = 'log-line log-' + type;
-    line.textContent = time ? `[${time}] ${msg}` : msg;
-    logBox.appendChild(line);
-}
-
-function addLog(type, msg) {
-    const logBox = document.getElementById('logBox');
-    if (logBox.children.length === 1 && logBox.children[0].textContent.indexOf('[系统]') === 0) {
-        logBox.innerHTML = '';
-    }
-    const line = document.createElement('div');
-    line.className = 'log-line log-' + type;
-    const time = new Date().toLocaleTimeString();
-    line.textContent = `[${time}] ${msg}`;
-    logBox.appendChild(line);
-    logBox.scrollTop = logBox.scrollHeight;
-}
-
-// ============================================================
-// 辅助函数
-// ============================================================
-function copyUrl() {
-    const url = document.getElementById('proxyUrl').textContent;
-    navigator.clipboard.writeText(url).then(() => {
-        addLog('success', '地址已复制到剪贴板');
-    });
-}
-
-function openAdmin() {
-    const url = document.getElementById('proxyUrl').textContent;
-    window.open(url + '/admin', '_blank');
 }
 
 // 打开飞牛文件管理器到上传目录

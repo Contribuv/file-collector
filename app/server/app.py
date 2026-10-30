@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.4.2"
+VERSION = "2.5.0"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -168,9 +168,8 @@ _GATEWAY_INTERNAL_TOKEN = os.environ.get('FC_GATEWAY_INTERNAL_TOKEN') or secrets
 os.environ['FC_GATEWAY_INTERNAL_TOKEN'] = _GATEWAY_INTERNAL_TOKEN
 _GATEWAY_INTERNAL_HEADER = 'X-FC-Gateway-Proxy'
 
-# Gateway 反代管理模块（无需登录，飞牛统一网关已做认证）
-# 注意：gateway_api 依赖 rproxy_manager 和 cert_manager，
-# 这些模块可能在部分环境加载失败，因此用 try/except 保护
+# Gateway 管理模块（无需登录，飞牛统一网关已做认证）
+# gateway_api 在部分环境可能加载失败，因此用 try/except 保护
 gateway_bp = None
 try:
     from gateway_api import gateway_bp as _bp
@@ -208,12 +207,6 @@ def _precompile_templates():
         except Exception:
             pass
 _precompile_templates()
-
-# 内置反向代理引擎（Go 版本）
-import rproxy_manager
-from cert_manager import CertManager
-
-RPROXY_PM = rproxy_manager.GoRProxyManager()
 
 # 反向代理支持：修正 request.remote_addr / request.scheme
 # x_for=1 信任 1 层反向代理（最常见的 Nginx/Unix Socket 单层反代场景）
@@ -2913,14 +2906,9 @@ def _check_link_ownership(link_id):
 
 def _resolve_public_url(user_id=None):
     """
-    解析有效的公网地址：
-    1. 反代运行中 → 使用反代域名
-    2. 手动设置的 public_url
-    3. 空（前端回退到 window.location.origin）
+    解析有效的公网地址：取用户/全局手动设置的值（用户在「访问配置」里填写）；
+    未设置时返回空，前端回退到 window.location.origin
     """
-    rp_public = RPROXY_PM.get_public_url()
-    if rp_public:
-        return rp_public
     if user_id:
         return get_user_setting(user_id, 'public_url', get_setting('public_url', ''))
     return get_setting('public_url', '')
@@ -10066,10 +10054,8 @@ def admin_settings():
             set_setting('site_title', title)
             footer_text = request.form.get('collect_footer_text', '').strip()
             set_setting('collect_footer_text', footer_text)
-            # 反代运行时 public_url 为只读，不覆盖用户手动设置的值
-            if not RPROXY_PM.get_public_url():
-                public_url = request.form.get('public_url', '').strip()
-                set_setting('public_url', public_url)
+            public_url = request.form.get('public_url', '').strip()
+            set_setting('public_url', public_url)
             share_title = request.form.get('share_page_title', '').strip()
             share_footer = request.form.get('share_footer_text', '').strip()
             set_setting('share_page_title', share_title)
@@ -10232,7 +10218,6 @@ def admin_settings():
         sys_info=sys_info,
         gateway_prefix=os.environ.get('GATEWAY_PREFIX', '/app/file-collector'),
         gateway_url=gateway_url,
-        rp_status=RPROXY_PM.status(),
         version=VERSION)
 
 
@@ -10677,30 +10662,6 @@ if __name__ == '__main__':
         # 启动时按需修复不匹配的 stored_path（如管理员修改了上传路径后重启）
         _auto_migrate_on_startup()
         start_bg_scanner(interval=30)
-
-        # 反代自动恢复：NAS 重启后用保存的配置自动重启反代
-        # 用文件锁确保只一个 worker 执行（多 worker 场景）
-        import fcntl
-        lock_path = os.path.join(DATA_DIR, '.rproxy_recover.lock')
-        try:
-            lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
-            # 非阻塞获取排他锁，只有一个 worker 能成功
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            got_lock = True
-        except (IOError, OSError):
-            got_lock = False
-
-        if got_lock:
-            import threading
-            def _delayed_auto_recover():
-                time.sleep(3)  # 等待 Flask 完全初始化
-                try:
-                    if RPROXY_PM and RPROXY_PM.is_available():
-                        RPROXY_PM.auto_recover()
-                except Exception as e:
-                    logger.warning(f'反代自动恢复异常: {e}')
-            t = threading.Thread(target=_delayed_auto_recover, daemon=True)
-            t.start()
 
     options = {
         'bind': f'0.0.0.0:{PORT}',

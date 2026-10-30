@@ -47,7 +47,7 @@ _ADMIN_ONLY_ENDPOINTS = {
     'gateway_admin.api_invites_list',
     'gateway_admin.api_invites_generate',
     'gateway_admin.api_invites_delete',
-    # 收集设置（管理项：页面品牌 / 上传路径 / 功能开关 / 邮件 / 备份恢复 / 反代状态）
+    # 收集设置（管理项：页面品牌 / 上传路径 / 功能开关 / 邮件 / 备份恢复）
     'gateway_admin.api_settings_page_branding',
     'gateway_admin.api_settings_upload_path',
     'gateway_admin.api_settings_feature_toggles',
@@ -55,7 +55,6 @@ _ADMIN_ONLY_ENDPOINTS = {
     'gateway_admin.api_settings_test_smtp',
     'gateway_admin.api_settings_backup',
     'gateway_admin.api_settings_restore',
-    'gateway_admin.api_settings_reverse_proxy',
     # 操作日志（审计）
     'gateway_admin.api_activity_logs',
 }
@@ -574,13 +573,6 @@ def api_settings_test_smtp():
     if not ok:
         return jsonify({'ok': False, 'message': message}), 400
     return jsonify({'ok': True, 'message': message})
-
-
-@gateway_admin_bp.route('/api/settings/reverse-proxy')
-def api_settings_reverse_proxy():
-    """反向代理运行状态（仅管理员，供轮询刷新）。"""
-    from admin_services import reverse_proxy_status
-    return jsonify({'ok': True, 'status': reverse_proxy_status()})
 
 
 @gateway_admin_bp.route('/api/settings/backup')

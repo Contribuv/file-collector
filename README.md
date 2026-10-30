@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.4.2-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.5.0-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -81,8 +81,8 @@
 - **📋 文件记录** — 分页浏览、按链接过滤、批量删除、在线预览与下载（窄屏自动转卡片布局）
 - **👥 用户管理** — 用户列表、编辑/启停/重置密码/删除（至少保留一个管理员）、邀请码管理
 - **⚙️ 收集设置** — 账号与密码、页面与品牌、默认上传参数、上传路径、功能开关、邮件（SMTP）、数据库备份与恢复
-- **🌐 公网访问** — 反向代理启停、证书配置、端口检测
-- **📜 实时日志** — 操作日志 / 反向代理日志
+- **🌐 访问配置** — 展示应用内网访问地址，自行反向代理后回填公网网址
+- **📜 实时日志** — 操作日志（登录、链接、上传、下载、设置变更）
 - **ℹ️ 应用信息** — 版本、数据库路径、上传目录、监听端口、版本更新检测
 - **📖 使用说明** — 内置图文教程（跟随明暗主题）
 
@@ -128,10 +128,8 @@ file-collector/
 │   │   ├── app.py                   # Flask 主应用（路由、数据库、旧后台 /admin 业务）
 │   │   ├── admin_services.py        # 网关面板业务逻辑（与请求无关的纯函数）
 │   │   ├── gateway_admin_api.py     # 网关面板 JSON API（独立 Blueprint，/gateway/admin）
-│   │   ├── gateway_api.py           # 飞牛统一网关反代管理 API（独立 Blueprint）
+│   │   ├── gateway_api.py           # 统一网关「访问配置」页与接口（独立 Blueprint）
 │   │   ├── gateway_guard.py         # 网关来源判定与访问守卫
-│   │   ├── rproxy_manager.py        # Go 反向代理管理器（HTTPS + HTTP→HTTPS 301）
-│   │   ├── cert_manager.py          # 飞牛证书管理模块
 │   │   ├── office.py / pdf.py / txt.py   # 各预览渲染模块
 │   │   ├── templates/
 │   │   │   ├── gateway.html         # 统一网关集成面板（单页）
@@ -143,7 +141,6 @@ file-collector/
 │   │   │       ├── gateway-admin.js # 网关面板框架（模态框 / 气泡 / API 封装）
 │   │   │       └── gateway-admin/   # 各 Tab 脚本（gw-dashboard / gw-links / gw-users…）
 │   │   └── office/                  # OnlyOffice WASM 静态资源（离线预览）
-│   ├── rproxy/                      # Go 反向代理（编译产物 fc-rproxy-amd64/arm64，源码见 src/ 与 .github/workflows）
 │   └── ui/                          # 桌面图标资源
 ├── cmd/
 │   ├── main                         # 生命周期管理（start/stop/status/uninstall）
@@ -306,6 +303,15 @@ GET /api/status
 
 ## 📋 更新日志
 
+### v2.5.0
+- **移除内置反向代理**：应用不再读取飞牛系统证书、不再自带 HTTPS 监听，也不再启动 Go 反代进程。此前飞牛系统证书文件属组为 `www-data`（`root:www-data 660`），第三方应用无读权限，内置反代在多数环境根本无法启动，因此整体下线（`rproxy_manager.py`、`cert_manager.py`、`app/rproxy/` 及构建工作流一并删除）
+- **「公网访问」改名为「访问配置」**：页面只展示应用的访问地址（`http://NAS-IP:应用端口/`，可一键复制），并给出自行反代的三个要点；下方表单可回填反向代理后的公网地址，保存到 `settings.public_url`，与「收集设置 → 页面与品牌 → 公网网址」是同一个值，收集页与分享页链接随即使之生效
+- **清理相关 UI 与逻辑**：删除反代启停按钮、证书下拉、端口检测、运行状态卡片、实时日志中的「反向代理」分栏，以及「收集设置」里反代接管时的只读与 30 秒轮询同步逻辑
+- **网关界面风格对齐飞牛官方应用（明暗双主题）**：PC 侧栏改为实色导航底（浅色浅灰白 / 深色近黑，去掉液态玻璃模糊与高光）；主内容区改为官方同款「圆角描边内容卡浮于页面底色之上」的形态（12px 圆角 + 1px 细描边，边线外透出浅灰/近黑页面底色）；卡内分组卡统一 fill 浅灰分组底 + 明确描边，表格行 hover 换主色浅底保证可见；「访问配置」地址框对齐原生输入控件质感
+
+<details>
+<summary><b>📜 历史版本（v2.4.2 及更早，点击展开）</b></summary>
+
 ### v2.4.2
 - **修复证书续期后反向代理起不来**：飞牛的 `network_cert_all.conf` 是系统侧快照，证书 ACME 自动续期后里面记录的 `sum` 目录可能已变成历史版本，旧目录还常被权限收紧。旧逻辑照着 conf 路径取证书，读不到就报「未找到证书」、或恢复时静默放弃。现在按域名解析证书路径：conf 记录可读就直用（常规场景零开销），不可读则扫描 `/usr/trim/var/trim_connect/ssls/<domain>/` 下的签发时间戳目录，从新到旧取第一个可读版本；全部不可读时给出明确中文提示，引导到系统证书设置重新应用
 - **证书轮换后恢复与重载同步生效**：反向代理重启恢复、「重载证书」两条路径都改为先按域名重新解析路径，不再继续拿着失效的旧路径；重载成功后把运行配置更新为实际生效的新路径与 sum，后续状态比对不再误判
@@ -317,7 +323,7 @@ GET /api/status
 - **界面**：附件选择器改为网关同款单行紧凑样式；记录列表超长文件名单行省略截短；侧栏主题三态「跟随飞牛 / 深色主题 / 浅色主题」，手动选择刷新保持
 
 <details>
-<summary><b>📜 历史版本（v2.4.0 及更早，点击展开）</b></summary>
+<summary><b>📜 更早版本（v2.4.0 及更早，点击展开）</b></summary>
 
 ### v2.4.0
 - **收集链接页移动端隐藏「批量删除」与勾选列**：≤900px 时工具栏只保留「创建收集」与「全部创建人」筛选（管理员可见），单条删除改走每行的「操作」浮窗；表格首列勾选框一并收起，移动端卡片行主信息占满整宽。与 v2.3.112 文件记录页隐藏「打包下载 / 批量删除」的处理同口径，批量操作保留为桌面端能力
@@ -1154,6 +1160,8 @@ GET /api/status
 **数据管理**：一键备份/导入 SQLite 数据库、上传记录分页/筛选/批量删除、下载计数、孤儿文件自动清理
 
 **部署与界面**：响应式 UI（桌面 + 移动端）、公网网址配置、页尾自定义、首页介绍页（可开关）、支持 x86 / ARM 平台
+
+</details>
 
 </details>
 

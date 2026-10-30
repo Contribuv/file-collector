@@ -201,8 +201,16 @@ class GoRProxyManager:
             self._clear_state_file()
             return False
 
-        # 检查证书文件是否还存在
-        if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        # 证书可能已轮换（conf 快照滞后/旧 sum 目录权限收紧）：
+        # 优先按域名从系统配置重新解析最新可读路径，解析失败则放弃恢复；
+        # conf 不存在（非飞牛环境）时回退状态文件中的旧路径 + 存在性检查
+        if os.path.exists(CertManager.FLYFISH_CERT_CONF):
+            new_cert, new_key, _err = CertManager.resolve_cert_paths(domain)
+            if not new_cert or not new_key:
+                self._clear_state_file()
+                return False
+            cert_path, key_path = new_cert, new_key
+        elif not os.path.exists(cert_path) or not os.path.exists(key_path):
             self._clear_state_file()
             return False
 
@@ -595,15 +603,23 @@ class GoRProxyManager:
         if not self._last_config:
             return False, '没有配置信息'
 
+        # 证书可能已轮换：优先按域名从系统配置重新解析最新可读路径，
+        # 解析失败时回退上次启动使用的路径
+        cert_path = self._last_config['cert_path']
+        key_path = self._last_config['key_path']
+        domain = self._last_config['domain']
+        if os.path.exists(CertManager.FLYFISH_CERT_CONF):
+            new_cert, new_key, _err = CertManager.resolve_cert_paths(domain)
+            if new_cert and new_key:
+                cert_path, key_path = new_cert, new_key
+
         success, result = self._api_request_no_start('POST', '/reload-cert', {
-            'cert_path': self._last_config['cert_path'],
-            'key_path': self._last_config['key_path'],
+            'cert_path': cert_path,
+            'key_path': key_path,
         })
 
         if success and result.get('success'):
             certs = CertManager.load_certs()
-            cert_path = self._last_config['cert_path']
-            domain = self._last_config['domain']
             cert_sum = ''
             for cert in certs:
                 if (cert.get('fullchain') == cert_path or
@@ -614,6 +630,9 @@ class GoRProxyManager:
                     self._current_cert_sum = cert_sum
                     break
 
+            # 更新运行配置为实际重载的路径（可能与上次启动时不同）
+            self._last_config = dict(self._last_config,
+                                     cert_path=cert_path, key_path=key_path)
             state = self._load_state_file() or {}
             state['cert_sum'] = cert_sum
             state['config'] = self._last_config

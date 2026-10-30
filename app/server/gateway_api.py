@@ -260,22 +260,12 @@ def api_gateway_start():
     err = _check_rp()
     if err: return err
 
-    # 查找证书
+    # 解析证书路径：conf 记录可读则直用，否则自动扫描系统证书目录取最新可读版本
     if CertManager is None:
         return jsonify({'success': False, 'message': '证书模块未加载'})
-    certs = CertManager.load_certs()
-    cert_path = None
-    key_path = None
-    for cert in certs:
-        # 原始数据字段可能是 'san'（单数）
-        sans = cert.get('san', cert.get('sans', []))
-        if domain in sans or domain == cert.get('domain'):
-            cert_path = cert.get('fullchain') or cert.get('certificate')
-            key_path = cert.get('privateKey')
-            break
-
+    cert_path, key_path, cert_err = CertManager.resolve_cert_paths(domain)
     if not cert_path:
-        return jsonify({'success': False, 'message': f'未找到域名 {domain} 的证书'})
+        return jsonify({'success': False, 'message': cert_err})
 
     local_port = int(os.environ.get('PORT', 5557))
 

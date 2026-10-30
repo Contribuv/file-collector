@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.4.1-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-2.4.2-blue" alt="version">
   <img src="https://img.shields.io/badge/python-3.11-green" alt="python">
   <img src="https://img.shields.io/badge/flask-3.0.0-red" alt="flask">
   <img src="https://img.shields.io/badge/platform-fnOS_|_x86_|_ARM-orange" alt="platform">
@@ -305,6 +305,10 @@ GET /api/status
 ---
 
 ## 📋 更新日志
+
+### v2.4.2
+- **修复证书续期后反向代理起不来**：飞牛的 `network_cert_all.conf` 是系统侧快照，证书 ACME 自动续期后里面记录的 `sum` 目录可能已变成历史版本，旧目录还常被权限收紧。旧逻辑照着 conf 路径取证书，读不到就报「未找到证书」、或恢复时静默放弃。现在按域名解析证书路径：conf 记录可读就直用（常规场景零开销），不可读则扫描 `/usr/trim/var/trim_connect/ssls/<domain>/` 下的签发时间戳目录，从新到旧取第一个可读版本；全部不可读时给出明确中文提示，引导到系统证书设置重新应用
+- **证书轮换后恢复与重载同步生效**：反向代理重启恢复、「重载证书」两条路径都改为先按域名重新解析路径，不再继续拿着失效的旧路径；重载成功后把运行配置更新为实际生效的新路径与 sum，后续状态比对不再误判
 
 ### v2.4.1
 - **新增分享页「上传者身份验证」**：开启后访问分享页需通过分享通行证、再认领上传者身份（须为该链接真实上传过的昵称）；认领后仅可见/操作自己上传的文件，URL 冒用他人视角一律拒绝。CSV 导入模板新增可选尾列，旧模板兼容

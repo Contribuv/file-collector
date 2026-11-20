@@ -131,7 +131,7 @@ def _minify_html(html: str) -> str:
 # ============================================================
 # 配置 - 适配 fnOS 环境
 # ============================================================
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 
 # 模板目录指向 app/server/templates
 _TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -2906,12 +2906,27 @@ def _check_link_ownership(link_id):
 
 def _resolve_public_url(user_id=None):
     """
-    解析有效的公网地址：取用户/全局手动设置的值（用户在「访问配置」里填写）；
-    未设置时返回空，前端回退到 window.location.origin
+    解析当前生效的公网地址。
+
+    公网地址只有一个来源：管理员在「访问配置」页填写的 settings.public_url
+    （老后台同名字段已下线，避免多处配置互相覆盖）。未设置时返回空，
+    前端回退到 window.location.origin。
+
+    这里直接读数据库、不走 get_setting 的 30 秒进程内缓存：多 worker 部署时，
+    某个 worker 保存后其它 worker 仍在缓存期内会继续生成旧地址的链接。
+    保留 user_id 形参是为了兼容既有调用点；公网地址不再按用户区分。
     """
-    if user_id:
-        return get_user_setting(user_id, 'public_url', get_setting('public_url', ''))
-    return get_setting('public_url', '')
+    try:
+        conn = get_db()
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'public_url'").fetchone()
+        finally:
+            conn.close()
+        return (row['value'] if row else '') or ''
+    except Exception:
+        # 数据库异常时退回缓存读取，避免页面因取不到公网地址而 500
+        return get_setting('public_url', '')
 
 
 @app.after_request
@@ -7645,7 +7660,6 @@ def user_settings():
         'default_link_expire_days': get_user_setting(user_id, 'default_link_expire_days', '30'),
         'links_per_page': get_user_setting(user_id, 'links_per_page', '50'),
         'records_per_page': get_user_setting(user_id, 'records_per_page', '50'),
-        'public_url': _resolve_public_url(user_id),
     }
     user = get_user_by_id(user_id)
     return render_template('admin_user_settings.html', defaults=defaults, user=user)
@@ -9927,9 +9941,7 @@ def admin_settings():
 
         elif action == 'collect_page':
             footer_text = request.form.get('collect_footer_text', '').strip()
-            public_url = request.form.get('public_url', '').strip()
             set_setting('collect_footer_text', footer_text)
-            set_setting('public_url', public_url)
             flash('收集页设置已保存')
 
         elif action == 'landing_page':
@@ -10054,8 +10066,8 @@ def admin_settings():
             set_setting('site_title', title)
             footer_text = request.form.get('collect_footer_text', '').strip()
             set_setting('collect_footer_text', footer_text)
-            public_url = request.form.get('public_url', '').strip()
-            set_setting('public_url', public_url)
+            # 公网地址只在「访问配置」页维护；此处不读 public_url，
+            # 避免用空值覆盖已保存的公网地址。
             share_title = request.form.get('share_page_title', '').strip()
             share_footer = request.form.get('share_footer_text', '').strip()
             set_setting('share_page_title', share_title)
@@ -10176,7 +10188,6 @@ def admin_settings():
         'collect_footer_text': get_setting('collect_footer_text', ''),
         'share_page_title': get_setting('share_page_title', ''),
         'share_footer_text': get_setting('share_footer_text', ''),
-        'public_url': _resolve_public_url(),
         'landing_page_enabled': get_setting('landing_page_enabled', '1'),
         'passcode_ttl_minutes': get_setting('passcode_ttl_minutes', '120'),
         'blocked_extensions': get_setting('blocked_extensions', ''),

@@ -817,10 +817,10 @@ initFnOSTheme();
                             <ul>
                                 <li><b>站点标题</b>：显示在浏览器标签和页面顶部。</li>
                                 <li><b>分享页标题</b>：不填就沿用站点标题。</li>
-                                <li><b>公网网址</b>：自行做好反向代理后，把公网地址填在这里（与「访问配置」页是同一个值）；不填则链接使用内网地址。</li>
                                 <li><b>收集页页尾、分享页页尾</b>：页面底部的说明文字，比如“有问题请联系李老师”。</li>
                                 <li><b>登录页提示</b>：独立后台登录页底部的提示信息。</li>
                             </ul>
+                            <p>公网地址不在这一卡片里：需要外网访问时，请到左侧「访问配置」页回填，全站只有这一处入口。</p>
                             <h3>3. 默认设置（全局）</h3>
                             <p>新建收集链接时的默认值。创建链接时不单独设，就用这里的默认（普通用户这里是「我的默认设置」，仅对自己生效）：</p>
                             <ul>
@@ -909,7 +909,7 @@ initFnOSTheme();
                             <div class="doc-note doc-warn">如果 NAS 没有公网 IP（运营商的“大内网”），只配反代也连不进来，还需要做内网穿透，或者在路由器上开端口转发并向运营商申请公网 IP。</div>
                             <h3>第 3 步：把公网地址填回来</h3>
                             <p>反代配通、在外网用手机流量能打开之后，回到「访问配置」页，在下方「公网访问」卡片里填入完整的公网地址——要写全、包含端口，例如 <code>https://file.example.com:8443</code>（反代用 443 或 80 标准端口时端口可省略），点保存。地址必须以 <code>http://</code> 或 <code>https://</code> 开头。</p>
-                            <p>保存后，收集链接和分享链接里的域名就会换成这个公网地址，发给别人的就是外网可打开链接。「收集设置 → 页面与品牌 → 公网网址」填的是同一个值，改哪边都一样。</p>
+                            <p>保存后，收集链接和分享链接里的域名就会换成这个公网地址，发给别人的就是外网可打开链接。公网地址只在「访问配置」这一处维护，「收集设置」里没有重复入口。</p>
                             <div class="doc-note doc-warn">这里填的只是「链接里显示的域名」，不会帮你做端口转发。外网能不能访问，取决于你的反向代理和网络环境，与这里填不填无关。</div>
                             <div class="doc-note doc-ok">只在内网（家里、办公室）用，就完全不用管这一章：不填公网地址时，链接自动使用内网地址。</div>
                         </div>
@@ -1128,20 +1128,23 @@ async function savePublicUrl() {
 
     if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
     try {
-        const res = await fetch(apiPath('/api/access/public-url'), {
+        const resp = await fetch(apiPath('/api/access/public-url'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
             body: JSON.stringify({ public_url: value })
-        }).then(r => r.json());
+        });
+        // 网关/反代异常时可能返回 HTML 错误页，先宽松解析再判断 HTTP 状态
+        let res = {};
+        try { res = await resp.json(); } catch (e) { res = {}; }
 
-        if (res.success) {
+        if (resp.ok && res.success) {
             input.value = res.public_url || '';
             setPublicUrlHint(res.public_url
                 ? '已保存，分享与收集链接将使用该地址'
                 : '已清空，收集与分享链接将按当前访问域名生成');
             if (window.GW && GW.toast) GW.toast(res.message || '已保存', 'success');
         } else {
-            setPublicUrlHint(res.message || '保存失败', true);
+            setPublicUrlHint(res.message || ('保存失败（HTTP ' + resp.status + '）'), true);
         }
     } catch (e) {
         setPublicUrlHint('保存请求失败，请稍后重试', true);

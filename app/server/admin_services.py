@@ -1570,7 +1570,7 @@ def _settings_defaults(user_id, is_admin):
 def settings_overview(user_id, is_admin, sso_need_pwd=False, gateway_available=False):
     """设置面板初始数据（按角色裁剪敏感项）。
 
-    :param gateway_available: 是否经统一网关访问（决定公网/反代相关展示）。
+    :param gateway_available: 是否经统一网关访问（保留以兼容调用方，当前展示不再区分）。
     """
     a = _app()
     data = {
@@ -1590,7 +1590,6 @@ def settings_overview(user_id, is_admin, sso_need_pwd=False, gateway_available=F
         'collect_footer_text': a.get_setting('collect_footer_text', ''),
         'share_footer_text': a.get_setting('share_footer_text', ''),
         'login_tip': a.get_setting('login_tip', '默认账户 admin / admin123，请及时修改'),
-        'public_url': a._resolve_public_url(),
     }
     data['toggles'] = {
         'allow_registration': a.get_setting('allow_registration', '0'),
@@ -1845,7 +1844,8 @@ def save_settings(section, form, user_id, is_admin):
         a.set_setting('share_page_title', (form.get('share_page_title') or '').strip())
         a.set_setting('share_footer_text', (form.get('share_footer_text') or '').strip())
         a.set_setting('login_tip', (form.get('login_tip_text') or '').strip())
-        a.set_setting('public_url', (form.get('public_url') or '').strip())
+        # 公网地址只在「访问配置」页维护，这里不得读写 settings.public_url，
+        # 否则保存品牌设置时会用表单里的空值把已配置的公网地址清掉。
         _log('保存「页面与品牌」设置')
         return True, '页面与品牌设置已保存'
 

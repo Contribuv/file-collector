@@ -3,7 +3,7 @@
    - 管理员：账号 / 页面与品牌 / 默认设置（全局）/ 上传路径 /
              功能开关 / 邮件（SMTP）/ 数据库备份恢复
    - 普通用户：账号 / 我的默认设置
-   注：公网网址即「访问配置」Tab 回填的同一个值，此处不再重复展示运行状态。
+   注：公网地址只在「访问配置」Tab 维护，此处不再重复提供入口。
    数据与写入均走 gateway_admin_bp 的 JSON API；角色裁剪在后端完成，
    前端仅按 is_admin 决定渲染哪些卡片。
    ============================================================ */
@@ -136,8 +136,6 @@
             '显示在浏览器标题栏与页面顶部');
         inner += field('分享页标题', inp('share_page_title', b.share_page_title, 'maxlength="60"'),
             '留空则使用站点标题');
-        inner += field('公网网址', inp('public_url', b.public_url),
-            '自行用反向代理把服务暴露到公网后，把反代访问地址填在这里，分享链接会使用该地址');
         inner += '<div class="gwa-form-row">';
         inner += field('收集页页尾', '<textarea class="form-input" name="collect_footer_text" rows="2">' + esc(b.collect_footer_text) + '</textarea>');
         inner += field('分享页页尾', '<textarea class="form-input" name="share_footer_text" rows="2">' + esc(b.share_footer_text) + '</textarea>');

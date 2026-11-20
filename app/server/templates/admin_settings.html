@@ -128,10 +128,7 @@
                      value="{{ defaults.share_page_title or '' }}" maxlength="60" placeholder="留空则使用站点标题">
             </div>
             <div class="form-group">
-              <label class="form-label" for="public_url">公网网址</label>
-              <input type="text" id="public_url" name="public_url" class="form-input form-input-sm"
-                     value="{{ defaults.public_url or '' }}" placeholder="例：https://file.example.com">
-              <div class="form-hint" id="public-url-hint">自行用反向代理把应用暴露到公网后，把公网访问地址填在这里{% if gateway_url %}（与「<a href="{{ gateway_url }}" target="_blank">访问配置</a>」页是同一个值）{% endif %}。留空则链接使用内网地址。</div>
+              <div class="form-hint" id="public-url-hint">公网地址已统一由{% if gateway_url %}「<a href="{{ gateway_url }}" target="_blank">访问配置</a>」{% else %}「访问配置」{% endif %}页维护，此处不再重复设置。</div>
             </div>
             <div class="form-row">
               <div class="form-group">

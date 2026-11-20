@@ -462,7 +462,12 @@ function getBaseUrl() {
     if (pu && !pu.endsWith('/')) pu += '/';
     if (pu) return pu;
   }
-  var origin = window.location.origin;
+  // 未填公网地址时按当前应用所在路径生成：经飞牛统一网关访问时地址带
+  // /app/file-collector 前缀，直接取 origin 会丢掉前缀、生成无效链接。
+  var path = window.location.pathname || '/';
+  var idx = path.indexOf('/admin');
+  var basePath = idx >= 0 ? path.substring(0, idx) : '';
+  var origin = window.location.origin + basePath;
   if (!origin.endsWith('/')) origin += '/';
   return origin;
 }

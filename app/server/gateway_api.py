@@ -4,7 +4,8 @@ Gateway 访问配置 API（独立 Blueprint）
 
 原「内置反向代理」功能已移除：应用不再读取飞牛系统证书、不再自行监听 HTTPS 端口。
 本模块只负责「访问配置」页：展示应用的内网访问地址，并维护用户自行填写的
-公网访问地址（写入 settings.public_url，与 /admin/settings 的「公网网址」同源）。
+公网访问地址（写入 settings.public_url）。这是全站唯一的公网地址入口，
+「收集设置」与老后台 /admin 均不再提供同名字段。
 """
 import os
 import socket
@@ -129,7 +130,7 @@ def gateway_index():
     gateway_prefix = os.environ.get('GATEWAY_PREFIX', '/app/file-collector')
 
     # 获取版本号（与 manifest 同步）
-    version = "2.5.0"
+    version = "2.5.1"
     upload_base = ''
     data_dir = ''
     try:
@@ -170,7 +171,7 @@ def api_access_info():
 
 @gateway_bp.route('/api/access/public-url', methods=['POST'])
 def api_access_save():
-    """保存公网访问地址（写入 settings.public_url，与 /admin/settings 同源）"""
+    """保存公网访问地址（写入 settings.public_url，全站唯一入口）"""
     if not _validate_csrf():
         return jsonify({'success': False, 'message': '安全验证失败，请刷新页面重试'}), 403
     try:
